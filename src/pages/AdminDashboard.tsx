@@ -59,6 +59,7 @@ export default function AdminDashboard() {
 
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [openingDocument, setOpeningDocument] = useState<'license_photo' | 'uber_screenshot' | null>(null);
   
   // Agreement Management State
   const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
@@ -192,6 +193,11 @@ export default function AdminDashboard() {
     onError: () => showNotification('Failed to save agreement', 'error'),
   });
 
+  const generateCheckoutLinkMutation = useMutation({
+    mutationFn: (payload: { application_id: number; car_id: number }) =>
+      api.createVehicleCheckoutLink(payload),
+  });
+
   const deleteAgreementMutation = useMutation({
     mutationFn: (id: number) => api.deleteSavedLeaseAgreement(id),
     onSuccess: () => {
@@ -261,7 +267,57 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleCopyVehicleCheckoutLink = async () => {
+    const application_id = Number(selected_agreement_application_id);
+    const car_id = Number(selected_agreement_car_id);
+
+    if (!application_id || !car_id) {
+      showNotification('Please select both an application and a car', 'error');
+      return;
+    }
+
+    try {
+      const response = await generateCheckoutLinkMutation.mutateAsync({
+        application_id,
+        car_id,
+      });
+      await navigator.clipboard.writeText(response.checkout_url);
+      showNotification('Secure checkout link copied!', 'success');
+    } catch (error: any) {
+      showNotification(
+        error?.response?.data?.error || 'Failed to generate secure checkout link',
+        'error'
+      );
+    }
+  };
+
+  const handleOpenApplicationDocument = async (
+    document: 'license_photo' | 'uber_screenshot'
+  ) => {
+    if (!selectedApplication) {
+      return;
+    }
+
+    setOpeningDocument(document);
+
+    try {
+      const response = await api.fetchApplicationDocumentUrl(selectedApplication.id, document);
+      window.open(response.url, '_blank', 'noopener,noreferrer');
+    } catch {
+      showNotification('Failed to open the latest signed document link', 'error');
+    } finally {
+      setOpeningDocument(null);
+    }
+  };
+
   const approvedApplications = applications.filter(app => app.status === 'Approved' || app.status === 'Paid');
+  const selectedAgreementCar = cars.find(
+    (car) => car.id === Number(selected_agreement_car_id)
+  );
+  const canCopyVehicleCheckoutLink =
+    Boolean(selected_agreement_application_id) &&
+    Boolean(selected_agreement_car_id) &&
+    selectedAgreementCar?.status === 'Available';
   const formatCurrency = (value?: number | string | null) => `$${Number(value ?? 0).toFixed(2)}`;
   const formatDate = (value?: string | null) => {
     if (!value) {
@@ -549,25 +605,6 @@ export default function AdminDashboard() {
                             >
                               <FileText className="w-4 h-4" />
                             </button>
-                            {(app.status === 'Approved' || app.status === 'Paid') && (
-                                <button 
-                                  onClick={() => {
-                                    const firstAvailableCarId = cars.find(c => c.status === 'Available')?.id;
-                                    if (!firstAvailableCarId) {
-                                      showNotification('No available vehicles for checkout', 'error');
-                                      return;
-                                    }
-
-                                    const link = `${window.location.origin}/checkout/${firstAvailableCarId}?application_id=${app.id}`;
-                                    navigator.clipboard.writeText(link);
-                                    showNotification('Checkout link copied!', 'success');
-                                  }}
-                                  className="p-2 bg-brand-gold/10 text-brand-gold rounded-lg hover:bg-brand-gold hover:text-brand-navy transition-all"
-                                  title="Copy Checkout Link"
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </button>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -1104,20 +1141,37 @@ export default function AdminDashboard() {
                       <option value="">Select a car...</option>
                       {cars.map(car => (
                         <option key={car.id} value={car.id}>
-                          {car.name} ({car.model_year})
+                          {car.name} ({car.model_year}) - {car.status}
                         </option>
                       ))}
                     </select>
                   </div>
-                  <button 
-                    disabled={isGeneratingAgreement || !selected_agreement_application_id || !selected_agreement_car_id}
-                    onClick={handleGenerateAgreement}
-                    className="bg-brand-gold text-brand-navy h-[58px] font-bold uppercase tracking-widest text-[10px] hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
-                  >
-                    {isGeneratingAgreement ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                    Generate New Agreement
-                  </button>
+                  <div className="grid grid-cols-1 gap-3">
+                    <button 
+                      disabled={isGeneratingAgreement || !selected_agreement_application_id || !selected_agreement_car_id}
+                      onClick={handleGenerateAgreement}
+                      className="bg-brand-gold text-brand-navy h-[58px] font-bold uppercase tracking-widest text-[10px] hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                    >
+                      {isGeneratingAgreement ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      Generate New Agreement
+                    </button>
+                    <button
+                      disabled={!canCopyVehicleCheckoutLink || generateCheckoutLinkMutation.isPending}
+                      onClick={handleCopyVehicleCheckoutLink}
+                      className="bg-white/5 border border-white/10 text-white h-[58px] font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                    >
+                      {generateCheckoutLinkMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <ExternalLink className="w-4 h-4 text-brand-gold" />
+                      )}
+                      Copy Secure Checkout Link
+                    </button>
+                  </div>
                 </div>
+                <p className="mt-4 text-[11px] text-brand-grey font-light">
+                  Secure checkout links are signed and time-limited. Select an available vehicle before copying the link.
+                </p>
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
@@ -1341,14 +1395,19 @@ export default function AdminDashboard() {
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
                     <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">License Photo</h4>
                     {selectedApplication.license_photo ? (
-                      <a
-                        href={selectedApplication.license_photo}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full inline-flex items-center justify-center gap-3 px-6 py-4 bg-brand-gold text-brand-navy font-bold uppercase tracking-widest text-[10px] hover:bg-brand-gold-light transition-all"
+                      <button
+                        type="button"
+                        onClick={() => handleOpenApplicationDocument('license_photo')}
+                        disabled={openingDocument !== null}
+                        className="w-full inline-flex items-center justify-center gap-3 px-6 py-4 bg-brand-gold text-brand-navy font-bold uppercase tracking-widest text-[10px] hover:bg-brand-gold-light transition-all disabled:opacity-50"
                       >
-                        <ExternalLink className="w-4 h-4" /> Open License Photo
-                      </a>
+                        {openingDocument === 'license_photo' ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ExternalLink className="w-4 h-4" />
+                        )}
+                        Open License Photo
+                      </button>
                     ) : (
                       <div className="px-6 py-4 border border-white/10 rounded-2xl text-brand-grey text-xs font-light">
                         No license photo uploaded.
@@ -1359,14 +1418,19 @@ export default function AdminDashboard() {
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
                     <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Uber Screenshot</h4>
                     {selectedApplication.uber_screenshot ? (
-                      <a
-                        href={selectedApplication.uber_screenshot}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full inline-flex items-center justify-center gap-3 px-6 py-4 bg-white/5 border border-white/10 text-white font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all"
+                      <button
+                        type="button"
+                        onClick={() => handleOpenApplicationDocument('uber_screenshot')}
+                        disabled={openingDocument !== null}
+                        className="w-full inline-flex items-center justify-center gap-3 px-6 py-4 bg-white/5 border border-white/10 text-white font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all disabled:opacity-50"
                       >
-                        <ExternalLink className="w-4 h-4 text-brand-gold" /> Open Uber Screenshot
-                      </a>
+                        {openingDocument === 'uber_screenshot' ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
+                        ) : (
+                          <ExternalLink className="w-4 h-4 text-brand-gold" />
+                        )}
+                        Open Uber Screenshot
+                      </button>
                     ) : (
                       <div className="px-6 py-4 border border-white/10 rounded-2xl text-brand-grey text-xs font-light">
                         No Uber screenshot uploaded.

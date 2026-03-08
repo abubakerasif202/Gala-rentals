@@ -21,5 +21,7 @@ services:
         sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
-      - key: VITE_STRIPE_PUBLIC_KEY
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: CHECKOUT_LINK_SECRET
         sync: false

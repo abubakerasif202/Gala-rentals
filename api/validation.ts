@@ -60,9 +60,21 @@ export const subscriptionPayloadSchema = z.object({
   }
 });
 
-export const paymentIntentPayloadSchema = z.object({
-  booking_id: z.coerce.number().int().positive(),
-  currency: z.string().length(3).default('aud'),
+export const applicationCheckoutSessionSchema = z.object({
+  application_id: z.coerce.number().int().positive(),
+  plan_id: z.string().min(1),
+  checkout_token: z.string().min(1),
+});
+
+export const vehicleCheckoutSessionSchema = z.object({
+  application_id: z.coerce.number().int().positive(),
+  car_id: z.coerce.number().int().positive(),
+  checkout_token: z.string().min(1),
+});
+
+export const vehicleCheckoutLinkSchema = z.object({
+  application_id: z.coerce.number().int().positive(),
+  car_id: z.coerce.number().int().positive(),
 });
 
 export const leaseFeeSchema = z.object({

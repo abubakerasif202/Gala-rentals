@@ -4,6 +4,7 @@ import { authenticateAdmin } from './auth.js';
 import { applicationSchema, applicationStatusEnum } from '../validation.js';
 import { z } from 'zod';
 import crypto from 'crypto';
+import { createCheckoutToken } from '../checkoutTokens.js';
 import {
   getApplicationCreatedAtColumn,
   getApplicationDocumentColumn,
@@ -14,6 +15,7 @@ import {
 const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
+const NO_ROW_ERROR_CODES = new Set(['PGRST116', 'PGRST123']);
 
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
 const SUPABASE_STORAGE_PATH_PREFIXES = [
@@ -63,6 +65,13 @@ const createSignedDocumentUrl = async (path: string | null | undefined) => {
 
   return data.signedUrl;
 };
+
+const isNoRowError = (error: { code?: string; details?: string } | null) =>
+  Boolean(
+    error &&
+      (NO_ROW_ERROR_CODES.has(error.code || '') ||
+        error.details?.toLowerCase().includes('0 rows'))
+  );
 
 router.get('/', authenticateAdmin, async (_req, res) => {
   const selectColumns = await getApplicationSelectColumns();
@@ -126,6 +135,38 @@ router.post('/', async (req, res) => {
     const data = applicationSchema.parse(req.body);
     let licensePhotoUrl = null;
     let uberScreenshotUrl = null;
+    const { data: existingApplication, error: existingApplicationError } = await db
+      .from('applications')
+      .select('id, status, phone, license_number')
+      .eq('email', data.email)
+      .single();
+
+    if (existingApplicationError && !isNoRowError(existingApplicationError)) {
+      throw existingApplicationError;
+    }
+
+    const existingRow = existingApplicationError && isNoRowError(existingApplicationError)
+      ? null
+      : existingApplication;
+    const shouldResetRejectedApplication = existingRow?.status === 'Rejected';
+    const shouldSendConfirmationEmails = !existingRow || shouldResetRejectedApplication;
+
+    if (existingRow) {
+      if (
+        existingRow.phone !== data.phone ||
+        existingRow.license_number !== data.license_number
+      ) {
+        return res.status(409).json({
+          error: 'An application already exists for this email. Contact support to continue.',
+        });
+      }
+
+      if (['Approved', 'Paid'].includes(existingRow.status)) {
+        return res.status(409).json({
+          error: 'This application has already been submitted and is being processed.',
+        });
+      }
+    }
 
     const uploadImage = async (base64Str: string, filePrefix: string) => {
       const match = base64Str.match(/^data:([a-zA-Z0-9-+/=.]+);base64,(.+)$/);
@@ -186,17 +227,35 @@ router.post('/', async (req, res) => {
       license_photo: licensePhotoUrl,
       uber_screenshot: uberScreenshotUrl,
     });
+    let applicationId: number;
 
-    const { data: inserted, error } = await db
-      .from('applications')
-      .insert([payload])
-      .select('id')
-      .single();
+    if (existingRow) {
+      const updatePayload = shouldResetRejectedApplication
+        ? { ...payload, status: 'Pending' }
+        : payload;
+      const { error: updateError } = await db
+        .from('applications')
+        .update(updatePayload)
+        .eq('id', existingRow.id);
 
-    if (error) throw error;
+      if (updateError) {
+        throw updateError;
+      }
+
+      applicationId = Number(existingRow.id);
+    } else {
+      const { data: inserted, error } = await db
+        .from('applications')
+        .insert([payload])
+        .select('id')
+        .single();
+
+      if (error) throw error;
+      applicationId = Number(inserted.id);
+    }
 
     // Send Confirmation Emails via Resend
-    if (process.env.RESEND_API_KEY) {
+    if (process.env.RESEND_API_KEY && shouldSendConfirmationEmails) {
       try {
         const { Resend } = await import('resend');
         const resend = new Resend(process.env.RESEND_API_KEY);
@@ -249,7 +308,17 @@ router.post('/', async (req, res) => {
       }
     }
 
-    res.json({ success: true, application_id: String(inserted.id) });
+    const checkoutToken = createCheckoutToken({
+      applicationId,
+      purpose: 'application',
+    });
+
+    res.json({
+      success: true,
+      application_id: String(applicationId),
+      checkout_token: checkoutToken.token,
+      checkout_token_expires_at: checkoutToken.expiresAt,
+    });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: err.issues });

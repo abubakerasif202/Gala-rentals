@@ -12,6 +12,7 @@ const {
   mockState: {
     cars: [] as Array<Record<string, any>>,
     applications: [] as Array<Record<string, any>>,
+    rentals: [] as Array<Record<string, any>>,
     customers: [] as Array<Record<string, any>>,
     invoices: [] as Array<Record<string, any>>,
     bookings: [] as Array<Record<string, any>>,
@@ -21,9 +22,10 @@ const {
   mockStorageFrom: vi.fn(),
   mockCreateAuthClient: vi.fn(),
   mockStripe: {
-    paymentIntentsCreate: vi.fn(),
-    paymentIntentsRetrieve: vi.fn(),
+    checkoutSessionsCreate: vi.fn(),
     checkoutSessionsRetrieve: vi.fn(),
+    subscriptionsRetrieve: vi.fn(),
+    webhooksConstructEvent: vi.fn(),
   },
 }));
 
@@ -33,18 +35,15 @@ vi.mock('stripe', () => {
     products = { create: vi.fn() };
     prices = { create: vi.fn() };
     invoiceItems = { create: vi.fn() };
-    subscriptions = { create: vi.fn(), retrieve: vi.fn() };
-    paymentIntents = {
-      create: mockStripe.paymentIntentsCreate,
-      retrieve: mockStripe.paymentIntentsRetrieve,
-    };
+    subscriptions = { create: vi.fn(), retrieve: mockStripe.subscriptionsRetrieve };
     checkout = {
       sessions: {
+        create: mockStripe.checkoutSessionsCreate,
         retrieve: mockStripe.checkoutSessionsRetrieve,
       },
     };
     webhooks = {
-      constructEvent: vi.fn(),
+      constructEvent: mockStripe.webhooksConstructEvent,
     };
     accounts = {
       create: vi.fn(),
@@ -76,6 +75,10 @@ vi.mock('../db/index.js', () => {
       return mockState.applications;
     }
 
+    if (table === 'rentals') {
+      return mockState.rentals;
+    }
+
     if (table === 'customers') {
       return mockState.customers;
     }
@@ -102,21 +105,30 @@ vi.mock('../db/index.js', () => {
   const createSelectQuery = (
     table: string,
     filters: Array<{ column: string; value: unknown }> = []
-  ) => ({
-    order: vi.fn(async () => ({
+  ) => {
+    const resolveRows = async () => ({
       data: structuredClone(applyFilters(getTableRows(table), filters)),
       error: null,
-    })),
-    eq: vi.fn((column: string, value: unknown) =>
-      createSelectQuery(table, [...filters, { column, value }])
-    ),
-    single: vi.fn(async () => {
+    });
+
+    return {
+      then: (onFulfilled: (value: { data: Array<Record<string, any>>; error: null }) => unknown) =>
+        resolveRows().then(onFulfilled),
+      order: vi.fn(async () => ({
+        data: structuredClone(applyFilters(getTableRows(table), filters)),
+        error: null,
+      })),
+      eq: vi.fn((column: string, value: unknown) =>
+        createSelectQuery(table, [...filters, { column, value }])
+      ),
+      single: vi.fn(async () => {
       const [row] = applyFilters(getTableRows(table), filters);
       return row
         ? { data: structuredClone(row), error: null }
         : { data: null, error: { message: 'Not found' } };
-    }),
-  });
+      }),
+    };
+  };
 
   const createMutationQuery = (
     table: string,
@@ -140,6 +152,10 @@ vi.mock('../db/index.js', () => {
         mockState.applications = nextRows;
       }
 
+      if (table === 'rentals') {
+        mockState.rentals = nextRows;
+      }
+
       if (table === 'customers') {
         mockState.customers = nextRows;
       }
@@ -156,38 +172,43 @@ vi.mock('../db/index.js', () => {
     }),
   });
 
-  const createInsertQuery = (table: string, records: Array<Record<string, any>>) => ({
-    select: vi.fn(() => ({
-      single: vi.fn(async () => {
-        const currentRows = getTableRows(table);
-        const nextId =
-          currentRows.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1;
-        const insertedRow = { ...records[0], id: nextId };
+  const createInsertQuery = (table: string, records: Array<Record<string, any>>) => {
+    const currentRows = getTableRows(table);
+    const nextId =
+      currentRows.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1;
+    const insertedRow = { ...records[0], id: nextId };
 
-        if (table === 'cars') {
-          mockState.cars = [...mockState.cars, insertedRow];
-        }
+    if (table === 'cars') {
+      mockState.cars = [...mockState.cars, insertedRow];
+    }
 
-        if (table === 'applications') {
-          mockState.applications = [...mockState.applications, insertedRow];
-        }
+    if (table === 'applications') {
+      mockState.applications = [...mockState.applications, insertedRow];
+    }
 
-        if (table === 'customers') {
-          mockState.customers = [...mockState.customers, insertedRow];
-        }
+    if (table === 'rentals') {
+      mockState.rentals = [...mockState.rentals, insertedRow];
+    }
 
-        if (table === 'invoices') {
-          mockState.invoices = [...mockState.invoices, insertedRow];
-        }
+    if (table === 'customers') {
+      mockState.customers = [...mockState.customers, insertedRow];
+    }
 
-        if (table === 'bookings') {
-          mockState.bookings = [...mockState.bookings, insertedRow];
-        }
+    if (table === 'invoices') {
+      mockState.invoices = [...mockState.invoices, insertedRow];
+    }
 
-        return { data: { id: insertedRow.id }, error: null };
-      }),
-    })),
-  });
+    if (table === 'bookings') {
+      mockState.bookings = [...mockState.bookings, insertedRow];
+    }
+
+    return {
+      error: null,
+      select: vi.fn(() => ({
+        single: vi.fn(async () => ({ data: { id: insertedRow.id }, error: null })),
+      })),
+    };
+  };
 
   return {
     db: {
@@ -213,7 +234,10 @@ vi.mock('../db/index.js', () => {
   };
 });
 
+process.env.CHECKOUT_LINK_SECRET = 'test-checkout-secret';
+
 import app from '../index.js';
+import { createCheckoutToken, verifyCheckoutToken } from '../checkoutTokens.js';
 
 beforeEach(() => {
   mockState.cars = [
@@ -275,6 +299,8 @@ beforeEach(() => {
       created_at: '2026-03-04T00:00:00.000Z',
     },
   ];
+
+  mockState.rentals = [];
 
   mockState.customers = [
     {
@@ -382,12 +408,21 @@ beforeEach(() => {
     })),
   }));
 
-  mockStripe.paymentIntentsCreate.mockResolvedValue({
-    id: 'pi_test_123',
-    client_secret: 'pi_test_123_secret_456',
+  mockStripe.checkoutSessionsCreate.mockResolvedValue({
+    id: 'cs_test_123',
+    url: 'https://checkout.stripe.com/c/pay/cs_test_123',
   });
-  mockStripe.paymentIntentsRetrieve.mockResolvedValue({ status: 'succeeded' });
-  mockStripe.checkoutSessionsRetrieve.mockResolvedValue({ payment_status: 'paid' });
+  mockStripe.checkoutSessionsRetrieve.mockResolvedValue({
+    id: 'cs_test_123',
+    status: 'complete',
+    payment_status: 'paid',
+    metadata: { application_id: '2', car_id: '1', checkout_kind: 'vehicle' },
+  });
+  mockStripe.subscriptionsRetrieve.mockResolvedValue({
+    id: 'sub_test_123',
+    metadata: { application_id: '2', car_id: '1' },
+  });
+  mockStripe.webhooksConstructEvent.mockReset();
 
   vi.clearAllMocks();
 });
@@ -471,87 +506,230 @@ describe('Operational history API', () => {
 });
 
 describe('Stripe API', () => {
-  it('POST /api/stripe/create-subscription rejects caller supplied pricing fields', async () => {
-    const res = await request(app).post('/api/stripe/create-subscription').send({
-      car_id: 1,
-      application_id: 2,
-      custom_weekly_price: 1,
-      custom_bond: 1,
-    });
+  it('POST /api/stripe/application-checkout-session validates payloads', async () => {
+    const res = await request(app).post('/api/stripe/application-checkout-session').send({});
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation failed');
   });
 
-  it('POST /api/stripe/create-subscription requires an application id for car checkout', async () => {
-    const res = await request(app).post('/api/stripe/create-subscription').send({
-      car_id: 1,
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Validation failed');
-  });
-
-  it('POST /api/stripe/create-subscription rejects unavailable cars', async () => {
-    const res = await request(app).post('/api/stripe/create-subscription').send({
-      car_id: 2,
-      application_id: 2,
-    });
-
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe('Selected vehicle is no longer available');
-  });
-
-  it('POST /api/stripe/create-subscription requires an approved application for car checkout', async () => {
-    const res = await request(app).post('/api/stripe/create-subscription').send({
-      car_id: 1,
+  it('POST /api/stripe/application-checkout-session rejects invalid checkout tokens', async () => {
+    const res = await request(app).post('/api/stripe/application-checkout-session').send({
       application_id: 1,
+      checkout_token: 'invalid-token',
+      plan_id: 'weekly',
     });
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe('Application must be approved before starting car checkout');
+    expect(res.status).toBe(401);
+    expect(res.body.error).toContain('checkout token');
   });
 
-  it('POST /api/stripe/create-payment-intent validates payloads', async () => {
-    const res = await request(app).post('/api/stripe/create-payment-intent').send({});
+  it('POST /api/stripe/application-checkout-session creates a hosted session', async () => {
+    const token = createCheckoutToken({ applicationId: 1, purpose: 'application' });
 
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Validation failed');
-  });
-
-  it('POST /api/stripe/create-payment-intent returns not found for unknown bookings', async () => {
-    const res = await request(app).post('/api/stripe/create-payment-intent').send({
-      booking_id: 999,
-      currency: 'aud',
-    });
-
-    expect(res.status).toBe(404);
-    expect(res.body.error).toBe('Booking not found');
-  });
-
-  it('POST /api/stripe/create-payment-intent rejects invalid booking amounts', async () => {
-    const res = await request(app).post('/api/stripe/create-payment-intent').send({
-      booking_id: 11,
-      currency: 'aud',
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Invalid booking amount');
-  });
-
-  it('POST /api/stripe/create-payment-intent creates a payment intent', async () => {
-    const res = await request(app).post('/api/stripe/create-payment-intent').send({
-      booking_id: 10,
-      currency: 'AUD',
+    const res = await request(app).post('/api/stripe/application-checkout-session').send({
+      application_id: 1,
+      checkout_token: token.token,
+      plan_id: 'weekly',
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.clientSecret).toBe('pi_test_123_secret_456');
-    expect(res.body.paymentIntentId).toBe('pi_test_123');
-    expect(mockStripe.paymentIntentsCreate).toHaveBeenCalledWith({
-      amount: 23099,
-      currency: 'aud',
-      automatic_payment_methods: { enabled: true },
+    expect(res.body.session_id).toBe('cs_test_123');
+    expect(res.body.checkout_url).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
+    expect(mockStripe.checkoutSessionsCreate).toHaveBeenCalledTimes(1);
+
+    const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
+    expect(payload.mode).toBe('subscription');
+    expect(payload.client_reference_id).toBe('1');
+    expect(payload.customer_email).toBe('jane@example.com');
+    expect(payload.metadata.checkout_kind).toBe('application');
+    expect(payload.cancel_url).toContain('/apply?');
+    expect(payload.cancel_url).toContain('application_id=1');
+    expect(payload.cancel_url).toContain('resume_checkout=1');
+    expect(payload.cancel_url).toContain(`checkout_token=${encodeURIComponent(token.token)}`);
+    expect(payload.cancel_url).toContain('planId=weekly');
+    expect(payload.success_url).toContain('/success?');
+    expect(payload.success_url).toContain('application_id=1');
+    expect(payload.success_url).toContain(
+      `checkout_token=${encodeURIComponent(token.token)}`
+    );
+  });
+
+  it('POST /api/stripe/application-checkout-session rejects rejected applications', async () => {
+    mockState.applications[0].status = 'Rejected';
+    const token = createCheckoutToken({ applicationId: 1, purpose: 'application' });
+
+    const res = await request(app).post('/api/stripe/application-checkout-session').send({
+      application_id: 1,
+      checkout_token: token.token,
+      plan_id: 'weekly',
     });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(
+      'This application is already in progress or has already been paid.'
+    );
+  });
+
+  it('POST /api/stripe/vehicle-checkout-session rejects unapproved applications', async () => {
+    const token = createCheckoutToken({ applicationId: 1, carId: 1, purpose: 'vehicle' });
+
+    const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
+      application_id: 1,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('Application must be approved before starting vehicle checkout.');
+  });
+
+  it('POST /api/stripe/vehicle-checkout-session rejects unavailable cars', async () => {
+    const token = createCheckoutToken({ applicationId: 2, carId: 2, purpose: 'vehicle' });
+
+    const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
+      application_id: 2,
+      car_id: 2,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('Selected vehicle is no longer available.');
+  });
+
+  it('POST /api/stripe/vehicle-checkout-session rejects mismatched tokens', async () => {
+    const token = createCheckoutToken({ applicationId: 2, carId: 2, purpose: 'vehicle' });
+
+    const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
+      application_id: 2,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toContain('car mismatch');
+  });
+
+  it('POST /api/stripe/vehicle-checkout-session creates a hosted session', async () => {
+    const token = createCheckoutToken({ applicationId: 2, carId: 1, purpose: 'vehicle' });
+
+    const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
+      application_id: 2,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.session_id).toBe('cs_test_123');
+
+    const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
+    expect(payload.metadata.checkout_kind).toBe('vehicle');
+    expect(payload.metadata.application_id).toBe('2');
+    expect(payload.metadata.car_id).toBe('1');
+    expect(payload.cancel_url).toContain('/checkout/1?');
+    expect(payload.cancel_url).toContain('application_id=2');
+    expect(payload.cancel_url).toContain('resume_checkout=1');
+    expect(payload.cancel_url).toContain(`token=${encodeURIComponent(token.token)}`);
+    expect(payload.success_url).toContain('application_id=2');
+    expect(payload.success_url).toContain('car_id=1');
+    expect(payload.success_url).toContain(
+      `checkout_token=${encodeURIComponent(token.token)}`
+    );
+  });
+
+  it('POST /api/stripe/vehicle-checkout-link requires admin auth', async () => {
+    const res = await request(app).post('/api/stripe/vehicle-checkout-link').send({
+      application_id: 2,
+      car_id: 1,
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /api/stripe/vehicle-checkout-link returns a signed checkout link', async () => {
+    const res = await request(app)
+      .post('/api/stripe/vehicle-checkout-link')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        application_id: 2,
+        car_id: 1,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.checkout_url).toContain('/checkout/1?');
+    expect(res.body.checkout_url).toContain('application_id=2');
+    expect(res.body.checkout_url).toContain(`token=${encodeURIComponent(res.body.checkout_token)}`);
+
+    const verified = verifyCheckoutToken({
+      applicationId: 2,
+      carId: 1,
+      purpose: 'vehicle',
+      token: res.body.checkout_token,
+    });
+    expect(verified.applicationId).toBe(2);
+    expect(verified.carId).toBe(1);
+  });
+
+  it('GET /api/stripe/checkout-sessions/:id requires a matching checkout token', async () => {
+    const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Validation failed');
+  });
+
+  it('GET /api/stripe/checkout-sessions/:id returns the Stripe session status', async () => {
+    const token = createCheckoutToken({ applicationId: 2, carId: 1, purpose: 'vehicle' });
+    const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123').query({
+      application_id: 2,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      checkout_kind: 'vehicle',
+      id: 'cs_test_123',
+      payment_status: 'paid',
+      status: 'complete',
+    });
+  });
+
+  it('POST /api/stripe/webhook blocks duplicate vehicle activation for the same car', async () => {
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: 9,
+        car_id: 1,
+        status: 'Active',
+        weekly_price: 250,
+        start_date: '2026-03-01',
+      },
+    ];
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_live_vehicle',
+          payment_status: 'paid',
+          metadata: {
+            application_id: '2',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+          },
+          customer: 'cus_123',
+          subscription: 'sub_123',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(500);
+    expect(mockState.rentals).toHaveLength(1);
+    expect(mockState.rentals[0].application_id).toBe(9);
   });
 });

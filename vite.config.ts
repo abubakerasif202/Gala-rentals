@@ -20,7 +20,6 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks: {
             vendor: ['react', 'react-dom', 'react-router-dom'],
-            stripe: ['@stripe/stripe-js', '@stripe/react-stripe-js'],
             utils: ['axios', 'zod', 'react-hook-form', '@tanstack/react-query'],
             animations: ['motion', 'lucide-react'],
           },

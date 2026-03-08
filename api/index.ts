@@ -107,8 +107,6 @@ app.use('/api/invoices', invoiceRoutes);
 // Legacy/Compatibility Redirects or Aliases
 app.get('/api/stats', (_req, res) => res.redirect(307, '/api/financials/stats'));
 app.get('/api/rental-plans', (_req, res) => res.redirect(307, '/api/stripe/rental-plans'));
-app.post('/api/create-subscription', (_req, res) => res.redirect(307, '/api/stripe/create-subscription'));
-app.post('/api/bookings/verify-payment', (_req, res) => res.redirect(307, '/api/stripe/verify-payment'));
 
 // Server Startup
 const startServer = async () => {

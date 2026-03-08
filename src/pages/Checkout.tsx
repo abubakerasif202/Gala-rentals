@@ -1,116 +1,92 @@
-import React, { useState } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { CreditCard, ShieldCheck, CheckCircle2, ArrowLeft, Loader2, Info } from 'lucide-react';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { ArrowLeft, CreditCard, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import api from '../lib/api';
-import { Car } from '../types';
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+import {
+  createVehicleCheckoutSession,
+  fetchCar,
+  fetchStripeLeaseSettings,
+} from '../lib/api';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
 };
 
-interface BillingBreakdown {
-  upfrontDue: number;
-  recurringAmount: number;
-  recurringLabel: string;
-  bond: number;
-  initialRental: number;
-  setupFees: number;
-  serviceFee: number;
-}
+const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
 
-interface SubscriptionSession {
-  clientSecret: string;
-  billingBreakdown: BillingBreakdown;
-}
+export default function Checkout() {
+  const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const applicationId = Number(searchParams.get('application_id') || 0);
+  const checkoutToken = searchParams.get('token') || searchParams.get('checkout_token') || '';
 
-function CheckoutForm({ amount, onSuccess, onCancel }: { amount: number; onSuccess: () => void; onCancel: () => void }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [error, setError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const { data: car, isLoading: isCarLoading, error: carError } = useQuery({
+    queryKey: ['car', id],
+    queryFn: () => fetchCar(String(id)),
+    enabled: Boolean(id),
+  });
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!stripe || !elements) return;
+  const { data: leaseSettings, isLoading: isLeaseLoading, error: leaseError } = useQuery({
+    queryKey: ['stripe-lease-settings'],
+    queryFn: fetchStripeLeaseSettings,
+  });
 
-    setProcessing(true);
-    const { error: submitError } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/success`,
-      },
-    });
+  const billing = useMemo(() => {
+    if (!car || !leaseSettings) {
+      return null;
+    }
 
-    if (submitError) {
-      setError(submitError.message || 'An error occurred');
-      setProcessing(false);
-    } else {
-      onSuccess();
+    const bond = Number(car.bond) || 0;
+    const initialRental = Number(car.weekly_price) || 0;
+    const setupFees =
+      leaseSettings.fees.new_account_setup + leaseSettings.fees.direct_debit_account_setup;
+    const serviceFee = leaseSettings.fees.account_management_weekly;
+    const recurringAmount = initialRental + serviceFee;
+    const upfrontDue = bond + initialRental + setupFees;
+
+    return {
+      bond,
+      initialRental,
+      recurringAmount,
+      recurringLabel: 'per week',
+      serviceFee,
+      setupFees,
+      upfrontDue,
+    };
+  }, [car, leaseSettings]);
+
+  const handleStartCheckout = async () => {
+    if (!id || !applicationId || !checkoutToken) {
+      setPageError('This secure checkout link is incomplete. Contact the team for a fresh link.');
+      return;
+    }
+
+    setIsRedirecting(true);
+    setPageError(null);
+
+    try {
+      const session = await createVehicleCheckoutSession({
+        application_id: applicationId,
+        car_id: Number(id),
+        checkout_token: checkoutToken,
+      });
+      window.location.assign(session.checkout_url);
+    } catch (error: any) {
+      setPageError(
+        error?.response?.data?.error ||
+          error?.message ||
+          'Unable to start Stripe checkout. Request a fresh secure link if this keeps happening.'
+      );
+    } finally {
+      setIsRedirecting(false);
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="bg-brand-navy p-6 border border-white/10 rounded-xl">
-        <PaymentElement options={{ layout: 'tabs' }} />
-      </div>
-      {error && <div className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{error}</div>}
-      <div className="flex gap-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 border border-white/10 text-white py-5 font-bold uppercase tracking-widest text-sm hover:bg-white/5 transition-all"
-        >
-          Back
-        </button>
-        <button
-          disabled={!stripe || processing}
-          className="flex-[2] bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-sm hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
-        >
-          {processing ? <Loader2 className="w-5 h-5 animate-spin" /> : `Pay $${amount.toFixed(2)} & Start Lease`}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-export default function Checkout() {
-  const { id: car_id } = useParams();
-  const [searchParams] = useSearchParams();
-  const application_id = searchParams.get('application_id');
-  const hasApplicationId = Boolean(application_id);
-
-  const { data: car, error: carError, isLoading: isCarLoading } = useQuery<Car>({
-    queryKey: ['car', car_id],
-    queryFn: async () => {
-      const res = await api.get(`/cars/${car_id}`);
-      return res.data;
-    },
-    enabled: !!car_id,
-  });
-
-  const { data: subscription, error: subError, isLoading: isSubLoading } = useQuery<SubscriptionSession>({
-    queryKey: ['checkout-session', car_id, application_id],
-    queryFn: async () => {
-      const res = await api.post('/stripe/create-subscription', {
-        car_id: Number(car_id),
-        application_id: Number(application_id),
-      });
-      return res.data;
-    },
-    enabled: !!car && hasApplicationId,
-    staleTime: Infinity,
-    retry: false,
-  });
-
-  if (isCarLoading || isSubLoading) {
+  if (isCarLoading || isLeaseLoading) {
     return (
       <div className="min-h-screen bg-brand-navy flex items-center justify-center">
         <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
@@ -118,16 +94,16 @@ export default function Checkout() {
     );
   }
 
-  if (!hasApplicationId) {
+  if (!applicationId || !checkoutToken) {
     return (
       <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white px-6">
         <div className="max-w-lg text-center space-y-6">
-          <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">Application required</p>
-          <h1 className="text-4xl font-bold uppercase tracking-tighter">Complete your driver application first</h1>
+          <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">Secure link required</p>
+          <h1 className="text-4xl font-bold uppercase tracking-tighter">This checkout page needs a signed link</h1>
           <p className="text-brand-grey font-light">
-            Vehicle checkout links are issued after an application has been reviewed. Start with the application form and we&apos;ll send the secure payment link once you&apos;re approved.
+            Vehicle payments are only available through a time-limited secure link issued by the team after your application is approved.
           </p>
-          <Link to={car_id ? `/apply?carId=${car_id}` : '/apply'} className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all">
+          <Link to={id ? `/apply?carId=${id}` : '/apply'} className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all">
             Start Application
           </Link>
         </div>
@@ -135,84 +111,85 @@ export default function Checkout() {
     );
   }
 
-  const error = carError || subError;
-  if (error) {
+  if (carError || leaseError || !car || !billing) {
     return (
-      <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white">
-        <div className="text-center">
-          <p className="mb-4">Failed to initialize checkout. Please try again.</p>
-          <Link to="/cars" className="text-brand-gold hover:underline">Return to Fleet</Link>
+      <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white px-6">
+        <div className="text-center space-y-4">
+          <p>Unable to load the checkout details right now.</p>
+          <Link to="/cars" className="text-brand-gold hover:underline">
+            Return to fleet
+          </Link>
         </div>
       </div>
     );
   }
-
-  const stripeOptions = subscription
-    ? {
-        clientSecret: subscription.clientSecret,
-        appearance: {
-          theme: 'night' as const,
-          variables: {
-            colorPrimary: '#D4AF37',
-            colorBackground: '#0A0E14',
-            colorText: '#ffffff',
-            colorDanger: '#ef4444',
-            fontFamily: 'Space Grotesk, sans-serif',
-            spacingUnit: '4px',
-            borderRadius: '8px',
-          },
-        },
-      }
-    : null;
-
-  const billingBreakdown = subscription?.billingBreakdown;
-  const totalAmount = billingBreakdown?.upfrontDue || 0;
 
   return (
     <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
       <div className="container mx-auto px-6">
         <div className="max-w-6xl mx-auto">
           <Link
-            to={car ? `/cars/${car.id}` : '/cars'}
+            to={`/cars/${car.id}`}
             className="inline-flex items-center gap-2 text-brand-grey hover:text-brand-gold transition-colors mb-12 uppercase tracking-widest text-[10px] font-bold"
           >
-            <ArrowLeft className="w-4 h-4" /> Back to Vehicle
+            <ArrowLeft className="w-4 h-4" /> Back to vehicle
           </Link>
+
+          {pageError && (
+            <div className="mb-8 rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-50">
+              {pageError}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
             <div className="lg:col-span-7">
-              <motion.div
-                initial="hidden"
-                animate="visible"
-                variants={fadeIn}
-                className="space-y-12"
-              >
+              <motion.div initial="hidden" animate="visible" variants={fadeIn} className="space-y-10">
                 <div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 uppercase tracking-tighter">Secure <span className="text-brand-gold italic">Checkout</span></h1>
-                  <p className="text-brand-grey font-light">Complete your upfront payment to start your rental agreement.</p>
+                  <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 uppercase tracking-tighter">
+                    Secure <span className="text-brand-gold italic">Checkout</span>
+                  </h1>
+                  <p className="text-brand-grey font-light">
+                    Stripe handles the payment on a hosted page. Review the vehicle summary, then continue.
+                  </p>
                 </div>
 
-                {stripeOptions && (
-                  <div className="bg-white/5 border border-white/10 p-8 rounded-3xl">
-                    <Elements stripe={stripePromise} options={stripeOptions}>
-                      <CheckoutForm
-                        amount={totalAmount}
-                        onSuccess={() => {}}
-                        onCancel={() => window.history.back()}
-                      />
-                    </Elements>
+                <div className="bg-white/5 border border-white/10 p-8 rounded-3xl space-y-8">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-brand-gold/10 p-3 rounded-2xl">
+                      <CreditCard className="w-5 h-5 text-brand-gold" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
+                        Hosted Stripe session
+                      </p>
+                      <p className="text-sm text-brand-grey font-light leading-relaxed">
+                        This payment covers the bond, initial rental, setup fees, and starts the ongoing subscription for this vehicle.
+                      </p>
+                    </div>
                   </div>
-                )}
 
-                <div className="flex items-center justify-center gap-8 py-8 border-t border-white/5">
-                  <div className="flex items-center gap-2 text-brand-grey text-[10px] font-bold uppercase tracking-widest">
-                    <ShieldCheck className="w-4 h-4 text-brand-gold" /> SSL Secure
-                  </div>
-                  <div className="flex items-center gap-2 text-brand-grey text-[10px] font-bold uppercase tracking-widest">
-                    <CheckCircle2 className="w-4 h-4 text-brand-gold" /> Encrypted
-                  </div>
-                  <div className="flex items-center gap-2 text-brand-grey text-[10px] font-bold uppercase tracking-widest">
-                    <CreditCard className="w-4 h-4 text-brand-gold" /> PCI Compliant
+                  <button
+                    type="button"
+                    onClick={handleStartCheckout}
+                    disabled={isRedirecting}
+                    className="w-full bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-sm hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {isRedirecting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" /> Redirecting to Stripe
+                      </>
+                    ) : (
+                      <>Continue to Stripe</>
+                    )}
+                  </button>
+
+                  <div className="flex items-center justify-center gap-8 py-4 border-t border-white/5">
+                    <div className="flex items-center gap-2 text-brand-grey text-[10px] font-bold uppercase tracking-widest">
+                      <ShieldCheck className="w-4 h-4 text-brand-gold" /> SSL Secure
+                    </div>
+                    <div className="flex items-center gap-2 text-brand-grey text-[10px] font-bold uppercase tracking-widest">
+                      <CreditCard className="w-4 h-4 text-brand-gold" /> Hosted by Stripe
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -225,67 +202,51 @@ export default function Checkout() {
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="sticky top-32 space-y-8"
               >
-                {car && billingBreakdown && (
-                  <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                    <div className="aspect-video relative">
-                      <img src={car.image} alt={car.name} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-brand-navy to-transparent opacity-60" />
-                      <div className="absolute bottom-6 left-6">
-                        <h3 className="text-xl font-bold text-white uppercase tracking-tight">{car.name}</h3>
-                        <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">{car.model_year} Model Hybrid</p>
-                      </div>
-                    </div>
-
-                    <div className="p-8 space-y-6">
-                      <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest border-b border-white/5 pb-4">Upfront Payment Breakdown</h4>
-
-                      <div className="space-y-4">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-brand-grey font-light">Security Bond (Refundable)</span>
-                          <span className="text-white font-bold">${billingBreakdown.bond.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-brand-grey font-light">Initial Rental</span>
-                          <span className="text-white font-bold">${billingBreakdown.initialRental.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-brand-grey font-light">Setup Fees</span>
-                          <span className="text-white font-bold">${billingBreakdown.setupFees.toFixed(2)}</span>
-                        </div>
-                      </div>
-
-                      <div className="pt-6 border-t border-white/10 flex justify-between items-center">
-                        <span className="text-white font-bold uppercase tracking-widest text-xs">Total Due Now</span>
-                        <span className="text-3xl font-bold text-brand-gold">${totalAmount.toFixed(2)}</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-brand-navy p-6 flex items-start gap-4">
-                      <div className="bg-brand-gold/10 p-2 rounded-lg">
-                        <Info className="w-4 h-4 text-brand-gold" />
-                      </div>
-                      <p className="text-[10px] text-brand-grey leading-relaxed">
-                        Following your upfront payment, your recurring rental of <strong>${billingBreakdown.recurringAmount.toFixed(2)}</strong> {billingBreakdown.recurringLabel} will begin after activation. This includes the ${billingBreakdown.serviceFee.toFixed(2)} service fee.
-                      </p>
+                <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+                  <div className="aspect-video relative">
+                    <img src={car.image} alt={car.name} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-brand-navy to-transparent opacity-60" />
+                    <div className="absolute bottom-6 left-6">
+                      <h3 className="text-xl font-bold text-white uppercase tracking-tight">{car.name}</h3>
+                      <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">{car.model_year} model hybrid</p>
                     </div>
                   </div>
-                )}
 
-                <div className="bg-white/5 border border-white/10 p-8 rounded-3xl">
-                  <h4 className="text-[10px] font-bold text-white uppercase tracking-widest mb-6">What happens next?</h4>
-                  <div className="space-y-6">
-                    {[
-                      { step: 1, text: 'Complete upfront payment' },
-                      { step: 2, text: 'Team verifies your driver documents' },
-                      { step: 3, text: 'Collect your vehicle from our Sydney hub' },
-                    ].map((item) => (
-                      <div key={item.step} className="flex gap-4 items-center">
-                        <div className="w-6 h-6 rounded-full bg-brand-gold/20 flex items-center justify-center text-brand-gold text-[10px] font-bold">
-                          {item.step}
-                        </div>
-                        <p className="text-xs text-brand-grey font-light">{item.text}</p>
+                  <div className="p-8 space-y-6">
+                    <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest border-b border-white/5 pb-4">
+                      Upfront payment breakdown
+                    </h4>
+
+                    <div className="space-y-4 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-brand-grey font-light">Security bond</span>
+                        <span className="text-white font-bold">{formatCurrency(billing.bond)}</span>
                       </div>
-                    ))}
+                      <div className="flex justify-between">
+                        <span className="text-brand-grey font-light">Initial rental</span>
+                        <span className="text-white font-bold">{formatCurrency(billing.initialRental)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-brand-grey font-light">Setup fees</span>
+                        <span className="text-white font-bold">{formatCurrency(billing.setupFees)}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-white/10 flex justify-between items-center">
+                      <span className="text-white font-bold uppercase tracking-widest text-xs">Total due now</span>
+                      <span className="text-3xl font-bold text-brand-gold">{formatCurrency(billing.upfrontDue)}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-brand-navy p-6 flex items-start gap-4">
+                    <div className="bg-brand-gold/10 p-2 rounded-lg">
+                      <Info className="w-4 h-4 text-brand-gold" />
+                    </div>
+                    <p className="text-[10px] text-brand-grey leading-relaxed">
+                      After the upfront payment, your recurring rental will be{' '}
+                      <strong>{formatCurrency(billing.recurringAmount)}</strong> {billing.recurringLabel}.
+                      This includes the weekly {formatCurrency(billing.serviceFee)} management fee.
+                    </p>
                   </div>
                 </div>
               </motion.div>

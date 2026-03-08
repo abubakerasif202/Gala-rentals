@@ -20,9 +20,12 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Avoid redirect loops on login page
-      if (!window.location.pathname.includes('/admin/login')) {
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const isAdminScreen = currentPath.startsWith('/admin');
+
+    if (error.response?.status === 401 && isAdminScreen) {
+      // Avoid redirect loops on login page and keep public checkout flows on-page.
+      if (!currentPath.includes('/admin/login')) {
         window.location.href = '/admin/login';
       }
     }
@@ -94,13 +97,78 @@ export const fetchOperationalInvoices = async (): Promise<
   return data;
 };
 
-export const createCheckoutSession = async (bookingData: any): Promise<any> => {
-  const { data } = await api.post('/stripe/create-subscription', bookingData);
+export const fetchRentalPlans = async (): Promise<RentalPlanWithPricing[]> => {
+  const { data } = await api.get('/stripe/rental-plans');
   return data;
 };
 
-export const fetchRentalPlans = async (): Promise<RentalPlanWithPricing[]> => {
-  const { data } = await api.get('/stripe/rental-plans');
+export interface ApplicationSubmissionResponse {
+  application_id: string;
+  checkout_token: string;
+  checkout_token_expires_at: string;
+  success: boolean;
+}
+
+export interface HostedCheckoutSessionResponse {
+  checkout_url: string | null;
+  session_id: string;
+}
+
+export interface CheckoutSessionStatusResponse {
+  checkout_kind: 'application' | 'vehicle' | null;
+  id: string;
+  payment_status: string | null;
+  status: string | null;
+}
+
+export interface VehicleCheckoutLinkResponse {
+  checkout_token: string;
+  checkout_token_expires_at: string;
+  checkout_url: string;
+}
+
+export const fetchApplicationDocumentUrl = async (
+  applicationId: number,
+  document: 'license_photo' | 'uber_screenshot'
+): Promise<{ url: string }> => {
+  const { data } = await api.get(`/applications/${applicationId}/documents/${document}`);
+  return data;
+};
+
+export const submitApplication = async (payload: Record<string, unknown>): Promise<ApplicationSubmissionResponse> => {
+  const { data } = await api.post('/applications', payload);
+  return data;
+};
+
+export const createApplicationCheckoutSession = async (payload: {
+  application_id: number;
+  checkout_token: string;
+  plan_id: string;
+}): Promise<HostedCheckoutSessionResponse> => {
+  const { data } = await api.post('/stripe/application-checkout-session', payload);
+  return data;
+};
+
+export const createVehicleCheckoutSession = async (payload: {
+  application_id: number;
+  car_id: number;
+  checkout_token: string;
+}): Promise<HostedCheckoutSessionResponse> => {
+  const { data } = await api.post('/stripe/vehicle-checkout-session', payload);
+  return data;
+};
+
+export const fetchCheckoutSessionStatus = async (
+  sessionId: string,
+  options: {
+    application_id: number;
+    car_id?: number;
+    checkout_token: string;
+  }
+): Promise<CheckoutSessionStatusResponse> => {
+  const { data } = await api.get(`/stripe/checkout-sessions/${sessionId}`, {
+    params: options,
+  });
   return data;
 };
 
@@ -184,6 +252,14 @@ export const refreshSaasAccountLink = async (
   merchantId: number
 ): Promise<SaasAccountLinkResponse> => {
   const { data } = await api.post(`/saas/merchants/${merchantId}/link`);
+  return data;
+};
+
+export const createVehicleCheckoutLink = async (payload: {
+  application_id: number;
+  car_id: number;
+}): Promise<VehicleCheckoutLinkResponse> => {
+  const { data } = await api.post('/stripe/vehicle-checkout-link', payload);
   return data;
 };
 

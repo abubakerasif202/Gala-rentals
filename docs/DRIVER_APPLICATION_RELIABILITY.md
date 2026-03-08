@@ -33,10 +33,10 @@ To improve the user experience and reliability of the driver application process
 - **License Expiry:** `.refine(date => new Date(date) > new Date(), 'License must not be expired')`
 - **Start Date:** `.refine(date => new Date(date) >= new Date(), 'Start date must be today or in the future')`
 
-### 2. File Upload Previews
-- **Logic:** Use `FileReader.readAsDataURL()` to generate a base64 string.
-- **UI:** A small, square thumbnail (approx 150px) with a "Remove" button will appear above the "Upload" zone once a file is selected.
-- **Feedback:** If a file is > 5MB, a validation error is triggered immediately.
+### 2. File Upload Handling
+- **Logic:** Use `FileReader.readAsDataURL()` to generate a base64 string for API submission.
+- **Validation:** The API enforces an image-only content type and a maximum upload size of 10MB per file.
+- **UI Note:** The current implementation does not yet render image thumbnails or a remove action in the form.
 
 ### 3. Submission Feedback (UI)
 - **Error State:** A `submissionError` string state in `Apply.tsx`.

@@ -7,18 +7,64 @@ const {
   mockSignInWithPassword,
   mockStorageFrom,
   mockCreateAuthClient,
+  mockStripe,
 } = vi.hoisted(() => ({
   mockState: {
     cars: [] as Array<Record<string, any>>,
     applications: [] as Array<Record<string, any>>,
     customers: [] as Array<Record<string, any>>,
     invoices: [] as Array<Record<string, any>>,
+    bookings: [] as Array<Record<string, any>>,
   },
   mockGetUser: vi.fn(),
   mockSignInWithPassword: vi.fn(),
   mockStorageFrom: vi.fn(),
   mockCreateAuthClient: vi.fn(),
+  mockStripe: {
+    paymentIntentsCreate: vi.fn(),
+    paymentIntentsRetrieve: vi.fn(),
+    checkoutSessionsRetrieve: vi.fn(),
+  },
 }));
+
+vi.mock('stripe', () => {
+  class MockStripe {
+    customers = { create: vi.fn() };
+    products = { create: vi.fn() };
+    prices = { create: vi.fn() };
+    invoiceItems = { create: vi.fn() };
+    subscriptions = { create: vi.fn(), retrieve: vi.fn() };
+    paymentIntents = {
+      create: mockStripe.paymentIntentsCreate,
+      retrieve: mockStripe.paymentIntentsRetrieve,
+    };
+    checkout = {
+      sessions: {
+        retrieve: mockStripe.checkoutSessionsRetrieve,
+      },
+    };
+    webhooks = {
+      constructEvent: vi.fn(),
+    };
+    accounts = {
+      create: vi.fn(),
+      retrieve: vi.fn(),
+    };
+    accountLinks = {
+      create: vi.fn(),
+    };
+    payouts = {
+      list: vi.fn(),
+    };
+    balanceTransactions = {
+      list: vi.fn(),
+    };
+  }
+
+  return {
+    default: MockStripe,
+  };
+});
 
 vi.mock('../db/index.js', () => {
   const getTableRows = (table: string) => {
@@ -36,6 +82,10 @@ vi.mock('../db/index.js', () => {
 
     if (table === 'invoices') {
       return mockState.invoices;
+    }
+
+    if (table === 'bookings') {
+      return mockState.bookings;
     }
 
     return [];
@@ -98,6 +148,10 @@ vi.mock('../db/index.js', () => {
         mockState.invoices = nextRows;
       }
 
+      if (table === 'bookings') {
+        mockState.bookings = nextRows;
+      }
+
       return { error: null };
     }),
   });
@@ -124,6 +178,10 @@ vi.mock('../db/index.js', () => {
 
         if (table === 'invoices') {
           mockState.invoices = [...mockState.invoices, insertedRow];
+        }
+
+        if (table === 'bookings') {
+          mockState.bookings = [...mockState.bookings, insertedRow];
         }
 
         return { data: { id: insertedRow.id }, error: null };
@@ -288,6 +346,17 @@ beforeEach(() => {
     },
   ];
 
+  mockState.bookings = [
+    {
+      id: 10,
+      total_amount: 230.99,
+    },
+    {
+      id: 11,
+      total_amount: 0,
+    },
+  ];
+
   mockGetUser.mockResolvedValue({
     data: { user: { email: 'admin@maplerentals.com.au' } },
     error: null,
@@ -312,6 +381,13 @@ beforeEach(() => {
       error: null,
     })),
   }));
+
+  mockStripe.paymentIntentsCreate.mockResolvedValue({
+    id: 'pi_test_123',
+    client_secret: 'pi_test_123_secret_456',
+  });
+  mockStripe.paymentIntentsRetrieve.mockResolvedValue({ status: 'succeeded' });
+  mockStripe.checkoutSessionsRetrieve.mockResolvedValue({ payment_status: 'paid' });
 
   vi.clearAllMocks();
 });
@@ -434,5 +510,48 @@ describe('Stripe API', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('Application must be approved before starting car checkout');
+  });
+
+  it('POST /api/stripe/create-payment-intent validates payloads', async () => {
+    const res = await request(app).post('/api/stripe/create-payment-intent').send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Validation failed');
+  });
+
+  it('POST /api/stripe/create-payment-intent returns not found for unknown bookings', async () => {
+    const res = await request(app).post('/api/stripe/create-payment-intent').send({
+      booking_id: 999,
+      currency: 'aud',
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Booking not found');
+  });
+
+  it('POST /api/stripe/create-payment-intent rejects invalid booking amounts', async () => {
+    const res = await request(app).post('/api/stripe/create-payment-intent').send({
+      booking_id: 11,
+      currency: 'aud',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid booking amount');
+  });
+
+  it('POST /api/stripe/create-payment-intent creates a payment intent', async () => {
+    const res = await request(app).post('/api/stripe/create-payment-intent').send({
+      booking_id: 10,
+      currency: 'AUD',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.clientSecret).toBe('pi_test_123_secret_456');
+    expect(res.body.paymentIntentId).toBe('pi_test_123');
+    expect(mockStripe.paymentIntentsCreate).toHaveBeenCalledWith({
+      amount: 23099,
+      currency: 'aud',
+      automatic_payment_methods: { enabled: true },
+    });
   });
 });

@@ -946,6 +946,42 @@ describe('Stripe API', () => {
     });
   });
 
+  it('GET /api/stripe/checkout-sessions/:id rejects sessions for the wrong checkout kind', async () => {
+    mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+      id: 'cs_test_123',
+      status: 'complete',
+      payment_status: 'paid',
+      metadata: { application_id: '2', car_id: '', checkout_kind: 'application' },
+    });
+    const token = createCheckoutToken({ applicationId: 2, carId: 1, purpose: 'vehicle' });
+    const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123').query({
+      application_id: 2,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('Checkout session does not match this checkout link.');
+  });
+
+  it('GET /api/stripe/checkout-sessions/:id rejects sessions for the wrong vehicle', async () => {
+    mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+      id: 'cs_test_123',
+      status: 'complete',
+      payment_status: 'paid',
+      metadata: { application_id: '2', car_id: '2', checkout_kind: 'vehicle' },
+    });
+    const token = createCheckoutToken({ applicationId: 2, carId: 1, purpose: 'vehicle' });
+    const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123').query({
+      application_id: 2,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('Checkout session does not match this vehicle link.');
+  });
+
   it('POST /api/stripe/webhook blocks duplicate vehicle activation for the same car', async () => {
     mockState.rentals = [
       {
@@ -983,5 +1019,82 @@ describe('Stripe API', () => {
     expect(res.status).toBe(500);
     expect(mockState.rentals).toHaveLength(1);
     expect(mockState.rentals[0].application_id).toBe(9);
+  });
+
+  it('POST /api/stripe/webhook blocks vehicle activation when the car is under maintenance', async () => {
+    mockState.cars[0].status = 'Maintenance';
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_vehicle_maintenance',
+          payment_status: 'paid',
+          metadata: {
+            application_id: '2',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+          },
+          customer: 'cus_123',
+          subscription: 'sub_maintenance',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(500);
+    expect(mockState.rentals).toHaveLength(0);
+    expect(mockState.cars[0].status).toBe('Maintenance');
+  });
+
+  it('POST /api/stripe/webhook keeps the car rented when another live rental still exists', async () => {
+    mockState.cars[0].status = 'Rented';
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: 2,
+        car_id: 1,
+        status: 'Active',
+        weekly_price: 250,
+        start_date: '2026-03-01',
+        stripe_subscription_id: 'sub_completed',
+      },
+      {
+        id: 21,
+        application_id: 9,
+        car_id: 1,
+        status: 'Active',
+        weekly_price: 260,
+        start_date: '2026-03-05',
+        stripe_subscription_id: 'sub_live',
+      },
+    ];
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub_completed',
+          metadata: {
+            application_id: '2',
+            car_id: '1',
+          },
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(mockState.cars[0].status).toBe('Rented');
+    expect(mockState.rentals.find((rental) => rental.id === 20)?.status).toBe('Completed');
+    expect(mockState.rentals.find((rental) => rental.id === 21)?.status).toBe('Active');
   });
 });

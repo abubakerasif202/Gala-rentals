@@ -33,7 +33,11 @@ export default function Success() {
       ? `/checkout/${carId}?application_id=${applicationId}&token=${encodeURIComponent(
           checkoutToken
         )}`
-      : '/apply';
+      : hasVerificationContext
+        ? `/apply?application_id=${applicationId}&checkout_token=${encodeURIComponent(
+            checkoutToken
+          )}`
+        : '/apply';
 
   useEffect(() => {
     if (isSuccess) {

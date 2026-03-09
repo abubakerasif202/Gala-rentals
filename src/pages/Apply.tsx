@@ -183,20 +183,16 @@ export default function Apply() {
 
   useEffect(() => {
     const stored = loadPendingApplicationCheckout();
-    if (stored && isExpired(stored.checkoutTokenExpiresAt)) {
-      clearPendingApplicationCheckout();
-      setPageError('Your previous checkout link expired. Submit the application again to continue.');
-      return;
-    }
-
     const applicationId = Number(searchParams.get('application_id') || 0);
     const checkoutToken = searchParams.get('checkout_token') || searchParams.get('token') || '';
+
     if (applicationId && checkoutToken) {
+      const matchingStoredCheckout = stored?.checkoutToken === checkoutToken ? stored : null;
       const resumed: PendingApplicationCheckout = {
         applicationId,
         checkoutToken,
-        checkoutTokenExpiresAt: stored?.checkoutTokenExpiresAt || '',
-        selectedPlanId: searchParams.get('planId') || stored?.selectedPlanId || '',
+        checkoutTokenExpiresAt: matchingStoredCheckout?.checkoutTokenExpiresAt || '',
+        selectedPlanId: searchParams.get('planId') || matchingStoredCheckout?.selectedPlanId || '',
       };
       setPendingCheckout(resumed);
       persistPendingApplicationCheckout(resumed);
@@ -204,6 +200,12 @@ export default function Apply() {
       if (searchParams.get('resume_checkout') === '1') {
         setPageError('Stripe checkout was canceled. Review the summary and continue when ready.');
       }
+      return;
+    }
+
+    if (stored && isExpired(stored.checkoutTokenExpiresAt)) {
+      clearPendingApplicationCheckout();
+      setPageError('Your previous checkout link expired. Submit the application again to continue.');
       return;
     }
 

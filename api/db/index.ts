@@ -41,6 +41,12 @@ export const initializeDB = async () => {
     return;
   }
 
+  const { error } = await db.from('cars').select('id', { head: true }).limit(1);
+
+  if (error) {
+    throw new Error(`Supabase connectivity check failed: ${error.message || 'Unknown error'}`);
+  }
+
   console.log('Database connection initialized with Supabase.');
 };
 

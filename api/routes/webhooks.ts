@@ -22,6 +22,11 @@ const assertSupabaseWrite = (
   }
 };
 
+const isLiveRentalStatus = (status: unknown) => {
+  const normalized = String(status || '').toLowerCase();
+  return normalized !== 'completed' && normalized !== 'cancelled';
+};
+
 const getRentalStatusUpdatePayload = async (status: string, endDate?: string) => {
   const compat = await getSchemaCompat();
   const payload: Record<string, unknown> = { status };
@@ -61,17 +66,7 @@ const updateRentalsBySubscriptionIdentity = async (
   assertSupabaseWrite(result, 'Failed to update rental by car/application id');
 };
 
-const handleVehicleCheckoutCompletion = async ({
-  applicationId,
-  carId,
-  customerId,
-  subscriptionId,
-}: {
-  applicationId: number;
-  carId: number;
-  customerId: string | null;
-  subscriptionId: string | null;
-}) => {
+const fetchExistingRentalsForCar = async (carId: number) => {
   const compat = await getSchemaCompat();
   const rentalCarIdColumn = await getRentalCarIdColumn();
   const rentalApplicationIdColumn = await getRentalApplicationIdColumn();
@@ -95,9 +90,48 @@ const handleVehicleCheckoutCompletion = async ({
     );
   }
 
-  const existingRentals = ((existingRentalResult.data || []) as unknown) as Array<
-    Record<string, unknown>
-  >;
+  return {
+    compat,
+    rentalApplicationIdColumn,
+    rentals: ((existingRentalResult.data || []) as unknown) as Array<Record<string, unknown>>,
+  };
+};
+
+const maybeMarkCarAvailable = async (carId: number) => {
+  const { rentals } = await fetchExistingRentalsForCar(carId);
+  const hasLiveRental = rentals.some((rental) => isLiveRentalStatus(rental.status));
+
+  if (hasLiveRental) {
+    return;
+  }
+
+  const { data: car, error: carError } = await db.from('cars').select('id, status').eq('id', carId).single();
+
+  if (carError || !car) {
+    throw new Error(`Failed to fetch car ${carId} before availability release.`);
+  }
+
+  if (car.status !== 'Rented') {
+    return;
+  }
+
+  const result = await db.from('cars').update({ status: 'Available' }).eq('id', carId);
+  assertSupabaseWrite(result, 'Failed to mark car as available');
+};
+
+const handleVehicleCheckoutCompletion = async ({
+  applicationId,
+  carId,
+  customerId,
+  subscriptionId,
+}: {
+  applicationId: number;
+  carId: number;
+  customerId: string | null;
+  subscriptionId: string | null;
+}) => {
+  const { compat, rentalApplicationIdColumn, rentals: existingRentals } =
+    await fetchExistingRentalsForCar(carId);
   const existingRentalForSameSubscription =
     compat.rentalStripeSubscriptionColumn && subscriptionId
       ? existingRentals.find(
@@ -122,13 +156,14 @@ const handleVehicleCheckoutCompletion = async ({
     throw new Error(`Failed to fetch car ${carId} for rental activation.`);
   }
 
-  const blockingRental = existingRentals.find((rental) => {
-    const status = String(rental.status || '').toLowerCase();
-    return status !== 'completed' && status !== 'cancelled';
-  });
+  const blockingRental = existingRentals.find((rental) => isLiveRentalStatus(rental.status));
 
-  if (blockingRental || car.status === 'Rented') {
+  if (blockingRental) {
     throw new Error(`Vehicle ${carId} is already attached to another live rental.`);
+  }
+
+  if (car.status !== 'Available') {
+    throw new Error(`Vehicle ${carId} is not available for activation while marked ${car.status}.`);
   }
 
   const rentalPayload = await toRentalWritePayload({
@@ -307,8 +342,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (request, resp
         );
 
         if (car_id) {
-          const result = await db.from('cars').update({ status: 'Available' }).eq('id', car_id);
-          assertSupabaseWrite(result, 'Failed to mark car as available');
+          await maybeMarkCarAvailable(Number(car_id));
         }
         break;
       }

@@ -72,6 +72,10 @@ const isStripeConfigurationError = (
 
 const toFloat = (value: number | string) => Number(Number(value).toFixed(2));
 const toCents = (value: number) => Math.round(value * 100);
+const toOptionalPositiveInt = (value: string | undefined) => {
+  const parsed = Number(value || 0);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
 
 const buildApplicationBillingBreakdown = (plan: RentalPlanWithPricing): BillingBreakdown => ({
   bond: plan.pricing.bondAud,
@@ -542,13 +546,28 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const metadataApplicationId = Number(session.metadata?.application_id || 0);
+    const metadataCarId = toOptionalPositiveInt(session.metadata?.car_id);
+    const metadataCheckoutKind = session.metadata?.checkout_kind || null;
+    const expectedCheckoutKind = car_id ? 'vehicle' : 'application';
 
     if (metadataApplicationId !== application_id) {
       return res.status(403).json({ error: 'Checkout session does not match this application.' });
     }
 
+    if (metadataCheckoutKind !== expectedCheckoutKind) {
+      return res.status(403).json({ error: 'Checkout session does not match this checkout link.' });
+    }
+
+    if (expectedCheckoutKind === 'vehicle' && metadataCarId !== car_id) {
+      return res.status(403).json({ error: 'Checkout session does not match this vehicle link.' });
+    }
+
+    if (expectedCheckoutKind === 'application' && metadataCarId !== null) {
+      return res.status(403).json({ error: 'Checkout session does not match this application link.' });
+    }
+
     res.json({
-      checkout_kind: session.metadata?.checkout_kind || null,
+      checkout_kind: metadataCheckoutKind,
       id: session.id,
       payment_status: session.payment_status,
       status: session.status,

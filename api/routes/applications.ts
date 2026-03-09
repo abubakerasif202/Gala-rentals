@@ -73,6 +73,12 @@ const isNoRowError = (error: { code?: string; details?: string } | null) =>
         error.details?.toLowerCase().includes('0 rows'))
   );
 
+const getApplicationBackPhotoValue = (application: Record<string, any>) =>
+  application.license_back_photo ??
+  application.uber_screenshot ??
+  application.uberScreenshot ??
+  null;
+
 router.get('/', authenticateAdmin, async (_req, res) => {
   const selectColumns = await getApplicationSelectColumns();
   const orderColumn = await getApplicationCreatedAtColumn();
@@ -85,11 +91,21 @@ router.get('/', authenticateAdmin, async (_req, res) => {
   }
 
   const rows = ((data || []) as Array<Record<string, any>>);
-  const applications = await Promise.all(rows.map(async (application) => ({
-    ...application,
-    license_photo: await createSignedDocumentUrl(application.license_photo),
-    uber_screenshot: await createSignedDocumentUrl(application.uber_screenshot),
-  })));
+  const applications = await Promise.all(
+    rows.map(async (application) => {
+      const {
+        uber_screenshot: _legacyUberScreenshot,
+        uberScreenshot: _legacyUberScreenshotCamel,
+        ...rest
+      } = application;
+
+      return {
+        ...rest,
+        license_photo: await createSignedDocumentUrl(application.license_photo),
+        license_back_photo: await createSignedDocumentUrl(getApplicationBackPhotoValue(application)),
+      };
+    })
+  );
 
   res.json(applications);
 });
@@ -97,7 +113,7 @@ router.get('/', authenticateAdmin, async (_req, res) => {
 router.get('/:id/documents/:document', authenticateAdmin, async (req, res) => {
   try {
     const { document } = z.object({
-      document: z.enum(['license_photo', 'uber_screenshot']),
+      document: z.enum(['license_photo', 'license_back_photo']),
     }).parse(req.params);
 
     const documentColumn = await getApplicationDocumentColumn(document);
@@ -114,7 +130,9 @@ router.get('/:id/documents/:document', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Application not found' });
     }
 
-    const signedUrl = await createSignedDocumentUrl(application[document]);
+    const documentValue =
+      application[document] ?? (document === 'license_back_photo' ? getApplicationBackPhotoValue(application) : null);
+    const signedUrl = await createSignedDocumentUrl(documentValue);
     if (!signedUrl) {
       return res.status(404).json({ error: 'Document not found' });
     }
@@ -134,7 +152,7 @@ router.post('/', async (req, res) => {
   try {
     const data = applicationSchema.parse(req.body);
     let licensePhotoUrl = null;
-    let uberScreenshotUrl = null;
+    let licenseBackPhotoUrl = null;
     const existingApplicationSelectColumns = await getApplicationSelectColumns();
     const { data: existingApplication, error: existingApplicationError } = await db
       .from('applications')
@@ -206,28 +224,28 @@ router.post('/', async (req, res) => {
 
     if (data.license_photo) {
       if (!data.license_photo.startsWith('data:')) {
-        return res.status(400).json({ error: 'License photo must be a valid image data URL' });
+        return res.status(400).json({ error: 'Driver licence front photo must be a valid image data URL' });
       }
       licensePhotoUrl = await uploadImage(data.license_photo, 'license');
       if (!licensePhotoUrl) {
-        return res.status(500).json({ error: 'Failed to upload license photo' });
+        return res.status(500).json({ error: 'Failed to upload driver licence front photo' });
       }
     }
 
-    if (data.uber_screenshot) {
-      if (!data.uber_screenshot.startsWith('data:')) {
-        return res.status(400).json({ error: 'Uber screenshot must be a valid image data URL' });
+    if (data.license_back_photo) {
+      if (!data.license_back_photo.startsWith('data:')) {
+        return res.status(400).json({ error: 'Driver licence back photo must be a valid image data URL' });
       }
-      uberScreenshotUrl = await uploadImage(data.uber_screenshot, 'uber');
-      if (!uberScreenshotUrl) {
-        return res.status(500).json({ error: 'Failed to upload uber screenshot' });
+      licenseBackPhotoUrl = await uploadImage(data.license_back_photo, 'license-back');
+      if (!licenseBackPhotoUrl) {
+        return res.status(500).json({ error: 'Failed to upload driver licence back photo' });
       }
     }
 
     const payload = await toApplicationWritePayload({
       ...data,
       license_photo: licensePhotoUrl,
-      uber_screenshot: uberScreenshotUrl,
+      license_back_photo: licenseBackPhotoUrl,
     });
     let applicationId: number;
 
@@ -273,7 +291,7 @@ router.post('/', async (req, res) => {
               <h2 style="color: #D4AF37;">Application Received</h2>
               <p>Hi ${data.name},</p>
               <p>Thank you for applying to rent a Toyota Camry Hybrid with Maple Rentals.</p>
-              <p>We have successfully received your application, including your license and Uber details. Our team will review your application and try to get back to you within 24 hours.</p>
+              <p>We have successfully received your application, including the front and back of your driver licence. Our team will review your application and try to get back to you within 24 hours.</p>
               <p>If you have any urgent questions, please contact us directly.</p>
               <br>
               <p>Best regards,</p>

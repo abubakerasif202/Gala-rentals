@@ -71,7 +71,7 @@ The backend then:
 
 - `APP_URL`
   - Purpose: canonical public URL for redirect and return links
-  - Used in: `api/index.ts`, `api/routes/saas.ts`
+  - Used in: `api/index.ts`
   - Render value: your Render service URL, for example `https://your-service.onrender.com`
 
 - `ADMIN_EMAIL`
@@ -87,8 +87,8 @@ The backend then:
   - Used in: `api/db/index.ts`
 
 - `STRIPE_SECRET_KEY`
-  - Purpose: Stripe server SDK key used by payment, webhook, SaaS, and financial routes
-  - Used in: `api/routes/stripe.ts`, `api/routes/webhooks.ts`, `api/routes/saas.ts`, `api/routes/financials.ts`
+  - Purpose: Stripe server SDK key used by payment, webhook, and financial routes
+  - Used in: `api/routes/stripe.ts`, `api/routes/webhooks.ts`, `api/routes/financials.ts`
 
 - `VITE_STRIPE_PUBLIC_KEY`
   - Purpose: Stripe publishable key injected into the frontend build
@@ -108,7 +108,7 @@ The backend then:
 
 - `FRONTEND_URL`
   - Purpose: optional legacy CORS origin override
-  - Used in: `api/index.ts`, `api/routes/saas.ts`
+  - Used in: `api/index.ts`
   - Not needed for the single-service Render deployment if `APP_URL` is set correctly
 
 - `CORS_ORIGIN`

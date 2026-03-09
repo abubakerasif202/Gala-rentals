@@ -16,7 +16,7 @@ Stripe is a developer-first payments platform that provides a unified API surfac
 
 ## 1. Account & Balance
 
-The Stripe account object is the root of all activity. It exposes the merchant's identity, enabled capabilities, supported currencies, and payout configuration. The balance object provides a real-time view of funds split across **available** (ready to pay out) and **pending** (awaiting settlement) pools, broken down by currency.
+The Stripe account object is the root of all activity. It exposes the business identity, enabled capabilities, supported currencies, and payout configuration. The balance object provides a real-time view of funds split across **available** (ready to pay out) and **pending** (awaiting settlement) pools, broken down by currency.
 
 | Field | Live Value |
 |---|---|
@@ -209,7 +209,7 @@ Refunds reverse a charge, either fully or partially. They are attached to a `Pay
 
 ## 11. Disputes
 
-When a cardholder disputes a charge with their bank, Stripe creates a `Dispute` object. Merchants can submit evidence directly via the API to contest the chargeback.
+When a cardholder disputes a charge with their bank, Stripe creates a `Dispute` object. Businesses can submit evidence directly via the API to contest the chargeback.
 
 **Key operations:**
 

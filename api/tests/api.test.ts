@@ -86,7 +86,7 @@ vi.mock('../schemaCompat.js', async () => {
         'weekly_budget:weeklyBudget',
         'intended_start_date:intendedStartDate',
         'license_photo:licensePhoto',
-        'uber_screenshot:uberScreenshot',
+        'license_back_photo:uberScreenshot',
         'status',
         'created_at:createdAt',
       ].join(', ')
@@ -206,19 +206,28 @@ vi.mock('../db/index.js', () => {
       })
       .filter((clause): clause is { column: string; search: string } => Boolean(clause));
 
-  const createUnknownColumnError = (column: string) => ({
+  const createUnknownColumnError = (column: string) => {
+    const camelColumnMap: Record<string, string> = {
+      license_number: 'licenseNumber',
+      license_expiry: 'licenseExpiry',
+      license_photo: 'licensePhoto',
+      license_back_photo: 'licenseBackPhoto',
+    };
+
+    return {
     code: '42703',
     details: null,
-    hint: `Perhaps you meant to reference the column "applications.${column === 'license_number' ? 'licenseNumber' : column}".`,
+    hint: `Perhaps you meant to reference the column "applications.${camelColumnMap[column] ?? column}".`,
     message: `column applications.${column} does not exist`,
-  });
+    };
+  };
 
   const getInvalidApplicationSelectColumn = (columns?: string) => {
     if (typeof columns !== 'string') {
       return null;
     }
 
-    const invalidColumns = ['license_number', 'license_expiry', 'license_photo', 'uber_screenshot'];
+    const invalidColumns = ['license_number', 'license_expiry', 'license_photo', 'license_back_photo'];
     return (
       invalidColumns.find(
         (column) => columns.includes(column) && !columns.includes(`${column}:`)
@@ -460,7 +469,7 @@ beforeEach(() => {
       weekly_budget: '$300/week',
       intended_start_date: '2026-03-10',
       license_photo: 'docs/license-1.png',
-      uber_screenshot: 'docs/uber-1.png',
+      license_back_photo: 'docs/license-back-1.png',
       status: 'Pending',
       created_at: '2026-03-03T00:00:00.000Z',
     },
@@ -477,7 +486,7 @@ beforeEach(() => {
       weekly_budget: '$350/week',
       intended_start_date: '2026-03-12',
       license_photo: 'https://project.supabase.co/storage/v1/object/public/applications/docs/license-2.png',
-      uber_screenshot: null,
+      license_back_photo: null,
       status: 'Approved',
       created_at: '2026-03-04T00:00:00.000Z',
     },
@@ -656,7 +665,9 @@ describe('Applications API', () => {
       'https://signed.example/applications/docs/license-2.png'
     );
     expect(res.body[1].license_photo).toBe('https://signed.example/applications/docs/license-1.png');
-    expect(res.body[1].uber_screenshot).toBe('https://signed.example/applications/docs/uber-1.png');
+    expect(res.body[1].license_back_photo).toBe(
+      'https://signed.example/applications/docs/license-back-1.png'
+    );
   });
 
   it('POST /api/applications supports camel-case Supabase application schemas', async () => {
@@ -672,6 +683,7 @@ describe('Applications API', () => {
       weekly_budget: '$350/week',
       intended_start_date: '2026-03-20',
       license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
 
     expect(res.status).toBe(200);

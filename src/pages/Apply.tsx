@@ -58,8 +58,8 @@ const applySchema = z.object({
       today.setHours(0, 0, 0, 0);
       return new Date(date) >= today;
     }, 'Start date must be today or later'),
-  license_photo: z.string().min(1, 'License photo is required'),
-  uber_screenshot: z.string().optional(),
+  license_photo: z.string().min(1, 'Driver licence front photo is required'),
+  license_back_photo: z.string().min(1, 'Driver licence back photo is required'),
   selected_plan_id: z.string().min(1, 'Please select a rental plan'),
 });
 
@@ -77,7 +77,7 @@ const defaultValues: ApplyValues = {
   weekly_budget: '',
   intended_start_date: '',
   license_photo: '',
-  uber_screenshot: '',
+  license_back_photo: '',
   selected_plan_id: '',
 };
 
@@ -158,7 +158,7 @@ export default function Apply() {
 
   const selectedPlanId = watch('selected_plan_id');
   const licensePhoto = watch('license_photo');
-  const uberScreenshot = watch('uber_screenshot');
+  const licenseBackPhoto = watch('license_back_photo');
   const selectedPlan = useMemo(
     () => availablePlans.find((plan) => plan.id === selectedPlanId) ?? null,
     [availablePlans, selectedPlanId]
@@ -217,7 +217,7 @@ export default function Apply() {
 
   const handleFileUpload = (
     event: React.ChangeEvent<HTMLInputElement>,
-    field: 'license_photo' | 'uber_screenshot'
+    field: 'license_photo' | 'license_back_photo'
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -509,12 +509,12 @@ export default function Apply() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="rounded-3xl border border-white/10 bg-brand-navy/40 p-6 space-y-4">
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">Driver licence photo</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">Driver licence front photo</p>
                         <p className="text-sm text-brand-grey font-light mt-2">Upload a clear JPG or PNG. Maximum file size is 7 MB.</p>
                       </div>
                       <label className="rounded-2xl border border-dashed border-white/15 bg-white/5 px-5 py-8 flex flex-col items-center gap-3 text-center cursor-pointer hover:border-brand-gold/40 transition-all">
                         <Upload className="w-5 h-5 text-brand-gold" />
-                        <span className="text-xs font-bold uppercase tracking-widest text-white">Upload licence</span>
+                        <span className="text-xs font-bold uppercase tracking-widest text-white">Upload front photo</span>
                         <span className="text-xs text-brand-grey font-light">{licensePhoto ? 'File attached' : 'Choose an image file'}</span>
                         <input type="file" accept="image/png,image/jpeg,image/jpg" className="hidden" onChange={(event) => handleFileUpload(event, 'license_photo')} />
                       </label>
@@ -522,15 +522,16 @@ export default function Apply() {
                     </div>
                     <div className="rounded-3xl border border-white/10 bg-brand-navy/40 p-6 space-y-4">
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">Uber screenshot</p>
-                        <p className="text-sm text-brand-grey font-light mt-2">Optional if you are still applying for Uber access.</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">Driver licence back photo</p>
+                        <p className="text-sm text-brand-grey font-light mt-2">Upload the back of your licence as a clear JPG or PNG. Maximum file size is 7 MB.</p>
                       </div>
                       <label className="rounded-2xl border border-dashed border-white/15 bg-white/5 px-5 py-8 flex flex-col items-center gap-3 text-center cursor-pointer hover:border-brand-gold/40 transition-all">
                         <Upload className="w-5 h-5 text-brand-gold" />
-                        <span className="text-xs font-bold uppercase tracking-widest text-white">Upload screenshot</span>
-                        <span className="text-xs text-brand-grey font-light">{uberScreenshot ? 'File attached' : 'Choose an image file'}</span>
-                        <input type="file" accept="image/png,image/jpeg,image/jpg" className="hidden" onChange={(event) => handleFileUpload(event, 'uber_screenshot')} />
+                        <span className="text-xs font-bold uppercase tracking-widest text-white">Upload back photo</span>
+                        <span className="text-xs text-brand-grey font-light">{licenseBackPhoto ? 'File attached' : 'Choose an image file'}</span>
+                        <input type="file" accept="image/png,image/jpeg,image/jpg" className="hidden" onChange={(event) => handleFileUpload(event, 'license_back_photo')} />
                       </label>
+                      <FieldError message={errors.license_back_photo?.message} />
                     </div>
                   </div>
 

@@ -21,7 +21,7 @@ export interface Application {
   weekly_budget: string;
   intended_start_date: string;
   license_photo?: string;
-  uber_screenshot?: string;
+  license_back_photo?: string;
   status: 'Pending' | 'Paid' | 'Approved' | 'Rejected';
   created_at: string;
 }
@@ -93,15 +93,4 @@ export interface OperationalInvoice {
   customer_email?: string | null;
   customer_phone?: string | null;
   status: 'Open' | 'Paid';
-}
-
-export interface SaasMerchant {
-  id: number;
-  name: string;
-  email: string;
-  country: string;
-  stripe_account_id: string;
-  payout_interval: 'daily' | 'weekly' | 'monthly';
-  onboarding_status: string;
-  created_at: string;
 }

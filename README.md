@@ -13,16 +13,9 @@ This repository contains everything you need to run and deploy the Maple Rental 
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Configure the required local environment variables in `.env.local`.
 3. Run the app:
    `npm run dev`
-
-## Stripe SaaS Connect MWE
-
-1. Ensure `APP_URL` points to the URL that serves the client (for example `http://localhost:5173`) so the backend can build return/refresh URLs.
-2. Start the local server: `npm run dev`.
-3. Navigate to `/admin/dashboard` to exercise the Accounts v2 onboarding flow, create a Connect Express merchant, and capture the onboarding link (refresh it if it expires).
-4. Use the page content to contrast Stripe-owned versus buy-rate monetization and tune the `payoutInterval` before moving to production.
 
 ## Script Safety Notes
 

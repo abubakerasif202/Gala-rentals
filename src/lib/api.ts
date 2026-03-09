@@ -4,7 +4,6 @@ import {
   Application,
   Rental,
   DashboardStats,
-  SaasMerchant,
   AdminDatasetResponse,
   OperationalCustomer,
   OperationalInvoice,
@@ -139,7 +138,7 @@ export interface VehicleCheckoutLinkResponse {
 
 export const fetchApplicationDocumentUrl = async (
   applicationId: number,
-  document: 'license_photo' | 'uber_screenshot'
+  document: 'license_photo' | 'license_back_photo'
 ): Promise<{ url: string }> => {
   const { data } = await api.get(`/applications/${applicationId}/documents/${document}`);
   return data;
@@ -181,24 +180,6 @@ export const fetchCheckoutSessionStatus = async (
   });
   return data;
 };
-
-export interface CreateSaasMerchantPayload {
-  business_name: string;
-  email: string;
-  country?: string;
-  payout_interval?: 'daily' | 'weekly' | 'monthly';
-}
-
-export interface SaasMerchantResponse {
-  merchant: SaasMerchant;
-  onboarding_link: string | null;
-  onboarding_expires_at: string | null;
-}
-
-export interface SaasAccountLinkResponse {
-  onboarding_link: string | null;
-  onboarding_expires_at: string | null;
-}
 
 export interface StripeLeaseSettings {
   currency: string;
@@ -245,25 +226,6 @@ export interface LeaseAgreementPayload {
   returnPolicy?: string;
   fees?: LeaseFeePayload[];
 }
-
-export const fetchSaasMerchants = async (): Promise<SaasMerchant[]> => {
-  const { data } = await api.get('/saas/merchants');
-  return data;
-};
-
-export const createSaasMerchant = async (
-  payload: CreateSaasMerchantPayload
-): Promise<SaasMerchantResponse> => {
-  const { data } = await api.post('/saas/merchants', payload);
-  return data;
-};
-
-export const refreshSaasAccountLink = async (
-  merchantId: number
-): Promise<SaasAccountLinkResponse> => {
-  const { data } = await api.post(`/saas/merchants/${merchantId}/link`);
-  return data;
-};
 
 export const createVehicleCheckoutLink = async (payload: {
   application_id: number;

@@ -9,7 +9,6 @@ coverage/
 !.env.example
 .env*.local
 
-.gemini/
 gha-creds-*.json
 data/
 *.har

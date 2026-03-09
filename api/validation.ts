@@ -23,25 +23,11 @@ export const applicationSchema = z.object({
   address: z.string().min(5),
   weekly_budget: z.string().optional(),
   intended_start_date: z.string(),
-  license_photo: z.string().optional().nullable(),
-  uber_screenshot: z.string().optional().nullable(),
+  license_photo: z.string().min(1),
+  license_back_photo: z.string().min(1),
 });
 
 export const applicationStatusEnum = z.enum(['Pending', 'Paid', 'Approved', 'Rejected']);
-
-export const payoutIntervalEnum = z.enum(['daily', 'weekly', 'monthly']);
-export const countrySchema = z
-  .string()
-  .length(2)
-  .default('AU')
-  .transform((value) => value.toUpperCase());
-
-export const merchantSchema = z.object({
-  business_name: z.string().min(2),
-  email: z.string().email(),
-  country: countrySchema,
-  payout_interval: payoutIntervalEnum.default('weekly'),
-});
 
 export const subscriptionPayloadSchema = z.object({
   car_id: z.coerce.number().int().positive().optional(),

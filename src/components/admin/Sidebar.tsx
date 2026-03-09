@@ -8,8 +8,7 @@ import {
   TrendingUp,
   DollarSign,
   LogOut, 
-  FileText, 
-  Building2 
+  FileText
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,7 +27,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, handleLogout
     { id: 'financials', icon: TrendingUp, label: 'Financials' },
     { id: 'cars', icon: Car, label: 'Fleet' },
     { id: 'agreements', icon: FileText, label: 'Agreements' },
-    { id: 'saas', icon: Building2, label: 'SaaS Clients' },
   ];
 
   return (

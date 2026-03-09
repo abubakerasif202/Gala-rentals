@@ -284,25 +284,6 @@ router.post('/', express.raw({ type: 'application/json' }), async (request, resp
 
   try {
     switch (event.type) {
-      case 'account.updated': {
-        const account = event.data.object as Stripe.Account;
-        if (account.details_submitted) {
-          const compat = await getSchemaCompat();
-          const result = await db
-            .from('merchants')
-            .update(
-              compat.merchantMode === 'camel'
-                ? { onboardingStatus: 'active' }
-                : { onboarding_status: 'active' }
-            )
-            .eq(
-              compat.merchantMode === 'camel' ? 'stripeAccountId' : 'stripe_account_id',
-              account.id
-            );
-          assertSupabaseWrite(result, 'Failed to update merchant onboarding status');
-        }
-        break;
-      }
       case 'checkout.session.async_payment_succeeded':
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;

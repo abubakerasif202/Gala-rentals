@@ -20,9 +20,3 @@ export const RENTAL_PLAN_SETUP_FEES_AUD = Number(
 export const STRIPE_CONFIG = {
   apiVersion: '2023-10-16' as any,
 };
-
-export const SAAS_CONFIG = {
-  mcc: '7519',
-  product_description_suffix: 'on Maple SaaS',
-  url: 'https://maple-rental.com',
-};

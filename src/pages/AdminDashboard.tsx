@@ -18,8 +18,6 @@ import {
   RefreshCw,
   ExternalLink,
   ShieldCheck,
-  Building2,
-  Globe,
   Car,
   Users,
   Mail,
@@ -34,7 +32,6 @@ import {
   Application,
   Rental,
   DashboardStats,
-  SaasMerchant,
   AdminDatasetResponse,
   OperationalCustomer,
   OperationalInvoice,
@@ -61,7 +58,7 @@ export default function AdminDashboard() {
 
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
-  const [openingDocument, setOpeningDocument] = useState<'license_photo' | 'uber_screenshot' | null>(null);
+  const [openingDocument, setOpeningDocument] = useState<'license_photo' | 'license_back_photo' | null>(null);
   
   // Agreement Management State
   const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
@@ -74,15 +71,6 @@ export default function AdminDashboard() {
     vehicleYear: '',
     weeklyRent: '',
     rentalStartDate: new Date().toISOString().split('T')[0],
-  });
-
-  // SaaS Management State
-  const [isAddingMerchant, setIsAddingMerchant] = useState(false);
-  const [newMerchant, setNewMerchant] = useState({
-    business_name: '',
-    email: '',
-    country: 'AU',
-    payout_interval: 'weekly' as const
   });
   const [customerSearch, setCustomerSearch] = useState('');
   const [invoiceSearch, setInvoiceSearch] = useState('');
@@ -112,7 +100,6 @@ export default function AdminDashboard() {
   const shouldLoadCustomers = activeTab === 'customers';
   const shouldLoadInvoices = activeTab === 'invoices';
   const shouldLoadWeeklyFinancials = activeTab === 'financials';
-  const shouldLoadMerchants = activeTab === 'saas';
   const shouldLoadAgreements = activeTab === 'agreements';
 
   // Queries
@@ -168,12 +155,6 @@ export default function AdminDashboard() {
     queryKey: ['weekly-financials'],
     queryFn: () => api.fetchWeeklyFinancials(),
     enabled: shouldLoadWeeklyFinancials,
-  });
-
-  const merchantsQuery = useQuery<SaasMerchant[]>({
-    queryKey: ['merchants'],
-    queryFn: () => api.fetchSaasMerchants(),
-    enabled: shouldLoadMerchants,
   });
 
   const savedAgreementsQuery = useQuery({
@@ -253,18 +234,6 @@ export default function AdminDashboard() {
     onError: () => showNotification('Failed to delete agreement', 'error'),
   });
 
-  const createMerchantMutation = useMutation({
-    mutationFn: (payload: any) => api.createSaasMerchant(payload),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['merchants'] });
-      setIsAddingMerchant(false);
-      setNewMerchant({ business_name: '', email: '', country: 'AU', payout_interval: 'weekly' });
-      showNotification('Merchant created successfully', 'success');
-      if (data.onboarding_link) window.open(data.onboarding_link, '_blank');
-    },
-    onError: () => showNotification('Failed to create merchant', 'error'),
-  });
-
   const handleLogout = async () => {
     try {
       await api.logoutAdmin();
@@ -338,7 +307,7 @@ export default function AdminDashboard() {
   };
 
   const handleOpenApplicationDocument = async (
-    document: 'license_photo' | 'uber_screenshot'
+    document: 'license_photo' | 'license_back_photo'
   ) => {
     if (!selectedApplication) {
       return;
@@ -363,7 +332,6 @@ export default function AdminDashboard() {
   const customerDataset = customerDatasetQuery.data;
   const invoiceDataset = invoiceDatasetQuery.data;
   const weeklyFinancials = weeklyFinancialsQuery.data;
-  const merchants = merchantsQuery.data || [];
   const savedAgreements = savedAgreementsQuery.data || [];
   const isLoadingCustomerDataset = shouldLoadCustomers && customerDatasetQuery.isPending && !customerDataset;
   const isLoadingInvoiceDataset = shouldLoadInvoices && invoiceDatasetQuery.isPending && !invoiceDataset;
@@ -1372,76 +1340,6 @@ export default function AdminDashboard() {
             </motion.div>
           )}
 
-          {activeTab === 'saas' && (
-            <motion.div
-              key="saas"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-12"
-            >
-              <div className="flex justify-between items-end">
-                <div>
-                  <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">SaaS <span className="text-brand-gold italic">Clients</span></h2>
-                  <p className="text-brand-grey font-light">Onboard other rental businesses to use Maple infrastructure.</p>
-                </div>
-                <button 
-                  onClick={() => setIsAddingMerchant(true)}
-                  className="bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-[10px] hover:bg-brand-gold-light transition-all shadow-lg flex items-center gap-3"
-                >
-                  <Plus className="w-4 h-4" /> New Merchant Onboarding
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {merchants.map((merchant) => (
-                  <div key={merchant.id} className="bg-white/5 border border-white/10 p-8 rounded-3xl relative overflow-hidden group">
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 group-hover:border-brand-gold/30 transition-all">
-                        <Building2 className="w-6 h-6 text-brand-gold" />
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest border ${
-                        merchant.onboarding_status === 'active' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-brand-navy text-brand-grey border-white/10'
-                      }`}>
-                        {merchant.onboarding_status}
-                      </span>
-                    </div>
-                    
-                    <h3 className="text-xl font-bold text-white mb-1">{merchant.name}</h3>
-                    <p className="text-[10px] text-brand-grey uppercase tracking-widest mb-6">{merchant.email}</p>
-                    
-                    <div className="space-y-3 mb-8">
-                      <div className="flex items-center gap-3 text-xs text-brand-grey">
-                        <Globe className="w-3.5 h-3.5 text-brand-gold/50" />
-                        <span>Region: {merchant.country}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-brand-grey">
-                        <DollarSign className="w-3.5 h-3.5 text-brand-gold/50" />
-                        <span>Payout: {merchant.payout_interval}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-brand-grey">
-                        <ShieldCheck className="w-3.5 h-3.5 text-brand-gold/50" />
-                        <span className="truncate">Stripe: {merchant.stripe_account_id}</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-6 border-t border-white/5">
-                      <button 
-                        onClick={() => {
-                           api.refreshSaasAccountLink(merchant.id).then(res => {
-                             if (res.onboarding_link) window.open(res.onboarding_link, '_blank');
-                           }).catch(() => showNotification('Failed to generate link', 'error'));
-                        }}
-                        className="w-full py-3 bg-white/5 border border-white/10 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-brand-gold hover:text-brand-navy hover:border-brand-gold transition-all"
-                      >
-                        Launch Dashboard
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
         </AnimatePresence>
       </div>
 
@@ -1530,7 +1428,7 @@ export default function AdminDashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
-                    <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">License Photo</h4>
+                    <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Licence Front Photo</h4>
                     {selectedApplication.license_photo ? (
                       <button
                         type="button"
@@ -1543,34 +1441,34 @@ export default function AdminDashboard() {
                         ) : (
                           <ExternalLink className="w-4 h-4" />
                         )}
-                        Open License Photo
+                        Open Licence Front Photo
                       </button>
                     ) : (
                       <div className="px-6 py-4 border border-white/10 rounded-2xl text-brand-grey text-xs font-light">
-                        No license photo uploaded.
+                        No licence front photo uploaded.
                       </div>
                     )}
                   </div>
 
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
-                    <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Uber Screenshot</h4>
-                    {selectedApplication.uber_screenshot ? (
+                    <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Licence Back Photo</h4>
+                    {selectedApplication.license_back_photo ? (
                       <button
                         type="button"
-                        onClick={() => handleOpenApplicationDocument('uber_screenshot')}
+                        onClick={() => handleOpenApplicationDocument('license_back_photo')}
                         disabled={openingDocument !== null}
                         className="w-full inline-flex items-center justify-center gap-3 px-6 py-4 bg-white/5 border border-white/10 text-white font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all disabled:opacity-50"
                       >
-                        {openingDocument === 'uber_screenshot' ? (
+                        {openingDocument === 'license_back_photo' ? (
                           <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
                         ) : (
                           <ExternalLink className="w-4 h-4 text-brand-gold" />
                         )}
-                        Open Uber Screenshot
+                        Open Licence Back Photo
                       </button>
                     ) : (
                       <div className="px-6 py-4 border border-white/10 rounded-2xl text-brand-grey text-xs font-light">
-                        No Uber screenshot uploaded.
+                        No licence back photo uploaded.
                       </div>
                     )}
                   </div>
@@ -1682,79 +1580,6 @@ export default function AdminDashboard() {
                 >
                   {addCarMutation.isPending || updateCarMutation.isPending ? <Loader2 className="animate-spin w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
                   {editingCar ? 'Update Vehicle' : 'Add Vehicle to Fleet'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* SaaS Modal */}
-      <AnimatePresence>
-        {isAddingMerchant && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl bg-brand-navy/60">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-brand-navy border border-white/10 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl"
-            >
-              <div className="p-8 border-b border-white/10 flex justify-between items-center">
-                <h3 className="text-xl font-bold text-white uppercase tracking-tighter">New SaaS Merchant</h3>
-                <button onClick={() => setIsAddingMerchant(false)} className="text-brand-grey hover:text-white"><XCircle /></button>
-              </div>
-              <div className="p-12 space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Business Name</label>
-                  <input 
-                    value={newMerchant.business_name}
-                    onChange={(e) => setNewMerchant({...newMerchant, business_name: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
-                    placeholder="e.g. Sydney Hybrid Rentals"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Business Email</label>
-                  <input 
-                    type="email"
-                    value={newMerchant.email}
-                    onChange={(e) => setNewMerchant({...newMerchant, email: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
-                    placeholder="admin@merchant.com"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Country</label>
-                    <select 
-                      value={newMerchant.country}
-                      onChange={(e) => setNewMerchant({...newMerchant, country: e.target.value})}
-                      className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none appearance-none"
-                    >
-                      <option value="AU">Australia</option>
-                      <option value="NZ">New Zealand</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Payout Schedule</label>
-                    <select 
-                      value={newMerchant.payout_interval}
-                      onChange={(e) => setNewMerchant({...newMerchant, payout_interval: e.target.value as any})}
-                      className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none appearance-none"
-                    >
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => createMerchantMutation.mutate(newMerchant)}
-                  disabled={createMerchantMutation.isPending}
-                  className="w-full bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-sm hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
-                >
-                  {createMerchantMutation.isPending ? <Loader2 className="animate-spin w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
-                  Register & Create Stripe Express Account
                 </button>
               </div>
             </motion.div>

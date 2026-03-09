@@ -4,16 +4,22 @@ type OpenApiDefinition = {
   properties?: Record<string, unknown>;
 };
 
+type ApplicationBackPhotoColumn =
+  | 'license_back_photo'
+  | 'licenseBackPhoto'
+  | 'uber_screenshot'
+  | 'uberScreenshot';
+
 type SchemaCompat = {
   coreMode: SchemaMode;
-  merchantMode: SchemaMode;
+  applicationBackPhotoColumn: ApplicationBackPhotoColumn;
   rentalStripeSubscriptionColumn: string | null;
   rentalStripeCustomerColumn: string | null;
 };
 
 const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   coreMode: 'snake',
-  merchantMode: 'snake',
+  applicationBackPhotoColumn: 'uber_screenshot',
   rentalStripeSubscriptionColumn: 'stripe_subscription_id',
   rentalStripeCustomerColumn: 'stripe_customer_id',
 };
@@ -58,13 +64,24 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
         }
 
         const carsDefinition = definitions.cars;
+        const applicationsDefinition = definitions.applications;
         const rentalsDefinition = definitions.rentals;
-        const merchantsDefinition = definitions.merchants;
 
         const coreMode: SchemaMode = hasProperty(carsDefinition, 'modelYear') ? 'camel' : 'snake';
-        const merchantMode: SchemaMode = hasProperty(merchantsDefinition, 'stripeAccountId')
-          ? 'camel'
-          : 'snake';
+        const applicationBackPhotoColumn: ApplicationBackPhotoColumn = hasProperty(
+          applicationsDefinition,
+          'licenseBackPhoto'
+        )
+          ? 'licenseBackPhoto'
+          : hasProperty(applicationsDefinition, 'license_back_photo')
+            ? 'license_back_photo'
+            : hasProperty(applicationsDefinition, 'uberScreenshot')
+              ? 'uberScreenshot'
+              : hasProperty(applicationsDefinition, 'uber_screenshot')
+                ? 'uber_screenshot'
+                : coreMode === 'camel'
+                  ? 'uberScreenshot'
+                  : 'uber_screenshot';
         const rentalStripeSubscriptionColumn = hasProperty(rentalsDefinition, 'stripeSubscriptionId')
           ? 'stripeSubscriptionId'
           : hasProperty(rentalsDefinition, 'stripe_subscription_id')
@@ -78,7 +95,7 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
 
         return {
           coreMode,
-          merchantMode,
+          applicationBackPhotoColumn,
           rentalStripeSubscriptionColumn,
           rentalStripeCustomerColumn,
         };
@@ -139,7 +156,12 @@ export const getCarCreatedAtColumn = async () => {
 };
 
 export const getApplicationSelectColumns = async () => {
-  const { coreMode } = await getSchemaCompat();
+  const { coreMode, applicationBackPhotoColumn } = await getSchemaCompat();
+  const backPhotoSelect =
+    applicationBackPhotoColumn === 'license_back_photo'
+      ? 'license_back_photo'
+      : `license_back_photo:${applicationBackPhotoColumn}`;
+
   return coreMode === 'camel'
     ? [
         'id',
@@ -154,7 +176,7 @@ export const getApplicationSelectColumns = async () => {
         'weekly_budget:weeklyBudget',
         'intended_start_date:intendedStartDate',
         'license_photo:licensePhoto',
-        'uber_screenshot:uberScreenshot',
+        backPhotoSelect,
         'status',
         'created_at:createdAt',
       ].join(', ')
@@ -171,7 +193,7 @@ export const getApplicationSelectColumns = async () => {
         'weekly_budget',
         'intended_start_date',
         'license_photo',
-        'uber_screenshot',
+        backPhotoSelect,
         'status',
         'created_at',
       ].join(', ');
@@ -189,42 +211,49 @@ export const toApplicationWritePayload = async (application: {
   weekly_budget?: string | null;
   intended_start_date: string;
   license_photo?: string | null;
-  uber_screenshot?: string | null;
+  license_back_photo?: string | null;
   status?: string;
 }) => {
-  const { coreMode } = await getSchemaCompat();
+  const { coreMode, applicationBackPhotoColumn } = await getSchemaCompat();
 
-  return coreMode === 'camel'
-    ? {
-        name: application.name,
-        phone: application.phone,
-        email: application.email,
-        licenseNumber: application.license_number,
-        licenseExpiry: application.license_expiry,
-        uberStatus: application.uber_status,
-        experience: application.experience,
-        address: application.address,
-        weeklyBudget: application.weekly_budget ?? null,
-        intendedStartDate: application.intended_start_date,
-        licensePhoto: application.license_photo ?? null,
-        uberScreenshot: application.uber_screenshot ?? null,
-        ...(application.status ? { status: application.status } : {}),
-      }
-    : {
-        name: application.name,
-        phone: application.phone,
-        email: application.email,
-        license_number: application.license_number,
-        license_expiry: application.license_expiry,
-        uber_status: application.uber_status,
-        experience: application.experience,
-        address: application.address,
-        weekly_budget: application.weekly_budget ?? null,
-        intended_start_date: application.intended_start_date,
-        license_photo: application.license_photo ?? null,
-        uber_screenshot: application.uber_screenshot ?? null,
-        ...(application.status ? { status: application.status } : {}),
-      };
+  const statusPayload = application.status ? { status: application.status } : {};
+  const licenseBackPhoto = application.license_back_photo ?? null;
+
+  if (coreMode === 'camel') {
+    const payload: Record<string, unknown> = {
+      name: application.name,
+      phone: application.phone,
+      email: application.email,
+      licenseNumber: application.license_number,
+      licenseExpiry: application.license_expiry,
+      uberStatus: application.uber_status,
+      experience: application.experience,
+      address: application.address,
+      weeklyBudget: application.weekly_budget ?? null,
+      intendedStartDate: application.intended_start_date,
+      licensePhoto: application.license_photo ?? null,
+      ...statusPayload,
+    };
+    payload[applicationBackPhotoColumn] = licenseBackPhoto;
+    return payload;
+  }
+
+  const payload: Record<string, unknown> = {
+    name: application.name,
+    phone: application.phone,
+    email: application.email,
+    license_number: application.license_number,
+    license_expiry: application.license_expiry,
+    uber_status: application.uber_status,
+    experience: application.experience,
+    address: application.address,
+    weekly_budget: application.weekly_budget ?? null,
+    intended_start_date: application.intended_start_date,
+    license_photo: application.license_photo ?? null,
+    ...statusPayload,
+  };
+  payload[applicationBackPhotoColumn] = licenseBackPhoto;
+  return payload;
 };
 
 export const getApplicationCreatedAtColumn = async () => {
@@ -233,15 +262,15 @@ export const getApplicationCreatedAtColumn = async () => {
 };
 
 export const getApplicationDocumentColumn = async (
-  column: 'license_photo' | 'uber_screenshot'
+  column: 'license_photo' | 'license_back_photo'
 ) => {
-  const { coreMode } = await getSchemaCompat();
+  const { coreMode, applicationBackPhotoColumn } = await getSchemaCompat();
 
-  if (coreMode === 'snake') {
-    return column;
+  if (column === 'license_back_photo') {
+    return applicationBackPhotoColumn;
   }
 
-  return column === 'license_photo' ? 'licensePhoto' : 'uberScreenshot';
+  return coreMode === 'camel' ? 'licensePhoto' : 'license_photo';
 };
 
 export const getRentalSelectColumns = async ({
@@ -363,42 +392,6 @@ export const getRentalCarIdColumn = async () => {
 export const getRentalApplicationIdColumn = async () => {
   const { coreMode } = await getSchemaCompat();
   return coreMode === 'camel' ? 'applicationId' : 'application_id';
-};
-
-export const getMerchantSelectColumns = async () => {
-  const { merchantMode } = await getSchemaCompat();
-  return merchantMode === 'camel'
-    ? 'id, name, email, country, stripe_account_id:stripeAccountId, payout_interval:payoutInterval, onboarding_status:onboardingStatus, created_at:createdAt, updated_at:updatedAt'
-    : 'id, name, email, country, stripe_account_id, payout_interval, onboarding_status, created_at, updated_at';
-};
-
-export const toMerchantWritePayload = async (merchant: {
-  name: string;
-  email: string;
-  country: string;
-  stripe_account_id: string;
-  payout_interval: string;
-}) => {
-  const { merchantMode } = await getSchemaCompat();
-  return merchantMode === 'camel'
-    ? {
-        name: merchant.name,
-        email: merchant.email,
-        country: merchant.country,
-        stripeAccountId: merchant.stripe_account_id,
-        payoutInterval: merchant.payout_interval,
-      }
-    : merchant;
-};
-
-export const getMerchantCreatedAtColumn = async () => {
-  const { merchantMode } = await getSchemaCompat();
-  return merchantMode === 'camel' ? 'createdAt' : 'created_at';
-};
-
-export const toMerchantUpdatedAtPayload = async (updatedAt: string) => {
-  const { merchantMode } = await getSchemaCompat();
-  return merchantMode === 'camel' ? { updatedAt } : { updated_at: updatedAt };
 };
 
 export const getBookingSelectColumns = async () => {

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /checkout/
+Disallow: /success
+
+Sitemap: https://www.maplerentals.com.au/sitemap.xml

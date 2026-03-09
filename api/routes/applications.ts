@@ -135,9 +135,10 @@ router.post('/', async (req, res) => {
     const data = applicationSchema.parse(req.body);
     let licensePhotoUrl = null;
     let uberScreenshotUrl = null;
+    const existingApplicationSelectColumns = await getApplicationSelectColumns();
     const { data: existingApplication, error: existingApplicationError } = await db
       .from('applications')
-      .select('id, status, phone, license_number')
+      .select(existingApplicationSelectColumns)
       .eq('email', data.email)
       .single();
 
@@ -145,9 +146,10 @@ router.post('/', async (req, res) => {
       throw existingApplicationError;
     }
 
-    const existingRow = existingApplicationError && isNoRowError(existingApplicationError)
-      ? null
-      : existingApplication;
+    const existingRow =
+      existingApplicationError && isNoRowError(existingApplicationError)
+        ? null
+        : ((existingApplication ?? null) as Record<string, any> | null);
     const shouldResetRejectedApplication = existingRow?.status === 'Rejected';
     const shouldSendConfirmationEmails = !existingRow || shouldResetRejectedApplication;
 

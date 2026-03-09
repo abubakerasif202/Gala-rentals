@@ -65,6 +65,35 @@ vi.mock('stripe', () => {
   };
 });
 
+vi.mock('../schemaCompat.js', async () => {
+  const actual = await vi.importActual<typeof import('../schemaCompat.js')>(
+    '../schemaCompat.js'
+  );
+
+  return {
+    ...actual,
+    getApplicationSelectColumns: vi.fn(async () =>
+      [
+        'id',
+        'name',
+        'phone',
+        'email',
+        'license_number:licenseNumber',
+        'license_expiry:licenseExpiry',
+        'uber_status:uberStatus',
+        'experience',
+        'address',
+        'weekly_budget:weeklyBudget',
+        'intended_start_date:intendedStartDate',
+        'license_photo:licensePhoto',
+        'uber_screenshot:uberScreenshot',
+        'status',
+        'created_at:createdAt',
+      ].join(', ')
+    ),
+  };
+});
+
 vi.mock('../db/index.js', () => {
   const getTableRows = (table: string) => {
     if (table === 'cars') {
@@ -102,30 +131,73 @@ vi.mock('../db/index.js', () => {
       filters.every(({ column, value }) => String(row[column]) === String(value))
     );
 
+  const createUnknownColumnError = (column: string) => ({
+    code: '42703',
+    details: null,
+    hint: `Perhaps you meant to reference the column "applications.${column === 'license_number' ? 'licenseNumber' : column}".`,
+    message: `column applications.${column} does not exist`,
+  });
+
+  const getInvalidApplicationSelectColumn = (columns?: string) => {
+    if (typeof columns !== 'string') {
+      return null;
+    }
+
+    const invalidColumns = ['license_number', 'license_expiry', 'license_photo', 'uber_screenshot'];
+    return (
+      invalidColumns.find(
+        (column) => columns.includes(column) && !columns.includes(`${column}:`)
+      ) || null
+    );
+  };
+
   const createSelectQuery = (
     table: string,
+    columns?: string,
     filters: Array<{ column: string; value: unknown }> = []
   ) => {
+    const invalidApplicationColumn =
+      table === 'applications' ? getInvalidApplicationSelectColumn(columns) : null;
+
     const resolveRows = async () => ({
-      data: structuredClone(applyFilters(getTableRows(table), filters)),
-      error: null,
+      data: invalidApplicationColumn
+        ? null
+        : structuredClone(applyFilters(getTableRows(table), filters)),
+      error: invalidApplicationColumn
+        ? createUnknownColumnError(invalidApplicationColumn)
+        : null,
     });
 
     return {
       then: (onFulfilled: (value: { data: Array<Record<string, any>>; error: null }) => unknown) =>
         resolveRows().then(onFulfilled),
       order: vi.fn(async () => ({
-        data: structuredClone(applyFilters(getTableRows(table), filters)),
-        error: null,
+        data: invalidApplicationColumn
+          ? null
+          : structuredClone(applyFilters(getTableRows(table), filters)),
+        error: invalidApplicationColumn
+          ? createUnknownColumnError(invalidApplicationColumn)
+          : null,
       })),
       eq: vi.fn((column: string, value: unknown) =>
-        createSelectQuery(table, [...filters, { column, value }])
+        createSelectQuery(table, columns, [...filters, { column, value }])
       ),
       single: vi.fn(async () => {
+      if (invalidApplicationColumn) {
+        return { data: null, error: createUnknownColumnError(invalidApplicationColumn) };
+      }
+
       const [row] = applyFilters(getTableRows(table), filters);
       return row
         ? { data: structuredClone(row), error: null }
-        : { data: null, error: { message: 'Not found' } };
+        : {
+            data: null,
+            error: {
+              code: 'PGRST116',
+              details: 'The result contains 0 rows',
+              message: 'Not found',
+            },
+          };
       }),
     };
   };
@@ -213,7 +285,7 @@ vi.mock('../db/index.js', () => {
   return {
     db: {
       from: vi.fn((table: string) => ({
-        select: vi.fn(() => createSelectQuery(table)),
+        select: vi.fn((columns?: string) => createSelectQuery(table, columns)),
         insert: vi.fn((records: Array<Record<string, any>>) =>
           createInsertQuery(table, records)
         ),
@@ -478,6 +550,30 @@ describe('Applications API', () => {
     expect(res.body[1].license_photo).toBe(
       'https://signed.example/applications/docs/license-2.png'
     );
+  });
+
+  it('POST /api/applications supports camel-case Supabase application schemas', async () => {
+    const res = await request(app).post('/api/applications').send({
+      name: 'New Driver',
+      phone: '0400111222',
+      email: 'newdriver@example.com',
+      license_number: 'NSW55555',
+      license_expiry: '2027-12-31',
+      uber_status: 'Applying',
+      experience: 'New Driver',
+      address: '55 Test Street',
+      weekly_budget: '$350/week',
+      intended_start_date: '2026-03-20',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockState.applications).toHaveLength(3);
+    expect(mockState.applications[2]).toMatchObject({
+      email: 'newdriver@example.com',
+      license_number: 'NSW55555',
+    });
   });
 });
 

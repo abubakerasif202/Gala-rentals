@@ -48,6 +48,10 @@ export interface AdminDatasetResponse<T> {
   available: boolean;
   items: T[];
   message?: string;
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 }
 
 export interface OperationalCustomer {

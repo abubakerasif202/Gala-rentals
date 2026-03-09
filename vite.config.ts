@@ -5,6 +5,9 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const isNodeModule = (id: string, packageName: string) =>
+    id.includes(`/node_modules/${packageName}/`) || id.includes(`\\node_modules\\${packageName}\\`);
+
   return {
     plugins: [react(), tailwindcss()],
     define: {
@@ -18,10 +21,42 @@ export default defineConfig(({mode}) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom', 'react-router-dom'],
-            utils: ['axios', 'zod', 'react-hook-form', '@tanstack/react-query'],
-            animations: ['motion', 'lucide-react'],
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return;
+            }
+
+            if (
+              isNodeModule(id, 'react') ||
+              isNodeModule(id, 'react-dom') ||
+              isNodeModule(id, 'react-router-dom')
+            ) {
+              return 'vendor';
+            }
+
+            if (isNodeModule(id, '@tanstack/react-query')) {
+              return 'react-query';
+            }
+
+            if (isNodeModule(id, 'axios')) {
+              return 'http';
+            }
+
+            if (
+              isNodeModule(id, 'react-hook-form') ||
+              isNodeModule(id, '@hookform/resolvers') ||
+              isNodeModule(id, 'zod')
+            ) {
+              return 'forms';
+            }
+
+            if (id.includes('motion')) {
+              return 'motion';
+            }
+
+            if (isNodeModule(id, 'lucide-react')) {
+              return 'icons';
+            }
           },
         },
       },

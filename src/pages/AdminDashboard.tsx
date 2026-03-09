@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useDeferredValue, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus,
@@ -42,6 +42,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/admin/Sidebar';
 
+const OPERATIONAL_PAGE_SIZE = 25;
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -84,56 +86,100 @@ export default function AdminDashboard() {
   });
   const [customerSearch, setCustomerSearch] = useState('');
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [customerPage, setCustomerPage] = useState(1);
+  const [invoicePage, setInvoicePage] = useState(1);
+  const deferredCustomerSearch = useDeferredValue(customerSearch.trim());
+  const deferredInvoiceSearch = useDeferredValue(invoiceSearch.trim());
+
+  useEffect(() => {
+    setCustomerPage(1);
+  }, [deferredCustomerSearch]);
+
+  useEffect(() => {
+    setInvoicePage(1);
+  }, [deferredInvoiceSearch]);
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
   };
 
+  const shouldLoadStats = activeTab === 'dashboard' || activeTab === 'financials';
+  const shouldLoadCars = activeTab === 'dashboard' || activeTab === 'cars' || activeTab === 'agreements';
+  const shouldLoadApplications =
+    activeTab === 'dashboard' || activeTab === 'applications' || activeTab === 'agreements';
+  const shouldLoadRentals = activeTab === 'rentals';
+  const shouldLoadCustomers = activeTab === 'customers';
+  const shouldLoadInvoices = activeTab === 'invoices';
+  const shouldLoadWeeklyFinancials = activeTab === 'financials';
+  const shouldLoadMerchants = activeTab === 'saas';
+  const shouldLoadAgreements = activeTab === 'agreements';
+
   // Queries
-  const { data: stats } = useQuery<DashboardStats>({
+  const statsQuery = useQuery<DashboardStats>({
     queryKey: ['stats'],
     queryFn: () => api.fetchStats(),
+    enabled: shouldLoadStats,
   });
 
-  const { data: cars = [] } = useQuery<CarType[]>({
+  const carsQuery = useQuery<CarType[]>({
     queryKey: ['cars'],
     queryFn: () => api.fetchCars(),
+    enabled: shouldLoadCars,
   });
 
-  const { data: applications = [] } = useQuery<Application[]>({
+  const applicationsQuery = useQuery<Application[]>({
     queryKey: ['applications'],
     queryFn: () => api.fetchApplications(),
+    enabled: shouldLoadApplications,
   });
 
-  const { data: rentals = [] } = useQuery<Rental[]>({
+  const rentalsQuery = useQuery<Rental[]>({
     queryKey: ['rentals'],
     queryFn: () => api.fetchRentals(),
+    enabled: shouldLoadRentals,
   });
 
-  const { data: customerDataset } = useQuery<AdminDatasetResponse<OperationalCustomer>>({
-    queryKey: ['operational-customers'],
-    queryFn: () => api.fetchOperationalCustomers(),
+  const customerDatasetQuery = useQuery<AdminDatasetResponse<OperationalCustomer>>({
+    queryKey: ['operational-customers', deferredCustomerSearch, customerPage, OPERATIONAL_PAGE_SIZE],
+    queryFn: () =>
+      api.fetchOperationalCustomers({
+        page: customerPage,
+        pageSize: OPERATIONAL_PAGE_SIZE,
+        search: deferredCustomerSearch,
+      }),
+    enabled: shouldLoadCustomers,
+    placeholderData: (previousData) => previousData,
   });
 
-  const { data: invoiceDataset } = useQuery<AdminDatasetResponse<OperationalInvoice>>({
-    queryKey: ['operational-invoices'],
-    queryFn: () => api.fetchOperationalInvoices(),
+  const invoiceDatasetQuery = useQuery<AdminDatasetResponse<OperationalInvoice>>({
+    queryKey: ['operational-invoices', deferredInvoiceSearch, invoicePage, OPERATIONAL_PAGE_SIZE],
+    queryFn: () =>
+      api.fetchOperationalInvoices({
+        page: invoicePage,
+        pageSize: OPERATIONAL_PAGE_SIZE,
+        search: deferredInvoiceSearch,
+      }),
+    enabled: shouldLoadInvoices,
+    placeholderData: (previousData) => previousData,
   });
 
-  const { data: weeklyFinancials } = useQuery<api.WeeklyFinancials>({
+  const weeklyFinancialsQuery = useQuery<api.WeeklyFinancials>({
     queryKey: ['weekly-financials'],
     queryFn: () => api.fetchWeeklyFinancials(),
+    enabled: shouldLoadWeeklyFinancials,
   });
 
-  const { data: merchants = [] } = useQuery<SaasMerchant[]>({
+  const merchantsQuery = useQuery<SaasMerchant[]>({
     queryKey: ['merchants'],
     queryFn: () => api.fetchSaasMerchants(),
+    enabled: shouldLoadMerchants,
   });
 
-  const { data: savedAgreements = [] } = useQuery({
+  const savedAgreementsQuery = useQuery({
     queryKey: ['agreements'],
     queryFn: () => api.fetchSavedLeaseAgreements(),
+    enabled: shouldLoadAgreements,
   });
 
   // Mutations
@@ -310,6 +356,19 @@ export default function AdminDashboard() {
     }
   };
 
+  const stats = statsQuery.data;
+  const cars = carsQuery.data || [];
+  const applications = applicationsQuery.data || [];
+  const rentals = rentalsQuery.data || [];
+  const customerDataset = customerDatasetQuery.data;
+  const invoiceDataset = invoiceDatasetQuery.data;
+  const weeklyFinancials = weeklyFinancialsQuery.data;
+  const merchants = merchantsQuery.data || [];
+  const savedAgreements = savedAgreementsQuery.data || [];
+  const isLoadingCustomerDataset = shouldLoadCustomers && customerDatasetQuery.isPending && !customerDataset;
+  const isLoadingInvoiceDataset = shouldLoadInvoices && invoiceDatasetQuery.isPending && !invoiceDataset;
+  const isLoadingWeeklyFinancials =
+    shouldLoadWeeklyFinancials && weeklyFinancialsQuery.isPending && !weeklyFinancials;
   const approvedApplications = applications.filter(app => app.status === 'Approved' || app.status === 'Paid');
   const selectedAgreementCar = cars.find(
     (car) => car.id === Number(selected_agreement_car_id)
@@ -333,40 +392,12 @@ export default function AdminDashboard() {
   };
   const customerRecords = customerDataset?.items || [];
   const invoiceRecords = invoiceDataset?.items || [];
-  const customerHistoryAvailable = customerDataset?.available !== false;
-  const invoiceHistoryAvailable = invoiceDataset?.available !== false;
+  const customerHistoryAvailable = customerDataset ? customerDataset.available !== false : true;
+  const invoiceHistoryAvailable = invoiceDataset ? invoiceDataset.available !== false : true;
   const operationalHistoryMessage =
     customerDataset?.message ||
     invoiceDataset?.message ||
     'Operational history is not installed in this environment yet.';
-  const filteredCustomers = customerRecords.filter((customer) => {
-    const query = customerSearch.trim().toLowerCase();
-    if (!query) {
-      return true;
-    }
-
-    return [
-      customer.full_name,
-      customer.email || '',
-      customer.phone || '',
-      customer.company_name || '',
-      customer.staff_number || '',
-    ].some((value) => value.toLowerCase().includes(query));
-  });
-  const filteredInvoices = invoiceRecords.filter((invoice) => {
-    const query = invoiceSearch.trim().toLowerCase();
-    if (!query) {
-      return true;
-    }
-
-    return [
-      invoice.external_invoice_number,
-      invoice.customer_name,
-      invoice.car_registration || '',
-      invoice.customer_email || '',
-      invoice.status,
-    ].some((value) => value.toLowerCase().includes(query));
-  });
   const customerTotals = {
     total_billed: customerRecords.reduce((sum, customer) => sum + (Number(customer.total_billed) || 0), 0),
     outstanding_balance: customerRecords.reduce(
@@ -379,6 +410,18 @@ export default function AdminDashboard() {
     outstanding_balance: invoiceRecords.reduce((sum, invoice) => sum + (Number(invoice.balance) || 0), 0),
     open_count: invoiceRecords.filter((invoice) => invoice.status === 'Open').length,
   };
+  const currentCustomerPage = customerDataset?.page || 1;
+  const customerTotalPages = customerDataset?.totalPages || 1;
+  const customerTotalItems = customerDataset?.totalItems || 0;
+  const invoiceCurrentPage = invoiceDataset?.page || 1;
+  const invoiceTotalPages = invoiceDataset?.totalPages || 1;
+  const invoiceTotalItems = invoiceDataset?.totalItems || 0;
+  const renderLoadingPanel = (message: string) => (
+    <div className="bg-white/5 border border-white/10 rounded-3xl p-10 flex items-center gap-4 text-sm text-brand-grey">
+      <Loader2 className="w-5 h-5 animate-spin text-brand-gold" />
+      <span>{message}</span>
+    </div>
+  );
   const renderOperationalUnavailable = (title: string) => (
     <div className="bg-white/5 border border-white/10 rounded-3xl p-10 space-y-4">
       <div className="w-12 h-12 bg-brand-gold/10 rounded-2xl flex items-center justify-center border border-brand-gold/20">
@@ -787,15 +830,34 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {!customerHistoryAvailable ? (
+              {isLoadingCustomerDataset ? (
+                renderLoadingPanel('Loading customer history...')
+              ) : !customerHistoryAvailable ? (
                 renderOperationalUnavailable('Customer history schema is not installed')
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {[
-                      { label: 'Imported Customers', value: customerRecords.length, helper: 'Rows in the private customer roster', icon: Users },
-                      { label: 'Total Billed', value: formatCurrency(customerTotals.total_billed), helper: 'Across linked invoice history', icon: DollarSign },
-                      { label: 'Outstanding Balance', value: formatCurrency(customerTotals.outstanding_balance), helper: 'Open balances still on file', icon: AlertCircle },
+                      {
+                        label: deferredCustomerSearch ? 'Matching Customers' : 'Imported Customers',
+                        value: customerTotalItems,
+                        helper: deferredCustomerSearch
+                          ? 'Records matching the current search'
+                          : 'Rows in the private customer roster',
+                        icon: Users,
+                      },
+                      {
+                        label: 'Visible Billed',
+                        value: formatCurrency(customerTotals.total_billed),
+                        helper: 'Linked invoice value on the current page',
+                        icon: DollarSign,
+                      },
+                      {
+                        label: 'Visible Outstanding',
+                        value: formatCurrency(customerTotals.outstanding_balance),
+                        helper: 'Open balances on the current page',
+                        icon: AlertCircle,
+                      },
                     ].map((card) => (
                       <div key={card.label} className="bg-white/5 border border-white/10 p-8 rounded-3xl">
                         <div className="flex items-start justify-between gap-4 mb-6">
@@ -824,7 +886,7 @@ export default function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
-                        {filteredCustomers.map((customer) => (
+                        {customerRecords.map((customer) => (
                           <tr key={customer.id} className="hover:bg-white/5 transition-all">
                             <td className="px-8 py-6">
                               <div>
@@ -856,7 +918,7 @@ export default function AdminDashboard() {
                             </td>
                           </tr>
                         ))}
-                        {filteredCustomers.length === 0 && (
+                        {customerRecords.length === 0 && (
                           <tr>
                             <td colSpan={5} className="px-8 py-12 text-center text-brand-grey text-xs font-light italic">
                               No customer records matched the current search.
@@ -865,6 +927,31 @@ export default function AdminDashboard() {
                         )}
                       </tbody>
                     </table>
+                    <div className="flex items-center justify-between gap-4 border-t border-white/10 px-8 py-6">
+                      <p className="text-[11px] text-brand-grey">
+                        Page {currentCustomerPage} of {customerTotalPages}
+                        {' '}• {customerTotalItems} records
+                        {customerDatasetQuery.isFetching ? ' • Updating...' : ''}
+                      </p>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setCustomerPage((page) => Math.max(1, page - 1))}
+                          disabled={currentCustomerPage <= 1 || customerDatasetQuery.isFetching}
+                          className="px-4 py-2 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all disabled:opacity-40"
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCustomerPage((page) => Math.min(customerTotalPages, page + 1))}
+                          disabled={currentCustomerPage >= customerTotalPages || customerDatasetQuery.isFetching}
+                          className="px-4 py-2 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all disabled:opacity-40"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -897,15 +984,34 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {!invoiceHistoryAvailable ? (
+              {isLoadingInvoiceDataset ? (
+                renderLoadingPanel('Loading invoice history...')
+              ) : !invoiceHistoryAvailable ? (
                 renderOperationalUnavailable('Invoice history schema is not installed')
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {[
-                      { label: 'Imported Invoices', value: invoiceRecords.length, helper: 'Rows imported from the workbook export', icon: FileText },
-                      { label: 'Outstanding Balance', value: formatCurrency(invoiceTotals.outstanding_balance), helper: 'Balance still open across all imported invoices', icon: AlertCircle },
-                      { label: 'Open Invoices', value: invoiceTotals.open_count, helper: 'Invoices with remaining balance', icon: DollarSign },
+                      {
+                        label: deferredInvoiceSearch ? 'Matching Invoices' : 'Imported Invoices',
+                        value: invoiceTotalItems,
+                        helper: deferredInvoiceSearch
+                          ? 'Invoices matching the current search'
+                          : 'Rows imported from the workbook export',
+                        icon: FileText,
+                      },
+                      {
+                        label: 'Visible Balance',
+                        value: formatCurrency(invoiceTotals.outstanding_balance),
+                        helper: 'Outstanding balance on the current page',
+                        icon: AlertCircle,
+                      },
+                      {
+                        label: 'Open on Page',
+                        value: invoiceTotals.open_count,
+                        helper: 'Invoices with remaining balance on this page',
+                        icon: DollarSign,
+                      },
                     ].map((card) => (
                       <div key={card.label} className="bg-white/5 border border-white/10 p-8 rounded-3xl">
                         <div className="flex items-start justify-between gap-4 mb-6">
@@ -935,7 +1041,7 @@ export default function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
-                        {filteredInvoices.map((invoice) => (
+                        {invoiceRecords.map((invoice) => (
                           <tr key={invoice.id} className="hover:bg-white/5 transition-all">
                             <td className="px-8 py-6">
                               <div>
@@ -974,7 +1080,7 @@ export default function AdminDashboard() {
                             </td>
                           </tr>
                         ))}
-                        {filteredInvoices.length === 0 && (
+                        {invoiceRecords.length === 0 && (
                           <tr>
                             <td colSpan={6} className="px-8 py-12 text-center text-brand-grey text-xs font-light italic">
                               No invoice records matched the current search.
@@ -983,6 +1089,31 @@ export default function AdminDashboard() {
                         )}
                       </tbody>
                     </table>
+                    <div className="flex items-center justify-between gap-4 border-t border-white/10 px-8 py-6">
+                      <p className="text-[11px] text-brand-grey">
+                        Page {invoiceCurrentPage} of {invoiceTotalPages}
+                        {' '}• {invoiceTotalItems} records
+                        {invoiceDatasetQuery.isFetching ? ' • Updating...' : ''}
+                      </p>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setInvoicePage((page) => Math.max(1, page - 1))}
+                          disabled={invoiceCurrentPage <= 1 || invoiceDatasetQuery.isFetching}
+                          className="px-4 py-2 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all disabled:opacity-40"
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInvoicePage((page) => Math.min(invoiceTotalPages, page + 1))}
+                          disabled={invoiceCurrentPage >= invoiceTotalPages || invoiceDatasetQuery.isFetching}
+                          className="px-4 py-2 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all disabled:opacity-40"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -1014,6 +1145,10 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
+              {isLoadingWeeklyFinancials ? (
+                renderLoadingPanel('Loading weekly financials...')
+              ) : (
+                <>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
                 {[
                   {
@@ -1098,6 +1233,8 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+                </>
+              )}
             </motion.div>
           )}
 

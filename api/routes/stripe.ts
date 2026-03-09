@@ -57,6 +57,19 @@ type StripeCar = {
   weekly_price: number | string;
 };
 
+const isStripeConfigurationError = (
+  error: unknown
+): error is { code?: string; message?: string; type?: string } =>
+  Boolean(
+    error &&
+      typeof error === 'object' &&
+      (('type' in error && (error as { type?: string }).type === 'StripeAuthenticationError') ||
+        ('code' in error &&
+          ['api_key_expired', 'api_key_invalid'].includes(
+            String((error as { code?: string }).code || '')
+          )))
+  );
+
 const toFloat = (value: number | string) => Number(Number(value).toFixed(2));
 const toCents = (value: number) => Math.round(value * 100);
 
@@ -364,6 +377,13 @@ router.post('/application-checkout-session', async (req, res) => {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });
     }
 
+    if (isStripeConfigurationError(error)) {
+      console.error('Stripe configuration error during application checkout session:', error);
+      return res.status(503).json({
+        error: 'Payments are temporarily unavailable. Please contact support.',
+      });
+    }
+
     if (error instanceof Error && error.message.toLowerCase().includes('checkout token')) {
       return res.status(401).json({ error: error.message });
     }
@@ -433,6 +453,13 @@ router.post('/vehicle-checkout-session', async (req, res) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    if (isStripeConfigurationError(error)) {
+      console.error('Stripe configuration error during vehicle checkout session:', error);
+      return res.status(503).json({
+        error: 'Payments are temporarily unavailable. Please contact support.',
+      });
     }
 
     if (error instanceof Error && error.message.toLowerCase().includes('checkout token')) {

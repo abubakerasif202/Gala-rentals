@@ -83,17 +83,27 @@ export const fetchRentals = async (): Promise<Rental[]> => {
   return data;
 };
 
-export const fetchOperationalCustomers = async (): Promise<
+export interface AdminDatasetRequest {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}
+
+export const fetchOperationalCustomers = async (
+  params: AdminDatasetRequest = {}
+): Promise<
   AdminDatasetResponse<OperationalCustomer>
 > => {
-  const { data } = await api.get('/customers');
+  const { data } = await api.get('/customers', { params });
   return data;
 };
 
-export const fetchOperationalInvoices = async (): Promise<
+export const fetchOperationalInvoices = async (
+  params: AdminDatasetRequest = {}
+): Promise<
   AdminDatasetResponse<OperationalInvoice>
 > => {
-  const { data } = await api.get('/invoices');
+  const { data } = await api.get('/invoices', { params });
   return data;
 };
 

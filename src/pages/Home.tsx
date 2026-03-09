@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ShieldCheck, ArrowRight, Check, Wrench, Fuel, Sparkles } from 'lucide-react';
 import { motion, Variants } from 'motion/react';
-import InquiryForm from '../components/InquiryForm';
+import DeferredInquiryForm from '../components/DeferredInquiryForm';
 import { rentalPlans } from '../lib/rentalPlans';
 
 const fadeIn: Variants = {
@@ -89,7 +89,7 @@ export default function Home() {
 
       <section className="pb-32 bg-[#F8F9FA] relative z-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <InquiryForm />
+          <DeferredInquiryForm />
         </div>
       </section>
 

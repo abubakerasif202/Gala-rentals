@@ -7,26 +7,132 @@ import {
 } from '../operationalHistory.js';
 
 const router = express.Router();
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+const invoiceCustomerColumns = 'id, email, phone';
 
-router.get('/', authenticateAdmin, async (_req, res) => {
+const parsePositiveInt = (value: unknown, fallback: number) => {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.floor(parsed);
+};
+
+const normalizeSearchTerm = (value: unknown) => {
+  const normalized = Array.isArray(value) ? value[0] : value;
+
+  if (typeof normalized !== 'string') {
+    return '';
+  }
+
+  return normalized.replace(/[^a-zA-Z0-9@.+\-\s]/g, ' ').replace(/\s+/g, ' ').trim();
+};
+
+const applyInvoiceSearch = (query: any, searchTerm: string) => {
+  if (!searchTerm) {
+    return query;
+  }
+
+  const pattern = `%${searchTerm}%`;
+  return query.or(
+    [
+      `external_invoice_number.ilike.${pattern}`,
+      `customer_name.ilike.${pattern}`,
+      `car_registration.ilike.${pattern}`,
+      `due_label.ilike.${pattern}`,
+      `transaction_summary.ilike.${pattern}`,
+    ].join(',')
+  );
+};
+
+router.get('/', authenticateAdmin, async (req, res) => {
+  const requestedPage = parsePositiveInt(req.query.page, 1);
+  const pageSize = Math.min(parsePositiveInt(req.query.pageSize, DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
+  const searchTerm = normalizeSearchTerm(req.query.search);
+
   try {
-    const [{ data: invoices, error: invoicesError }, { data: customers, error: customersError }] =
-      await Promise.all([
-        db.from('invoices').select('*').order('invoice_date', { ascending: false }),
-        db.from('customers').select('id, full_name, email, phone').order('full_name', { ascending: true }),
-      ]);
+    let invoiceCountQuery = db.from('invoices').select('id', { count: 'exact', head: true });
+    invoiceCountQuery = applyInvoiceSearch(invoiceCountQuery, searchTerm);
 
-    if (invoicesError || customersError) {
-      const missingTableError = invoicesError || customersError;
+    const { count, error: invoiceCountError } = await invoiceCountQuery;
+    if (invoiceCountError) {
+      const missingTableError = invoiceCountError;
       if (isMissingOperationalHistoryTableError(missingTableError)) {
         return res.json({
           available: false,
           items: [],
           message: OPERATIONAL_HISTORY_UNAVAILABLE_MESSAGE,
+          page: 1,
+          pageSize,
+          totalItems: 0,
+          totalPages: 1,
         });
       }
 
-      throw invoicesError || customersError;
+      throw invoiceCountError;
+    }
+
+    const totalItems = count || 0;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const page = Math.min(requestedPage, totalPages);
+    const rangeStart = (page - 1) * pageSize;
+    const rangeEnd = rangeStart + pageSize - 1;
+
+    let invoiceQuery = db
+      .from('invoices')
+      .select('*')
+      .order('invoice_date', { ascending: false });
+    invoiceQuery = applyInvoiceSearch(invoiceQuery, searchTerm);
+
+    const { data: invoices, error: invoicesError } = await invoiceQuery.range(rangeStart, rangeEnd);
+    if (invoicesError) {
+      if (isMissingOperationalHistoryTableError(invoicesError)) {
+        return res.json({
+          available: false,
+          items: [],
+          message: OPERATIONAL_HISTORY_UNAVAILABLE_MESSAGE,
+          page: 1,
+          pageSize,
+          totalItems: 0,
+          totalPages: 1,
+        });
+      }
+
+      throw invoicesError;
+    }
+
+    const customerIds = (invoices || [])
+      .map((invoice: any) => Number(invoice.customer_id))
+      .filter((customerId) => Number.isFinite(customerId));
+
+    let customers: Array<Record<string, any>> = [];
+    if (customerIds.length > 0) {
+      const { data: customerRows, error: customersError } = await db
+        .from('customers')
+        .select(invoiceCustomerColumns)
+        .in('id', customerIds);
+
+      if (customersError) {
+        if (isMissingOperationalHistoryTableError(customersError)) {
+          return res.json({
+            available: false,
+            items: [],
+            message: OPERATIONAL_HISTORY_UNAVAILABLE_MESSAGE,
+            page: 1,
+            pageSize,
+            totalItems: 0,
+            totalPages: 1,
+          });
+        }
+
+        throw customersError;
+      }
+
+      customers = (customerRows || []) as Array<Record<string, any>>;
     }
 
     const customerById = new Map<number, any>(
@@ -49,6 +155,10 @@ router.get('/', authenticateAdmin, async (_req, res) => {
     res.json({
       available: true,
       items,
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
     });
   } catch (error) {
     console.error('Invoice history fetch error:', error);

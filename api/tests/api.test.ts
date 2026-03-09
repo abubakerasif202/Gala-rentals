@@ -123,13 +123,88 @@ vi.mock('../db/index.js', () => {
     return [];
   };
 
+  type QueryFilter =
+    | { type: 'eq'; column: string; value: unknown }
+    | { type: 'in'; column: string; values: unknown[] }
+    | { type: 'or'; clauses: Array<{ column: string; search: string }> };
+
   const applyFilters = (
     rows: Array<Record<string, any>>,
-    filters: Array<{ column: string; value: unknown }>
+    filters: QueryFilter[]
   ) =>
     rows.filter((row) =>
-      filters.every(({ column, value }) => String(row[column]) === String(value))
+      filters.every((filter) => {
+        if (filter.type === 'eq') {
+          return String(row[filter.column]) === String(filter.value);
+        }
+
+        if (filter.type === 'in') {
+          return filter.values.some((value) => String(row[filter.column]) === String(value));
+        }
+
+        return filter.clauses.some(({ column, search }) =>
+          String(row[column] || '').toLowerCase().includes(search.toLowerCase())
+        );
+      })
     );
+
+  const applyOrder = (
+    rows: Array<Record<string, any>>,
+    order?: { column: string; ascending: boolean } | null
+  ) => {
+    if (!order) {
+      return rows;
+    }
+
+    return [...rows].sort((left, right) => {
+      const leftValue = left[order.column];
+      const rightValue = right[order.column];
+
+      if (leftValue === rightValue) {
+        return 0;
+      }
+
+      if (leftValue == null) {
+        return order.ascending ? -1 : 1;
+      }
+
+      if (rightValue == null) {
+        return order.ascending ? 1 : -1;
+      }
+
+      if (leftValue > rightValue) {
+        return order.ascending ? 1 : -1;
+      }
+
+      return order.ascending ? -1 : 1;
+    });
+  };
+
+  const applyRange = (
+    rows: Array<Record<string, any>>,
+    range?: { from: number; to: number } | null
+  ) => {
+    if (!range) {
+      return rows;
+    }
+
+    return rows.slice(range.from, range.to + 1);
+  };
+
+  const parseOrClauses = (expression: string) =>
+    expression
+      .split(',')
+      .map((clause) => {
+        const [column, operator, ...rest] = clause.split('.');
+
+        if (!column || operator !== 'ilike') {
+          return null;
+        }
+
+        const search = rest.join('.').replace(/^%+|%+$/g, '').replace(/^\*+|\*+$/g, '');
+        return search ? { column, search } : null;
+      })
+      .filter((clause): clause is { column: string; search: string } => Boolean(clause));
 
   const createUnknownColumnError = (column: string) => ({
     code: '42703',
@@ -154,50 +229,84 @@ vi.mock('../db/index.js', () => {
   const createSelectQuery = (
     table: string,
     columns?: string,
-    filters: Array<{ column: string; value: unknown }> = []
+    options: { count?: string; head?: boolean } = {},
+    filters: QueryFilter[] = [],
+    order?: { column: string; ascending: boolean } | null,
+    range?: { from: number; to: number } | null
   ) => {
     const invalidApplicationColumn =
       table === 'applications' ? getInvalidApplicationSelectColumn(columns) : null;
 
-    const resolveRows = async () => ({
-      data: invalidApplicationColumn
-        ? null
-        : structuredClone(applyFilters(getTableRows(table), filters)),
-      error: invalidApplicationColumn
-        ? createUnknownColumnError(invalidApplicationColumn)
-        : null,
-    });
-
-    return {
-      then: (onFulfilled: (value: { data: Array<Record<string, any>>; error: null }) => unknown) =>
-        resolveRows().then(onFulfilled),
-      order: vi.fn(async () => ({
-        data: invalidApplicationColumn
-          ? null
-          : structuredClone(applyFilters(getTableRows(table), filters)),
-        error: invalidApplicationColumn
-          ? createUnknownColumnError(invalidApplicationColumn)
-          : null,
-      })),
-      eq: vi.fn((column: string, value: unknown) =>
-        createSelectQuery(table, columns, [...filters, { column, value }])
-      ),
-      single: vi.fn(async () => {
+    const resolveRows = async () => {
       if (invalidApplicationColumn) {
-        return { data: null, error: createUnknownColumnError(invalidApplicationColumn) };
+        return {
+          data: null,
+          error: createUnknownColumnError(invalidApplicationColumn),
+          count: null,
+        };
       }
 
-      const [row] = applyFilters(getTableRows(table), filters);
-      return row
-        ? { data: structuredClone(row), error: null }
-        : {
-            data: null,
-            error: {
-              code: 'PGRST116',
-              details: 'The result contains 0 rows',
-              message: 'Not found',
-            },
-          };
+      const filteredRows = applyFilters(getTableRows(table), filters);
+      const orderedRows = applyOrder(filteredRows, order);
+      const selectedRows = applyRange(orderedRows, range);
+
+      return {
+        data: options.head ? null : structuredClone(selectedRows),
+        error: null,
+        count: options.count === 'exact' ? filteredRows.length : null,
+      };
+    };
+
+    return {
+      then: (
+        onFulfilled: (value: {
+          data: Array<Record<string, any>> | null;
+          error: null | Record<string, any>;
+          count: number | null;
+        }) => unknown,
+        onRejected?: (reason: unknown) => unknown
+      ) => resolveRows().then(onFulfilled, onRejected),
+      order: vi.fn((column: string, { ascending = true }: { ascending?: boolean } = {}) =>
+        createSelectQuery(table, columns, options, filters, { column, ascending }, range)
+      ),
+      eq: vi.fn((column: string, value: unknown) =>
+        createSelectQuery(table, columns, options, [...filters, { type: 'eq', column, value }], order, range)
+      ),
+      in: vi.fn((column: string, values: unknown[]) =>
+        createSelectQuery(table, columns, options, [...filters, { type: 'in', column, values }], order, range)
+      ),
+      or: vi.fn((expression: string) => {
+        const clauses = parseOrClauses(expression);
+        return createSelectQuery(
+          table,
+          columns,
+          options,
+          clauses.length > 0 ? [...filters, { type: 'or', clauses }] : filters,
+          order,
+          range
+        );
+      }),
+      range: vi.fn((from: number, to: number) =>
+        createSelectQuery(table, columns, options, filters, order, { from, to })
+      ),
+      single: vi.fn(async () => {
+        if (invalidApplicationColumn) {
+          return { data: null, error: createUnknownColumnError(invalidApplicationColumn) };
+        }
+
+        const filteredRows = applyFilters(getTableRows(table), filters);
+        const orderedRows = applyOrder(filteredRows, order);
+        const [row] = applyRange(orderedRows, range);
+        return row
+          ? { data: structuredClone(row), error: null }
+          : {
+              data: null,
+              error: {
+                code: 'PGRST116',
+                details: 'The result contains 0 rows',
+                message: 'Not found',
+              },
+            };
       }),
     };
   };
@@ -285,7 +394,9 @@ vi.mock('../db/index.js', () => {
   return {
     db: {
       from: vi.fn((table: string) => ({
-        select: vi.fn((columns?: string) => createSelectQuery(table, columns)),
+        select: vi.fn((columns?: string, options?: { count?: string; head?: boolean }) =>
+          createSelectQuery(table, columns, options)
+        ),
         insert: vi.fn((records: Array<Record<string, any>>) =>
           createInsertQuery(table, records)
         ),
@@ -504,7 +615,7 @@ describe('Cars API', () => {
     const res = await request(app).get('/api/cars');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body[0].name).toBe('Toyota Camry');
+    expect(res.body[0].name).toBe('Toyota Prius');
   });
 
   it('GET /api/cars/:id should return a single car', async () => {
@@ -542,14 +653,10 @@ describe('Applications API', () => {
 
     expect(res.status).toBe(200);
     expect(res.body[0].license_photo).toBe(
-      'https://signed.example/applications/docs/license-1.png'
-    );
-    expect(res.body[0].uber_screenshot).toBe(
-      'https://signed.example/applications/docs/uber-1.png'
-    );
-    expect(res.body[1].license_photo).toBe(
       'https://signed.example/applications/docs/license-2.png'
     );
+    expect(res.body[1].license_photo).toBe('https://signed.example/applications/docs/license-1.png');
+    expect(res.body[1].uber_screenshot).toBe('https://signed.example/applications/docs/uber-1.png');
   });
 
   it('POST /api/applications supports camel-case Supabase application schemas', async () => {
@@ -585,8 +692,23 @@ describe('Operational history API', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.available).toBe(true);
+    expect(res.body.page).toBe(1);
+    expect(res.body.totalItems).toBe(2);
     expect(res.body.items[0].invoice_count).toBe(1);
     expect(res.body.items[0].total_billed).toBe(230.99);
+  });
+
+  it('GET /api/customers supports paginated search results for admins', async () => {
+    const res = await request(app)
+      .get('/api/customers')
+      .query({ search: 'Hasan', pageSize: 1, page: 1 })
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalItems).toBe(1);
+    expect(res.body.totalPages).toBe(1);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].full_name).toBe('Hasan Nasir');
   });
 
   it('GET /api/invoices returns invoice history for admins', async () => {
@@ -596,8 +718,23 @@ describe('Operational history API', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.available).toBe(true);
+    expect(res.body.page).toBe(1);
+    expect(res.body.totalItems).toBe(2);
     expect(res.body.items[0].external_invoice_number).toBe('1882');
     expect(res.body.items[1].status).toBe('Paid');
+  });
+
+  it('GET /api/invoices supports paginated search results for admins', async () => {
+    const res = await request(app)
+      .get('/api/invoices')
+      .query({ search: 'YNU55M', pageSize: 1, page: 1 })
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalItems).toBe(1);
+    expect(res.body.totalPages).toBe(1);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].external_invoice_number).toBe('1881');
   });
 });
 
@@ -649,6 +786,25 @@ describe('Stripe API', () => {
     expect(payload.success_url).toContain(
       `checkout_token=${encodeURIComponent(token.token)}`
     );
+  });
+
+  it('POST /api/stripe/application-checkout-session returns 503 for Stripe credential failures', async () => {
+    mockStripe.checkoutSessionsCreate.mockRejectedValueOnce(
+      Object.assign(new Error('Expired API Key provided'), {
+        type: 'StripeAuthenticationError',
+        code: 'api_key_expired',
+      })
+    );
+    const token = createCheckoutToken({ applicationId: 1, purpose: 'application' });
+
+    const res = await request(app).post('/api/stripe/application-checkout-session').send({
+      application_id: 1,
+      checkout_token: token.token,
+      plan_id: 'weekly',
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe('Payments are temporarily unavailable. Please contact support.');
   });
 
   it('POST /api/stripe/application-checkout-session rejects rejected applications', async () => {

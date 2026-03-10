@@ -15,36 +15,51 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { submitApplication } from '../lib/api';
+import {
+  APPLICATION_IMAGE_CONTENT_TYPES,
+  AUSTRALIAN_MOBILE_REGEX,
+  MAX_APPLICATION_UPLOAD_BYTES,
+  getTodayInAustralia,
+  isFutureAustraliaDate,
+  isTodayOrFutureAustraliaDate,
+  isValidDateOnly,
+  normalizeApplicationEmail,
+} from '../../shared/applicationSubmission';
 
-const MAX_UPLOAD_BYTES = 7 * 1024 * 1024;
+const ALLOWED_UPLOAD_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
+
+const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
+  z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
 
 const applySchema = z.object({
-  name: z.string().min(2, 'Full name is required'),
+  name: z.string().trim().min(2, 'Full name is required'),
   phone: z
     .string()
-    .regex(/^(?:\+61|0)4\d{8}$/, 'Valid Australian mobile number required'),
-  email: z.string().email('Invalid email address').trim().toLowerCase(),
-  address: z.string().min(5, 'Residential address is required'),
-  license_number: z.string().min(5, 'License number is required'),
-  license_expiry: z
+    .trim()
+    .regex(AUSTRALIAN_MOBILE_REGEX, 'Valid Australian mobile number required'),
+  email: z
     .string()
-    .min(1, 'License expiry date is required')
-    .refine((date) => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return new Date(date) > today;
-    }, 'License must not be expired'),
+    .transform(normalizeApplicationEmail)
+    .pipe(z.string().email('Invalid email address')),
+  address: z.string().trim().min(5, 'Residential address is required'),
+  license_number: z.string().trim().min(5, 'License number is required'),
+  license_expiry: dateOnlySchema(
+    'License expiry date is required',
+    'License expiry date must be a valid date'
+  ).refine(
+    (value) => isFutureAustraliaDate(value, getTodayInAustralia()),
+    'License must not be expired'
+  ),
   uber_status: z.enum(['Active', 'Applying', 'Not Yet Registered']),
-  experience: z.string().min(1, 'Experience is required'),
-  weekly_budget: z.string().optional(),
-  intended_start_date: z
-    .string()
-    .min(1, 'Start date is required')
-    .refine((date) => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return new Date(date) >= today;
-    }, 'Start date must be today or later'),
+  experience: z.string().trim().min(1, 'Experience is required'),
+  weekly_budget: z.string().trim().optional(),
+  intended_start_date: dateOnlySchema(
+    'Start date is required',
+    'Start date must be a valid date'
+  ).refine(
+    (value) => isTodayOrFutureAustraliaDate(value, getTodayInAustralia()),
+    'Start date must be today or later'
+  ),
   license_photo: z.string().min(1, 'Driver licence front photo is required'),
   license_back_photo: z.string().min(1, 'Driver licence back photo is required'),
 });
@@ -133,7 +148,13 @@ export default function Apply() {
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_UPLOAD_BYTES) {
+    if (!ALLOWED_UPLOAD_TYPES.has(file.type)) {
+      event.target.value = '';
+      setValue(field, '', { shouldValidate: true });
+      setPageError('Please upload a JPG or PNG smaller than 7 MB.');
+      return;
+    }
+    if (file.size > MAX_APPLICATION_UPLOAD_BYTES) {
       event.target.value = '';
       setValue(field, '', { shouldValidate: true });
       setPageError('Please upload a JPG or PNG smaller than 7 MB.');
@@ -264,11 +285,11 @@ export default function Apply() {
                   {requestedCarId && (
                     <div className="rounded-2xl border border-brand-gold/20 bg-brand-gold/5 px-6 py-5">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
-                        Vehicle interest noted
+                        Vehicle selected
                       </p>
                       <p className="text-sm text-brand-grey font-light">
-                        We will review your application first, then send the payment link once the
-                        assigned vehicle and pricing are approved.
+                        You are applying from a vehicle page. Final vehicle assignment and pricing
+                        are confirmed after review and approval.
                       </p>
                     </div>
                   )}
@@ -292,7 +313,7 @@ export default function Apply() {
                       <input
                         {...register('phone')}
                         className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none font-light"
-                        placeholder="04XX XXX XXX"
+                        placeholder="0412345678"
                       />
                       <FieldError message={errors.phone?.message} />
                     </div>
@@ -439,7 +460,7 @@ export default function Apply() {
                         </span>
                         <input
                           type="file"
-                          accept="image/png,image/jpeg,image/jpg"
+                          accept={APPLICATION_IMAGE_CONTENT_TYPES.join(',')}
                           className="hidden"
                           onChange={(event) => handleFileUpload(event, 'license_photo')}
                         />
@@ -466,7 +487,7 @@ export default function Apply() {
                         </span>
                         <input
                           type="file"
-                          accept="image/png,image/jpeg,image/jpg"
+                          accept={APPLICATION_IMAGE_CONTENT_TYPES.join(',')}
                           className="hidden"
                           onChange={(event) => handleFileUpload(event, 'license_back_photo')}
                         />

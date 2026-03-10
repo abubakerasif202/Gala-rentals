@@ -58,6 +58,13 @@ export default function Checkout() {
         car_id: carId,
         checkout_token: checkoutToken,
       });
+
+      if (!session.checkout_url) {
+        throw new Error(
+          'Stripe did not return a checkout URL. Request a fresh secure payment link from the Maple Rentals team.'
+        );
+      }
+
       window.location.assign(session.checkout_url);
     } catch (checkoutError: any) {
       setPageError(

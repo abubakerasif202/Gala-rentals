@@ -6,6 +6,7 @@ const {
   mockGetUser,
   mockSignInWithPassword,
   mockStorageFrom,
+  mockCheckDBHealth,
   mockCreateAuthClient,
   mockStripe,
 } = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ const {
   mockGetUser: vi.fn(),
   mockSignInWithPassword: vi.fn(),
   mockStorageFrom: vi.fn(),
+  mockCheckDBHealth: vi.fn(),
   mockCreateAuthClient: vi.fn(),
   mockStripe: {
     checkoutSessionsCreate: vi.fn(),
@@ -135,6 +137,7 @@ vi.mock('../db/index.js', () => {
 
   type QueryFilter =
     | { type: 'eq'; column: string; value: unknown }
+    | { type: 'ilike'; column: string; pattern: string }
     | { type: 'in'; column: string; values: unknown[] }
     | { type: 'or'; clauses: Array<{ column: string; search: string }> };
 
@@ -146,6 +149,16 @@ vi.mock('../db/index.js', () => {
       filters.every((filter) => {
         if (filter.type === 'eq') {
           return String(row[filter.column]) === String(filter.value);
+        }
+
+        if (filter.type === 'ilike') {
+          const source = String(row[filter.column] ?? '');
+          const escapedPattern = filter.pattern
+            .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+            .replace(/[%*]/g, '.*')
+            .replace(/_/g, '.');
+
+          return new RegExp(`^${escapedPattern}$`, 'i').test(source);
         }
 
         if (filter.type === 'in') {
@@ -291,6 +304,16 @@ vi.mock('../db/index.js', () => {
       eq: vi.fn((column: string, value: unknown) =>
         createSelectQuery(table, columns, options, [...filters, { type: 'eq', column, value }], order, range)
       ),
+      ilike: vi.fn((column: string, pattern: string) =>
+        createSelectQuery(
+          table,
+          columns,
+          options,
+          [...filters, { type: 'ilike', column, pattern }],
+          order,
+          range
+        )
+      ),
       in: vi.fn((column: string, values: unknown[]) =>
         createSelectQuery(table, columns, options, [...filters, { type: 'in', column, values }], order, range)
       ),
@@ -307,6 +330,12 @@ vi.mock('../db/index.js', () => {
       }),
       range: vi.fn((from: number, to: number) =>
         createSelectQuery(table, columns, options, filters, order, { from, to })
+      ),
+      limit: vi.fn((count: number) =>
+        createSelectQuery(table, columns, options, filters, order, {
+          from: range?.from ?? 0,
+          to: (range?.from ?? 0) + count - 1,
+        })
       ),
       single: vi.fn(async () => {
         if (invalidApplicationColumn) {
@@ -326,6 +355,19 @@ vi.mock('../db/index.js', () => {
                 message: 'Not found',
               },
             };
+      }),
+      maybeSingle: vi.fn(async () => {
+        if (invalidApplicationColumn) {
+          return { data: null, error: createUnknownColumnError(invalidApplicationColumn) };
+        }
+
+        const filteredRows = applyFilters(getTableRows(table), filters);
+        const orderedRows = applyOrder(filteredRows, order);
+        const [row] = applyRange(orderedRows, range);
+        return {
+          data: row ? structuredClone(row) : null,
+          error: null,
+        };
       }),
     };
   };
@@ -432,6 +474,7 @@ vi.mock('../db/index.js', () => {
       },
     },
     createAuthClient: mockCreateAuthClient,
+    checkDBHealth: mockCheckDBHealth,
     initializeDB: vi.fn(() => Promise.resolve()),
   };
 });
@@ -618,12 +661,14 @@ beforeEach(() => {
       signInWithPassword: mockSignInWithPassword,
     },
   });
+  mockCheckDBHealth.mockResolvedValue({ configured: true });
   mockStorageFrom.mockImplementation((bucket: string) => ({
     upload: vi.fn(async (path: string) => ({ data: { path }, error: null })),
     createSignedUrl: vi.fn(async (path: string) => ({
       data: { signedUrl: `https://signed.example/${bucket}/${path}` },
       error: null,
     })),
+    remove: vi.fn(async () => ({ data: null, error: null })),
   }));
 
   mockStripe.checkoutSessionsCreate.mockResolvedValue({
@@ -690,6 +735,28 @@ describe('Auth API', () => {
 });
 
 describe('Applications API', () => {
+  it('GET /api/health reports database readiness', async () => {
+    const res = await request(app).get('/api/health');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: 'ok',
+      database: 'ok',
+    });
+  });
+
+  it('GET /api/health returns 503 when the database health check fails', async () => {
+    mockCheckDBHealth.mockRejectedValueOnce(new Error('database unavailable'));
+
+    const res = await request(app).get('/api/health');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      status: 'error',
+      database: 'unavailable',
+    });
+  });
+
   it('GET /api/applications returns signed document URLs for admins', async () => {
     const res = await request(app)
       .get('/api/applications')
@@ -728,6 +795,197 @@ describe('Applications API', () => {
       email: 'newdriver@example.com',
       license_number: 'NSW55555',
     });
+  });
+
+  it('POST /api/applications rejects unsupported image formats', async () => {
+    const res = await request(app).post('/api/applications').send({
+      name: 'Unsafe Driver',
+      phone: '0400111222',
+      email: 'unsafe@example.com',
+      license_number: 'NSW22222',
+      license_expiry: '2027-12-31',
+      uber_status: 'Applying',
+      experience: 'New Driver',
+      address: '77 Test Street',
+      weekly_budget: '$320/week',
+      intended_start_date: '2026-03-20',
+      license_photo: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('JPG or PNG');
+    expect(mockState.applications).toHaveLength(2);
+  });
+
+  it('POST /api/applications validates phone and date fields on the server', async () => {
+    const res = await request(app).post('/api/applications').send({
+      name: 'Direct API Driver',
+      phone: '12345',
+      email: 'direct-api@example.com',
+      license_number: 'NSW42424',
+      license_expiry: '2020-01-01',
+      uber_status: 'Applying',
+      experience: 'New Driver',
+      address: '88 Test Street',
+      weekly_budget: '$320/week',
+      intended_start_date: '2020-01-02',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Validation failed');
+    expect(res.body.details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ message: 'Valid Australian mobile number required' }),
+        expect.objectContaining({ message: 'License must not be expired' }),
+        expect.objectContaining({ message: 'Start date must be today or later' }),
+      ])
+    );
+    expect(mockState.applications).toHaveLength(2);
+  });
+
+  it('POST /api/applications blocks public overwrites for rejected applications', async () => {
+    mockState.applications[0] = {
+      ...mockState.applications[0],
+      assigned_car_id: 2,
+      approved_at: '2026-03-06T00:00:00.000Z',
+      approved_bond: 700,
+      approved_weekly_price: 320,
+      paid_at: '2026-03-07T00:00:00.000Z',
+      payment_link_sent_at: '2026-03-06T00:00:00.000Z',
+      payment_link_version: 4,
+      pending_checkout_session_id: 'cs_old_pending',
+      status: 'Rejected',
+    };
+
+    const res = await request(app).post('/api/applications').send({
+      name: 'Jane Driver',
+      phone: '0412345678',
+      email: 'jane@example.com',
+      license_number: 'NSW12345',
+      license_expiry: '2027-01-01',
+      uber_status: 'Active',
+      experience: '3+ years',
+      address: '99 Updated Street',
+      weekly_budget: '$410/week',
+      intended_start_date: '2026-03-22',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('already been reviewed');
+    expect(mockState.applications).toHaveLength(2);
+    expect(mockState.applications[0]).toMatchObject({
+      id: 1,
+      status: 'Rejected',
+      assigned_car_id: 2,
+      approved_at: '2026-03-06T00:00:00.000Z',
+      approved_bond: 700,
+      approved_weekly_price: 320,
+      paid_at: '2026-03-07T00:00:00.000Z',
+      payment_link_sent_at: '2026-03-06T00:00:00.000Z',
+      payment_link_version: 4,
+      pending_checkout_session_id: 'cs_old_pending',
+      address: '1 Test Street',
+      experience: 'New Driver',
+    });
+  });
+
+  it('POST /api/applications blocks public overwrites for pending applications', async () => {
+    const res = await request(app).post('/api/applications').send({
+      name: 'Jane Driver',
+      phone: '0412345678',
+      email: 'jane@example.com',
+      license_number: 'NSW12345',
+      license_expiry: '2027-01-01',
+      uber_status: 'Active',
+      experience: '1-3 years',
+      address: '12 Mixed Case Street',
+      weekly_budget: '$360/week',
+      intended_start_date: '2026-03-25',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('already under review');
+    expect(mockState.applications[0].address).toBe('1 Test Street');
+  });
+
+  it('POST /api/applications treats rejected email lookups case-insensitively', async () => {
+    mockState.applications[0].status = 'Rejected';
+
+    const res = await request(app).post('/api/applications').send({
+      name: 'Jane Driver',
+      phone: '0412345678',
+      email: 'Jane@Example.com',
+      license_number: 'NSW12345',
+      license_expiry: '2027-01-01',
+      uber_status: 'Active',
+      experience: '1-3 years',
+      address: '12 Mixed Case Street',
+      weekly_budget: '$360/week',
+      intended_start_date: '2026-03-25',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('already been reviewed');
+    expect(mockState.applications).toHaveLength(2);
+    expect(mockState.applications[0]).toMatchObject({
+      id: 1,
+      email: 'jane@example.com',
+      address: '1 Test Street',
+      experience: 'New Driver',
+    });
+  });
+
+  it('POST /api/applications does not treat underscores in emails as wildcard matches', async () => {
+    mockState.applications = [
+      {
+        ...mockState.applications[0],
+        id: 3,
+        email: 'fooxbar@example.com',
+        phone: '0400000000',
+        license_number: 'NSW00000',
+      },
+      {
+        ...mockState.applications[0],
+        id: 4,
+        email: 'foo_bar@example.com',
+        phone: '0412345678',
+        license_number: 'NSW12345',
+        status: 'Rejected',
+      },
+    ];
+
+    const res = await request(app).post('/api/applications').send({
+      name: 'Jane Driver',
+      phone: '0412345678',
+      email: 'foo_bar@example.com',
+      license_number: 'NSW12345',
+      license_expiry: '2027-01-01',
+      uber_status: 'Active',
+      experience: '1-3 years',
+      address: '12 Exact Match Street',
+      weekly_budget: '$360/week',
+      intended_start_date: '2026-03-25',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('already been reviewed');
+    expect(mockState.applications.find((application) => application.id === 3)?.address).toBe(
+      '1 Test Street'
+    );
+    expect(mockState.applications.find((application) => application.id === 4)?.address).toBe(
+      '1 Test Street'
+    );
   });
 });
 

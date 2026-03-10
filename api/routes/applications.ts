@@ -20,12 +20,16 @@ import {
 } from '../schemaCompat.js';
 import { RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
 import { buildDriverPaymentLink, sendDriverPaymentLinkEmail } from '../paymentLinks.js';
+import {
+  APPLICATION_IMAGE_CONTENT_TYPES,
+  MAX_APPLICATION_UPLOAD_BYTES,
+  normalizeApplicationEmail,
+} from '../../shared/applicationSubmission.js';
 
 const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
-const MAX_APPLICATION_UPLOAD_BYTES = 7 * 1024 * 1024;
-const ALLOWED_APPLICATION_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png']);
+const ALLOWED_APPLICATION_IMAGE_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
 
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
@@ -176,35 +180,59 @@ router.get('/:id/documents/:document', authenticateAdmin, async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  const uploadedPaths: string[] = [];
+
   try {
     const data = applicationSchema.parse(req.body);
+    const email = data.email;
+
+    if (!email) {
+      throw createRequestError(400, 'Email is required.');
+    }
+
+    const normalizedApplicationData = {
+      ...data,
+      email,
+    };
     let licensePhotoUrl = null;
     let licenseBackPhotoUrl = null;
     const existingApplicationSelectColumns = await getApplicationSelectColumns();
-    const { data: existingApplication, error: existingApplicationError } = await db
+    const { data: existingApplications, error: existingApplicationError } = await db
       .from('applications')
       .select(existingApplicationSelectColumns)
-      .eq('email', data.email)
-      .single();
+      .ilike('email', normalizedApplicationData.email);
 
-    if (existingApplicationError && !isNoRowError(existingApplicationError)) {
+    if (existingApplicationError) {
       throw existingApplicationError;
     }
 
-    const existingRow =
-      existingApplicationError && isNoRowError(existingApplicationError)
-        ? null
-        : ((existingApplication ?? null) as Record<string, any> | null);
-    const shouldResetRejectedApplication = existingRow?.status === 'Rejected';
-    const shouldSendConfirmationEmails = !existingRow || shouldResetRejectedApplication;
+    const matchingApplications = ((existingApplications ?? []) as Array<Record<string, any>>).filter(
+      (application) =>
+        normalizeApplicationEmail(String(application.email ?? '')) ===
+        normalizedApplicationData.email
+    );
+
+    const existingRow = matchingApplications[0] ?? null;
 
     if (existingRow) {
       if (
-        existingRow.phone !== data.phone ||
-        existingRow.license_number !== data.license_number
+        existingRow.phone !== normalizedApplicationData.phone ||
+        existingRow.license_number !== normalizedApplicationData.license_number
       ) {
         return res.status(409).json({
           error: 'An application already exists for this email. Contact support to continue.',
+        });
+      }
+
+      if (existingRow.status === 'Pending') {
+        return res.status(409).json({
+          error: 'This application is already under review. Contact support if you need to update it.',
+        });
+      }
+
+      if (existingRow.status === 'Rejected') {
+        return res.status(409).json({
+          error: 'This application has already been reviewed. Contact support to reopen it securely.',
         });
       }
 
@@ -215,94 +243,85 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const uploadImage = async (base64Str: string, filePrefix: string) => {
+    const uploadImage = async (
+      base64Str: string,
+      filePrefix: string,
+      fieldLabel: string
+    ) => {
       const match = base64Str.match(/^data:([a-zA-Z0-9-+/=.]+);base64,(.+)$/);
-      if (!match) return null;
+      if (!match) {
+        throw createRequestError(400, `${fieldLabel} must be a valid image data URL.`);
+      }
 
       const [, contentType, base64Data] = match;
-      
-      // Basic validation of content type
-      if (!contentType.startsWith('image/')) {
-        console.error(`Invalid content type for ${filePrefix}: ${contentType}`);
-        return null;
+      const normalizedContentType = contentType.toLowerCase();
+
+      if (!ALLOWED_APPLICATION_IMAGE_TYPES.has(normalizedContentType)) {
+        throw createRequestError(400, `${fieldLabel} must be a JPG or PNG image.`);
       }
 
       const buffer = Buffer.from(base64Data, 'base64');
-      
-      // Check size (e.g., 10MB limit)
-      if (buffer.length > 10 * 1024 * 1024) {
-        console.error(`File too large for ${filePrefix}: ${buffer.length} bytes`);
-        return null;
+
+      if (buffer.length === 0) {
+        throw createRequestError(400, `${fieldLabel} could not be read.`);
+      }
+
+      if (buffer.length > MAX_APPLICATION_UPLOAD_BYTES) {
+        throw createRequestError(400, `${fieldLabel} must be smaller than 7 MB.`);
       }
 
       const filename = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}-${filePrefix}`;
 
       const { data: uploadData, error: uploadError } = await db.storage
         .from(APPLICATIONS_BUCKET)
-        .upload(filename, buffer, { contentType });
+        .upload(filename, buffer, { contentType: normalizedContentType });
 
       if (uploadError) {
         console.error(`Error uploading ${filePrefix}:`, uploadError);
-        return null;
+        throw createRequestError(500, `Failed to upload ${fieldLabel.toLowerCase()}.`);
       }
 
-      return uploadData.path || filename;
+      const uploadedPath = uploadData.path || filename;
+      uploadedPaths.push(uploadedPath);
+      return uploadedPath;
     };
 
     if (data.license_photo) {
-      if (!data.license_photo.startsWith('data:')) {
-        return res.status(400).json({ error: 'Driver licence front photo must be a valid image data URL' });
-      }
-      licensePhotoUrl = await uploadImage(data.license_photo, 'license');
-      if (!licensePhotoUrl) {
-        return res.status(500).json({ error: 'Failed to upload driver licence front photo' });
-      }
+      licensePhotoUrl = await uploadImage(
+        data.license_photo,
+        'license',
+        'Driver licence front photo'
+      );
     }
 
     if (data.license_back_photo) {
-      if (!data.license_back_photo.startsWith('data:')) {
-        return res.status(400).json({ error: 'Driver licence back photo must be a valid image data URL' });
-      }
-      licenseBackPhotoUrl = await uploadImage(data.license_back_photo, 'license-back');
-      if (!licenseBackPhotoUrl) {
-        return res.status(500).json({ error: 'Failed to upload driver licence back photo' });
-      }
+      licenseBackPhotoUrl = await uploadImage(
+        data.license_back_photo,
+        'license-back',
+        'Driver licence back photo'
+      );
     }
 
     const payload = await toApplicationWritePayload({
-      ...data,
+      ...normalizedApplicationData,
+      weekly_budget: normalizedApplicationData.weekly_budget?.trim() || null,
       license_photo: licensePhotoUrl,
       license_back_photo: licenseBackPhotoUrl,
     });
-    let applicationId: number;
+    const { data: inserted, error } = await db
+      .from('applications')
+      .insert([payload])
+      .select('id')
+      .single();
 
-    if (existingRow) {
-      const updatePayload = shouldResetRejectedApplication
-        ? { ...payload, status: 'Pending' }
-        : payload;
-      const { error: updateError } = await db
-        .from('applications')
-        .update(updatePayload)
-        .eq('id', existingRow.id);
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      applicationId = Number(existingRow.id);
-    } else {
-      const { data: inserted, error } = await db
-        .from('applications')
-        .insert([payload])
-        .select('id')
-        .single();
-
-      if (error) throw error;
-      applicationId = Number(inserted.id);
+    if (error) {
+      throw error;
     }
 
+    const applicationId = Number(inserted.id);
+
     // Send Confirmation Emails via Resend
-    if (process.env.RESEND_API_KEY && shouldSendConfirmationEmails) {
+    if (process.env.RESEND_API_KEY) {
       try {
         const { Resend } = await import('resend');
         const resend = new Resend(process.env.RESEND_API_KEY);
@@ -311,12 +330,12 @@ router.post('/', async (req, res) => {
         // Email to the Applicant
         await resend.emails.send({
           from: 'Maple Rentals <noreply@maplerentals.com.au>',
-          to: data.email,
+          to: normalizedApplicationData.email,
           subject: 'Application Received - Maple Rentals',
           html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
               <h2 style="color: #D4AF37;">Application Received</h2>
-              <p>Hi ${data.name},</p>
+              <p>Hi ${normalizedApplicationData.name},</p>
               <p>Thank you for applying to rent a Toyota Camry Hybrid with Maple Rentals.</p>
               <p>We have successfully received your application, including the front and back of your driver licence. Our team will review your application and try to get back to you within 24 hours.</p>
               <p>If you have any urgent questions, please contact us directly.</p>
@@ -331,25 +350,27 @@ router.post('/', async (req, res) => {
         await resend.emails.send({
           from: 'Maple Rentals Notifications <noreply@maplerentals.com.au>',
           to: adminEmail,
-          subject: `New Driver Application: ${data.name}`,
+          subject: `New Driver Application: ${normalizedApplicationData.name}`,
           html: `
             <div style="font-family: sans-serif; color: #1a202c;">
               <h2>New Driver Application</h2>
               <p>A new driver application has been submitted:</p>
               <ul>
-                <li><strong>Name:</strong> ${data.name}</li>
-                <li><strong>Phone:</strong> ${data.phone}</li>
-                <li><strong>Email:</strong> ${data.email}</li>
-                <li><strong>Address:</strong> ${data.address}</li>
-                <li><strong>Uber Status:</strong> ${data.uber_status}</li>
-                <li><strong>Experience:</strong> ${data.experience}</li>
-                <li><strong>Intended Start:</strong> ${data.intended_start_date}</li>
+                <li><strong>Name:</strong> ${normalizedApplicationData.name}</li>
+                <li><strong>Phone:</strong> ${normalizedApplicationData.phone}</li>
+                <li><strong>Email:</strong> ${normalizedApplicationData.email}</li>
+                <li><strong>Address:</strong> ${normalizedApplicationData.address}</li>
+                <li><strong>Uber Status:</strong> ${normalizedApplicationData.uber_status}</li>
+                <li><strong>Experience:</strong> ${normalizedApplicationData.experience}</li>
+                <li><strong>Intended Start:</strong> ${normalizedApplicationData.intended_start_date}</li>
               </ul>
               <p>Please log in to the admin dashboard to review their documents and approve/deny the application.</p>
             </div>
           `
         });
-        console.log(`Confirmation emails sent successfully for applicant: ${data.email}`);
+        console.log(
+          `Confirmation emails sent successfully for applicant: ${normalizedApplicationData.email}`
+        );
       } catch (emailError) {
         console.error("Failed to send Resend emails:", emailError);
       }
@@ -363,6 +384,13 @@ router.post('/', async (req, res) => {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: err.issues });
     }
+
+    await removeUploadedApplicationDocuments(uploadedPaths);
+
+    if (err instanceof Error && 'status' in err && typeof err.status === 'number') {
+      return res.status(err.status).json({ error: err.message });
+    }
+
     console.error('Application submission error:', err);
     res.status(500).json({ error: 'Application submission failed' });
   }

@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
-import { initializeDB } from './db/index.js';
+import { checkDBHealth, initializeDB } from './db/index.js';
 
 // Route Imports
 import authRoutes from './routes/auth.js';
@@ -93,11 +93,23 @@ const ensureDB = async () => {
   return dbInitialized;
 };
 
-app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    environment: process.env.NODE_ENV || 'development',
-  });
+app.get('/api/health', async (_req, res) => {
+  try {
+    const { configured } = await checkDBHealth();
+
+    res.json({
+      status: 'ok',
+      environment: process.env.NODE_ENV || 'development',
+      database: configured ? 'ok' : 'not_configured',
+    });
+  } catch (error) {
+    console.error('Healthcheck error:', error);
+    res.status(503).json({
+      status: 'error',
+      environment: process.env.NODE_ENV || 'development',
+      database: 'unavailable',
+    });
+  }
 });
 
 app.use('/api', async (_req, res, next) => {
@@ -163,7 +175,10 @@ const startServer = async () => {
 };
 
 if (shouldListen) {
-  startServer();
+  void startServer().catch((error) => {
+    console.error('Server startup error:', error);
+    process.exit(1);
+  });
 }
 
 export default app;

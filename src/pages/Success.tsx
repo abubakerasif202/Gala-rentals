@@ -12,7 +12,7 @@ export default function Success() {
   const hasVerificationContext = Boolean(sessionId && applicationId && checkoutToken && carId);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['stripe-checkout-session', sessionId, applicationId, carId],
+    queryKey: ['stripe-checkout-session', sessionId, applicationId, carId, checkoutToken],
     queryFn: () =>
       fetchCheckoutSessionStatus(sessionId, {
         application_id: applicationId,
@@ -21,6 +21,9 @@ export default function Success() {
       }),
     enabled: hasVerificationContext,
     retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.internal_status === 'pending' ? 3000 : false,
+    refetchOnWindowFocus: true,
   });
 
   const isFullySuccessful = data?.internal_status === 'complete';
@@ -70,7 +73,8 @@ export default function Success() {
                 Payment Received
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
-                Stripe has confirmed your payment. We are finalizing the rental activation now. If this page does not update after a short wait, contact support with your payment confirmation.
+                Stripe has confirmed your payment. We are finalizing the rental activation now and
+                this page refreshes automatically while that completes.
               </p>
               <Link
                 to="/"

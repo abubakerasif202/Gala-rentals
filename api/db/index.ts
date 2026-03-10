@@ -33,18 +33,33 @@ export const db = createScopedClient(supabaseKey);
 // the singleton service-role client used by data routes.
 export const createAuthClient = () => createScopedClient(supabaseAnonKey || supabaseKey);
 
-export const initializeDB = async () => {
+export const checkDBHealth = async () => {
   if (!hasRequiredSupabaseEnv) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables.');
     }
-    return;
+
+    return {
+      configured: false,
+    };
   }
 
   const { error } = await db.from('cars').select('id', { head: true }).limit(1);
 
   if (error) {
     throw new Error(`Supabase connectivity check failed: ${error.message || 'Unknown error'}`);
+  }
+
+  return {
+    configured: true,
+  };
+};
+
+export const initializeDB = async () => {
+  const { configured } = await checkDBHealth();
+
+  if (!configured) {
+    return;
   }
 
   console.log('Database connection initialized with Supabase.');

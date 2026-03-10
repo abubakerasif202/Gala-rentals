@@ -1,7 +1,19 @@
 import { z } from 'zod';
 
+import {
+  AUSTRALIAN_MOBILE_REGEX,
+  getTodayInAustralia,
+  isFutureAustraliaDate,
+  isTodayOrFutureAustraliaDate,
+  isValidDateOnly,
+  normalizeApplicationEmail,
+} from '../shared/applicationSubmission.js';
+
 export const modelYearSchema = z.number().int().min(1900).max(new Date().getFullYear() + 1);
 export const weeklyPriceSchema = z.number().positive();
+
+const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
+  z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
 
 export const carSchema = z.object({
   name: z.string().min(1),
@@ -14,15 +26,27 @@ export const carSchema = z.object({
 
 export const applicationSchema = z.object({
   name: z.string().trim().min(2),
-  phone: z.string().trim().min(10),
-  email: z.string().trim().toLowerCase().email(),
+  phone: z
+    .string()
+    .trim()
+    .regex(AUSTRALIAN_MOBILE_REGEX, 'Valid Australian mobile number required'),
+  email: z.string().transform(normalizeApplicationEmail).pipe(z.string().email()),
   license_number: z.string().trim().min(5),
-  license_expiry: z.string().trim().min(1),
+  license_expiry: dateOnlySchema(
+    'License expiry date is required',
+    'License expiry date must be a valid date'
+  ).refine((value) => isFutureAustraliaDate(value, getTodayInAustralia()), 'License must not be expired'),
   uber_status: z.enum(['Active', 'Applying', 'Not Yet Registered']),
   experience: z.string().trim().min(1),
   address: z.string().trim().min(5),
   weekly_budget: z.string().trim().optional(),
-  intended_start_date: z.string().trim().min(1),
+  intended_start_date: dateOnlySchema(
+    'Start date is required',
+    'Start date must be a valid date'
+  ).refine(
+    (value) => isTodayOrFutureAustraliaDate(value, getTodayInAustralia()),
+    'Start date must be today or later'
+  ),
   license_photo: z.string().min(1),
   license_back_photo: z.string().min(1),
 });

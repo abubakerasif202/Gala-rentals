@@ -59,6 +59,11 @@ export default function AdminDashboard() {
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [openingDocument, setOpeningDocument] = useState<'license_photo' | 'license_back_photo' | null>(null);
+  const [applicationApprovalForm, setApplicationApprovalForm] = useState({
+    assigned_car_id: '',
+    approved_bond: '',
+    approved_weekly_price: '',
+  });
   
   // Agreement Management State
   const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
@@ -86,6 +91,24 @@ export default function AdminDashboard() {
   useEffect(() => {
     setInvoicePage(1);
   }, [deferredInvoiceSearch]);
+
+  useEffect(() => {
+    if (!selectedApplication) {
+      return;
+    }
+
+    setApplicationApprovalForm({
+      assigned_car_id: selectedApplication.assigned_car_id
+        ? String(selectedApplication.assigned_car_id)
+        : '',
+      approved_bond:
+        selectedApplication.approved_bond != null ? String(selectedApplication.approved_bond) : '',
+      approved_weekly_price:
+        selectedApplication.approved_weekly_price != null
+          ? String(selectedApplication.approved_weekly_price)
+          : '',
+    });
+  }, [selectedApplication]);
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
@@ -220,8 +243,27 @@ export default function AdminDashboard() {
     onError: () => showNotification('Failed to save agreement', 'error'),
   });
 
+  const approveApplicationPaymentMutation = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: {
+        approved_bond: number;
+        approved_weekly_price: number;
+        assigned_car_id: number;
+        send_payment_link?: boolean;
+      };
+    }) => api.approveApplicationForPayment(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['cars'] });
+    },
+  });
+
   const generateCheckoutLinkMutation = useMutation({
-    mutationFn: (payload: { application_id: number; car_id: number }) =>
+    mutationFn: (payload: { application_id: number }) =>
       api.createVehicleCheckoutLink(payload),
   });
 
@@ -284,23 +326,67 @@ export default function AdminDashboard() {
 
   const handleCopyVehicleCheckoutLink = async () => {
     const application_id = Number(selected_agreement_application_id);
-    const car_id = Number(selected_agreement_car_id);
 
-    if (!application_id || !car_id) {
-      showNotification('Please select both an application and a car', 'error');
+    if (!application_id) {
+      showNotification('Please select an approved application', 'error');
       return;
     }
 
     try {
       const response = await generateCheckoutLinkMutation.mutateAsync({
         application_id,
-        car_id,
       });
       await navigator.clipboard.writeText(response.checkout_url);
-      showNotification('Secure checkout link copied!', 'success');
+      showNotification('Secure payment link copied!', 'success');
     } catch (error: any) {
       showNotification(
-        error?.response?.data?.error || 'Failed to generate secure checkout link',
+        error?.response?.data?.error || 'Failed to generate secure payment link',
+        'error'
+      );
+    }
+  };
+
+  const handleApproveSelectedApplication = async () => {
+    if (!selectedApplication) {
+      return;
+    }
+
+    const assignedCarId = Number(applicationApprovalForm.assigned_car_id);
+    const approvedBond = Number(applicationApprovalForm.approved_bond);
+    const approvedWeeklyPrice = Number(applicationApprovalForm.approved_weekly_price);
+
+    if (!assignedCarId || approvedBond < 0 || approvedWeeklyPrice <= 0) {
+      showNotification('Assign a vehicle and enter valid bond and weekly payment amounts.', 'error');
+      return;
+    }
+
+    try {
+      const response = await approveApplicationPaymentMutation.mutateAsync({
+        id: selectedApplication.id,
+        payload: {
+          approved_bond: approvedBond,
+          approved_weekly_price: approvedWeeklyPrice,
+          assigned_car_id: assignedCarId,
+          send_payment_link: true,
+        },
+      });
+
+      if (!response.email_delivered) {
+        await navigator.clipboard.writeText(response.checkout_url);
+        showNotification(
+          response.email_reason
+            ? `Pricing saved. Email not sent; payment link copied instead.`
+            : 'Pricing saved and payment link copied.',
+          'success'
+        );
+      } else {
+        showNotification('Application approved and payment link emailed.', 'success');
+      }
+
+      setSelectedApplication(null);
+    } catch (error: any) {
+      showNotification(
+        error?.response?.data?.error || 'Failed to approve application for payment',
         'error'
       );
     }
@@ -338,13 +424,18 @@ export default function AdminDashboard() {
   const isLoadingWeeklyFinancials =
     shouldLoadWeeklyFinancials && weeklyFinancialsQuery.isPending && !weeklyFinancials;
   const approvedApplications = applications.filter(app => app.status === 'Approved' || app.status === 'Paid');
-  const selectedAgreementCar = cars.find(
-    (car) => car.id === Number(selected_agreement_car_id)
+  const selectedAgreementApplication = applications.find(
+    (app) => app.id === Number(selected_agreement_application_id)
+  );
+  const selectedApplicationAssignedCar = cars.find(
+    (car) =>
+      car.id ===
+      Number(applicationApprovalForm.assigned_car_id || selectedApplication?.assigned_car_id || 0)
   );
   const canCopyVehicleCheckoutLink =
-    Boolean(selected_agreement_application_id) &&
-    Boolean(selected_agreement_car_id) &&
-    selectedAgreementCar?.status === 'Available';
+    Boolean(selectedAgreementApplication) &&
+    selectedAgreementApplication?.status === 'Approved' &&
+    Boolean(selectedAgreementApplication?.assigned_car_id);
   const formatCurrency = (value?: number | string | null) => `$${Number(value ?? 0).toFixed(2)}`;
   const formatDate = (value?: string | null) => {
     if (!value) {
@@ -591,27 +682,9 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-8 py-6 text-right">
                           <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {app.status === 'Pending' && (
-                              <>
-                                <button 
-                                  onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'Approved' })}
-                                  className="p-2 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500 transition-all hover:text-white"
-                                  title="Approve"
-                                >
-                                  <CheckCircle2 className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'Rejected' })}
-                                  className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 transition-all hover:text-white"
-                                  title="Reject"
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
                             <button 
                               className="p-2 bg-white/5 text-brand-grey rounded-lg hover:bg-brand-gold hover:text-brand-navy transition-all"
-                              title="View Documents"
+                              title="Review Application"
                               onClick={() => setSelectedApplication(app)}
                             >
                               <FileText className="w-4 h-4" />
@@ -1270,12 +1343,12 @@ export default function AdminDashboard() {
                       ) : (
                         <ExternalLink className="w-4 h-4 text-brand-gold" />
                       )}
-                      Copy Secure Checkout Link
+                      Copy Secure Payment Link
                     </button>
                   </div>
                 </div>
                 <p className="mt-4 text-[11px] text-brand-grey font-light">
-                  Secure checkout links are signed and time-limited. Select an available vehicle before copying the link.
+                  Secure payment links are signed and time-limited. Approve the application first so the assigned vehicle and pricing are locked before copying a fresh link.
                 </p>
               </div>
 
@@ -1473,6 +1546,124 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 </div>
+
+                {selectedApplication.status !== 'Paid' && selectedApplication.status !== 'Rejected' && (
+                  <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-6">
+                    <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                      <div>
+                        <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                          Approval & Payment Quote
+                        </h4>
+                        <p className="text-sm text-brand-grey font-light mt-3 max-w-2xl">
+                          Assign the vehicle, set the approved bond and weekly payment, then email a fresh secure payment link.
+                        </p>
+                      </div>
+                      {selectedApplication.payment_link_sent_at && (
+                        <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-4 py-3">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                            Last payment link sent
+                          </p>
+                          <p className="text-xs text-white mt-2">
+                            {new Date(selectedApplication.payment_link_sent_at).toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                          Assigned Vehicle
+                        </label>
+                        <select
+                          value={applicationApprovalForm.assigned_car_id}
+                          onChange={(e) => {
+                            const nextCarId = e.target.value;
+                            const matchedCar = cars.find((car) => car.id === Number(nextCarId));
+                            setApplicationApprovalForm((current) => ({
+                              assigned_car_id: nextCarId,
+                              approved_bond:
+                                current.approved_bond || !matchedCar ? current.approved_bond : String(matchedCar.bond),
+                              approved_weekly_price:
+                                current.approved_weekly_price || !matchedCar
+                                  ? current.approved_weekly_price
+                                  : String(matchedCar.weekly_price),
+                            }));
+                          }}
+                          className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
+                        >
+                          <option value="">Select a car...</option>
+                          {cars
+                            .filter(
+                              (car) =>
+                                car.status === 'Available' ||
+                                car.id === selectedApplication?.assigned_car_id
+                            )
+                            .map((car) => (
+                              <option key={car.id} value={car.id}>
+                                {car.name} ({car.model_year}) - {car.status}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                          Approved Bond (AUD)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={applicationApprovalForm.approved_bond}
+                          onChange={(e) =>
+                            setApplicationApprovalForm((current) => ({
+                              ...current,
+                              approved_bond: e.target.value,
+                            }))
+                          }
+                          className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                          Approved Weekly Payment (AUD)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={applicationApprovalForm.approved_weekly_price}
+                          onChange={(e) =>
+                            setApplicationApprovalForm((current) => ({
+                              ...current,
+                              approved_weekly_price: e.target.value,
+                            }))
+                          }
+                          className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
+                        />
+                      </div>
+                    </div>
+
+                    {selectedApplicationAssignedCar && (
+                      <div className="rounded-2xl border border-brand-gold/20 bg-brand-gold/5 px-5 py-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
+                          Approved payment summary
+                        </p>
+                        <p className="text-sm text-brand-grey font-light leading-relaxed">
+                          Vehicle: <span className="text-white font-bold">{selectedApplicationAssignedCar.name}</span>
+                          {' '}| Bond:{' '}
+                          <span className="text-white font-bold">
+                            ${Number(applicationApprovalForm.approved_bond || 0).toFixed(2)}
+                          </span>
+                          {' '}| Weekly payment:{' '}
+                          <span className="text-white font-bold">
+                            ${Number(applicationApprovalForm.approved_weekly_price || 0).toFixed(2)}
+                          </span>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="p-8 border-t border-white/10 bg-white/5 flex gap-4">
@@ -1482,7 +1673,33 @@ export default function AdminDashboard() {
                 >
                   Close
                 </button>
-                {(selectedApplication.status === 'Approved' || selectedApplication.status === 'Paid') && (
+                {selectedApplication.status !== 'Paid' && (
+                  <button
+                    onClick={() =>
+                      updateStatusMutation.mutate({ id: selectedApplication.id, status: 'Rejected' })
+                    }
+                    className="flex-1 py-5 border border-red-500/30 text-red-400 font-bold uppercase tracking-widest text-xs hover:bg-red-500/10 transition-all"
+                  >
+                    Reject Application
+                  </button>
+                )}
+                {selectedApplication.status !== 'Paid' && selectedApplication.status !== 'Rejected' && (
+                  <button
+                    onClick={handleApproveSelectedApplication}
+                    disabled={approveApplicationPaymentMutation.isPending}
+                    className="flex-[2] bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {approveApplicationPaymentMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="w-4 h-4" />
+                    )}
+                    {selectedApplication.status === 'Approved'
+                      ? 'Update Quote & Resend Payment Link'
+                      : 'Approve & Send Payment Link'}
+                  </button>
+                )}
+                {selectedApplication.status === 'Paid' && (
                   <button
                     onClick={() => {
                       set_selected_agreement_application_id(selectedApplication.id.toString());

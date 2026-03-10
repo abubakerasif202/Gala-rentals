@@ -1,13 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, CreditCard, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  createVehicleCheckoutSession,
-  fetchCar,
-  fetchStripeLeaseSettings,
-} from '../lib/api';
+import { createVehicleCheckoutSession, fetchApprovedPaymentContext } from '../lib/api';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -23,44 +19,32 @@ export default function Checkout() {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const applicationId = Number(searchParams.get('application_id') || 0);
   const checkoutToken = searchParams.get('token') || searchParams.get('checkout_token') || '';
+  const carId = Number(id || 0);
 
-  const { data: car, isLoading: isCarLoading, error: carError } = useQuery({
-    queryKey: ['car', id],
-    queryFn: () => fetchCar(String(id)),
-    enabled: Boolean(id),
+  const {
+    data: paymentContext,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['approved-payment-context', applicationId, carId, checkoutToken],
+    queryFn: () =>
+      fetchApprovedPaymentContext({
+        application_id: applicationId,
+        car_id: carId,
+        checkout_token: checkoutToken,
+      }),
+    enabled: Boolean(applicationId && carId && checkoutToken),
+    retry: false,
   });
 
-  const { data: leaseSettings, isLoading: isLeaseLoading, error: leaseError } = useQuery({
-    queryKey: ['stripe-lease-settings'],
-    queryFn: fetchStripeLeaseSettings,
-  });
-
-  const billing = useMemo(() => {
-    if (!car || !leaseSettings) {
-      return null;
+  useEffect(() => {
+    if (searchParams.get('resume_payment') === '1') {
+      setPageError('Stripe checkout was canceled. You can reopen the secure payment session below.');
     }
-
-    const bond = Number(car.bond) || 0;
-    const initialRental = Number(car.weekly_price) || 0;
-    const setupFees =
-      leaseSettings.fees.new_account_setup + leaseSettings.fees.direct_debit_account_setup;
-    const serviceFee = leaseSettings.fees.account_management_weekly;
-    const recurringAmount = initialRental + serviceFee;
-    const upfrontDue = bond + initialRental + setupFees;
-
-    return {
-      bond,
-      initialRental,
-      recurringAmount,
-      recurringLabel: 'per week',
-      serviceFee,
-      setupFees,
-      upfrontDue,
-    };
-  }, [car, leaseSettings]);
+  }, [searchParams]);
 
   const handleStartCheckout = async () => {
-    if (!id || !applicationId || !checkoutToken) {
+    if (!carId || !applicationId || !checkoutToken) {
       setPageError('This secure checkout link is incomplete. Contact the team for a fresh link.');
       return;
     }
@@ -71,14 +55,14 @@ export default function Checkout() {
     try {
       const session = await createVehicleCheckoutSession({
         application_id: applicationId,
-        car_id: Number(id),
+        car_id: carId,
         checkout_token: checkoutToken,
       });
       window.location.assign(session.checkout_url);
-    } catch (error: any) {
+    } catch (checkoutError: any) {
       setPageError(
-        error?.response?.data?.error ||
-          error?.message ||
+        checkoutError?.response?.data?.error ||
+          checkoutError?.message ||
           'Unable to start Stripe checkout. Request a fresh secure link if this keeps happening.'
       );
     } finally {
@@ -86,24 +70,24 @@ export default function Checkout() {
     }
   };
 
-  if (isCarLoading || isLeaseLoading) {
-    return (
-      <div className="min-h-screen bg-brand-navy flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
-      </div>
-    );
-  }
-
-  if (!applicationId || !checkoutToken) {
+  if (!applicationId || !checkoutToken || !carId) {
     return (
       <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white px-6">
         <div className="max-w-lg text-center space-y-6">
-          <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">Secure link required</p>
-          <h1 className="text-4xl font-bold uppercase tracking-tighter">This checkout page needs a signed link</h1>
-          <p className="text-brand-grey font-light">
-            Vehicle payments are only available through a time-limited secure link issued by the team after your application is approved.
+          <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">
+            Secure link required
           </p>
-          <Link to={id ? `/apply?carId=${id}` : '/apply'} className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all">
+          <h1 className="text-4xl font-bold uppercase tracking-tighter">
+            This payment page needs an approved secure link
+          </h1>
+          <p className="text-brand-grey font-light">
+            Driver payments are only available through a time-limited link issued after admin
+            approval.
+          </p>
+          <Link
+            to={id ? `/apply?carId=${id}` : '/apply'}
+            className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all"
+          >
             Start Application
           </Link>
         </div>
@@ -111,18 +95,32 @@ export default function Checkout() {
     );
   }
 
-  if (carError || leaseError || !car || !billing) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-brand-navy flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !paymentContext) {
     return (
       <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white px-6">
-        <div className="text-center space-y-4">
-          <p>Unable to load the checkout details right now.</p>
-          <Link to="/cars" className="text-brand-gold hover:underline">
-            Return to fleet
+        <div className="text-center space-y-4 max-w-xl">
+          <p>Unable to load the approved payment details for this link.</p>
+          <p className="text-sm text-brand-grey font-light">
+            Request a fresh payment link from the Maple Rentals team if this one has expired or was
+            replaced.
+          </p>
+          <Link to="/apply" className="text-brand-gold hover:underline">
+            Submit a new application
           </Link>
         </div>
       </div>
     );
   }
+
+  const { billing, car } = paymentContext;
 
   return (
     <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
@@ -146,10 +144,10 @@ export default function Checkout() {
               <motion.div initial="hidden" animate="visible" variants={fadeIn} className="space-y-10">
                 <div>
                   <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 uppercase tracking-tighter">
-                    Secure <span className="text-brand-gold italic">Checkout</span>
+                    Secure <span className="text-brand-gold italic">Payment</span>
                   </h1>
                   <p className="text-brand-grey font-light">
-                    Stripe handles the payment on a hosted page. Review the vehicle summary, then continue.
+                    Your application has been approved. Review the confirmed pricing below, then continue to Stripe.
                   </p>
                 </div>
 
@@ -163,7 +161,7 @@ export default function Checkout() {
                         Hosted Stripe session
                       </p>
                       <p className="text-sm text-brand-grey font-light leading-relaxed">
-                        This payment covers the bond, initial rental, setup fees, and starts the ongoing subscription for this vehicle.
+                        This payment covers the approved bond, first weekly payment, setup fees, and starts your recurring subscription.
                       </p>
                     </div>
                   </div>
@@ -208,13 +206,15 @@ export default function Checkout() {
                     <div className="absolute inset-0 bg-gradient-to-t from-brand-navy to-transparent opacity-60" />
                     <div className="absolute bottom-6 left-6">
                       <h3 className="text-xl font-bold text-white uppercase tracking-tight">{car.name}</h3>
-                      <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">{car.model_year} model hybrid</p>
+                      <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">
+                        {car.model_year} model hybrid
+                      </p>
                     </div>
                   </div>
 
                   <div className="p-8 space-y-6">
                     <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest border-b border-white/5 pb-4">
-                      Upfront payment breakdown
+                      Approved payment breakdown
                     </h4>
 
                     <div className="space-y-4 text-sm">
@@ -223,7 +223,7 @@ export default function Checkout() {
                         <span className="text-white font-bold">{formatCurrency(billing.bond)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-brand-grey font-light">Initial rental</span>
+                        <span className="text-brand-grey font-light">First weekly payment</span>
                         <span className="text-white font-bold">{formatCurrency(billing.initialRental)}</span>
                       </div>
                       <div className="flex justify-between">
@@ -234,7 +234,9 @@ export default function Checkout() {
 
                     <div className="pt-6 border-t border-white/10 flex justify-between items-center">
                       <span className="text-white font-bold uppercase tracking-widest text-xs">Total due now</span>
-                      <span className="text-3xl font-bold text-brand-gold">{formatCurrency(billing.upfrontDue)}</span>
+                      <span className="text-3xl font-bold text-brand-gold">
+                        {formatCurrency(billing.upfrontDue)}
+                      </span>
                     </div>
                   </div>
 
@@ -245,7 +247,6 @@ export default function Checkout() {
                     <p className="text-[10px] text-brand-grey leading-relaxed">
                       After the upfront payment, your recurring rental will be{' '}
                       <strong>{formatCurrency(billing.recurringAmount)}</strong> {billing.recurringLabel}.
-                      This includes the weekly {formatCurrency(billing.serviceFee)} management fee.
                     </p>
                   </div>
                 </div>

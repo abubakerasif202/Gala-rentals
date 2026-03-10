@@ -1,9 +1,7 @@
-import { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle, Home, Loader2 } from 'lucide-react';
 import { fetchCheckoutSessionStatus } from '../lib/api';
-import { clearPendingApplicationCheckout } from '../lib/checkoutStorage';
 
 export default function Success() {
   const [searchParams] = useSearchParams();
@@ -11,39 +9,29 @@ export default function Success() {
   const applicationId = Number(searchParams.get('application_id') || 0);
   const checkoutToken = searchParams.get('checkout_token') || searchParams.get('token') || '';
   const carId = Number(searchParams.get('car_id') || 0);
-  const hasVerificationContext = Boolean(sessionId && applicationId && checkoutToken);
+  const hasVerificationContext = Boolean(sessionId && applicationId && checkoutToken && carId);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['stripe-checkout-session', sessionId],
+    queryKey: ['stripe-checkout-session', sessionId, applicationId, carId],
     queryFn: () =>
       fetchCheckoutSessionStatus(sessionId, {
         application_id: applicationId,
-        car_id: carId || undefined,
+        car_id: carId,
         checkout_token: checkoutToken,
       }),
     enabled: hasVerificationContext,
     retry: false,
   });
 
-  const isSuccess = data?.status === 'complete' && data?.payment_status === 'paid';
-  const checkoutKind =
-    data?.checkout_kind || (carId ? 'vehicle' : 'application');
+  const isFullySuccessful = data?.internal_status === 'complete';
+  const isAwaitingFinalization =
+    data?.status === 'complete' &&
+    data?.payment_status === 'paid' &&
+    data?.internal_status === 'pending';
   const retryHref =
-    checkoutKind === 'vehicle' && carId
-      ? `/checkout/${carId}?application_id=${applicationId}&token=${encodeURIComponent(
-          checkoutToken
-        )}`
-      : hasVerificationContext
-        ? `/apply?application_id=${applicationId}&checkout_token=${encodeURIComponent(
-            checkoutToken
-          )}`
-        : '/apply';
-
-  useEffect(() => {
-    if (isSuccess) {
-      clearPendingApplicationCheckout();
-    }
-  }, [isSuccess]);
+    hasVerificationContext
+      ? `/checkout/${carId}?application_id=${applicationId}&token=${encodeURIComponent(checkoutToken)}`
+      : '/apply';
 
   return (
     <div className="min-h-screen bg-brand-charcoal flex flex-col justify-center py-12 sm:px-6 lg:px-8 selection:bg-brand-gold selection:text-brand-charcoal">
@@ -55,16 +43,14 @@ export default function Success() {
             </div>
           )}
 
-          {!isLoading && isSuccess && (
+          {!isLoading && isFullySuccessful && (
             <>
               <CheckCircle className="mx-auto h-20 w-20 text-brand-gold mb-8" />
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
                 Payment Successful
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
-                {checkoutKind === 'vehicle'
-                  ? 'Your vehicle payment has been confirmed. The rental is being activated and the team will contact you with collection details.'
-                  : 'Your application payment has been confirmed. The team will review your documents and contact you with the next steps.'}
+                Your payment has been confirmed and the rental is now active. The team will contact you with collection details.
               </p>
               <Link
                 to="/"
@@ -75,7 +61,27 @@ export default function Success() {
             </>
           )}
 
-          {!isLoading && !isSuccess && (
+          {!isLoading && isAwaitingFinalization && (
+            <>
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-12 w-12 text-brand-gold animate-spin" />
+              </div>
+              <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
+                Payment Received
+              </h2>
+              <p className="text-brand-grey font-light leading-relaxed mb-10">
+                Stripe has confirmed your payment. We are finalizing the rental activation now. If this page does not update after a short wait, contact support with your payment confirmation.
+              </p>
+              <Link
+                to="/"
+                className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
+              >
+                <Home className="mr-2 h-5 w-5" /> Return Home
+              </Link>
+            </>
+          )}
+
+          {!isLoading && !isFullySuccessful && !isAwaitingFinalization && (
             <>
               <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-red-900/20 mb-8 border border-red-500/30">
                 <svg className="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -87,14 +93,14 @@ export default function Success() {
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
                 {isError || !hasVerificationContext
-                  ? 'We could not verify the Stripe session from this link. Retry from the secure checkout link or contact support if the amount has already been deducted.'
-                  : 'Stripe did not report a completed paid session. Retry from the original secure link or contact support.'}
+                  ? 'We could not verify this secure payment session. Request a fresh payment link if the amount has not been charged.'
+                  : 'Stripe did not report a completed paid session for this payment link. Retry from the original secure link or contact support.'}
               </p>
               <Link
                 to={retryHref}
                 className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
               >
-                {checkoutKind === 'vehicle' ? 'Return to Vehicle Checkout' : 'Return to Application'}
+                Return to Secure Payment
               </Link>
             </>
           )}

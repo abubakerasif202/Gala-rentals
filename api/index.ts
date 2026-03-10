@@ -24,6 +24,24 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
 const frontendDistDir = path.resolve(process.cwd(), 'dist');
 const frontendIndexPath = path.join(frontendDistDir, 'index.html');
+const validateProductionEnv = () => {
+  if (!isProduction) {
+    return;
+  }
+
+  const missing = [
+    'APP_URL',
+    'CHECKOUT_LINK_SECRET',
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  ].filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required production environment variables: ${missing.join(', ')}`);
+  }
+};
 
 // CORS Configuration
 const toOrigin = (value?: string) => {
@@ -108,6 +126,7 @@ app.get('/api/rental-plans', (_req, res) => res.redirect(307, '/api/stripe/renta
 
 // Server Startup
 const startServer = async () => {
+  validateProductionEnv();
   await ensureDB();
 
   if (!isProduction) {

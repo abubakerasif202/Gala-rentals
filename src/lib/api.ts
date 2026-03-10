@@ -113,8 +113,6 @@ export const fetchRentalPlans = async (): Promise<RentalPlanWithPricing[]> => {
 
 export interface ApplicationSubmissionResponse {
   application_id: string;
-  checkout_token: string;
-  checkout_token_expires_at: string;
   success: boolean;
 }
 
@@ -124,9 +122,12 @@ export interface HostedCheckoutSessionResponse {
 }
 
 export interface CheckoutSessionStatusResponse {
+  application_status: 'Pending' | 'Paid' | 'Approved' | 'Rejected';
   checkout_kind: 'application' | 'vehicle' | null;
   id: string;
+  internal_status: 'complete' | 'pending' | 'open';
   payment_status: string | null;
+  rental_status: 'Active' | 'Completed' | 'Cancelled' | 'Overdue' | null;
   status: string | null;
 }
 
@@ -134,6 +135,29 @@ export interface VehicleCheckoutLinkResponse {
   checkout_token: string;
   checkout_token_expires_at: string;
   checkout_url: string;
+}
+
+export interface ApplicationApprovalResponse extends VehicleCheckoutLinkResponse {
+  email_delivered: boolean;
+  email_reason: string | null;
+  success: boolean;
+}
+
+export interface ApprovedPaymentContextResponse {
+  applicant_name: string;
+  application_id: number;
+  billing: {
+    bond: number;
+    currency: string;
+    initialRental: number;
+    recurringAmount: number;
+    recurringInterval: 'week' | 'month';
+    recurringIntervalCount: number;
+    recurringLabel: string;
+    setupFees: number;
+    upfrontDue: number;
+  };
+  car: Car;
 }
 
 export const fetchApplicationDocumentUrl = async (
@@ -164,6 +188,17 @@ export const createVehicleCheckoutSession = async (payload: {
   checkout_token: string;
 }): Promise<HostedCheckoutSessionResponse> => {
   const { data } = await api.post('/stripe/vehicle-checkout-session', payload);
+  return data;
+};
+
+export const fetchApprovedPaymentContext = async (options: {
+  application_id: number;
+  car_id: number;
+  checkout_token: string;
+}): Promise<ApprovedPaymentContextResponse> => {
+  const { data } = await api.get('/stripe/payment-context', {
+    params: options,
+  });
   return data;
 };
 
@@ -229,9 +264,21 @@ export interface LeaseAgreementPayload {
 
 export const createVehicleCheckoutLink = async (payload: {
   application_id: number;
-  car_id: number;
 }): Promise<VehicleCheckoutLinkResponse> => {
   const { data } = await api.post('/stripe/vehicle-checkout-link', payload);
+  return data;
+};
+
+export const approveApplicationForPayment = async (
+  id: number,
+  payload: {
+    approved_bond: number;
+    approved_weekly_price: number;
+    assigned_car_id: number;
+    send_payment_link?: boolean;
+  }
+): Promise<ApplicationApprovalResponse> => {
+  const { data } = await api.post(`/applications/${id}/approve-payment`, payload);
   return data;
 };
 

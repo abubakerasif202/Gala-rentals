@@ -3,10 +3,12 @@ import Stripe from 'stripe';
 import { db } from '../db/index.js';
 import { STRIPE_CONFIG } from '../constants.js';
 import {
+  getApplicationSelectColumns,
   getCarSelectColumns,
   getRentalApplicationIdColumn,
   getRentalCarIdColumn,
   getSchemaCompat,
+  toApplicationPaymentWritePayload,
   toRentalWritePayload,
 } from '../schemaCompat.js';
 
@@ -14,13 +16,21 @@ const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
 
 const assertSupabaseWrite = (
-  result: { error: { message?: string } | null } | null | undefined,
+  result: { error: { code?: string; message?: string } | null } | null | undefined,
   context: string
 ) => {
   if (result?.error) {
     throw new Error(`${context}: ${result.error.message || 'Unknown Supabase error'}`);
   }
 };
+
+const isDuplicateWrite = (error: unknown) =>
+  Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      String((error as { code?: string }).code || '') === '23505'
+  );
 
 const isLiveRentalStatus = (status: unknown) => {
   const normalized = String(status || '').toLowerCase();
@@ -36,6 +46,26 @@ const getRentalStatusUpdatePayload = async (status: string, endDate?: string) =>
   }
 
   return payload;
+};
+
+const updateApplicationPaymentState = async ({
+  applicationId,
+  paidAt,
+  pendingCheckoutSessionId,
+  status,
+}: {
+  applicationId: number;
+  paidAt?: string | null;
+  pendingCheckoutSessionId?: string | null;
+  status?: string;
+}) => {
+  const payload = await toApplicationPaymentWritePayload({
+    paid_at: paidAt,
+    pending_checkout_session_id: pendingCheckoutSessionId,
+    status,
+  });
+  const result = await db.from('applications').update(payload).eq('id', applicationId);
+  assertSupabaseWrite(result, 'Failed to update application payment state');
 };
 
 const updateRentalsBySubscriptionIdentity = async (
@@ -73,9 +103,12 @@ const fetchExistingRentalsForCar = async (carId: number) => {
   const existingRentalColumns = [
     'id',
     'status',
+    'weekly_price',
+    'bond_paid',
     rentalCarIdColumn,
     rentalApplicationIdColumn,
     compat.rentalStripeSubscriptionColumn,
+    compat.rentalStripeCustomerColumn,
   ]
     .filter((column): column is string => Boolean(column))
     .join(', ');
@@ -119,85 +152,109 @@ const maybeMarkCarAvailable = async (carId: number) => {
   assertSupabaseWrite(result, 'Failed to mark car as available');
 };
 
-const handleVehicleCheckoutCompletion = async ({
-  applicationId,
-  carId,
-  customerId,
-  subscriptionId,
-}: {
-  applicationId: number;
-  carId: number;
-  customerId: string | null;
-  subscriptionId: string | null;
-}) => {
-  const { compat, rentalApplicationIdColumn, rentals: existingRentals } =
-    await fetchExistingRentalsForCar(carId);
-  const existingRentalForSameSubscription =
-    compat.rentalStripeSubscriptionColumn && subscriptionId
-      ? existingRentals.find(
-          (rental) => rental[compat.rentalStripeSubscriptionColumn!] === subscriptionId
-        )
-      : null;
-  const existingRentalForApplication = existingRentals.find(
-    (rental) => Number(rental[rentalApplicationIdColumn]) === applicationId
-  );
+const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.Session) => {
+  const applicationId = Number(session.metadata?.application_id || 0);
+  const carId = Number(session.metadata?.car_id || 0);
+  const approvedWeeklyPrice = Number(session.metadata?.approved_weekly_price || 0);
+  const approvedBond = Number(session.metadata?.approved_bond || 0);
+  const subscriptionId =
+    typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null;
+  const customerId =
+    typeof session.customer === 'string' ? session.customer : session.customer?.id || null;
 
-  if (existingRentalForSameSubscription || existingRentalForApplication) {
+  if (!applicationId || !carId || !subscriptionId) {
     return;
   }
 
-  const { data: car, error: carError } = await db
-    .from('cars')
-    .select(await getCarSelectColumns())
-    .eq('id', carId)
-    .single();
+  const selectColumns = await getApplicationSelectColumns();
+  const [applicationResult, carResult, existingRentalsResult] = await Promise.all([
+    db.from('applications').select(selectColumns).eq('id', applicationId).single(),
+    db.from('cars').select(await getCarSelectColumns()).eq('id', carId).single(),
+    fetchExistingRentalsForCar(carId),
+  ]);
 
-  if (carError || !car) {
-    throw new Error(`Failed to fetch car ${carId} for rental activation.`);
+  if (applicationResult.error || !applicationResult.data) {
+    throw new Error(`Failed to fetch application ${applicationId} for payment completion.`);
   }
 
-  const blockingRental = existingRentals.find((rental) => isLiveRentalStatus(rental.status));
+  if (carResult.error || !carResult.data) {
+    throw new Error(`Failed to fetch car ${carId} for payment completion.`);
+  }
+
+  const application = applicationResult.data as Record<string, unknown>;
+  const car = carResult.data as Record<string, unknown>;
+  const { compat, rentalApplicationIdColumn, rentals: existingRentals } = existingRentalsResult;
+  const existingRental =
+    (compat.rentalStripeSubscriptionColumn
+      ? existingRentals.find(
+          (rental) => rental[compat.rentalStripeSubscriptionColumn!] === subscriptionId
+        )
+      : null) ||
+    existingRentals.find((rental) => Number(rental[rentalApplicationIdColumn]) === applicationId) ||
+    null;
+  const blockingRental = existingRentals.find(
+    (rental) =>
+      isLiveRentalStatus(rental.status) &&
+      Number(rental[rentalApplicationIdColumn]) !== applicationId
+  );
 
   if (blockingRental) {
     throw new Error(`Vehicle ${carId} is already attached to another live rental.`);
   }
 
-  if (car.status !== 'Available') {
-    throw new Error(`Vehicle ${carId} is not available for activation while marked ${car.status}.`);
+  if (!existingRental) {
+    if (String(car.status) !== 'Available' && String(car.status) !== 'Rented') {
+      throw new Error(`Vehicle ${carId} is not available for activation while marked ${car.status}.`);
+    }
+
+    const rentalPayload = await toRentalWritePayload({
+      application_id: applicationId,
+      bond_paid: approvedBond,
+      car_id: carId,
+      start_date: new Date().toISOString().split('T')[0],
+      status: 'Active',
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscriptionId,
+      weekly_price: approvedWeeklyPrice,
+    });
+
+    const rentalInsert = await db.from('rentals').insert([rentalPayload]);
+    if (rentalInsert.error && !isDuplicateWrite(rentalInsert.error)) {
+      throw new Error(
+        `Failed to create rental after checkout completion: ${rentalInsert.error.message || 'Unknown error'}`
+      );
+    }
   }
 
-  const rentalPayload = await toRentalWritePayload({
-    car_id: carId,
+  const rentalUpdatePayload = await toRentalWritePayload({
     application_id: applicationId,
+    bond_paid: approvedBond,
+    car_id: carId,
     start_date: new Date().toISOString().split('T')[0],
-    weekly_price: Number(car.weekly_price) || 0,
     status: 'Active',
-    stripe_subscription_id: subscriptionId,
     stripe_customer_id: customerId,
+    stripe_subscription_id: subscriptionId,
+    weekly_price: approvedWeeklyPrice,
   });
+  const { startDate: _unusedCamelStartDate, start_date: _unusedSnakeStartDate, carId: _unusedCamelCarId, car_id: _unusedSnakeCarId, applicationId: _unusedCamelApplicationId, application_id: _unusedSnakeApplicationId, ...repairPayload } =
+    rentalUpdatePayload as Record<string, unknown>;
 
-  const rentalInsert = await db.from('rentals').insert([rentalPayload]);
-  assertSupabaseWrite(rentalInsert, 'Failed to create rental after checkout completion');
+  if (existingRental) {
+    const result = await db.from('rentals').update(repairPayload).eq('id', existingRental.id);
+    assertSupabaseWrite(result, 'Failed to repair existing rental after checkout completion');
+  }
 
   const carUpdate = await db.from('cars').update({ status: 'Rented' }).eq('id', carId);
   assertSupabaseWrite(carUpdate, 'Failed to mark car as rented');
 
-  const applicationUpdate = await db
-    .from('applications')
-    .update({ status: 'Approved' })
-    .eq('id', applicationId);
-  assertSupabaseWrite(applicationUpdate, 'Failed to mark application as approved');
+  await updateApplicationPaymentState({
+    applicationId,
+    paidAt: new Date().toISOString(),
+    pendingCheckoutSessionId: null,
+    status: 'Paid',
+  });
 
-  if (!process.env.RESEND_API_KEY) {
-    return;
-  }
-
-  const [{ data: appData }, { data: carData }] = await Promise.all([
-    db.from('applications').select('name, email').eq('id', applicationId).single(),
-    db.from('cars').select('name').eq('id', carId).single(),
-  ]);
-
-  if (!appData || !carData) {
+  if (!process.env.RESEND_API_KEY || String(application.status) === 'Paid') {
     return;
   }
 
@@ -206,15 +263,15 @@ const handleVehicleCheckoutCompletion = async ({
     const resend = new Resend(process.env.RESEND_API_KEY);
     await resend.emails.send({
       from: 'Maple Rentals <noreply@maplerentals.com.au>',
-      to: appData.email,
+      to: String(application.email),
       subject: 'Rental Confirmed - Maple Rentals',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
-          <h2 style="color: #D4AF37;">Lease Confirmed</h2>
-          <p>Hi ${appData.name},</p>
-          <p>Great news! Your payment for the <strong>${carData.name}</strong> has been successfully processed.</p>
-          <p>Your rental is now <strong>Active</strong>. You can now arrange for vehicle collection as discussed.</p>
-          <p><strong>Subscription ID:</strong> ${subscriptionId || 'Pending sync'}</p>
+          <h2 style="color: #D4AF37;">Payment Confirmed</h2>
+          <p>Hi ${String(application.name)},</p>
+          <p>Your payment for the <strong>${String(car.name)}</strong> has been successfully processed.</p>
+          <p>Your rental is now <strong>Active</strong>. We will contact you shortly with collection details.</p>
+          <p><strong>Subscription ID:</strong> ${subscriptionId}</p>
           <br>
           <p>Best regards,</p>
           <p><strong>The Maple Rentals Team</strong></p>
@@ -226,46 +283,13 @@ const handleVehicleCheckoutCompletion = async ({
   }
 };
 
-const handleApplicationCheckoutCompletion = async (applicationId: number) => {
-  const result = await db.from('applications').update({ status: 'Paid' }).eq('id', applicationId);
-  assertSupabaseWrite(result, 'Failed to mark application as paid');
-};
-
-const handleCheckoutCompletion = async (session: Stripe.Checkout.Session) => {
-  if (session.payment_status !== 'paid') {
-    return;
-  }
-
-  const applicationId = Number(session.metadata?.application_id || 0);
-  const carId = Number(session.metadata?.car_id || 0);
-  const checkoutKind = session.metadata?.checkout_kind;
-
-  if (!applicationId || !checkoutKind) {
-    return;
-  }
-
-  if (checkoutKind === 'application') {
-    await handleApplicationCheckoutCompletion(applicationId);
-    return;
-  }
-
-  if (checkoutKind === 'vehicle' && carId) {
-    await handleVehicleCheckoutCompletion({
-      applicationId,
-      carId,
-      customerId:
-        typeof session.customer === 'string'
-          ? session.customer
-          : session.customer?.id || null,
-      subscriptionId:
-        typeof session.subscription === 'string'
-          ? session.subscription
-          : session.subscription?.id || null,
-    });
-  }
-};
-
 router.post('/', express.raw({ type: 'application/json' }), async (request, response) => {
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error('Stripe webhook secret is not configured.');
+    response.status(503).send('Webhook configuration missing');
+    return;
+  }
+
   const sig = request.headers['stripe-signature'];
   let event: Stripe.Event;
 
@@ -273,7 +297,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (request, resp
     event = stripe.webhooks.constructEvent(
       request.body,
       sig as string,
-      process.env.STRIPE_WEBHOOK_SECRET || ''
+      process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -287,7 +311,9 @@ router.post('/', express.raw({ type: 'application/json' }), async (request, resp
       case 'checkout.session.async_payment_succeeded':
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        await handleCheckoutCompletion(session);
+        if (session.payment_status === 'paid' && session.metadata?.checkout_kind === 'vehicle') {
+          await handleVehicleCheckoutCompletion(session);
+        }
         break;
       }
       case 'invoice.payment_failed': {

@@ -7,6 +7,7 @@ type CheckoutTokenPayload = {
   carId: number | null;
   expiresAt: number;
   purpose: CheckoutTokenPurpose;
+  version: number;
 };
 
 const DEFAULT_TOKEN_TTL_HOURS = 24 * 7;
@@ -35,17 +36,20 @@ export const createCheckoutToken = ({
   carId = null,
   expiresInHours = DEFAULT_TOKEN_TTL_HOURS,
   purpose,
+  version = 0,
 }: {
   applicationId: number;
   carId?: number | null;
   expiresInHours?: number;
   purpose: CheckoutTokenPurpose;
+  version?: number;
 }) => {
   const payload = toTokenPayload({
     applicationId,
     carId,
     expiresAt: Date.now() + expiresInHours * 60 * 60 * 1000,
     purpose,
+    version,
   });
   const signature = signTokenValue(payload);
 
@@ -60,11 +64,13 @@ export const verifyCheckoutToken = ({
   carId = null,
   purpose,
   token,
+  version,
 }: {
   applicationId: number;
   carId?: number | null;
   purpose: CheckoutTokenPurpose;
   token: string;
+  version?: number | null;
 }) => {
   const [encodedPayload, providedSignature] = token.split('.');
 
@@ -95,6 +101,10 @@ export const verifyCheckoutToken = ({
 
   if ((payload.carId ?? null) !== carId) {
     throw new Error('Checkout token car mismatch.');
+  }
+
+  if (typeof version === 'number' && payload.version !== version) {
+    throw new Error('Checkout token version mismatch.');
   }
 
   if (payload.expiresAt <= Date.now()) {

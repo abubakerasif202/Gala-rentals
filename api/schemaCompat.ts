@@ -11,15 +11,31 @@ type ApplicationBackPhotoColumn =
   | 'uberScreenshot';
 
 type SchemaCompat = {
+  applicationApprovedAtColumn: string;
   coreMode: SchemaMode;
   applicationBackPhotoColumn: ApplicationBackPhotoColumn;
+  applicationAssignedCarColumn: string;
+  applicationApprovedBondColumn: string;
+  applicationApprovedWeeklyPriceColumn: string;
+  applicationPaidAtColumn: string;
+  applicationPaymentLinkSentAtColumn: string;
+  applicationPaymentLinkVersionColumn: string;
+  applicationPendingCheckoutSessionColumn: string;
   rentalStripeSubscriptionColumn: string | null;
   rentalStripeCustomerColumn: string | null;
 };
 
 const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
+  applicationApprovedAtColumn: 'approved_at',
   coreMode: 'snake',
   applicationBackPhotoColumn: 'uber_screenshot',
+  applicationAssignedCarColumn: 'assigned_car_id',
+  applicationApprovedBondColumn: 'approved_bond',
+  applicationApprovedWeeklyPriceColumn: 'approved_weekly_price',
+  applicationPaidAtColumn: 'paid_at',
+  applicationPaymentLinkSentAtColumn: 'payment_link_sent_at',
+  applicationPaymentLinkVersionColumn: 'payment_link_version',
+  applicationPendingCheckoutSessionColumn: 'pending_checkout_session_id',
   rentalStripeSubscriptionColumn: 'stripe_subscription_id',
   rentalStripeCustomerColumn: 'stripe_customer_id',
 };
@@ -82,6 +98,74 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
                 : coreMode === 'camel'
                   ? 'uberScreenshot'
                   : 'uber_screenshot';
+        const applicationAssignedCarColumn = hasProperty(applicationsDefinition, 'assignedCarId')
+          ? 'assignedCarId'
+          : hasProperty(applicationsDefinition, 'assigned_car_id')
+            ? 'assigned_car_id'
+            : coreMode === 'camel'
+              ? 'assignedCarId'
+              : 'assigned_car_id';
+        const applicationApprovedBondColumn = hasProperty(applicationsDefinition, 'approvedBond')
+          ? 'approvedBond'
+          : hasProperty(applicationsDefinition, 'approved_bond')
+            ? 'approved_bond'
+            : coreMode === 'camel'
+              ? 'approvedBond'
+              : 'approved_bond';
+        const applicationApprovedWeeklyPriceColumn = hasProperty(
+          applicationsDefinition,
+          'approvedWeeklyPrice'
+        )
+          ? 'approvedWeeklyPrice'
+          : hasProperty(applicationsDefinition, 'approved_weekly_price')
+            ? 'approved_weekly_price'
+            : coreMode === 'camel'
+              ? 'approvedWeeklyPrice'
+              : 'approved_weekly_price';
+        const applicationPaymentLinkVersionColumn = hasProperty(
+          applicationsDefinition,
+          'paymentLinkVersion'
+        )
+          ? 'paymentLinkVersion'
+          : hasProperty(applicationsDefinition, 'payment_link_version')
+            ? 'payment_link_version'
+            : coreMode === 'camel'
+              ? 'paymentLinkVersion'
+              : 'payment_link_version';
+        const applicationPaymentLinkSentAtColumn = hasProperty(
+          applicationsDefinition,
+          'paymentLinkSentAt'
+        )
+          ? 'paymentLinkSentAt'
+          : hasProperty(applicationsDefinition, 'payment_link_sent_at')
+            ? 'payment_link_sent_at'
+            : coreMode === 'camel'
+              ? 'paymentLinkSentAt'
+              : 'payment_link_sent_at';
+        const applicationApprovedAtColumn = hasProperty(applicationsDefinition, 'approvedAt')
+          ? 'approvedAt'
+          : hasProperty(applicationsDefinition, 'approved_at')
+            ? 'approved_at'
+            : coreMode === 'camel'
+              ? 'approvedAt'
+              : 'approved_at';
+        const applicationPaidAtColumn = hasProperty(applicationsDefinition, 'paidAt')
+          ? 'paidAt'
+          : hasProperty(applicationsDefinition, 'paid_at')
+            ? 'paid_at'
+            : coreMode === 'camel'
+              ? 'paidAt'
+              : 'paid_at';
+        const applicationPendingCheckoutSessionColumn = hasProperty(
+          applicationsDefinition,
+          'pendingCheckoutSessionId'
+        )
+          ? 'pendingCheckoutSessionId'
+          : hasProperty(applicationsDefinition, 'pending_checkout_session_id')
+            ? 'pending_checkout_session_id'
+            : coreMode === 'camel'
+              ? 'pendingCheckoutSessionId'
+              : 'pending_checkout_session_id';
         const rentalStripeSubscriptionColumn = hasProperty(rentalsDefinition, 'stripeSubscriptionId')
           ? 'stripeSubscriptionId'
           : hasProperty(rentalsDefinition, 'stripe_subscription_id')
@@ -94,8 +178,16 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
             : null;
 
         return {
+          applicationApprovedAtColumn,
           coreMode,
           applicationBackPhotoColumn,
+          applicationAssignedCarColumn,
+          applicationApprovedBondColumn,
+          applicationApprovedWeeklyPriceColumn,
+          applicationPaidAtColumn,
+          applicationPaymentLinkSentAtColumn,
+          applicationPaymentLinkVersionColumn,
+          applicationPendingCheckoutSessionColumn,
           rentalStripeSubscriptionColumn,
           rentalStripeCustomerColumn,
         };
@@ -156,11 +248,54 @@ export const getCarCreatedAtColumn = async () => {
 };
 
 export const getApplicationSelectColumns = async () => {
-  const { coreMode, applicationBackPhotoColumn } = await getSchemaCompat();
+  const {
+    coreMode,
+    applicationBackPhotoColumn,
+    applicationAssignedCarColumn,
+    applicationApprovedBondColumn,
+    applicationApprovedWeeklyPriceColumn,
+    applicationPaymentLinkVersionColumn,
+    applicationPaymentLinkSentAtColumn,
+    applicationApprovedAtColumn,
+    applicationPaidAtColumn,
+    applicationPendingCheckoutSessionColumn,
+  } = await getSchemaCompat();
   const backPhotoSelect =
     applicationBackPhotoColumn === 'license_back_photo'
       ? 'license_back_photo'
       : `license_back_photo:${applicationBackPhotoColumn}`;
+  const assignedCarSelect =
+    applicationAssignedCarColumn === 'assigned_car_id'
+      ? 'assigned_car_id'
+      : `assigned_car_id:${applicationAssignedCarColumn}`;
+  const approvedBondSelect =
+    applicationApprovedBondColumn === 'approved_bond'
+      ? 'approved_bond'
+      : `approved_bond:${applicationApprovedBondColumn}`;
+  const approvedWeeklyPriceSelect =
+    applicationApprovedWeeklyPriceColumn === 'approved_weekly_price'
+      ? 'approved_weekly_price'
+      : `approved_weekly_price:${applicationApprovedWeeklyPriceColumn}`;
+  const paymentLinkVersionSelect =
+    applicationPaymentLinkVersionColumn === 'payment_link_version'
+      ? 'payment_link_version'
+      : `payment_link_version:${applicationPaymentLinkVersionColumn}`;
+  const paymentLinkSentAtSelect =
+    applicationPaymentLinkSentAtColumn === 'payment_link_sent_at'
+      ? 'payment_link_sent_at'
+      : `payment_link_sent_at:${applicationPaymentLinkSentAtColumn}`;
+  const approvedAtSelect =
+    applicationApprovedAtColumn === 'approved_at'
+      ? 'approved_at'
+      : `approved_at:${applicationApprovedAtColumn}`;
+  const paidAtSelect =
+    applicationPaidAtColumn === 'paid_at'
+      ? 'paid_at'
+      : `paid_at:${applicationPaidAtColumn}`;
+  const pendingCheckoutSessionSelect =
+    applicationPendingCheckoutSessionColumn === 'pending_checkout_session_id'
+      ? 'pending_checkout_session_id'
+      : `pending_checkout_session_id:${applicationPendingCheckoutSessionColumn}`;
 
   return coreMode === 'camel'
     ? [
@@ -177,6 +312,14 @@ export const getApplicationSelectColumns = async () => {
         'intended_start_date:intendedStartDate',
         'license_photo:licensePhoto',
         backPhotoSelect,
+        assignedCarSelect,
+        approvedBondSelect,
+        approvedWeeklyPriceSelect,
+        paymentLinkVersionSelect,
+        paymentLinkSentAtSelect,
+        approvedAtSelect,
+        paidAtSelect,
+        pendingCheckoutSessionSelect,
         'status',
         'created_at:createdAt',
       ].join(', ')
@@ -194,6 +337,14 @@ export const getApplicationSelectColumns = async () => {
         'intended_start_date',
         'license_photo',
         backPhotoSelect,
+        assignedCarSelect,
+        approvedBondSelect,
+        approvedWeeklyPriceSelect,
+        paymentLinkVersionSelect,
+        paymentLinkSentAtSelect,
+        approvedAtSelect,
+        paidAtSelect,
+        pendingCheckoutSessionSelect,
         'status',
         'created_at',
       ].join(', ');
@@ -259,6 +410,63 @@ export const toApplicationWritePayload = async (application: {
 export const getApplicationCreatedAtColumn = async () => {
   const { coreMode } = await getSchemaCompat();
   return coreMode === 'camel' ? 'createdAt' : 'created_at';
+};
+
+export const toApplicationPaymentWritePayload = async (payload: {
+  assigned_car_id?: number | null;
+  approved_bond?: number | null;
+  approved_weekly_price?: number | null;
+  payment_link_version?: number;
+  payment_link_sent_at?: string | null;
+  approved_at?: string | null;
+  paid_at?: string | null;
+  pending_checkout_session_id?: string | null;
+  status?: string;
+}) => {
+  const compat = await getSchemaCompat();
+  const mappedPayload: Record<string, unknown> = {};
+
+  if ('assigned_car_id' in payload) {
+    mappedPayload[compat.applicationAssignedCarColumn] = payload.assigned_car_id ?? null;
+  }
+
+  if ('approved_bond' in payload) {
+    mappedPayload[compat.applicationApprovedBondColumn] = payload.approved_bond ?? null;
+  }
+
+  if ('approved_weekly_price' in payload) {
+    mappedPayload[compat.applicationApprovedWeeklyPriceColumn] =
+      payload.approved_weekly_price ?? null;
+  }
+
+  if ('payment_link_version' in payload) {
+    mappedPayload[compat.applicationPaymentLinkVersionColumn] =
+      payload.payment_link_version ?? 0;
+  }
+
+  if ('payment_link_sent_at' in payload) {
+    mappedPayload[compat.applicationPaymentLinkSentAtColumn] =
+      payload.payment_link_sent_at ?? null;
+  }
+
+  if ('approved_at' in payload) {
+    mappedPayload[compat.applicationApprovedAtColumn] = payload.approved_at ?? null;
+  }
+
+  if ('paid_at' in payload) {
+    mappedPayload[compat.applicationPaidAtColumn] = payload.paid_at ?? null;
+  }
+
+  if ('pending_checkout_session_id' in payload) {
+    mappedPayload[compat.applicationPendingCheckoutSessionColumn] =
+      payload.pending_checkout_session_id ?? null;
+  }
+
+  if (payload.status) {
+    mappedPayload.status = payload.status;
+  }
+
+  return mappedPayload;
 };
 
 export const getApplicationDocumentColumn = async (

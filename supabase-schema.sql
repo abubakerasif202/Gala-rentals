@@ -34,6 +34,14 @@ CREATE TABLE applications (
   intended_start_date DATE NOT NULL, -- Proper DATE type
   license_photo TEXT,
   license_back_photo TEXT,
+  assigned_car_id BIGINT REFERENCES cars(id) ON DELETE SET NULL,
+  approved_bond NUMERIC CHECK (approved_bond >= 0),
+  approved_weekly_price NUMERIC CHECK (approved_weekly_price >= 0),
+  payment_link_version INTEGER NOT NULL DEFAULT 0,
+  payment_link_sent_at TIMESTAMPTZ,
+  approved_at TIMESTAMPTZ,
+  paid_at TIMESTAMPTZ,
+  pending_checkout_session_id TEXT,
   status TEXT DEFAULT 'Pending' NOT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -138,10 +146,20 @@ $$;
 -- --- INDEXES (For Performance) ---
 CREATE INDEX idx_rentals_car_id ON rentals(car_id);
 CREATE INDEX idx_rentals_application_id ON rentals(application_id);
+CREATE UNIQUE INDEX idx_rentals_live_car_unique
+  ON rentals(car_id)
+  WHERE lower(status) IN ('active', 'overdue');
+CREATE UNIQUE INDEX idx_rentals_live_application_unique
+  ON rentals(application_id)
+  WHERE lower(status) IN ('active', 'overdue');
+CREATE UNIQUE INDEX idx_rentals_stripe_subscription_unique
+  ON rentals(stripe_subscription_id)
+  WHERE stripe_subscription_id IS NOT NULL;
 CREATE INDEX idx_bookings_car_id ON bookings(car_id);
 CREATE INDEX idx_bookings_application_id ON bookings(application_id);
 CREATE INDEX idx_lease_agreements_application_id ON lease_agreements(application_id);
 CREATE INDEX idx_lease_agreements_car_id ON lease_agreements(car_id);
+CREATE INDEX idx_applications_assigned_car_id ON applications(assigned_car_id);
 CREATE UNIQUE INDEX idx_customers_external_id_unique ON customers(external_id) WHERE external_id IS NOT NULL;
 CREATE UNIQUE INDEX idx_customers_staff_number_unique ON customers(staff_number) WHERE staff_number IS NOT NULL;
 CREATE INDEX idx_customers_email ON customers(email);

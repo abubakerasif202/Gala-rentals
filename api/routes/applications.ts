@@ -1,7 +1,12 @@
 import express from 'express';
+import Stripe from 'stripe';
 import { db } from '../db/index.js';
 import { authenticateAdmin } from './auth.js';
-import { applicationSchema, applicationStatusEnum } from '../validation.js';
+import {
+  applicationApprovalSchema,
+  applicationSchema,
+  applicationStatusEnum,
+} from '../validation.js';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { createCheckoutToken } from '../checkoutTokens.js';
@@ -9,13 +14,18 @@ import {
   getApplicationCreatedAtColumn,
   getApplicationDocumentColumn,
   getApplicationSelectColumns,
+  getCarSelectColumns,
+  toApplicationPaymentWritePayload,
   toApplicationWritePayload,
 } from '../schemaCompat.js';
+import { RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
+import { buildDriverPaymentLink, sendDriverPaymentLinkEmail } from '../paymentLinks.js';
 
 const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
 const NO_ROW_ERROR_CODES = new Set(['PGRST116', 'PGRST123']);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
 
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
 const SUPABASE_STORAGE_PATH_PREFIXES = [
@@ -328,16 +338,9 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const checkoutToken = createCheckoutToken({
-      applicationId,
-      purpose: 'application',
-    });
-
     res.json({
       success: true,
       application_id: String(applicationId),
-      checkout_token: checkoutToken.token,
-      checkout_token_expires_at: checkoutToken.expiresAt,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -348,9 +351,136 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
+  try {
+    const payload = applicationApprovalSchema.parse({
+      ...req.body,
+      application_id: req.params.id,
+    });
+    const selectColumns = await getApplicationSelectColumns();
+    const { data: application, error: applicationError } = await db
+      .from('applications')
+      .select(selectColumns)
+      .eq('id', payload.application_id)
+      .single();
+
+    if (applicationError || !application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    if (application.status === 'Paid') {
+      return res.status(409).json({ error: 'This application has already been paid.' });
+    }
+
+    if (application.status === 'Rejected') {
+      return res.status(409).json({ error: 'Rejected applications cannot be approved for payment.' });
+    }
+
+    const { data: car, error: carError } = await db
+      .from('cars')
+      .select(await getCarSelectColumns())
+      .eq('id', payload.assigned_car_id)
+      .single();
+
+    if (carError || !car) {
+      return res.status(404).json({ error: 'Assigned vehicle not found' });
+    }
+
+    if (car.status !== 'Available') {
+      return res.status(409).json({ error: 'Assigned vehicle is not available.' });
+    }
+
+    const currentVersion = Number(application.payment_link_version || 0);
+    const nextVersion = currentVersion + 1;
+    const nowIso = new Date().toISOString();
+
+    if (application.pending_checkout_session_id) {
+      try {
+        await stripe.checkout.sessions.expire(application.pending_checkout_session_id);
+      } catch (expireError) {
+        console.warn(
+          `Unable to expire pending checkout session ${application.pending_checkout_session_id}:`,
+          expireError
+        );
+      }
+    }
+
+    const updatePayload = await toApplicationPaymentWritePayload({
+      approved_at: nowIso,
+      approved_bond: payload.approved_bond,
+      approved_weekly_price: payload.approved_weekly_price,
+      assigned_car_id: payload.assigned_car_id,
+      paid_at: null,
+      payment_link_sent_at: payload.send_payment_link ? nowIso : null,
+      payment_link_version: nextVersion,
+      pending_checkout_session_id: null,
+      status: 'Approved',
+    });
+
+    const { error: updateError } = await db
+      .from('applications')
+      .update(updatePayload)
+      .eq('id', payload.application_id);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    const checkoutToken = createCheckoutToken({
+      applicationId: payload.application_id,
+      carId: payload.assigned_car_id,
+      purpose: 'vehicle',
+      version: nextVersion,
+    });
+    const checkoutUrl = buildDriverPaymentLink({
+      applicationId: payload.application_id,
+      carId: payload.assigned_car_id,
+      token: checkoutToken.token,
+    });
+
+    let emailDelivery = {
+      delivered: false,
+      reason: null as string | null,
+    };
+
+    if (payload.send_payment_link) {
+      emailDelivery = await sendDriverPaymentLinkEmail({
+        applicantEmail: application.email,
+        applicantName: application.name,
+        approvedBond: payload.approved_bond,
+        approvedWeeklyPrice: payload.approved_weekly_price,
+        carName: car.name,
+        checkoutUrl,
+        setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
+      });
+    }
+
+    res.json({
+      success: true,
+      checkout_token: checkoutToken.token,
+      checkout_token_expires_at: checkoutToken.expiresAt,
+      checkout_url: checkoutUrl,
+      email_delivered: emailDelivery.delivered,
+      email_reason: emailDelivery.reason,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    console.error('Application approve-payment error:', error);
+    res.status(500).json({ error: 'Failed to approve application for payment' });
+  }
+});
+
 router.put('/:id/status', authenticateAdmin, async (req, res) => {
   try {
     const { status } = z.object({ status: applicationStatusEnum }).parse(req.body ?? {});
+    if (status === 'Approved' || status === 'Paid') {
+      return res.status(400).json({
+        error: 'Use the payment approval flow to approve applications. Paid status is set by Stripe.',
+      });
+    }
     const { error } = await db.from('applications').update({ status }).eq('id', req.params.id);
     if (error) throw error;
     res.json({ success: true });

@@ -9,6 +9,10 @@ export interface Car {
 }
 
 export interface Application {
+  approved_at?: string | null;
+  approved_bond?: number | null;
+  approved_weekly_price?: number | null;
+  assigned_car_id?: number | null;
   id: number;
   name: string;
   phone: string;
@@ -22,6 +26,10 @@ export interface Application {
   intended_start_date: string;
   license_photo?: string;
   license_back_photo?: string;
+  paid_at?: string | null;
+  payment_link_sent_at?: string | null;
+  payment_link_version?: number;
+  pending_checkout_session_id?: string | null;
   status: 'Pending' | 'Paid' | 'Approved' | 'Rejected';
   created_at: string;
 }
@@ -29,12 +37,13 @@ export interface Application {
 export interface Rental {
   id: number;
   application_id: number;
+  bond_paid?: number;
   car_id: number;
   applicant_name?: string;
   car_name?: string;
   start_date: string;
   weekly_price: number;
-  status: 'Active' | 'Completed' | 'Cancelled';
+  status: 'Active' | 'Completed' | 'Cancelled' | 'Overdue';
   created_at: string;
 }
 

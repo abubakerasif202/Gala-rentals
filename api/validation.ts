@@ -58,9 +58,16 @@ export const vehicleCheckoutSessionSchema = z.object({
   checkout_token: z.string().min(1),
 });
 
+export const applicationApprovalSchema = z.object({
+  approved_bond: z.coerce.number().nonnegative(),
+  approved_weekly_price: z.coerce.number().positive(),
+  application_id: z.coerce.number().int().positive(),
+  assigned_car_id: z.coerce.number().int().positive(),
+  send_payment_link: z.boolean().optional().default(true),
+});
+
 export const vehicleCheckoutLinkSchema = z.object({
   application_id: z.coerce.number().int().positive(),
-  car_id: z.coerce.number().int().positive(),
 });
 
 export const leaseFeeSchema = z.object({

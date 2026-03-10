@@ -6,15 +6,12 @@ import { authenticateAdmin } from './auth.js';
 import { createCheckoutToken, verifyCheckoutToken } from '../checkoutTokens.js';
 import { LEASE_SETTINGS, RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
 import {
-  applicationCheckoutSessionSchema,
   vehicleCheckoutLinkSchema,
   vehicleCheckoutSessionSchema,
 } from '../validation.js';
 import {
   buildRentalPlanWithPricing,
-  getRentalPlanById,
   rentalPlans,
-  type RentalPlanWithPricing,
 } from '../../src/lib/rentalPlans.js';
 import {
   getApplicationSelectColumns,
@@ -99,18 +96,6 @@ const buildApprovedBillingBreakdown = (application: StripeApplication): BillingB
     upfrontDue: toFloat(approvedBond + approvedWeeklyPrice + RENTAL_PLAN_SETUP_FEES_AUD),
   };
 };
-
-const buildApplicationBillingBreakdown = (plan: RentalPlanWithPricing): BillingBreakdown => ({
-  bond: plan.pricing.bondAud,
-  currency: LEASE_SETTINGS.currency.toUpperCase(),
-  initialRental: plan.pricing.initialRentalAud,
-  recurringAmount: plan.pricing.recurringDueAud,
-  recurringInterval: plan.pricing.recurringInterval,
-  recurringIntervalCount: plan.pricing.recurringIntervalCount,
-  recurringLabel: plan.pricing.recurringLabel,
-  setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
-  upfrontDue: plan.pricing.upfrontDueAud,
-});
 
 const buildCancelUrl = ({
   applicationId,
@@ -273,7 +258,7 @@ const fetchApplication = async (applicationId: number) => {
     return null;
   }
 
-  return application as StripeApplication;
+  return application as unknown as StripeApplication;
 };
 
 const fetchCar = async (carId: number) => {
@@ -392,22 +377,6 @@ router.get('/lease-settings', (_req, res) => {
     insurance_coverage_region: LEASE_SETTINGS.insurance_coverage_region,
     fees: LEASE_SETTINGS.fees,
   });
-});
-
-router.post('/application-checkout-session', async (req, res) => {
-  try {
-    applicationCheckoutSessionSchema.parse(req.body);
-    return res.status(410).json({
-      error:
-        'Application payments now start after admin approval. Drivers receive a secure payment link once approved.',
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Validation failed', details: error.issues });
-    }
-
-    res.status(500).json({ error: 'Failed to process the application payment request' });
-  }
 });
 
 router.get('/payment-context', async (req, res) => {

@@ -29,29 +29,6 @@ export const applicationSchema = z.object({
 
 export const applicationStatusEnum = z.enum(['Pending', 'Paid', 'Approved', 'Rejected']);
 
-export const subscriptionPayloadSchema = z.object({
-  car_id: z.coerce.number().int().positive().optional(),
-  application_id: z.coerce.number().int().positive(),
-  plan_id: z.string().min(1).optional(),
-}).strict().superRefine((value, ctx) => {
-  const hasCar = typeof value.car_id === 'number';
-  const hasPlan = typeof value.plan_id === 'string';
-
-  if (hasCar === hasPlan) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide exactly one of car_id or plan_id',
-      path: ['car_id'],
-    });
-  }
-});
-
-export const applicationCheckoutSessionSchema = z.object({
-  application_id: z.coerce.number().int().positive(),
-  plan_id: z.string().min(1),
-  checkout_token: z.string().min(1),
-});
-
 export const vehicleCheckoutSessionSchema = z.object({
   application_id: z.coerce.number().int().positive(),
   car_id: z.coerce.number().int().positive(),

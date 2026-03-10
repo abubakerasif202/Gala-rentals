@@ -173,15 +173,6 @@ export const submitApplication = async (payload: Record<string, unknown>): Promi
   return data;
 };
 
-export const createApplicationCheckoutSession = async (payload: {
-  application_id: number;
-  checkout_token: string;
-  plan_id: string;
-}): Promise<HostedCheckoutSessionResponse> => {
-  const { data } = await api.post('/stripe/application-checkout-session', payload);
-  return data;
-};
-
 export const createVehicleCheckoutSession = async (payload: {
   application_id: number;
   car_id: number;

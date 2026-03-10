@@ -83,6 +83,14 @@ const isNoRowError = (error: { code?: string; details?: string } | null) =>
         error.details?.toLowerCase().includes('0 rows'))
   );
 
+type ApplicationPaymentApprovalRecord = {
+  email: string;
+  name: string;
+  payment_link_version?: number | null;
+  pending_checkout_session_id?: string | null;
+  status: string;
+};
+
 const getApplicationBackPhotoValue = (application: Record<string, any>) =>
   application.license_back_photo ??
   application.uber_screenshot ??
@@ -368,11 +376,13 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Application not found' });
     }
 
-    if (application.status === 'Paid') {
+    const applicationRecord = application as unknown as ApplicationPaymentApprovalRecord;
+
+    if (applicationRecord.status === 'Paid') {
       return res.status(409).json({ error: 'This application has already been paid.' });
     }
 
-    if (application.status === 'Rejected') {
+    if (applicationRecord.status === 'Rejected') {
       return res.status(409).json({ error: 'Rejected applications cannot be approved for payment.' });
     }
 
@@ -390,16 +400,16 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       return res.status(409).json({ error: 'Assigned vehicle is not available.' });
     }
 
-    const currentVersion = Number(application.payment_link_version || 0);
+    const currentVersion = Number(applicationRecord.payment_link_version || 0);
     const nextVersion = currentVersion + 1;
     const nowIso = new Date().toISOString();
 
-    if (application.pending_checkout_session_id) {
+    if (applicationRecord.pending_checkout_session_id) {
       try {
-        await stripe.checkout.sessions.expire(application.pending_checkout_session_id);
+        await stripe.checkout.sessions.expire(applicationRecord.pending_checkout_session_id);
       } catch (expireError) {
         console.warn(
-          `Unable to expire pending checkout session ${application.pending_checkout_session_id}:`,
+          `Unable to expire pending checkout session ${applicationRecord.pending_checkout_session_id}:`,
           expireError
         );
       }
@@ -445,8 +455,8 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
 
     if (payload.send_payment_link) {
       emailDelivery = await sendDriverPaymentLinkEmail({
-        applicantEmail: application.email,
-        applicantName: application.name,
+        applicantEmail: applicationRecord.email,
+        applicantName: applicationRecord.name,
         approvedBond: payload.approved_bond,
         approvedWeeklyPrice: payload.approved_weekly_price,
         carName: car.name,

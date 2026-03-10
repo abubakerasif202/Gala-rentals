@@ -40,7 +40,7 @@ export default function Pricing() {
             transition={{ duration: 0.6 }}
             className="text-slate-300 text-lg max-w-3xl mx-auto font-light leading-relaxed"
           >
-            Compare the actual recurring charges, upfront bond, and onboarding costs before you start your application. The plan you choose here now carries directly into the Stripe subscription flow.
+            Compare the standard weekly pricing, bond, and onboarding costs before you apply. Final pricing is confirmed by admin review, then sent as a secure payment link after approval.
           </motion.p>
         </div>
       </section>
@@ -106,7 +106,7 @@ export default function Pricing() {
 
                     <div className={`grid grid-cols-2 gap-4 rounded-2xl border p-4 mb-8 ${plan.popular ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
                       <div>
-                        <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>Due now</p>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>Typical upfront quote</p>
                         <p className="text-2xl font-bold">${plan.pricing.upfrontDueAud.toFixed(2)}</p>
                       </div>
                       <div>
@@ -127,10 +127,10 @@ export default function Pricing() {
 
                   <div className="p-8 pt-0 space-y-3">
                     <Link
-                      to={`/apply?planId=${plan.id}`}
+                      to="/apply"
                       className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] transition-colors ${plan.popular ? 'bg-brand-gold text-brand-navy hover:bg-brand-gold-light' : 'bg-brand-navy text-white hover:bg-brand-navy-light'}`}
                     >
-                      Choose Plan <ArrowRight className="w-4 h-4" />
+                      Start Application <ArrowRight className="w-4 h-4" />
                     </Link>
                     <Link
                       to="/cars"
@@ -152,12 +152,12 @@ export default function Pricing() {
             {
               icon: ShieldCheck,
               title: 'Protected payments',
-              body: 'Stripe powers the upfront bond and ongoing subscription once you submit your application.',
+              body: 'Stripe is only used after admin approval, when the confirmed quote is sent through a secure payment link.',
             },
             {
               icon: CreditCard,
               title: 'Transparent onboarding costs',
-              body: 'Every plan now shows the real upfront total, setup fees, and recurring charge before you pay.',
+              body: 'Every plan shows the standard upfront estimate, setup fees, and recurring charge before review and approval.',
             },
             {
               icon: Check,

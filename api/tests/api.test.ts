@@ -786,24 +786,6 @@ describe('Operational history API', () => {
 });
 
 describe('Stripe API', () => {
-  it('POST /api/stripe/application-checkout-session validates payloads', async () => {
-    const res = await request(app).post('/api/stripe/application-checkout-session').send({});
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Validation failed');
-  });
-
-  it('POST /api/stripe/application-checkout-session is disabled for driver applications', async () => {
-    const res = await request(app).post('/api/stripe/application-checkout-session').send({
-      application_id: 1,
-      checkout_token: 'unused-token',
-      plan_id: 'weekly',
-    });
-
-    expect(res.status).toBe(410);
-    expect(res.body.error).toContain('admin approval');
-  });
-
   it('POST /api/applications/:id/approve-payment requires admin auth', async () => {
     const res = await request(app).post('/api/applications/1/approve-payment').send({
       assigned_car_id: 1,

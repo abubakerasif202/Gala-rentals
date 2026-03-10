@@ -288,17 +288,33 @@ export default function AdminDashboard() {
 
   const handleGenerateAgreement = async () => {
     const application_id = Number(selected_agreement_application_id);
-    const car_id = Number(selected_agreement_car_id);
+    const selectedApplication = applications.find(a => a.id === application_id);
+    const assignedCarId = Number(selectedApplication?.assigned_car_id || 0);
+    const car_id = assignedCarId || Number(selected_agreement_car_id);
     
-    if (!application_id || !car_id) {
+    if (!application_id || !selectedApplication || !car_id) {
       showNotification('Please select both an application and a car', 'error');
+      return;
+    }
+
+    if (selectedApplication.status !== 'Paid') {
+      showNotification('Driver payment must be completed before generating the agreement.', 'error');
       return;
     }
 
     setIsGeneratingAgreement(true);
     try {
-      const selectedApplication = applications.find(a => a.id === application_id);
       const selectedCar = cars.find(c => c.id === car_id);
+
+      if (!selectedCar) {
+        showNotification('Assigned vehicle could not be found for this application.', 'error');
+        return;
+      }
+
+      if (assignedCarId && selectedCar.id !== assignedCarId) {
+        showNotification('Agreement must use the vehicle assigned during approval.', 'error');
+        return;
+      }
 
       const payload = {
         agreementDate: new Date().toLocaleDateString('en-AU'),
@@ -310,12 +326,13 @@ export default function AdminDashboard() {
         vehicleMake: 'Toyota',
         vehicleModel: selectedCar?.name.includes('Camry') ? 'Camry Hybrid' : selectedCar?.name,
         vehicleYear: selectedCar?.model_year.toString(),
-        weeklyRent: `$${selectedCar?.weekly_price.toFixed(2)}`,
+        weeklyRent: `$${Number(selectedApplication.approved_weekly_price ?? selectedCar?.weekly_price ?? 0).toFixed(2)}`,
         rentalStartDate: agreementForm.rentalStartDate,
       };
 
       const res = await api.renderCarLeaseAgreement(payload);
       setAgreementContent(res.agreement);
+      set_selected_agreement_car_id(String(selectedCar.id));
       setIsAgreementModalOpen(true);
     } catch (err) {
       showNotification('Failed to generate agreement', 'error');
@@ -1300,7 +1317,14 @@ export default function AdminDashboard() {
                     <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Select Approved Application</label>
                     <select
                       value={selected_agreement_application_id}
-                      onChange={(e) => set_selected_agreement_application_id(e.target.value)}
+                      onChange={(e) => {
+                        const applicationId = e.target.value;
+                        const nextApplication = applications.find((app) => app.id === Number(applicationId));
+                        set_selected_agreement_application_id(applicationId);
+                        set_selected_agreement_car_id(
+                          nextApplication?.assigned_car_id ? String(nextApplication.assigned_car_id) : ''
+                        );
+                      }}
                       className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
                     >
                       <option value="">Select a driver...</option>
@@ -1317,16 +1341,27 @@ export default function AdminDashboard() {
                       className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
                     >
                       <option value="">Select a car...</option>
-                      {cars.map(car => (
+                      {cars
+                        .filter((car) =>
+                          selectedAgreementApplication?.assigned_car_id
+                            ? car.id === selectedAgreementApplication.assigned_car_id
+                            : true
+                        )
+                        .map(car => (
                         <option key={car.id} value={car.id}>
                           {car.name} ({car.model_year}) - {car.status}
                         </option>
-                      ))}
+                        ))}
                     </select>
                   </div>
                   <div className="grid grid-cols-1 gap-3">
                     <button 
-                      disabled={isGeneratingAgreement || !selected_agreement_application_id || !selected_agreement_car_id}
+                      disabled={
+                        isGeneratingAgreement ||
+                        !selected_agreement_application_id ||
+                        !selected_agreement_car_id ||
+                        selectedAgreementApplication?.status !== 'Paid'
+                      }
                       onClick={handleGenerateAgreement}
                       className="bg-brand-gold text-brand-navy h-[58px] font-bold uppercase tracking-widest text-[10px] hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
                     >
@@ -1350,6 +1385,11 @@ export default function AdminDashboard() {
                 <p className="mt-4 text-[11px] text-brand-grey font-light">
                   Secure payment links are signed and time-limited. Approve the application first so the assigned vehicle and pricing are locked before copying a fresh link.
                 </p>
+                {selectedAgreementApplication && selectedAgreementApplication.status !== 'Paid' && (
+                  <p className="mt-2 text-[11px] text-brand-grey font-light">
+                    Lease agreements unlock after the driver completes the approved payment.
+                  </p>
+                )}
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
@@ -1703,6 +1743,11 @@ export default function AdminDashboard() {
                   <button
                     onClick={() => {
                       set_selected_agreement_application_id(selectedApplication.id.toString());
+                      set_selected_agreement_car_id(
+                        selectedApplication.assigned_car_id
+                          ? selectedApplication.assigned_car_id.toString()
+                          : ''
+                      );
                       setSelectedApplication(null);
                       setActiveTab('agreements');
                     }}

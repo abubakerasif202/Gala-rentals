@@ -181,10 +181,10 @@ const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.Session)
     throw new Error(`Failed to fetch car ${carId} for payment completion.`);
   }
 
-  const application = applicationResult.data as Record<string, unknown>;
+  const application = applicationResult.data as unknown as Record<string, unknown>;
   const car = carResult.data as Record<string, unknown>;
   const { compat, rentalApplicationIdColumn, rentals: existingRentals } = existingRentalsResult;
-  const existingRental =
+  let existingRental =
     (compat.rentalStripeSubscriptionColumn
       ? existingRentals.find(
           (rental) => rental[compat.rentalStripeSubscriptionColumn!] === subscriptionId
@@ -224,6 +224,26 @@ const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.Session)
         `Failed to create rental after checkout completion: ${rentalInsert.error.message || 'Unknown error'}`
       );
     }
+
+    if (rentalInsert.error) {
+      const refetchedRentals = await fetchExistingRentalsForCar(carId);
+      existingRental =
+        (compat.rentalStripeSubscriptionColumn
+          ? refetchedRentals.rentals.find(
+              (rental) => rental[compat.rentalStripeSubscriptionColumn!] === subscriptionId
+            )
+          : null) ||
+        refetchedRentals.rentals.find(
+          (rental) => Number(rental[rentalApplicationIdColumn]) === applicationId
+        ) ||
+        null;
+
+      if (!existingRental) {
+        throw new Error(
+          `Rental insert reported a duplicate write, but no rental could be recovered for application ${applicationId}.`
+        );
+      }
+    }
   }
 
   const rentalUpdatePayload = await toRentalWritePayload({
@@ -236,8 +256,15 @@ const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.Session)
     stripe_subscription_id: subscriptionId,
     weekly_price: approvedWeeklyPrice,
   });
-  const { startDate: _unusedCamelStartDate, start_date: _unusedSnakeStartDate, carId: _unusedCamelCarId, car_id: _unusedSnakeCarId, applicationId: _unusedCamelApplicationId, application_id: _unusedSnakeApplicationId, ...repairPayload } =
-    rentalUpdatePayload as Record<string, unknown>;
+  const {
+    startDate: _unusedCamelStartDate,
+    start_date: _unusedSnakeStartDate,
+    carId: _unusedCamelCarId,
+    car_id: _unusedSnakeCarId,
+    applicationId: _unusedCamelApplicationId,
+    application_id: _unusedSnakeApplicationId,
+    ...repairPayload
+  } = rentalUpdatePayload as unknown as Record<string, unknown>;
 
   if (existingRental) {
     const result = await db.from('rentals').update(repairPayload).eq('id', existingRental.id);

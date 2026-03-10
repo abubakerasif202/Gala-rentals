@@ -28,7 +28,10 @@ type SchemaCompat = {
 const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationApprovedAtColumn: 'approved_at',
   coreMode: 'snake',
-  applicationBackPhotoColumn: 'uber_screenshot',
+  // Default to the modern column name so environments without schema
+  // introspection (e.g. missing SUPABASE_SERVICE_ROLE_KEY) still write to
+  // the correct column defined in supabase-schema.sql.
+  applicationBackPhotoColumn: 'license_back_photo',
   applicationAssignedCarColumn: 'assigned_car_id',
   applicationApprovedBondColumn: 'approved_bond',
   applicationApprovedWeeklyPriceColumn: 'approved_weekly_price',

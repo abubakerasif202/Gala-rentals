@@ -13,16 +13,16 @@ export const carSchema = z.object({
 });
 
 export const applicationSchema = z.object({
-  name: z.string().min(2),
-  phone: z.string().min(10),
-  email: z.string().email(),
-  license_number: z.string().min(5),
-  license_expiry: z.string(),
+  name: z.string().trim().min(2),
+  phone: z.string().trim().min(10),
+  email: z.string().trim().toLowerCase().email(),
+  license_number: z.string().trim().min(5),
+  license_expiry: z.string().trim().min(1),
   uber_status: z.enum(['Active', 'Applying', 'Not Yet Registered']),
-  experience: z.string().min(1),
-  address: z.string().min(5),
-  weekly_budget: z.string().optional(),
-  intended_start_date: z.string(),
+  experience: z.string().trim().min(1),
+  address: z.string().trim().min(5),
+  weekly_budget: z.string().trim().optional(),
+  intended_start_date: z.string().trim().min(1),
   license_photo: z.string().min(1),
   license_back_photo: z.string().min(1),
 });

@@ -24,7 +24,8 @@ import { buildDriverPaymentLink, sendDriverPaymentLinkEmail } from '../paymentLi
 const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
-const NO_ROW_ERROR_CODES = new Set(['PGRST116', 'PGRST123']);
+const MAX_APPLICATION_UPLOAD_BYTES = 7 * 1024 * 1024;
+const ALLOWED_APPLICATION_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png']);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
 
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
@@ -76,13 +77,6 @@ const createSignedDocumentUrl = async (path: string | null | undefined) => {
   return data.signedUrl;
 };
 
-const isNoRowError = (error: { code?: string; details?: string } | null) =>
-  Boolean(
-    error &&
-      (NO_ROW_ERROR_CODES.has(error.code || '') ||
-        error.details?.toLowerCase().includes('0 rows'))
-  );
-
 type ApplicationPaymentApprovalRecord = {
   email: string;
   name: string;
@@ -96,6 +90,21 @@ const getApplicationBackPhotoValue = (application: Record<string, any>) =>
   application.uber_screenshot ??
   application.uberScreenshot ??
   null;
+
+const createRequestError = (status: number, message: string) =>
+  Object.assign(new Error(message), { status });
+
+const removeUploadedApplicationDocuments = async (paths: string[]) => {
+  if (paths.length === 0) {
+    return;
+  }
+
+  const { error } = await db.storage.from(APPLICATIONS_BUCKET).remove(paths);
+
+  if (error) {
+    console.warn('Failed to clean up uploaded application documents:', error);
+  }
+};
 
 router.get('/', authenticateAdmin, async (_req, res) => {
   const selectColumns = await getApplicationSelectColumns();

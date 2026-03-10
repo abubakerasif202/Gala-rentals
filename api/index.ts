@@ -22,6 +22,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const shouldListen = process.env.VITEST !== 'true';
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
+const JSON_BODY_LIMIT = '25mb';
 const frontendDistDir = path.resolve(process.cwd(), 'dist');
 const frontendIndexPath = path.join(frontendDistDir, 'index.html');
 const validateProductionEnv = () => {
@@ -80,8 +81,8 @@ app.use(cookieParser());
 app.use('/api/webhook/stripe', webhookRoutes);
 app.use('/api/stripe/webhook', webhookRoutes);
 
-// JSON Body Parser (with limit for image uploads)
-app.use(express.json({ limit: '10mb' }));
+// Allow room for two base64-encoded licence images plus form fields.
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
 // Database Initialization Middleware
 let dbInitialized: Promise<void> | null = null;

@@ -90,17 +90,16 @@ The backend then:
   - Purpose: Stripe server SDK key used by payment, webhook, and financial routes
   - Used in: `api/routes/stripe.ts`, `api/routes/webhooks.ts`, `api/routes/financials.ts`
 
-- `VITE_STRIPE_PUBLIC_KEY`
-  - Purpose: Stripe publishable key injected into the frontend build
-  - Used in: `src/pages/Apply.tsx`, `src/pages/Checkout.tsx`
-  - Note: this must be present at build time on Render because Vite inlines it into the frontend bundle
-
-### Optional
-
 - `STRIPE_WEBHOOK_SECRET`
   - Purpose: verify Stripe webhook signatures
-  - Used in: `api/routes/stripe.ts`, `api/routes/webhooks.ts`
-  - Required if Stripe webhooks are enabled
+  - Used in: `api/index.ts`, `api/routes/webhooks.ts`
+  - Required because the production server fails fast when webhook verification is not configured
+
+- `CHECKOUT_LINK_SECRET`
+  - Purpose: sign secure payment-link tokens
+  - Used in: `api/index.ts`, `api/checkoutTokens.ts`
+
+### Optional
 
 - `RESEND_API_KEY`
   - Purpose: send transactional emails
@@ -137,6 +136,7 @@ npm run dev
 ```
 
 That continues to run the Express API with Vite middleware in development mode.
+The local server and helper scripts load `.env` first and then `.env.local`, so `.env.local` can remain the single source of local secrets.
 
 ## Local production verification
 

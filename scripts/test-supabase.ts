@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './load-env.js';
 import { db } from '../api/db/index.js';
 
 async function checkSupabaseStatus() {

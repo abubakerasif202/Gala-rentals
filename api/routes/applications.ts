@@ -125,18 +125,26 @@ const recoverPaymentReviewSession = async (application: ApplicationPaymentApprov
     }
   }
 
+  const matches: Stripe.Checkout.Session[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < 10; page += 1) {
     const sessionPage = await stripe.checkout.sessions.list({
       limit: 100,
       ...(cursor ? { starting_after: cursor } : {}),
     });
-    const match = sessionPage.data.find((session) =>
-      isRecoverableVehicleCheckoutSession(session, application)
-    );
+    for (const session of sessionPage.data) {
+      if (!isRecoverableVehicleCheckoutSession(session, application)) {
+        continue;
+      }
 
-    if (match) {
-      return match;
+      matches.push(session);
+
+      if (matches.length > 1) {
+        throw createRequestError(
+          409,
+          'Multiple paid Stripe checkout sessions were found for this payment review. Reconcile the payment manually before retrying activation.'
+        );
+      }
     }
 
     if (!sessionPage.has_more || sessionPage.data.length === 0) {
@@ -146,7 +154,7 @@ const recoverPaymentReviewSession = async (application: ApplicationPaymentApprov
     cursor = sessionPage.data[sessionPage.data.length - 1]?.id;
   }
 
-  return null;
+  return matches[0] || null;
 };
 
 const getApplicationBackPhotoValue = (application: Record<string, any>) =>
@@ -658,6 +666,10 @@ router.post('/:id/retry-payment-activation', authenticateAdmin, async (req, res)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    if (error instanceof Error && 'status' in error && typeof error.status === 'number') {
+      return res.status(error.status).json({ error: error.message });
     }
 
     console.error('Application retry-payment-activation error:', error);

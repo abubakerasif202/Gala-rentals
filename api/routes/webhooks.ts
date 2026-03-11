@@ -12,6 +12,11 @@ import {
 const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
 
+const todayIsoDate = () => new Date().toISOString().split('T')[0];
+
+const shouldReleaseVehicleAfterSubscriptionDeletion = (subscription: Stripe.Subscription) =>
+  subscription.cancellation_details?.reason === 'cancellation_requested';
+
 router.post('/', express.raw({ type: 'application/json' }), async (request, response) => {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     console.error('Stripe webhook secret is not configured.');
@@ -71,14 +76,16 @@ router.post('/', express.raw({ type: 'application/json' }), async (request, resp
         const subscription = event.data.object as Stripe.Subscription;
         const subscriptionId = subscription.id;
         const { car_id } = subscription.metadata;
+        const shouldReleaseVehicle = shouldReleaseVehicleAfterSubscriptionDeletion(subscription);
+        const nextRentalStatus = shouldReleaseVehicle ? 'Completed' : 'Cancelled';
 
         await updateRentalsBySubscriptionIdentity(
           subscriptionId,
           subscription.metadata,
-          await getRentalStatusUpdatePayload('Completed', new Date().toISOString().split('T')[0])
+          await getRentalStatusUpdatePayload(nextRentalStatus, todayIsoDate())
         );
 
-        if (car_id) {
+        if (shouldReleaseVehicle && car_id) {
           await maybeMarkCarAvailable(Number(car_id));
         }
         break;

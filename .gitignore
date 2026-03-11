@@ -5,6 +5,8 @@ server-dist/
 coverage/
 .DS_Store
 *.log
+output/
+tmp/
 .env*
 !.env.example
 .env*.local

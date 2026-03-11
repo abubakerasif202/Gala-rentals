@@ -1249,6 +1249,59 @@ describe('Stripe API', () => {
     });
   });
 
+  it('POST /api/applications/:id/retry-payment-activation rejects ambiguous recovered Stripe sessions', async () => {
+    mockState.applications[1].status = 'Payment Review';
+    mockState.applications[1].paid_at = '2026-03-06T00:00:00.000Z';
+    mockState.applications[1].pending_checkout_session_id = null;
+    mockState.cars[0].status = 'Available';
+    mockStripe.checkoutSessionsList.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'cs_recovered_review_a',
+          status: 'complete',
+          payment_status: 'paid',
+          customer: 'cus_review_a',
+          subscription: 'sub_review_a',
+          client_reference_id: '2',
+          metadata: {
+            application_id: '2',
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+        },
+        {
+          id: 'cs_recovered_review_b',
+          status: 'complete',
+          payment_status: 'paid',
+          customer: 'cus_review_b',
+          subscription: 'sub_review_b',
+          client_reference_id: '2',
+          metadata: {
+            application_id: '2',
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+        },
+      ],
+      has_more: false,
+    });
+
+    const res = await request(app)
+      .post('/api/applications/2/retry-payment-activation')
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('Multiple paid Stripe checkout sessions');
+    expect(mockState.applications[1].status).toBe('Payment Review');
+    expect(mockState.rentals).toHaveLength(0);
+  });
+
   it('GET /api/stripe/payment-context returns the approved quote for a valid payment link', async () => {
     const token = createCheckoutToken({
       applicationId: 2,
@@ -1646,6 +1699,47 @@ describe('Stripe API', () => {
     });
   });
 
+  it('POST /api/stripe/webhook sends stale checkout sessions to manual review instead of activating the wrong car', async () => {
+    mockState.cars[1].status = 'Available';
+    mockState.applications[1].assigned_car_id = 2;
+    mockState.applications[1].approved_bond = 600;
+    mockState.applications[1].approved_weekly_price = 275;
+    mockState.applications[1].payment_link_version = 2;
+    mockState.applications[1].status = 'Approved';
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_stale_vehicle',
+          payment_status: 'paid',
+          metadata: {
+            application_id: '2',
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+          customer: 'cus_stale',
+          subscription: 'sub_stale',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(mockState.rentals).toHaveLength(0);
+    expect(mockState.cars[0].status).toBe('Available');
+    expect(mockState.cars[1].status).toBe('Available');
+    expect(mockState.applications[1].status).toBe('Payment Review');
+    expect(mockState.applications[1].pending_checkout_session_id).toBe('cs_stale_vehicle');
+  });
+
   it('POST /api/stripe/webhook repairs an existing rental created before a retry', async () => {
     mockState.cars[0].status = 'Available';
     mockState.applications[1].status = 'Approved';
@@ -1807,6 +1901,11 @@ describe('Stripe API', () => {
       data: {
         object: {
           id: 'sub_completed',
+          cancellation_details: {
+            comment: null,
+            feedback: null,
+            reason: 'cancellation_requested',
+          },
           metadata: {
             application_id: '2',
             car_id: '1',
@@ -1825,5 +1924,48 @@ describe('Stripe API', () => {
     expect(mockState.cars[0].status).toBe('Rented');
     expect(mockState.rentals.find((rental) => rental.id === 20)?.status).toBe('Completed');
     expect(mockState.rentals.find((rental) => rental.id === 21)?.status).toBe('Active');
+  });
+
+  it('POST /api/stripe/webhook keeps the car unavailable after involuntary subscription cancellation', async () => {
+    mockState.cars[0].status = 'Rented';
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: 2,
+        bond_paid: 500,
+        car_id: 1,
+        status: 'Active',
+        weekly_price: 250,
+        start_date: '2026-03-01',
+        stripe_subscription_id: 'sub_failed',
+      },
+    ];
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub_failed',
+          cancellation_details: {
+            comment: null,
+            feedback: null,
+            reason: 'payment_failed',
+          },
+          metadata: {
+            application_id: '2',
+            car_id: '1',
+          },
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(mockState.cars[0].status).toBe('Rented');
+    expect(mockState.rentals.find((rental) => rental.id === 20)?.status).toBe('Cancelled');
   });
 });

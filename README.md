@@ -71,6 +71,7 @@ npm ci
 ### 2. Configure environment variables
 
 Copy `.env.example` to `.env.local` and fill in the values.
+The backend and helper scripts load `.env` first and then `.env.local` during local development, so `.env.local` works for both Vite and Node flows.
 
 ```env
 # Backend
@@ -161,7 +162,7 @@ The production server serves the built frontend from `dist/` and exposes the API
 - `npm start` run the compiled production server from `server-dist/`
 - `npm run lint` run TypeScript type-checking
 - `npm run test` run the Vitest suite
-- `npm run clean` remove build output
+- `npm run clean` remove build output, generated review artifacts, and local server logs
 - `npm run migrate:vehicle-allocation` apply the active vehicle allocation index to an existing database
 - `npm run migrate:operational-history` run the operational history migration helper
 

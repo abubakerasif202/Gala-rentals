@@ -157,6 +157,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
   const carId = Number(session.metadata?.car_id || 0);
   const approvedWeeklyPrice = Number(session.metadata?.approved_weekly_price || 0);
   const approvedBond = Number(session.metadata?.approved_bond || 0);
+  const sessionPaymentLinkVersion = Number(session.metadata?.payment_link_version || 0);
   const subscriptionId =
     typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null;
   const customerId =
@@ -184,6 +185,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
   const application = applicationResult.data as unknown as Record<string, unknown>;
   const car = carResult.data as Record<string, unknown>;
   const { compat, rentalApplicationIdColumn, rentals: existingRentals } = existingRentalsResult;
+
   const moveApplicationToManualReview = async (reason: string) => {
     await updateApplicationPaymentState({
       applicationId,
@@ -221,6 +223,45 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       console.error('Failed to send manual review alert email:', emailError);
     }
   };
+
+  const applicationStatus = String(application.status || '');
+  const assignedCarId = Number(application.assigned_car_id || 0);
+  const pendingCheckoutSessionId = application.pending_checkout_session_id
+    ? String(application.pending_checkout_session_id)
+    : null;
+  const sessionStillMatchesCurrentApproval =
+    assignedCarId === carId &&
+    sessionPaymentLinkVersion === Number(application.payment_link_version || 0);
+
+  if (!sessionStillMatchesCurrentApproval) {
+    await moveApplicationToManualReview(
+      'Paid Stripe session no longer matches the latest approved vehicle assignment or payment link version.'
+    );
+    return;
+  }
+
+  if (
+    applicationStatus !== 'Approved' &&
+    applicationStatus !== 'Paid' &&
+    applicationStatus !== 'Payment Review'
+  ) {
+    await moveApplicationToManualReview(
+      `Paid Stripe session arrived while application ${applicationStatus || 'Unknown'} is not eligible for automatic activation.`
+    );
+    return;
+  }
+
+  if (
+    applicationStatus === 'Payment Review' &&
+    pendingCheckoutSessionId &&
+    pendingCheckoutSessionId !== session.id
+  ) {
+    await moveApplicationToManualReview(
+      `Stored payment review session ${pendingCheckoutSessionId} does not match checkout session ${session.id}.`
+    );
+    return;
+  }
+
   let existingRental =
     (compat.rentalStripeSubscriptionColumn
       ? existingRentals.find(
@@ -234,6 +275,22 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       isLiveRentalStatus(rental.status) &&
       Number(rental[rentalApplicationIdColumn]) !== applicationId
   );
+
+  const existingRentalSubscriptionId = compat.rentalStripeSubscriptionColumn
+    ? String(existingRental?.[compat.rentalStripeSubscriptionColumn] || '')
+    : '';
+
+  if (
+    applicationStatus === 'Paid' &&
+    existingRental &&
+    existingRentalSubscriptionId &&
+    existingRentalSubscriptionId !== subscriptionId
+  ) {
+    console.warn(
+      `Ignoring duplicate checkout completion ${session.id} because application ${applicationId} is already bound to subscription ${existingRentalSubscriptionId}.`
+    );
+    return;
+  }
 
   if (blockingRental) {
     await moveApplicationToManualReview(

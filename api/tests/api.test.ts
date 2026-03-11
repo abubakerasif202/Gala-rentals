@@ -76,6 +76,9 @@ vi.mock('../schemaCompat.js', async () => {
 
   return {
     ...actual,
+    getApplicationDuplicateCheckColumns: vi.fn(async () =>
+      ['id', 'phone', 'email', 'license_number:licenseNumber', 'status'].join(', ')
+    ),
     getApplicationSelectColumns: vi.fn(async () =>
       [
         'id',

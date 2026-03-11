@@ -353,6 +353,14 @@ export const getApplicationSelectColumns = async () => {
       ].join(', ');
 };
 
+export const getApplicationDuplicateCheckColumns = async () => {
+  const { coreMode } = await getSchemaCompat();
+
+  return coreMode === 'camel'
+    ? ['id', 'phone', 'email', 'license_number:licenseNumber', 'status'].join(', ')
+    : ['id', 'phone', 'email', 'license_number', 'status'].join(', ');
+};
+
 export const toApplicationWritePayload = async (application: {
   name: string;
   phone: string;

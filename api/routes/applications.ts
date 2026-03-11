@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import { createCheckoutToken } from '../checkoutTokens.js';
 import {
   getApplicationCreatedAtColumn,
+  getApplicationDuplicateCheckColumns,
   getApplicationDocumentColumn,
   getApplicationSelectColumns,
   getCarSelectColumns,
@@ -196,7 +197,7 @@ router.post('/', async (req, res) => {
     };
     let licensePhotoUrl = null;
     let licenseBackPhotoUrl = null;
-    const existingApplicationSelectColumns = await getApplicationSelectColumns();
+    const existingApplicationSelectColumns = await getApplicationDuplicateCheckColumns();
     const { data: existingApplications, error: existingApplicationError } = await db
       .from('applications')
       .select(existingApplicationSelectColumns)

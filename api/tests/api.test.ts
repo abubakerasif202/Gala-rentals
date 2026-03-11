@@ -15,6 +15,7 @@ const {
     cars: [] as Array<Record<string, any>>,
     applications: [] as Array<Record<string, any>>,
     rentals: [] as Array<Record<string, any>>,
+    lease_agreements: [] as Array<Record<string, any>>,
     customers: [] as Array<Record<string, any>>,
     invoices: [] as Array<Record<string, any>>,
     bookings: [] as Array<Record<string, any>>,
@@ -137,6 +138,10 @@ vi.mock('../db/index.js', () => {
 
     if (table === 'rentals') {
       return mockState.rentals;
+    }
+
+    if (table === 'lease_agreements') {
+      return mockState.lease_agreements;
     }
 
     if (table === 'customers') {
@@ -417,6 +422,10 @@ vi.mock('../db/index.js', () => {
         mockState.rentals = nextRows;
       }
 
+      if (table === 'lease_agreements') {
+        mockState.lease_agreements = nextRows;
+      }
+
       if (table === 'customers') {
         mockState.customers = nextRows;
       }
@@ -449,6 +458,10 @@ vi.mock('../db/index.js', () => {
 
     if (table === 'rentals') {
       mockState.rentals = [...mockState.rentals, insertedRow];
+    }
+
+    if (table === 'lease_agreements') {
+      mockState.lease_agreements = [...mockState.lease_agreements, insertedRow];
     }
 
     if (table === 'customers') {
@@ -582,6 +595,7 @@ beforeEach(() => {
   ];
 
   mockState.rentals = [];
+  mockState.lease_agreements = [];
 
   mockState.customers = [
     {
@@ -656,10 +670,12 @@ beforeEach(() => {
   mockState.bookings = [
     {
       id: 10,
+      car_id: 1,
       total_amount: 230.99,
     },
     {
       id: 11,
+      car_id: 2,
       total_amount: 0,
     },
   ];
@@ -739,6 +755,68 @@ describe('Cars API', () => {
     expect(res.status).toBe(200);
     expect(res.body.name).toBe('Toyota Camry');
   });
+
+  it('PUT /api/cars/:id returns 404 when the car does not exist', async () => {
+    const res = await request(app)
+      .put('/api/cars/999')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        name: 'Toyota Corolla Hybrid',
+        model_year: 2025,
+        weekly_price: 299,
+        bond: 500,
+        status: 'Available',
+        image: 'https://example.com/corolla.jpg',
+      });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Car not found');
+  });
+
+  it('DELETE /api/cars/:id blocks deletion while operational records still reference the car', async () => {
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: 2,
+        bond_paid: 500,
+        car_id: 1,
+        status: 'Active',
+        weekly_price: 250,
+        start_date: '2026-03-01',
+      },
+    ];
+    mockState.lease_agreements = [
+      {
+        id: 30,
+        application_id: 2,
+        car_id: 1,
+        content: 'Agreement',
+        status: 'generated',
+      },
+    ];
+
+    const res = await request(app)
+      .delete('/api/cars/1')
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(409);
+    expect(res.body.usage).toMatchObject({
+      assigned_applications: 1,
+      bookings: 1,
+      lease_agreements: 1,
+      rentals: 1,
+    });
+    expect(mockState.cars).toHaveLength(2);
+  });
+
+  it('DELETE /api/cars/:id returns 404 when the car does not exist', async () => {
+    const res = await request(app)
+      .delete('/api/cars/999')
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Car not found');
+  });
 });
 
 describe('Auth API', () => {
@@ -758,6 +836,23 @@ describe('Auth API', () => {
       .send({ username: 'notadmin@example.com', password: 'password' });
 
     expect(res.status).toBe(403);
+  });
+});
+
+describe('Agreements API', () => {
+  it('GET /api/agreements/car-lease/template requires admin auth', async () => {
+    const res = await request(app).get('/api/agreements/car-lease/template');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /api/agreements/car-lease/render requires admin auth', async () => {
+    const res = await request(app).post('/api/agreements/car-lease/render').send({
+      renteeName: 'Approved Driver',
+      vehicleModel: 'Toyota Camry Hybrid',
+    });
+
+    expect(res.status).toBe(401);
   });
 });
 
@@ -856,6 +951,42 @@ describe('Applications API', () => {
     });
   });
 
+  it('POST /api/applications escapes applicant-controlled HTML before sending emails', async () => {
+    process.env.RESEND_API_KEY = 'test-resend';
+    mockResendEmailsSend.mockClear();
+
+    const res = await request(app).post('/api/applications').send({
+      name: '<img src=x onerror=alert(1)>',
+      phone: '0400111222',
+      email: 'markup@example.com',
+      license_number: 'NSW77777',
+      license_expiry: '2027-12-31',
+      uber_status: 'Applying',
+      experience: '<b>Experienced</b>',
+      address: '<a href=\"https://evil.example\">Click me</a>',
+      weekly_budget: '$350/week',
+      intended_start_date: '2026-03-20',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockResendEmailsSend).toHaveBeenCalledTimes(2);
+    expect(mockResendEmailsSend).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        html: expect.stringContaining('&lt;img src=x onerror=alert(1)&gt;'),
+      })
+    );
+    expect(mockResendEmailsSend).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        html: expect.stringContaining('&lt;a href=&quot;https://evil.example&quot;&gt;Click me&lt;/a&gt;'),
+      })
+    );
+    expect(mockResendEmailsSend.mock.calls[1]?.[0]?.html).not.toContain('<a href="https://evil.example">');
+  });
+
   it('POST /api/applications rejects unsupported image formats', async () => {
     const res = await request(app).post('/api/applications').send({
       name: 'Unsafe Driver',
@@ -903,6 +1034,16 @@ describe('Applications API', () => {
       ])
     );
     expect(mockState.applications).toHaveLength(2);
+  });
+
+  it('PUT /api/applications/:id/status returns 404 when the application does not exist', async () => {
+    const res = await request(app)
+      .put('/api/applications/999/status')
+      .set('Authorization', 'Bearer fake-token')
+      .send({ status: 'Rejected' });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Application not found');
   });
 
   it('POST /api/applications blocks public overwrites for rejected applications', async () => {
@@ -1926,7 +2067,7 @@ describe('Stripe API', () => {
     expect(mockState.rentals.find((rental) => rental.id === 21)?.status).toBe('Active');
   });
 
-  it('POST /api/stripe/webhook keeps the car unavailable after involuntary subscription cancellation', async () => {
+  it('POST /api/stripe/webhook releases the car after involuntary subscription cancellation when no live rentals remain', async () => {
     mockState.cars[0].status = 'Rented';
     mockState.rentals = [
       {
@@ -1965,7 +2106,7 @@ describe('Stripe API', () => {
       .send('{}');
 
     expect(res.status).toBe(200);
-    expect(mockState.cars[0].status).toBe('Rented');
+    expect(mockState.cars[0].status).toBe('Available');
     expect(mockState.rentals.find((rental) => rental.id === 20)?.status).toBe('Cancelled');
   });
 });

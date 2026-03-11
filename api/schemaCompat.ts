@@ -423,6 +423,11 @@ export const getApplicationCreatedAtColumn = async () => {
   return coreMode === 'camel' ? 'createdAt' : 'created_at';
 };
 
+export const getApplicationAssignedCarColumn = async () => {
+  const { applicationAssignedCarColumn } = await getSchemaCompat();
+  return applicationAssignedCarColumn;
+};
+
 export const toApplicationPaymentWritePayload = async (payload: {
   assigned_car_id?: number | null;
   approved_bond?: number | null;
@@ -611,6 +616,16 @@ export const getRentalCarIdColumn = async () => {
 export const getRentalApplicationIdColumn = async () => {
   const { coreMode } = await getSchemaCompat();
   return coreMode === 'camel' ? 'applicationId' : 'application_id';
+};
+
+export const getBookingCarIdColumn = async () => {
+  const { coreMode } = await getSchemaCompat();
+  return coreMode === 'camel' ? 'carId' : 'car_id';
+};
+
+export const getLeaseAgreementCarIdColumn = async () => {
+  const { coreMode } = await getSchemaCompat();
+  return coreMode === 'camel' ? 'carId' : 'car_id';
 };
 
 export const getBookingSelectColumns = async () => {

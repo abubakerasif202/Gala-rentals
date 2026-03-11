@@ -7,12 +7,12 @@ import { z } from 'zod';
 
 const router = express.Router();
 
-router.get('/car-lease/template', (_req, res) => {
+router.get('/car-lease/template', authenticateAdmin, (_req, res) => {
   const template = renderCarLeaseAgreement();
   res.type('text/markdown').send(template);
 });
 
-router.post('/car-lease/render', async (req, res) => {
+router.post('/car-lease/render', authenticateAdmin, async (req, res) => {
   try {
     const payload = leaseAgreementSchema.parse(req.body ?? {});
     const rendered = renderCarLeaseAgreement(payload);

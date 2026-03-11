@@ -10,6 +10,7 @@ import {
   toApplicationPaymentWritePayload,
   toRentalWritePayload,
 } from './schemaCompat.js';
+import { getTodayInAustralia } from '../shared/applicationSubmission.js';
 
 const assertSupabaseWrite = (
   result: { error: { code?: string; message?: string } | null } | null | undefined,
@@ -167,6 +168,8 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
     return;
   }
 
+  const activeDate = getTodayInAustralia();
+
   const selectColumns = await getApplicationSelectColumns();
   const [applicationResult, carResult, existingRentalsResult] = await Promise.all([
     db.from('applications').select(selectColumns).eq('id', applicationId).single(),
@@ -311,7 +314,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       application_id: applicationId,
       bond_paid: approvedBond,
       car_id: carId,
-      start_date: new Date().toISOString().split('T')[0],
+      start_date: activeDate,
       status: 'Active',
       stripe_customer_id: customerId,
       stripe_subscription_id: subscriptionId,
@@ -350,7 +353,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
     application_id: applicationId,
     bond_paid: approvedBond,
     car_id: carId,
-    start_date: new Date().toISOString().split('T')[0],
+    start_date: activeDate,
     status: 'Active',
     stripe_customer_id: customerId,
     stripe_subscription_id: subscriptionId,

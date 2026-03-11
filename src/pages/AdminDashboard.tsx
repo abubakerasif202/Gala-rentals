@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useState } from 'react';
+import React, { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus,
@@ -38,6 +38,7 @@ import {
 } from '../types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/admin/Sidebar';
+import { getTodayInAustralia } from '../../shared/applicationSubmission';
 
 const OPERATIONAL_PAGE_SIZE = 25;
 const copyTextToClipboard = async (value: string) => {
@@ -64,6 +65,7 @@ const promptForManualCopy = (value: string) => {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const notificationTimeoutRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isAddingCar, setIsAddingCar] = useState(false);
   const [editingCar, setEditingCar] = useState<CarType | null>(null);
@@ -95,7 +97,7 @@ export default function AdminDashboard() {
     renteeName: '',
     vehicleYear: '',
     weeklyRent: '',
-    rentalStartDate: new Date().toISOString().split('T')[0],
+    rentalStartDate: getTodayInAustralia(),
   });
   const [customerSearch, setCustomerSearch] = useState('');
   const [invoiceSearch, setInvoiceSearch] = useState('');
@@ -130,9 +132,24 @@ export default function AdminDashboard() {
     });
   }, [selectedApplication]);
 
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current !== null) {
+        window.clearTimeout(notificationTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const showNotification = (message: string, type: 'success' | 'error') => {
+    if (notificationTimeoutRef.current !== null) {
+      window.clearTimeout(notificationTimeoutRef.current);
+    }
+
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
+    notificationTimeoutRef.current = window.setTimeout(() => {
+      setNotification(null);
+      notificationTimeoutRef.current = null;
+    }, 3000);
   };
 
   const shouldLoadStats = activeTab === 'dashboard' || activeTab === 'financials';

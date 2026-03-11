@@ -1,8 +1,18 @@
 import { Link } from 'react-router-dom';
-import { ShieldCheck, ArrowRight, Check, Wrench, Fuel, Sparkles } from 'lucide-react';
+import {
+  ShieldCheck,
+  ArrowRight,
+  Check,
+  Wrench,
+  Fuel,
+  Sparkles,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 import { motion, Variants } from 'motion/react';
+import { useQuery } from '@tanstack/react-query';
 import DeferredInquiryForm from '../components/DeferredInquiryForm';
-import { rentalPlans } from '../lib/rentalPlans';
+import { fetchRentalPlans } from '../lib/api';
 
 const fadeIn: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -25,6 +35,15 @@ const staggerContainer: Variants = {
 };
 
 export default function Home() {
+  const {
+    data: rentalPlans = [],
+    isLoading: isLoadingRentalPlans,
+    isError: hasRentalPlanError,
+  } = useQuery({
+    queryKey: ['rental-plans'],
+    queryFn: fetchRentalPlans,
+  });
+
   return (
     <div className="bg-white text-brand-navy min-h-screen font-sans selection:bg-brand-gold selection:text-black">
       <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-32 overflow-hidden bg-[#F8F9FA]">
@@ -195,43 +214,82 @@ export default function Home() {
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {rentalPlans.map((plan, index) => (
-              <motion.div
-                key={plan.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.45, delay: index * 0.08 }}
-                className={`rounded-3xl border p-8 shadow-sm ${plan.popular ? 'bg-brand-navy text-white border-brand-gold/50 shadow-[0_25px_60px_rgba(0,35,71,0.2)]' : 'bg-white text-brand-navy border-slate-200'}`}
-              >
-                <div className="flex items-start justify-between gap-4 mb-8">
-                  <div>
-                    <p className={`text-[10px] font-bold uppercase tracking-[0.3em] mb-3 ${plan.popular ? 'text-brand-gold' : 'text-slate-400'}`}>
-                      {plan.highlight}
+            {isLoadingRentalPlans &&
+              Array.from({ length: 3 }, (_, index) => (
+                <div
+                  key={`rental-plan-skeleton-${index}`}
+                  className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm"
+                >
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-gold mb-6" />
+                  <div className="space-y-4">
+                    <div className="h-3 w-28 rounded bg-slate-200" />
+                    <div className="h-8 w-40 rounded bg-slate-200" />
+                    <div className="h-20 rounded bg-slate-100" />
+                  </div>
+                </div>
+              ))}
+
+            {!isLoadingRentalPlans &&
+              !hasRentalPlanError &&
+              rentalPlans.map((plan, index) => (
+                <motion.div
+                  key={plan.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.45, delay: index * 0.08 }}
+                  className={`rounded-3xl border p-8 shadow-sm ${plan.popular ? 'bg-brand-navy text-white border-brand-gold/50 shadow-[0_25px_60px_rgba(0,35,71,0.2)]' : 'bg-white text-brand-navy border-slate-200'}`}
+                >
+                  <div className="flex items-start justify-between gap-4 mb-8">
+                    <div>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.3em] mb-3 ${plan.popular ? 'text-brand-gold' : 'text-slate-400'}`}>
+                        {plan.highlight}
+                      </p>
+                      <h3 className="text-2xl font-serif font-bold mb-2">{plan.name}</h3>
+                      <p className={`text-sm leading-relaxed ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>{plan.description}</p>
+                    </div>
+                    {plan.popular && <span className="rounded-full border border-brand-gold/40 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-gold">Popular</span>}
+                  </div>
+
+                  <div className="mb-8">
+                    <div className="flex items-end gap-2">
+                      <span className={`text-5xl font-bold ${plan.popular ? 'text-brand-gold' : 'text-brand-navy'}`}>${plan.pricing.recurringDueAud.toFixed(2)}</span>
+                      <span className={`text-xs uppercase tracking-[0.2em] mb-2 ${plan.popular ? 'text-slate-300' : 'text-slate-400'}`}>{plan.pricing.recurringLabel}</span>
+                    </div>
+                    <p className={`mt-3 text-xs uppercase tracking-[0.18em] ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Includes ${plan.pricing.serviceFeeAud.toFixed(2)} service fee each billing cycle
                     </p>
-                    <h3 className="text-2xl font-serif font-bold mb-2">{plan.name}</h3>
-                    <p className={`text-sm leading-relaxed ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>{plan.description}</p>
                   </div>
-                  {plan.popular && <span className="rounded-full border border-brand-gold/40 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-gold">Popular</span>}
-                </div>
 
-                <div className="mb-8">
-                  <div className="flex items-end gap-2">
-                    <span className={`text-5xl font-bold ${plan.popular ? 'text-brand-gold' : 'text-brand-navy'}`}>${plan.priceAud}</span>
-                    <span className={`text-xs uppercase tracking-[0.2em] mb-2 ${plan.popular ? 'text-slate-300' : 'text-slate-400'}`}>{plan.cadence}</span>
-                  </div>
-                </div>
+                  <ul className="space-y-4">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-3 text-sm">
+                        <Check className={`w-4 h-4 mt-0.5 ${plan.popular ? 'text-brand-gold' : 'text-brand-navy'}`} />
+                        <span className={plan.popular ? 'text-slate-200' : 'text-slate-600'}>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
+              ))}
 
-                <ul className="space-y-4">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-3 text-sm">
-                      <Check className={`w-4 h-4 mt-0.5 ${plan.popular ? 'text-brand-gold' : 'text-brand-navy'}`} />
-                      <span className={plan.popular ? 'text-slate-200' : 'text-slate-600'}>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            ))}
+            {!isLoadingRentalPlans && hasRentalPlanError && (
+              <div className="md:col-span-3 rounded-3xl border border-red-200 bg-white px-6 py-10 text-center shadow-sm">
+                <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+                <p className="text-sm uppercase tracking-[0.2em] font-bold text-red-500 mb-3">
+                  Live pricing unavailable
+                </p>
+                <p className="text-slate-600 mb-6">
+                  We could not load the current plan pricing on the homepage. Open the full pricing
+                  page for the latest quote.
+                </p>
+                <Link
+                  to="/pricing"
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
+                >
+                  View Pricing <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </section>

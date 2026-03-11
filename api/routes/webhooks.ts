@@ -8,11 +8,12 @@ import {
   maybeMarkCarAvailable,
   updateRentalsBySubscriptionIdentity,
 } from '../paymentActivation.js';
+import { getTodayInAustralia } from '../../shared/applicationSubmission.js';
 
 const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
 
-const todayIsoDate = () => new Date().toISOString().split('T')[0];
+const todayIsoDate = () => getTodayInAustralia();
 
 const shouldReleaseVehicleAfterSubscriptionDeletion = (subscription: Stripe.Subscription) =>
   subscription.cancellation_details?.reason === 'cancellation_requested';
@@ -85,7 +86,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (request, resp
           await getRentalStatusUpdatePayload(nextRentalStatus, todayIsoDate())
         );
 
-        if (shouldReleaseVehicle && car_id) {
+        if (car_id) {
           await maybeMarkCarAvailable(Number(car_id));
         }
         break;

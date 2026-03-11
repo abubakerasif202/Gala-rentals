@@ -127,7 +127,7 @@ const recoverPaymentReviewSession = async (application: ApplicationPaymentApprov
 
   const matches: Stripe.Checkout.Session[] = [];
   let cursor: string | undefined;
-  for (let page = 0; page < 10; page += 1) {
+  while (true) {
     const sessionPage = await stripe.checkout.sessions.list({
       limit: 100,
       ...(cursor ? { starting_after: cursor } : {}),
@@ -165,6 +165,16 @@ const getApplicationBackPhotoValue = (application: Record<string, any>) =>
 
 const createRequestError = (status: number, message: string) =>
   Object.assign(new Error(message), { status });
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const sanitizeEmailHeaderValue = (value: string) => value.replace(/[\r\n]+/g, ' ').trim();
 
 const removeUploadedApplicationDocuments = async (paths: string[]) => {
   if (paths.length === 0) {
@@ -394,6 +404,14 @@ router.post('/', async (req, res) => {
         const { Resend } = await import('resend');
         const resend = new Resend(process.env.RESEND_API_KEY);
         const adminEmail = process.env.ADMIN_EMAIL || 'admin@maplerentals.com.au';
+        const safeApplicantName = escapeHtml(normalizedApplicationData.name);
+        const safeApplicantEmail = escapeHtml(normalizedApplicationData.email);
+        const safeApplicantPhone = escapeHtml(normalizedApplicationData.phone);
+        const safeApplicantAddress = escapeHtml(normalizedApplicationData.address);
+        const safeUberStatus = escapeHtml(normalizedApplicationData.uber_status);
+        const safeExperience = escapeHtml(normalizedApplicationData.experience);
+        const safeIntendedStart = escapeHtml(normalizedApplicationData.intended_start_date);
+        const applicantNameForSubject = sanitizeEmailHeaderValue(normalizedApplicationData.name);
 
         // Email to the Applicant
         await resend.emails.send({
@@ -403,7 +421,7 @@ router.post('/', async (req, res) => {
           html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
               <h2 style="color: #D4AF37;">Application Received</h2>
-              <p>Hi ${normalizedApplicationData.name},</p>
+              <p>Hi ${safeApplicantName},</p>
               <p>Thank you for applying to rent a Toyota Camry Hybrid with Maple Rentals.</p>
               <p>We have successfully received your application, including the front and back of your driver licence. Our team will review your application and try to get back to you within 24 hours.</p>
               <p>If you have any urgent questions, please contact us directly.</p>
@@ -418,19 +436,19 @@ router.post('/', async (req, res) => {
         await resend.emails.send({
           from: 'Maple Rentals Notifications <noreply@maplerentals.com.au>',
           to: adminEmail,
-          subject: `New Driver Application: ${normalizedApplicationData.name}`,
+          subject: `New Driver Application: ${applicantNameForSubject}`,
           html: `
             <div style="font-family: sans-serif; color: #1a202c;">
               <h2>New Driver Application</h2>
               <p>A new driver application has been submitted:</p>
               <ul>
-                <li><strong>Name:</strong> ${normalizedApplicationData.name}</li>
-                <li><strong>Phone:</strong> ${normalizedApplicationData.phone}</li>
-                <li><strong>Email:</strong> ${normalizedApplicationData.email}</li>
-                <li><strong>Address:</strong> ${normalizedApplicationData.address}</li>
-                <li><strong>Uber Status:</strong> ${normalizedApplicationData.uber_status}</li>
-                <li><strong>Experience:</strong> ${normalizedApplicationData.experience}</li>
-                <li><strong>Intended Start:</strong> ${normalizedApplicationData.intended_start_date}</li>
+                <li><strong>Name:</strong> ${safeApplicantName}</li>
+                <li><strong>Phone:</strong> ${safeApplicantPhone}</li>
+                <li><strong>Email:</strong> ${safeApplicantEmail}</li>
+                <li><strong>Address:</strong> ${safeApplicantAddress}</li>
+                <li><strong>Uber Status:</strong> ${safeUberStatus}</li>
+                <li><strong>Experience:</strong> ${safeExperience}</li>
+                <li><strong>Intended Start:</strong> ${safeIntendedStart}</li>
               </ul>
               <p>Please log in to the admin dashboard to review their documents and approve/deny the application.</p>
             </div>
@@ -679,6 +697,20 @@ router.post('/:id/retry-payment-activation', authenticateAdmin, async (req, res)
 
 router.put('/:id/status', authenticateAdmin, async (req, res) => {
   try {
+    const { data: existingApplication, error: applicationLookupError } = await db
+      .from('applications')
+      .select('id')
+      .eq('id', req.params.id)
+      .maybeSingle();
+
+    if (applicationLookupError) {
+      throw applicationLookupError;
+    }
+
+    if (!existingApplication) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
     const { status } = z.object({ status: applicationStatusEnum }).parse(req.body ?? {});
     if (status === 'Approved' || status === 'Paid' || status === 'Payment Review') {
       return res.status(400).json({

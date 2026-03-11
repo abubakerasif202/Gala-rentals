@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { checkDBHealth, initializeDB } from './db/index.js';
 
 // Route Imports
@@ -26,6 +28,27 @@ const HOST = '0.0.0.0';
 const JSON_BODY_LIMIT = '25mb';
 const frontendDistDir = path.resolve(process.cwd(), 'dist');
 const frontendIndexPath = path.join(frontendDistDir, 'index.html');
+const rateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: (req) =>
+    process.env.VITEST === 'true' ||
+    req.path.startsWith('/api/webhook/stripe') ||
+    req.path.startsWith('/api/stripe/webhook'),
+});
+const cspReportingEnabled = isProduction && process.env.CSP_REPORTING === 'true';
+const cspReportUri =
+  (process.env.CSP_REPORT_URI && process.env.CSP_REPORT_URI.trim()) || '/api/csp-report';
+const cspReportPath =
+  cspReportUri.startsWith('http://') || cspReportUri.startsWith('https://')
+    ? null
+    : cspReportUri;
+const toCspOrigin = (value?: string) => {
+  const origin = toOrigin(value);
+  return origin || null;
+};
 const validateProductionEnv = () => {
   if (!isProduction) {
     return;
@@ -41,7 +64,10 @@ const validateProductionEnv = () => {
   ].filter((key) => !process.env[key]);
 
   if (missing.length > 0) {
-    throw new Error(`Missing required production environment variables: ${missing.join(', ')}`);
+    throw new Error(
+      `Missing required production environment variables: ${missing.join(', ')}. ` +
+        'Populate them in Render before deploy. See README and render.yaml.'
+    );
   }
 };
 
@@ -63,6 +89,42 @@ const corsOrigins = [
   'http://127.0.0.1:5173',
 ].filter((origin): origin is string => Boolean(origin));
 
+if (isProduction) {
+  app.use(
+    helmet({
+      // Allow assets from Supabase Storage and other external origins used by the app.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: [
+            "'self'",
+            'https://js.stripe.com',
+          ],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+          fontSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: [
+            "'self'",
+            toCspOrigin(process.env.SUPABASE_URL) || 'https://*.supabase.co',
+            'https://*.supabase.co',
+            'https://*.supabase.in',
+          ],
+          frameSrc: ['https://js.stripe.com', 'https://hooks.stripe.com', 'https://checkout.stripe.com'],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          upgradeInsecureRequests: [],
+          ...(cspReportingEnabled && cspReportUri
+            ? { reportUri: [cspReportUri] }
+            : {}),
+        },
+      },
+    })
+  );
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -77,6 +139,7 @@ app.use(
 );
 
 app.use(cookieParser());
+app.use(rateLimiter);
 
 // Webhooks (MUST be before express.json() for raw body)
 app.use('/api/webhook/stripe', webhookRoutes);
@@ -84,6 +147,17 @@ app.use('/api/stripe/webhook', webhookRoutes);
 
 // Allow room for two base64-encoded licence images plus form fields.
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
+
+if (cspReportingEnabled && cspReportPath) {
+  app.post(
+    cspReportPath,
+    express.json({ type: ['application/csp-report', 'application/csp-report+json', 'application/json'] }),
+    (req, res) => {
+      console.warn('CSP report received:', JSON.stringify(req.body));
+      res.status(204).end();
+    }
+  );
+}
 
 // Database Initialization Middleware
 let dbInitialized: Promise<void> | null = null;

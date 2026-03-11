@@ -2,7 +2,7 @@ import express from 'express';
 import { db } from '../db/index.js';
 import { authenticateAdmin } from './auth.js';
 import Stripe from 'stripe';
-import { STRIPE_CONFIG } from '../constants.js';
+import { LEASE_SETTINGS, STRIPE_CONFIG } from '../constants.js';
 import { getRentalSelectColumns } from '../schemaCompat.js';
 
 const router = express.Router();
@@ -10,6 +10,12 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
 
 router.get('/weekly', authenticateAdmin, async (_req, res) => {
   try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return res
+        .status(503)
+        .json({ error: 'Stripe is not configured. Set STRIPE_SECRET_KEY to enable payouts data.' });
+    }
+
     const rentalSelectColumns = await getRentalSelectColumns();
     const { data: activeRentals, error: rentalsError } = await db
       .from('rentals')
@@ -19,8 +25,13 @@ router.get('/weekly', authenticateAdmin, async (_req, res) => {
     if (rentalsError) throw rentalsError;
 
     const rentals = ((activeRentals || []) as Array<Record<string, any>>);
-    const projected_gross_weekly = rentals.reduce((sum, rental) => sum + Number(rental.weekly_price), 0);
-    const estimated_platform_fees = rentals.length || 0;
+    const projected_gross_weekly = rentals.reduce(
+      (sum, rental) => sum + Number(rental.weekly_price),
+      0
+    );
+    // Platform charges the weekly account management fee per active rental.
+    const estimated_platform_fees =
+      rentals.length * (Number(LEASE_SETTINGS.fees.account_management_weekly) || 0);
     const projected_net_weekly = projected_gross_weekly - estimated_platform_fees;
 
     const sevenDaysAgo = Math.floor(Date.now() / 1000) - (7 * 24 * 60 * 60);

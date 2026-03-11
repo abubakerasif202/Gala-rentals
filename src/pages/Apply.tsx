@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { motion } from 'motion/react';
 import {
   AlertCircle,
@@ -143,7 +143,7 @@ export default function Apply() {
   const licenseBackPhoto = watch('license_back_photo');
 
   const handleFileUpload = (
-    event: React.ChangeEvent<HTMLInputElement>,
+    event: ChangeEvent<HTMLInputElement>,
     field: 'license_photo' | 'license_back_photo'
   ) => {
     const file = event.target.files?.[0];

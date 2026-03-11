@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -17,7 +16,7 @@ interface SidebarProps {
   handleLogout: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, handleLogout }) => {
+export default function Sidebar({ activeTab, setActiveTab, handleLogout }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
     { id: 'applications', icon: Users, label: 'Applications' },
@@ -71,6 +70,4 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, handleLogout
       </div>
     </div>
   );
-};
-
-export default Sidebar;
+}

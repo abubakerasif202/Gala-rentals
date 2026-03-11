@@ -11,6 +11,8 @@
     "build:server": "tsc -p tsconfig.server.json",
     "preview": "node scripts/run-vite.js preview",
     "clean": "node scripts/clean.js",
+    "migrate:payment-workflow": "node scripts/migrate-payment-workflow-upgrade.js",
+    "migrate:vehicle-allocation": "node scripts/migrate-active-vehicle-allocation.js",
     "migrate:operational-history": "node scripts/migrate-operational-history.js",
     "lint": "tsc --noEmit",
     "test": "vitest run"

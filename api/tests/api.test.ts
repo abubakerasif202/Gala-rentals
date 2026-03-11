@@ -8,6 +8,7 @@ const {
   mockStorageFrom,
   mockCheckDBHealth,
   mockCreateAuthClient,
+  mockResendEmailsSend,
   mockStripe,
 } = vi.hoisted(() => ({
   mockState: {
@@ -23,14 +24,28 @@ const {
   mockStorageFrom: vi.fn(),
   mockCheckDBHealth: vi.fn(),
   mockCreateAuthClient: vi.fn(),
+  mockResendEmailsSend: vi.fn(),
   mockStripe: {
     checkoutSessionsCreate: vi.fn(),
     checkoutSessionsExpire: vi.fn(),
+    checkoutSessionsList: vi.fn(),
     checkoutSessionsRetrieve: vi.fn(),
     subscriptionsRetrieve: vi.fn(),
     webhooksConstructEvent: vi.fn(),
   },
 }));
+
+vi.mock('resend', () => {
+  class MockResend {
+    emails = {
+      send: mockResendEmailsSend,
+    };
+  }
+
+  return {
+    Resend: MockResend,
+  };
+});
 
 vi.mock('stripe', () => {
   class MockStripe {
@@ -43,6 +58,7 @@ vi.mock('stripe', () => {
       sessions: {
         create: mockStripe.checkoutSessionsCreate,
         expire: mockStripe.checkoutSessionsExpire,
+        list: mockStripe.checkoutSessionsList,
         retrieve: mockStripe.checkoutSessionsRetrieve,
       },
     };
@@ -488,6 +504,7 @@ import app from '../index.js';
 import { createCheckoutToken, verifyCheckoutToken } from '../checkoutTokens.js';
 
 beforeEach(() => {
+  delete process.env.RESEND_API_KEY;
   mockState.cars = [
     {
       id: 1,
@@ -571,11 +588,11 @@ beforeEach(() => {
       id: 1,
       external_id: '60499',
       staff_number: '1012',
-      full_name: 'Gagandeep Singh',
-      preferred_name: 'Gagandeep Singh',
-      company_name: 'Gagandeep',
-      phone: '0423115111',
-      email: 'gagandeep.561222@gmail.com',
+      full_name: 'Alex Driver',
+      preferred_name: 'Alex Driver',
+      company_name: 'Alex Driver Pty Ltd',
+      phone: '0400000001',
+      email: 'alex.driver@example.invalid',
       date_of_birth: '1999-09-24',
       street: null,
       city: null,
@@ -589,11 +606,11 @@ beforeEach(() => {
       id: 2,
       external_id: '61617',
       staff_number: '1013',
-      full_name: 'Hasan Nasir',
-      preferred_name: 'Hasan Nasir',
-      company_name: 'Hasan',
-      phone: '0411127067',
-      email: 'hasanchahal0@gmail.com',
+      full_name: 'Jordan Rider',
+      preferred_name: 'Jordan Rider',
+      company_name: 'Jordan Rider Pty Ltd',
+      phone: '0400000002',
+      email: 'jordan.rider@example.invalid',
       date_of_birth: '2001-05-15',
       street: null,
       city: null,
@@ -610,7 +627,7 @@ beforeEach(() => {
       id: 1,
       external_invoice_number: '1882',
       customer_id: 1,
-      customer_name: 'Gagandeep Singh',
+      customer_name: 'Alex Driver',
       car_registration: 'CNO40S',
       invoice_date: '2026-03-05',
       due_label: 'Wed 11 Mar',
@@ -624,7 +641,7 @@ beforeEach(() => {
       id: 2,
       external_invoice_number: '1881',
       customer_id: 2,
-      customer_name: 'Hasan Nasir',
+      customer_name: 'Jordan Rider',
       car_registration: 'YNU55M',
       invoice_date: '2026-03-04',
       due_label: 'Wed 04 Mar',
@@ -673,12 +690,17 @@ beforeEach(() => {
     })),
     remove: vi.fn(async () => ({ data: null, error: null })),
   }));
+  mockResendEmailsSend.mockResolvedValue({ id: 'email_123' });
 
   mockStripe.checkoutSessionsCreate.mockResolvedValue({
     id: 'cs_test_123',
     url: 'https://checkout.stripe.com/c/pay/cs_test_123',
   });
   mockStripe.checkoutSessionsExpire.mockResolvedValue({ id: 'cs_test_123' });
+  mockStripe.checkoutSessionsList.mockResolvedValue({
+    data: [],
+    has_more: false,
+  });
   mockStripe.checkoutSessionsRetrieve.mockResolvedValue({
     id: 'cs_test_123',
     url: 'https://checkout.stripe.com/c/pay/cs_test_123',
@@ -692,6 +714,8 @@ beforeEach(() => {
       checkout_kind: 'vehicle',
       payment_link_version: '1',
     },
+    customer: 'cus_123',
+    subscription: 'sub_123',
   });
   mockStripe.subscriptionsRetrieve.mockResolvedValue({
     id: 'sub_test_123',
@@ -758,6 +782,38 @@ describe('Applications API', () => {
       status: 'error',
       database: 'unavailable',
     });
+  });
+
+  it('POST /api/inquiries sends the inquiry through Resend when configured', async () => {
+    process.env.RESEND_API_KEY = 'test-resend';
+
+    const res = await request(app).post('/api/inquiries').send({
+      name: 'Jordan Prospect',
+      email: 'jordan.prospect@example.com',
+      phone: '0400 000 111',
+      startDate: '2026-03-20',
+      endDate: '2026-03-27',
+      message: 'Looking for a Camry Hybrid for airport work.',
+    });
+
+    expect(res.status).toBe(202);
+    expect(res.body.success).toBe(true);
+    expect(mockResendEmailsSend).toHaveBeenCalledTimes(2);
+  });
+
+  it('POST /api/inquiries returns 503 when inquiry delivery is not configured', async () => {
+    delete process.env.RESEND_API_KEY;
+
+    const res = await request(app).post('/api/inquiries').send({
+      name: 'Jordan Prospect',
+      email: 'jordan.prospect@example.com',
+      phone: '0400 000 111',
+      startDate: '2026-03-20',
+      endDate: '2026-03-27',
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toContain('temporarily unavailable');
   });
 
   it('GET /api/applications returns signed document URLs for admins', async () => {
@@ -1009,14 +1065,14 @@ describe('Operational history API', () => {
   it('GET /api/customers supports paginated search results for admins', async () => {
     const res = await request(app)
       .get('/api/customers')
-      .query({ search: 'Hasan', pageSize: 1, page: 1 })
+      .query({ search: 'Jordan', pageSize: 1, page: 1 })
       .set('Authorization', 'Bearer fake-token');
 
     expect(res.status).toBe(200);
     expect(res.body.totalItems).toBe(1);
     expect(res.body.totalPages).toBe(1);
     expect(res.body.items).toHaveLength(1);
-    expect(res.body.items[0].full_name).toBe('Hasan Nasir');
+    expect(res.body.items[0].full_name).toBe('Jordan Rider');
   });
 
   it('GET /api/invoices returns invoice history for admins', async () => {
@@ -1060,6 +1116,7 @@ describe('Stripe API', () => {
   it('POST /api/applications/:id/approve-payment stores the approved quote and returns a secure payment link', async () => {
     mockState.applications[0].pending_checkout_session_id = 'cs_old_pending';
     mockState.applications[0].payment_link_version = 3;
+    mockState.applications[1].assigned_car_id = 2;
 
     const res = await request(app)
       .post('/api/applications/1/approve-payment')
@@ -1095,6 +1152,103 @@ describe('Stripe API', () => {
     expect(verified.version).toBe(4);
   });
 
+  it('POST /api/applications/:id/approve-payment rejects vehicles already tied to another approved application', async () => {
+    mockState.applications[1].assigned_car_id = 1;
+    mockState.applications[1].status = 'Approved';
+
+    const res = await request(app)
+      .post('/api/applications/1/approve-payment')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        assigned_car_id: 1,
+        approved_bond: 650,
+        approved_weekly_price: 285,
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('active approval');
+    expect(mockState.applications[0].status).toBe('Pending');
+  });
+
+  it('POST /api/applications/:id/approve-payment does not let Payment Review cases send a new payment link', async () => {
+    mockState.applications[0].status = 'Payment Review';
+
+    const res = await request(app)
+      .post('/api/applications/1/approve-payment')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        assigned_car_id: 1,
+        approved_bond: 650,
+        approved_weekly_price: 285,
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('awaiting manual activation review');
+  });
+
+  it('POST /api/applications/:id/approve-payment allows a car to be re-approved after the prior rental is only historically paid', async () => {
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-06T00:00:00.000Z';
+    mockState.cars[0].status = 'Available';
+
+    const res = await request(app)
+      .post('/api/applications/1/approve-payment')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        assigned_car_id: 1,
+        approved_bond: 650,
+        approved_weekly_price: 285,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockState.applications[0].status).toBe('Approved');
+  });
+
+  it('POST /api/applications/:id/retry-payment-activation recovers a manual review from recent paid Stripe sessions', async () => {
+    mockState.applications[1].status = 'Payment Review';
+    mockState.applications[1].paid_at = '2026-03-06T00:00:00.000Z';
+    mockState.applications[1].pending_checkout_session_id = null;
+    mockState.cars[0].status = 'Available';
+    mockStripe.checkoutSessionsList.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'cs_recovered_review',
+          status: 'complete',
+          payment_status: 'paid',
+          customer: 'cus_review',
+          subscription: 'sub_review',
+          client_reference_id: '2',
+          metadata: {
+            application_id: '2',
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+        },
+      ],
+      has_more: false,
+    });
+
+    const res = await request(app)
+      .post('/api/applications/2/retry-payment-activation')
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockState.applications[1].status).toBe('Paid');
+    expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
+    expect(mockState.cars[0].status).toBe('Rented');
+    expect(mockState.rentals[0]).toMatchObject({
+      application_id: 2,
+      car_id: 1,
+      status: 'Active',
+      stripe_subscription_id: 'sub_review',
+    });
+  });
+
   it('GET /api/stripe/payment-context returns the approved quote for a valid payment link', async () => {
     const token = createCheckoutToken({
       applicationId: 2,
@@ -1113,6 +1267,32 @@ describe('Stripe API', () => {
     expect(res.body.billing.bond).toBe(500);
     expect(res.body.billing.initialRental).toBe(250);
     expect(res.body.car.id).toBe(1);
+  });
+
+  it('GET /api/stripe/payment-context rejects stale links after the vehicle is reallocated', async () => {
+    mockState.applications[0].status = 'Approved';
+    mockState.applications[0].assigned_car_id = 1;
+    mockState.applications[0].approved_bond = 650;
+    mockState.applications[0].approved_weekly_price = 285;
+    mockState.applications[0].payment_link_version = 1;
+    mockState.applications[1].status = 'Approved';
+    mockState.applications[1].assigned_car_id = 1;
+
+    const token = createCheckoutToken({
+      applicationId: 1,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+
+    const res = await request(app).get('/api/stripe/payment-context').query({
+      application_id: 1,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('allocated elsewhere');
   });
 
   it('POST /api/stripe/vehicle-checkout-session rejects unapproved applications', async () => {
@@ -1349,6 +1529,26 @@ describe('Stripe API', () => {
     expect(res.body.rental_status).toBe('Active');
   });
 
+  it('GET /api/stripe/checkout-sessions/:id returns manual_review when payment completed but activation was blocked', async () => {
+    mockState.applications[1].status = 'Payment Review';
+
+    const token = createCheckoutToken({
+      applicationId: 2,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+    const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123').query({
+      application_id: 2,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.internal_status).toBe('manual_review');
+    expect(res.body.application_status).toBe('Payment Review');
+  });
+
   it('GET /api/stripe/checkout-sessions/:id rejects sessions for the wrong checkout kind', async () => {
     mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
       id: 'cs_test_123',
@@ -1535,9 +1735,12 @@ describe('Stripe API', () => {
       .set('Content-Type', 'application/json')
       .send('{}');
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(200);
     expect(mockState.rentals).toHaveLength(1);
     expect(mockState.rentals[0].application_id).toBe(9);
+    expect(mockState.applications[1].status).toBe('Payment Review');
+    expect(mockState.applications[1].paid_at).toBeTruthy();
+    expect(mockState.applications[1].pending_checkout_session_id).toBe('cs_live_vehicle');
   });
 
   it('POST /api/stripe/webhook blocks vehicle activation when the car is under maintenance', async () => {
@@ -1568,9 +1771,11 @@ describe('Stripe API', () => {
       .set('Content-Type', 'application/json')
       .send('{}');
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(200);
     expect(mockState.rentals).toHaveLength(0);
     expect(mockState.cars[0].status).toBe('Maintenance');
+    expect(mockState.applications[1].status).toBe('Payment Review');
+    expect(mockState.applications[1].pending_checkout_session_id).toBe('cs_vehicle_maintenance');
   });
 
   it('POST /api/stripe/webhook keeps the car rented when another live rental still exists', async () => {

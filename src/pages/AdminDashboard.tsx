@@ -40,6 +40,26 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/admin/Sidebar';
 
 const OPERATIONAL_PAGE_SIZE = 25;
+const copyTextToClipboard = async (value: string) => {
+  if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+    return false;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const promptForManualCopy = (value: string) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.prompt('Copy secure payment link', value);
+};
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -267,6 +287,15 @@ export default function AdminDashboard() {
       api.createVehicleCheckoutLink(payload),
   });
 
+  const retryPaymentReviewActivationMutation = useMutation({
+    mutationFn: (id: number) => api.retryApplicationPaymentActivation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['cars'] });
+      queryClient.invalidateQueries({ queryKey: ['rentals'] });
+    },
+  });
+
   const deleteAgreementMutation = useMutation({
     mutationFn: (id: number) => api.deleteSavedLeaseAgreement(id),
     onSuccess: () => {
@@ -353,8 +382,18 @@ export default function AdminDashboard() {
       const response = await generateCheckoutLinkMutation.mutateAsync({
         application_id,
       });
-      await navigator.clipboard.writeText(response.checkout_url);
-      showNotification('Secure payment link copied!', 'success');
+      const copied = await copyTextToClipboard(response.checkout_url);
+
+      if (!copied) {
+        promptForManualCopy(response.checkout_url);
+      }
+
+      showNotification(
+        copied
+          ? 'Secure payment link copied!'
+          : 'Secure payment link generated. Use the prompt to copy it manually.',
+        'success'
+      );
     } catch (error: any) {
       showNotification(
         error?.response?.data?.error || 'Failed to generate secure payment link',
@@ -389,11 +428,18 @@ export default function AdminDashboard() {
       });
 
       if (!response.email_delivered) {
-        await navigator.clipboard.writeText(response.checkout_url);
+        const copied = await copyTextToClipboard(response.checkout_url);
+        if (!copied) {
+          promptForManualCopy(response.checkout_url);
+        }
         showNotification(
           response.email_reason
-            ? `Pricing saved. Email not sent; payment link copied instead.`
-            : 'Pricing saved and payment link copied.',
+            ? copied
+              ? 'Pricing saved. Email not sent; payment link copied instead.'
+              : 'Pricing saved. Email not sent; use the prompt to copy the payment link.'
+            : copied
+              ? 'Pricing saved and payment link copied.'
+              : 'Pricing saved. Use the prompt to copy the payment link.',
           'success'
         );
       } else {
@@ -404,6 +450,23 @@ export default function AdminDashboard() {
     } catch (error: any) {
       showNotification(
         error?.response?.data?.error || 'Failed to approve application for payment',
+        'error'
+      );
+    }
+  };
+
+  const handleRetrySelectedApplicationActivation = async () => {
+    if (!selectedApplication) {
+      return;
+    }
+
+    try {
+      await retryPaymentReviewActivationMutation.mutateAsync(selectedApplication.id);
+      showNotification('Payment activation completed and the rental is now live.', 'success');
+      setSelectedApplication(null);
+    } catch (error: any) {
+      showNotification(
+        error?.response?.data?.error || 'Failed to retry payment activation',
         'error'
       );
     }
@@ -440,7 +503,9 @@ export default function AdminDashboard() {
   const isLoadingInvoiceDataset = shouldLoadInvoices && invoiceDatasetQuery.isPending && !invoiceDataset;
   const isLoadingWeeklyFinancials =
     shouldLoadWeeklyFinancials && weeklyFinancialsQuery.isPending && !weeklyFinancials;
-  const approvedApplications = applications.filter(app => app.status === 'Approved' || app.status === 'Paid');
+  const approvedApplications = applications.filter(
+    (app) => app.status === 'Approved' || app.status === 'Paid'
+  );
   const selectedAgreementApplication = applications.find(
     (app) => app.id === Number(selected_agreement_application_id)
   );
@@ -688,6 +753,7 @@ export default function AdminDashboard() {
                           <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
                             app.status === 'Approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
                             app.status === 'Paid' ? 'bg-brand-gold/10 text-brand-gold border-brand-gold/20' :
+                            app.status === 'Payment Review' ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' :
                             app.status === 'Rejected' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
                             'bg-brand-navy text-brand-grey border-white/10'
                           }`}>
@@ -1587,7 +1653,26 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {selectedApplication.status !== 'Paid' && selectedApplication.status !== 'Rejected' && (
+                {selectedApplication.status === 'Payment Review' && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
+                      Manual payment review
+                    </p>
+                    <p className="text-sm text-brand-grey font-light leading-relaxed">
+                      Stripe reported a completed payment, but activation could not finish automatically.
+                      Resolve the vehicle allocation or maintenance conflict before proceeding.
+                    </p>
+                    {selectedApplication.paid_at && (
+                      <p className="text-xs text-amber-200/80 font-light">
+                        Payment recorded {new Date(selectedApplication.paid_at).toLocaleString()}.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {selectedApplication.status !== 'Paid' &&
+                  selectedApplication.status !== 'Rejected' &&
+                  selectedApplication.status !== 'Payment Review' && (
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-6">
                     <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
                       <div>
@@ -1713,7 +1798,8 @@ export default function AdminDashboard() {
                 >
                   Close
                 </button>
-                {selectedApplication.status !== 'Paid' && (
+                {selectedApplication.status !== 'Paid' &&
+                  selectedApplication.status !== 'Payment Review' && (
                   <button
                     onClick={() =>
                       updateStatusMutation.mutate({ id: selectedApplication.id, status: 'Rejected' })
@@ -1723,7 +1809,9 @@ export default function AdminDashboard() {
                     Reject Application
                   </button>
                 )}
-                {selectedApplication.status !== 'Paid' && selectedApplication.status !== 'Rejected' && (
+                {selectedApplication.status !== 'Paid' &&
+                  selectedApplication.status !== 'Rejected' &&
+                  selectedApplication.status !== 'Payment Review' && (
                   <button
                     onClick={handleApproveSelectedApplication}
                     disabled={approveApplicationPaymentMutation.isPending}
@@ -1754,6 +1842,20 @@ export default function AdminDashboard() {
                     className="flex-[2] bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3"
                   >
                     <FileText className="w-4 h-4" /> Continue to Agreement
+                  </button>
+                )}
+                {selectedApplication.status === 'Payment Review' && (
+                  <button
+                    onClick={handleRetrySelectedApplicationActivation}
+                    disabled={retryPaymentReviewActivationMutation.isPending}
+                    className="flex-[2] bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {retryPaymentReviewActivationMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    Retry Activation
                   </button>
                 )}
               </div>

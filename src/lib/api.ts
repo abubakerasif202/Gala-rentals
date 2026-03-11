@@ -9,6 +9,7 @@ import {
   OperationalInvoice,
 } from '../types';
 import type { RentalPlanWithPricing } from './rentalPlans';
+import type { InquiryValues } from '../../shared/inquiry';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -122,10 +123,10 @@ export interface HostedCheckoutSessionResponse {
 }
 
 export interface CheckoutSessionStatusResponse {
-  application_status: 'Pending' | 'Paid' | 'Approved' | 'Rejected';
+  application_status: 'Pending' | 'Paid' | 'Approved' | 'Rejected' | 'Payment Review';
   checkout_kind: 'application' | 'vehicle' | null;
   id: string;
-  internal_status: 'complete' | 'pending' | 'open';
+  internal_status: 'complete' | 'manual_review' | 'pending' | 'open';
   payment_status: string | null;
   rental_status: 'Active' | 'Completed' | 'Cancelled' | 'Overdue' | null;
   status: string | null;
@@ -140,6 +141,11 @@ export interface VehicleCheckoutLinkResponse {
 export interface ApplicationApprovalResponse extends VehicleCheckoutLinkResponse {
   email_delivered: boolean;
   email_reason: string | null;
+  success: boolean;
+}
+
+export interface ApplicationActivationRetryResponse {
+  status: 'Paid';
   success: boolean;
 }
 
@@ -170,6 +176,13 @@ export const fetchApplicationDocumentUrl = async (
 
 export const submitApplication = async (payload: Record<string, unknown>): Promise<ApplicationSubmissionResponse> => {
   const { data } = await api.post('/applications', payload);
+  return data;
+};
+
+export const submitInquiry = async (
+  payload: InquiryValues
+): Promise<{ success: boolean }> => {
+  const { data } = await api.post('/inquiries', payload);
   return data;
 };
 
@@ -270,6 +283,13 @@ export const approveApplicationForPayment = async (
   }
 ): Promise<ApplicationApprovalResponse> => {
   const { data } = await api.post(`/applications/${id}/approve-payment`, payload);
+  return data;
+};
+
+export const retryApplicationPaymentActivation = async (
+  id: number
+): Promise<ApplicationActivationRetryResponse> => {
+  const { data } = await api.post(`/applications/${id}/retry-payment-activation`);
   return data;
 };
 

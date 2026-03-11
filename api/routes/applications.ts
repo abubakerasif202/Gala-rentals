@@ -22,6 +22,11 @@ import {
 import { RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
 import { buildDriverPaymentLink, sendDriverPaymentLinkEmail } from '../paymentLinks.js';
 import {
+  assertVehicleAllocationAvailable,
+  VehicleAllocationConflictError,
+} from '../vehicleAllocations.js';
+import { handleVehicleCheckoutCompletion } from '../paymentActivation.js';
+import {
   APPLICATION_IMAGE_CONTENT_TYPES,
   MAX_APPLICATION_UPLOAD_BYTES,
   normalizeApplicationEmail,
@@ -83,11 +88,65 @@ const createSignedDocumentUrl = async (path: string | null | undefined) => {
 };
 
 type ApplicationPaymentApprovalRecord = {
+  approved_bond?: number | null;
+  approved_weekly_price?: number | null;
+  assigned_car_id?: number | null;
   email: string;
+  id: number;
   name: string;
   payment_link_version?: number | null;
   pending_checkout_session_id?: string | null;
   status: string;
+};
+
+const isRecoverableVehicleCheckoutSession = (
+  session: Stripe.Checkout.Session,
+  application: ApplicationPaymentApprovalRecord
+) =>
+  session.status === 'complete' &&
+  session.payment_status === 'paid' &&
+  session.metadata?.checkout_kind === 'vehicle' &&
+  Number(session.metadata?.application_id || 0) === application.id &&
+  Number(session.metadata?.car_id || 0) === Number(application.assigned_car_id || 0) &&
+  Number(session.metadata?.payment_link_version || 0) ===
+    Number(application.payment_link_version || 0);
+
+const recoverPaymentReviewSession = async (application: ApplicationPaymentApprovalRecord) => {
+  const storedSessionId = application.pending_checkout_session_id;
+
+  if (storedSessionId) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(storedSessionId);
+      if (isRecoverableVehicleCheckoutSession(session, application)) {
+        return session;
+      }
+    } catch (error) {
+      console.warn(`Unable to retrieve stored checkout session ${storedSessionId}:`, error);
+    }
+  }
+
+  let cursor: string | undefined;
+  for (let page = 0; page < 10; page += 1) {
+    const sessionPage = await stripe.checkout.sessions.list({
+      limit: 100,
+      ...(cursor ? { starting_after: cursor } : {}),
+    });
+    const match = sessionPage.data.find((session) =>
+      isRecoverableVehicleCheckoutSession(session, application)
+    );
+
+    if (match) {
+      return match;
+    }
+
+    if (!sessionPage.has_more || sessionPage.data.length === 0) {
+      break;
+    }
+
+    cursor = sessionPage.data[sessionPage.data.length - 1]?.id;
+  }
+
+  return null;
 };
 
 const getApplicationBackPhotoValue = (application: Record<string, any>) =>
@@ -237,7 +296,7 @@ router.post('/', async (req, res) => {
         });
       }
 
-      if (['Approved', 'Paid'].includes(existingRow.status)) {
+      if (['Approved', 'Paid', 'Payment Review'].includes(String(existingRow.status))) {
         return res.status(409).json({
           error: 'This application has already been submitted and is being processed.',
         });
@@ -420,6 +479,13 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       return res.status(409).json({ error: 'This application has already been paid.' });
     }
 
+    if (applicationRecord.status === 'Payment Review') {
+      return res.status(409).json({
+        error:
+          'This application is already paid and awaiting manual activation review. Use the retry activation flow instead of sending a new payment link.',
+      });
+    }
+
     if (applicationRecord.status === 'Rejected') {
       return res.status(409).json({ error: 'Rejected applications cannot be approved for payment.' });
     }
@@ -437,6 +503,13 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
     if (car.status !== 'Available') {
       return res.status(409).json({ error: 'Assigned vehicle is not available.' });
     }
+
+    await assertVehicleAllocationAvailable({
+      applicationId: payload.application_id,
+      carId: payload.assigned_car_id,
+      message:
+        'Assigned vehicle already has another active approval or payment review. Resolve that allocation first.',
+    });
 
     const currentVersion = Number(applicationRecord.payment_link_version || 0);
     const nextVersion = currentVersion + 1;
@@ -516,17 +589,89 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });
     }
 
+    if (error instanceof VehicleAllocationConflictError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+
     console.error('Application approve-payment error:', error);
     res.status(500).json({ error: 'Failed to approve application for payment' });
+  }
+});
+
+router.post('/:id/retry-payment-activation', authenticateAdmin, async (req, res) => {
+  try {
+    const applicationId = z.coerce.number().int().positive().parse(req.params.id);
+    const selectColumns = await getApplicationSelectColumns();
+    const { data: application, error: applicationError } = await db
+      .from('applications')
+      .select(selectColumns)
+      .eq('id', applicationId)
+      .single();
+
+    if (applicationError || !application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    const applicationRecord = application as unknown as ApplicationPaymentApprovalRecord;
+
+    if (applicationRecord.status !== 'Payment Review') {
+      return res.status(409).json({
+        error: 'Only applications in Payment Review can retry activation.',
+      });
+    }
+
+    if (!applicationRecord.assigned_car_id) {
+      return res.status(409).json({
+        error: 'This payment review is missing its assigned vehicle.',
+      });
+    }
+
+    const checkoutSession = await recoverPaymentReviewSession(applicationRecord);
+    if (!checkoutSession || !checkoutSession.subscription) {
+      return res.status(409).json({
+        error:
+          'We could not recover the paid checkout session for this application. Reconcile this payment manually in Stripe.',
+      });
+    }
+
+    await handleVehicleCheckoutCompletion(checkoutSession);
+
+    const { data: refreshedApplication, error: refreshedApplicationError } = await db
+      .from('applications')
+      .select(selectColumns)
+      .eq('id', applicationId)
+      .single();
+
+    if (refreshedApplicationError || !refreshedApplication) {
+      throw refreshedApplicationError || new Error('Application disappeared after activation retry.');
+    }
+
+    const refreshedRecord = refreshedApplication as unknown as ApplicationPaymentApprovalRecord;
+    if (refreshedRecord.status !== 'Paid') {
+      return res.status(409).json({
+        error:
+          'Activation is still blocked. Resolve the vehicle conflict or maintenance hold, then retry again.',
+      });
+    }
+
+    res.json({ success: true, status: refreshedRecord.status });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    console.error('Application retry-payment-activation error:', error);
+    res.status(500).json({ error: 'Failed to retry payment activation' });
   }
 });
 
 router.put('/:id/status', authenticateAdmin, async (req, res) => {
   try {
     const { status } = z.object({ status: applicationStatusEnum }).parse(req.body ?? {});
-    if (status === 'Approved' || status === 'Paid') {
+    if (status === 'Approved' || status === 'Paid' || status === 'Payment Review') {
       return res.status(400).json({
-        error: 'Use the payment approval flow to approve applications. Paid status is set by Stripe.',
+        error:
+          'Use the payment approval flow to approve applications. Paid and Payment Review statuses are set by Stripe processing.',
       });
     }
     const { error } = await db.from('applications').update({ status }).eq('id', req.params.id);

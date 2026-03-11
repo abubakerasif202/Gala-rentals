@@ -49,27 +49,27 @@ const defaultFees: LeaseFee[] = [
 ];
 
 export const defaultCarLeaseAgreement: CarLeaseAgreementInput = {
-  agreementDate: '04/04/2024',
-  registeredOwnerName: 'MAPLE RENT',
-  registeredOwnerAddress: 'Unit 13, Merrylands NSW 2160, AU',
-  registeredOwnerContact: '+61 420 550 556',
-  registeredOwnerEmail: 'sarfarazrajabi5@yahoo.com',
-  renteeName: 'Mohammad Ali Alizadah',
-  renteeDob: '21/12/1990',
-  renteeLicenseNumber: '21357495',
+  agreementDate: '2026-03-11',
+  registeredOwnerName: 'Maple Rentals Pty Ltd',
+  registeredOwnerAddress: 'Business Address, Sydney NSW 2000, Australia',
+  registeredOwnerContact: '+61 400 000 000',
+  registeredOwnerEmail: 'leasing@example.com',
+  renteeName: 'Sample Driver',
+  renteeDob: '1990-01-01',
+  renteeLicenseNumber: 'NSW0000000',
   renteeLicenseState: 'NSW',
-  renteeAddress: '29 Baker Street, Merrylands NSW 2160, Australia',
-  renteeContact: '0412230293',
-  renteeEmail: 'jalil_alizadah@yahoo.com',
+  renteeAddress: 'Sample Address, Sydney NSW 2000, Australia',
+  renteeContact: '0400000000',
+  renteeEmail: 'driver@example.com',
   vehicleMake: 'Toyota',
   vehicleModel: 'Camry Hybrid',
-  vehicleYear: '2014',
+  vehicleYear: '2024',
   vehicleVin: 'TBD',
   kmAllowance: 'As agreed in booking',
-  weeklyRent: '$249.00 per week (plus GST)',
+  weeklyRent: '$250.00 per week',
   fuelPolicy: 'Rentee must pay fuel usage. Extra amount may be added to excess according to age.',
   insuranceCoverage: 'Insurance coverage applies only in New South Wales.',
-  rentalStartDate: '2024-04-22',
+  rentalStartDate: '2026-03-11',
   rentalEndDate: 'Open-ended',
   minimumRentalPeriod: 'Minimum 6 weeks',
   returnPolicy:
@@ -145,4 +145,3 @@ Date: ${agreement.agreementDate}
 
 Rentee Signature: _______________________________`;
 };
-

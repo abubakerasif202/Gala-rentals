@@ -1,23 +1,15 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { motion } from 'motion/react';
-import { Calendar, User, Mail, Phone, Send, CheckCircle2 } from 'lucide-react';
+import { User, Mail, Phone, Send, CheckCircle2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-
-const inquirySchema = z.object({
-  name: z.string().min(2, 'Name is required'),
-  email: z.string().email('Invalid email address'),
-  phone: z.string().min(10, 'Phone number is required'),
-  startDate: z.string().min(1, 'Start date is required'),
-  endDate: z.string().min(1, 'End date is required'),
-  message: z.string().optional(),
-});
-
-type InquiryValues = z.infer<typeof inquirySchema>;
+import { submitInquiry } from '../lib/api';
+import { inquirySchema, type InquiryValues } from '../../shared/inquiry';
 
 export default function InquiryForm() {
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -29,10 +21,20 @@ export default function InquiryForm() {
   });
 
   const onSubmit = async (data: InquiryValues) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSuccess(true);
-    reset();
+    setSubmitError(null);
+
+    try {
+      await submitInquiry(data);
+      setIsSuccess(true);
+      reset();
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        setSubmitError(error.response?.data?.error || 'Unable to send your inquiry right now.');
+        return;
+      }
+
+      setSubmitError('Unable to send your inquiry right now.');
+    }
   };
 
   if (isSuccess) {
@@ -68,6 +70,12 @@ export default function InquiryForm() {
       <p className="text-brand-grey text-sm font-light mb-10 uppercase tracking-widest">Reserve your professional fleet vehicle</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {submitError && (
+          <div className="border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
+            {submitError}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Full Name</label>

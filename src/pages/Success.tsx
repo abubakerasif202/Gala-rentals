@@ -27,6 +27,7 @@ export default function Success() {
   });
 
   const isFullySuccessful = data?.internal_status === 'complete';
+  const requiresManualReview = data?.internal_status === 'manual_review';
   const isAwaitingFinalization =
     data?.status === 'complete' &&
     data?.payment_status === 'paid' &&
@@ -85,7 +86,30 @@ export default function Success() {
             </>
           )}
 
-          {!isLoading && !isFullySuccessful && !isAwaitingFinalization && (
+          {!isLoading && requiresManualReview && (
+            <>
+              <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-amber-500/10 mb-8 border border-amber-500/30">
+                <svg className="h-10 w-10 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+                </svg>
+              </div>
+              <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
+                Payment Under Review
+              </h2>
+              <p className="text-brand-grey font-light leading-relaxed mb-10">
+                Stripe marked the payment as complete, but we need to finish a manual review before
+                activating the rental. Maple Rentals will contact you shortly.
+              </p>
+              <Link
+                to="/"
+                className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
+              >
+                <Home className="mr-2 h-5 w-5" /> Return Home
+              </Link>
+            </>
+          )}
+
+          {!isLoading && !isFullySuccessful && !isAwaitingFinalization && !requiresManualReview && (
             <>
               <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-red-900/20 mb-8 border border-red-500/30">
                 <svg className="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

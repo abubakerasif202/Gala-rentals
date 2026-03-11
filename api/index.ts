@@ -9,6 +9,7 @@ import { checkDBHealth, initializeDB } from './db/index.js';
 import authRoutes from './routes/auth.js';
 import carRoutes from './routes/cars.js';
 import applicationRoutes from './routes/applications.js';
+import inquiryRoutes from './routes/inquiries.js';
 import stripeRoutes from './routes/stripe.js';
 import rentalRoutes from './routes/rentals.js';
 import agreementRoutes from './routes/agreements.js';
@@ -126,6 +127,7 @@ app.use('/api', async (_req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/cars', carRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/inquiries', inquiryRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/rentals', rentalRoutes);
 app.use('/api/agreements', agreementRoutes);

@@ -51,7 +51,13 @@ export const applicationSchema = z.object({
   license_back_photo: z.string().min(1),
 });
 
-export const applicationStatusEnum = z.enum(['Pending', 'Paid', 'Approved', 'Rejected']);
+export const applicationStatusEnum = z.enum([
+  'Pending',
+  'Paid',
+  'Approved',
+  'Rejected',
+  'Payment Review',
+]);
 
 export const vehicleCheckoutSessionSchema = z.object({
   application_id: z.coerce.number().int().positive(),

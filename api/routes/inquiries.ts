@@ -1,0 +1,78 @@
+import express from 'express';
+import { z } from 'zod';
+import { inquirySchema } from '../../shared/inquiry.js';
+
+const router = express.Router();
+const SUPPORT_FALLBACK_MESSAGE =
+  'Availability inquiries are temporarily unavailable online. Please call or email Maple Rentals directly.';
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+router.post('/', async (req, res) => {
+  try {
+    const inquiry = inquirySchema.parse(req.body ?? {});
+
+    if (!process.env.RESEND_API_KEY) {
+      return res.status(503).json({ error: SUPPORT_FALLBACK_MESSAGE });
+    }
+
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@maplerentals.com.au';
+    const { Resend } = await import('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const safeName = escapeHtml(inquiry.name);
+    const safeEmail = escapeHtml(inquiry.email);
+    const safePhone = escapeHtml(inquiry.phone);
+    const safeStartDate = escapeHtml(inquiry.startDate);
+    const safeEndDate = escapeHtml(inquiry.endDate);
+    const safeMessage = escapeHtml(inquiry.message || 'No additional notes provided.');
+
+    await Promise.all([
+      resend.emails.send({
+        from: 'Maple Rentals <noreply@maplerentals.com.au>',
+        to: adminEmail,
+        subject: `New availability inquiry from ${inquiry.name}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
+            <h2 style="color: #D4AF37;">New Availability Inquiry</h2>
+            <p><strong>Name:</strong> ${safeName}</p>
+            <p><strong>Email:</strong> ${safeEmail}</p>
+            <p><strong>Phone:</strong> ${safePhone}</p>
+            <p><strong>Requested dates:</strong> ${safeStartDate} to ${safeEndDate}</p>
+            <p><strong>Additional notes:</strong></p>
+            <p>${safeMessage}</p>
+          </div>
+        `,
+      }),
+      resend.emails.send({
+        from: 'Maple Rentals <noreply@maplerentals.com.au>',
+        to: inquiry.email,
+        subject: 'We received your Maple Rentals inquiry',
+        html: `
+          <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
+            <h2 style="color: #D4AF37;">Inquiry Received</h2>
+            <p>Hi ${safeName},</p>
+            <p>We received your availability inquiry for ${safeStartDate} to ${safeEndDate}.</p>
+            <p>Our fleet manager will review current availability and contact you shortly.</p>
+            <p>Best regards,<br /><strong>The Maple Rentals Team</strong></p>
+          </div>
+        `,
+      }),
+    ]);
+
+    res.status(202).json({ success: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    console.error('Inquiry submission error:', error);
+    res.status(500).json({ error: 'Failed to submit availability inquiry' });
+  }
+});
+
+export default router;

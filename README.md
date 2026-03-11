@@ -102,6 +102,12 @@ node scripts/seed-schema.js
 
 That script does not apply migrations automatically. It prints the contents of `supabase-schema.sql` and tells you where to run it in Supabase.
 
+If you are upgrading an existing environment, apply the active vehicle allocation index as well:
+
+```bash
+npm run migrate:vehicle-allocation
+```
+
 ### 4. Create the private document bucket
 
 The application uploads driver documents into a private Supabase Storage bucket named `applications`.
@@ -156,6 +162,7 @@ The production server serves the built frontend from `dist/` and exposes the API
 - `npm run lint` run TypeScript type-checking
 - `npm run test` run the Vitest suite
 - `npm run clean` remove build output
+- `npm run migrate:vehicle-allocation` apply the active vehicle allocation index to an existing database
 - `npm run migrate:operational-history` run the operational history migration helper
 
 ## Deployment

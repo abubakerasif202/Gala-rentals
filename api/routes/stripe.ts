@@ -21,6 +21,10 @@ import {
   toApplicationPaymentWritePayload,
 } from '../schemaCompat.js';
 import { buildDriverPaymentLink, getAppBaseUrl } from '../paymentLinks.js';
+import {
+  assertVehicleAllocationAvailable,
+  VehicleAllocationConflictError,
+} from '../vehicleAllocations.js';
 
 const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
@@ -287,6 +291,10 @@ const requireApprovedPaymentContext = ({
     throw new Error('Payment link has already been used.');
   }
 
+  if (application.status === 'Payment Review') {
+    throw new Error('This payment is currently under manual review.');
+  }
+
   if (application.status !== 'Approved') {
     throw new Error('Payment link is not ready for payment yet.');
   }
@@ -410,6 +418,12 @@ router.get('/payment-context', async (req, res) => {
       version: Number(application.payment_link_version || 0),
     });
     requireApprovedPaymentContext({ application, carId: car_id });
+    await assertVehicleAllocationAvailable({
+      applicationId: application_id,
+      carId: car_id,
+      message:
+        'This payment link is no longer active because the vehicle has been allocated elsewhere. Contact Maple Rentals for a fresh link.',
+    });
 
     const billing = buildApprovedBillingBreakdown(application);
 
@@ -424,7 +438,15 @@ router.get('/payment-context', async (req, res) => {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });
     }
 
-    if (error instanceof Error && error.message.toLowerCase().includes('payment link')) {
+    if (error instanceof VehicleAllocationConflictError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+
+    if (
+      error instanceof Error &&
+      (error.message.toLowerCase().includes('payment link') ||
+        error.message.toLowerCase().includes('manual review'))
+    ) {
       return res.status(409).json({ error: error.message });
     }
 
@@ -462,6 +484,12 @@ router.post('/vehicle-checkout-session', async (req, res) => {
       version: Number(application.payment_link_version || 0),
     });
     requireApprovedPaymentContext({ application, carId: car_id });
+    await assertVehicleAllocationAvailable({
+      applicationId: application_id,
+      carId: car_id,
+      message:
+        'This payment link is no longer active because the vehicle has been allocated elsewhere. Contact Maple Rentals for a fresh link.',
+    });
 
     if (car.status !== 'Available') {
       return res.status(409).json({ error: 'Selected vehicle is no longer available.' });
@@ -496,6 +524,10 @@ router.post('/vehicle-checkout-session', async (req, res) => {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });
     }
 
+    if (error instanceof VehicleAllocationConflictError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+
     if (isStripeConfigurationError(error)) {
       console.error('Stripe configuration error during vehicle checkout session:', error);
       return res.status(503).json({
@@ -503,7 +535,11 @@ router.post('/vehicle-checkout-session', async (req, res) => {
       });
     }
 
-    if (error instanceof Error && error.message.toLowerCase().includes('payment link')) {
+    if (
+      error instanceof Error &&
+      (error.message.toLowerCase().includes('payment link') ||
+        error.message.toLowerCase().includes('manual review'))
+    ) {
       return res.status(409).json({ error: error.message });
     }
 
@@ -549,6 +585,13 @@ router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
       return res.status(409).json({ error: 'Assigned vehicle is not available.' });
     }
 
+    await assertVehicleAllocationAvailable({
+      applicationId: application_id,
+      carId: car.id,
+      message:
+        'This vehicle already has another active approval or payment review. Resolve that allocation first.',
+    });
+
     const nextVersion = Number(application.payment_link_version || 0) + 1;
     await expirePendingCheckoutSession(application.pending_checkout_session_id);
     const updatePayload = await toApplicationPaymentWritePayload({
@@ -584,6 +627,10 @@ router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    if (error instanceof VehicleAllocationConflictError) {
+      return res.status(error.status).json({ error: error.message });
     }
 
     console.error('Vehicle checkout link error:', error);
@@ -650,6 +697,10 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
     const internalStatus =
       application.status === 'Paid' && rental?.status === 'Active'
         ? 'complete'
+        : application.status === 'Payment Review' &&
+            session.status === 'complete' &&
+            session.payment_status === 'paid'
+          ? 'manual_review'
         : session.status === 'complete' && session.payment_status === 'paid'
           ? 'pending'
           : 'open';

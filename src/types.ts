@@ -30,7 +30,7 @@ export interface Application {
   payment_link_sent_at?: string | null;
   payment_link_version?: number;
   pending_checkout_session_id?: string | null;
-  status: 'Pending' | 'Paid' | 'Approved' | 'Rejected';
+  status: 'Pending' | 'Paid' | 'Approved' | 'Rejected' | 'Payment Review';
   created_at: string;
 }
 

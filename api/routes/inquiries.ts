@@ -1,18 +1,11 @@
 import express from 'express';
 import { z } from 'zod';
 import { inquirySchema } from '../../shared/inquiry.js';
+import { escapeHtml, sanitizeEmailHeaderValue } from '../email.js';
 
 const router = express.Router();
 const SUPPORT_FALLBACK_MESSAGE =
   'Availability inquiries are temporarily unavailable online. Please call or email Maple Rentals directly.';
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-
 router.post('/', async (req, res) => {
   try {
     const inquiry = inquirySchema.parse(req.body ?? {});
@@ -30,12 +23,13 @@ router.post('/', async (req, res) => {
     const safeStartDate = escapeHtml(inquiry.startDate);
     const safeEndDate = escapeHtml(inquiry.endDate);
     const safeMessage = escapeHtml(inquiry.message || 'No additional notes provided.');
+    const inquiryNameForSubject = sanitizeEmailHeaderValue(inquiry.name);
 
     await Promise.all([
       resend.emails.send({
         from: 'Maple Rentals <noreply@maplerentals.com.au>',
         to: adminEmail,
-        subject: `New availability inquiry from ${inquiry.name}`,
+        subject: `New availability inquiry from ${inquiryNameForSubject}`,
         html: `
           <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
             <h2 style="color: #D4AF37;">New Availability Inquiry</h2>

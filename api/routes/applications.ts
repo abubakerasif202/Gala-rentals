@@ -31,6 +31,7 @@ import {
   MAX_APPLICATION_UPLOAD_BYTES,
   normalizeApplicationEmail,
 } from '../../shared/applicationSubmission.js';
+import { escapeHtml, sanitizeEmailHeaderValue } from '../email.js';
 
 const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
@@ -166,15 +167,30 @@ const getApplicationBackPhotoValue = (application: Record<string, any>) =>
 const createRequestError = (status: number, message: string) =>
   Object.assign(new Error(message), { status });
 
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+const isVehicleAllocationUniqueConstraintError = (error: unknown) => {
+  if (!error || typeof error !== 'object' || !('code' in error)) {
+    return false;
+  }
 
-const sanitizeEmailHeaderValue = (value: string) => value.replace(/[\r\n]+/g, ' ').trim();
+  if (String((error as { code?: string }).code || '') !== '23505') {
+    return false;
+  }
+
+  const message = [
+    (error as { message?: string }).message,
+    (error as { details?: string }).details,
+    (error as { hint?: string }).hint,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    message.includes('idx_applications_active_vehicle_allocation_unique') ||
+    message.includes('assigned_car') ||
+    message.includes('assignedcarid')
+  );
+};
 
 const removeUploadedApplicationDocuments = async (paths: string[]) => {
   if (paths.length === 0) {
@@ -617,6 +633,13 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
 
     if (error instanceof VehicleAllocationConflictError) {
       return res.status(error.status).json({ error: error.message });
+    }
+
+    if (isVehicleAllocationUniqueConstraintError(error)) {
+      return res.status(409).json({
+        error:
+          'Assigned vehicle already has another active approval or payment review. Resolve that allocation first.',
+      });
     }
 
     console.error('Application approve-payment error:', error);

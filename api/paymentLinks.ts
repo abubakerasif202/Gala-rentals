@@ -1,3 +1,5 @@
+import { escapeHtml } from './email.js';
+
 const DEFAULT_APP_URL = 'http://localhost:5173';
 
 const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
@@ -58,6 +60,9 @@ export const sendDriverPaymentLinkEmail = async ({
   const { Resend } = await import('resend');
   const resend = new Resend(process.env.RESEND_API_KEY);
   const upfrontDue = approvedBond + approvedWeeklyPrice + setupFees;
+  const safeApplicantName = escapeHtml(applicantName);
+  const safeCarName = escapeHtml(carName);
+  const safeCheckoutUrl = escapeHtml(checkoutUrl);
 
   await resend.emails.send({
     from: 'Maple Rentals <noreply@maplerentals.com.au>',
@@ -66,16 +71,16 @@ export const sendDriverPaymentLinkEmail = async ({
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
         <h2 style="color: #D4AF37;">Application Approved</h2>
-        <p>Hi ${applicantName},</p>
+        <p>Hi ${safeApplicantName},</p>
         <p>Your application has been approved and your secure payment link is now ready.</p>
-        <p><strong>Assigned vehicle:</strong> ${carName}</p>
+        <p><strong>Assigned vehicle:</strong> ${safeCarName}</p>
         <p><strong>Bond:</strong> ${formatCurrency(approvedBond)}</p>
         <p><strong>Weekly payment:</strong> ${formatCurrency(approvedWeeklyPrice)}</p>
         <p><strong>Setup fees:</strong> ${formatCurrency(setupFees)}</p>
         <p><strong>Total due now:</strong> ${formatCurrency(upfrontDue)}</p>
         <p>
           <a
-            href="${checkoutUrl}"
+            href="${safeCheckoutUrl}"
             style="display:inline-block;padding:14px 22px;background:#D4AF37;color:#111827;text-decoration:none;font-weight:700;border-radius:8px;"
           >
             Open secure payment link

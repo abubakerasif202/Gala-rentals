@@ -33,10 +33,7 @@ const rateLimiter = rateLimit({
   max: 300,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  skip: (req) =>
-    process.env.VITEST === 'true' ||
-    req.path.startsWith('/api/webhook/stripe') ||
-    req.path.startsWith('/api/stripe/webhook'),
+  skip: () => process.env.VITEST === 'true',
 });
 const cspReportingEnabled = isProduction && process.env.CSP_REPORTING === 'true';
 const cspReportUri =
@@ -139,7 +136,6 @@ app.use(
 );
 
 app.use(cookieParser());
-app.use(rateLimiter);
 
 // Webhooks (MUST be before express.json() for raw body)
 app.use('/api/webhook/stripe', webhookRoutes);
@@ -186,6 +182,8 @@ app.get('/api/health', async (_req, res) => {
     });
   }
 });
+
+app.use('/api', rateLimiter);
 
 app.use('/api', async (_req, res, next) => {
   try {

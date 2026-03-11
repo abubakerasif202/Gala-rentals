@@ -11,6 +11,7 @@ import {
   toRentalWritePayload,
 } from './schemaCompat.js';
 import { getTodayInAustralia } from '../shared/applicationSubmission.js';
+import { escapeHtml } from './email.js';
 
 const assertSupabaseWrite = (
   result: { error: { code?: string; message?: string } | null } | null | undefined,
@@ -188,6 +189,8 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
   const application = applicationResult.data as unknown as Record<string, unknown>;
   const car = carResult.data as Record<string, unknown>;
   const { compat, rentalApplicationIdColumn, rentals: existingRentals } = existingRentalsResult;
+  const safeApplicantName = escapeHtml(String(application.name || ''));
+  const safeCarName = escapeHtml(String(car.name || ''));
 
   const moveApplicationToManualReview = async (reason: string) => {
     await updateApplicationPaymentState({
@@ -214,11 +217,11 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
           <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
             <h2 style="color: #D4AF37;">Manual Payment Review Required</h2>
             <p><strong>Application ID:</strong> ${applicationId}</p>
-            <p><strong>Applicant:</strong> ${String(application.name)}</p>
-            <p><strong>Vehicle:</strong> ${String(car.name)}</p>
-            <p><strong>Checkout session:</strong> ${session.id}</p>
-            <p><strong>Stripe subscription:</strong> ${subscriptionId}</p>
-            <p><strong>Reason:</strong> ${reason}</p>
+            <p><strong>Applicant:</strong> ${safeApplicantName}</p>
+            <p><strong>Vehicle:</strong> ${safeCarName}</p>
+            <p><strong>Checkout session:</strong> ${escapeHtml(session.id)}</p>
+            <p><strong>Stripe subscription:</strong> ${escapeHtml(subscriptionId)}</p>
+            <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
           </div>
         `,
       });
@@ -398,10 +401,10 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
           <h2 style="color: #D4AF37;">Payment Confirmed</h2>
-          <p>Hi ${String(application.name)},</p>
-          <p>Your payment for the <strong>${String(car.name)}</strong> has been successfully processed.</p>
+          <p>Hi ${safeApplicantName},</p>
+          <p>Your payment for the <strong>${safeCarName}</strong> has been successfully processed.</p>
           <p>Your rental is now <strong>Active</strong>. We will contact you shortly with collection details.</p>
-          <p><strong>Subscription ID:</strong> ${subscriptionId}</p>
+          <p><strong>Subscription ID:</strong> ${escapeHtml(subscriptionId)}</p>
           <br>
           <p>Best regards,</p>
           <p><strong>The Maple Rentals Team</strong></p>

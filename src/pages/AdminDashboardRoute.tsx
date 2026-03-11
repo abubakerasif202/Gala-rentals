@@ -1,5 +1,72 @@
+import axios from 'axios';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import AdminDashboard from './AdminDashboard';
+import { verifyAdminSession } from '../lib/api';
 
 export default function AdminDashboardRoute() {
+  const [sessionState, setSessionState] = useState<'checking' | 'ready' | 'unauthorized' | 'error'>(
+    'checking'
+  );
+
+  useEffect(() => {
+    let isActive = true;
+
+    void verifyAdminSession()
+      .then(() => {
+        if (isActive) {
+          setSessionState('ready');
+        }
+      })
+      .catch((error: unknown) => {
+        if (!isActive) {
+          return;
+        }
+
+        if (
+          axios.isAxiosError(error) &&
+          (error.response?.status === 401 || error.response?.status === 403)
+        ) {
+          setSessionState('unauthorized');
+          return;
+        }
+
+        setSessionState('error');
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  if (sessionState === 'checking') {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center bg-brand-navy text-white">
+        <div className="flex items-center gap-3 text-sm font-bold uppercase tracking-widest text-brand-gold">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          Verifying session
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionState === 'unauthorized') {
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  if (sessionState === 'error') {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center bg-brand-navy px-6 text-white">
+        <div className="max-w-lg rounded-3xl border border-red-500/20 bg-white/5 p-8 text-center">
+          <AlertCircle className="mx-auto mb-4 h-8 w-8 text-red-400" />
+          <p className="text-sm font-light text-brand-grey">
+            We could not verify the admin session right now. Refresh and try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return <AdminDashboard />;
 }

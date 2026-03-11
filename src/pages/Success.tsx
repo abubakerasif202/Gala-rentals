@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle, Home, Loader2 } from 'lucide-react';
@@ -20,7 +21,12 @@ export default function Success() {
         checkout_token: checkoutToken,
       }),
     enabled: hasVerificationContext,
-    retry: false,
+    retry: (failureCount, error) =>
+      failureCount < 2 &&
+      (!axios.isAxiosError(error) ||
+        !error.response ||
+        error.response.status >= 500),
+    retryDelay: (attempt) => attempt * 1500,
     refetchInterval: (query) =>
       query.state.data?.internal_status === 'pending' ? 3000 : false,
     refetchOnWindowFocus: true,

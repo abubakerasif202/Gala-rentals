@@ -328,8 +328,9 @@ export default function AdminDashboard() {
     } catch (e) {
       console.error('Logout error:', e);
     }
-    localStorage.removeItem('admin_token');
-    navigate('/admin/login');
+
+    queryClient.clear();
+    navigate('/admin/login', { replace: true });
   };
 
   const handleGenerateAgreement = async () => {

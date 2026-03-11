@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { motion } from 'motion/react';
 import {
   AlertCircle,
@@ -203,6 +203,16 @@ export default function Apply() {
     }
   };
 
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (step === 1) {
+      event.preventDefault();
+      void goToDocumentsStep();
+      return;
+    }
+
+    void handleSubmit(onSubmit)(event);
+  };
+
   if (submittedApplicationId) {
     return (
       <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
@@ -269,7 +279,7 @@ export default function Apply() {
             animate={{ opacity: 1, x: 0 }}
             className="bg-white/5 border border-white/10 p-8 md:p-12 rounded-3xl"
           >
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
+            <form onSubmit={handleFormSubmit} className="space-y-10">
               {step === 1 && (
                 <>
                   <div className="space-y-3">

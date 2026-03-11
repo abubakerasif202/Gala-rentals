@@ -71,6 +71,18 @@ router.get('/stats', authenticateAdmin, async (_req, res) => {
       db.from('rentals').select(rentalSelectColumns).eq('status', 'Active'),
     ]);
 
+    if (applications.error) {
+      throw applications.error;
+    }
+
+    if (rentalsActive.error) {
+      throw rentalsActive.error;
+    }
+
+    if (incomeRows.error) {
+      throw incomeRows.error;
+    }
+
     const applicationsCount = applications.count || 0;
     const activeRentalsCount = rentalsActive.count || 0;
     const rentalRows = ((incomeRows.data || []) as Array<Record<string, any>>);

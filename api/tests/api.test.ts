@@ -8,6 +8,7 @@ const {
   mockStorageFrom,
   mockCheckDBHealth,
   mockCreateAuthClient,
+  mockMutationErrors,
   mockResendEmailsSend,
   mockStripe,
 } = vi.hoisted(() => ({
@@ -25,6 +26,9 @@ const {
   mockStorageFrom: vi.fn(),
   mockCheckDBHealth: vi.fn(),
   mockCreateAuthClient: vi.fn(),
+  mockMutationErrors: {
+    applicationsUpdate: null as Record<string, any> | null,
+  },
   mockResendEmailsSend: vi.fn(),
   mockStripe: {
     checkoutSessionsCreate: vi.fn(),
@@ -402,6 +406,12 @@ vi.mock('../db/index.js', () => {
     payload?: Record<string, any>
   ) => ({
     eq: vi.fn(async (column: string, value: unknown) => {
+      if (action === 'update' && table === 'applications' && mockMutationErrors.applicationsUpdate) {
+        const error = structuredClone(mockMutationErrors.applicationsUpdate);
+        mockMutationErrors.applicationsUpdate = null;
+        return { error };
+      }
+
       const rows = getTableRows(table);
       const nextRows =
         action === 'delete'
@@ -707,6 +717,7 @@ beforeEach(() => {
     remove: vi.fn(async () => ({ data: null, error: null })),
   }));
   mockResendEmailsSend.mockResolvedValue({ id: 'email_123' });
+  mockMutationErrors.applicationsUpdate = null;
 
   mockStripe.checkoutSessionsCreate.mockResolvedValue({
     id: 'cs_test_123',
@@ -1291,6 +1302,59 @@ describe('Stripe API', () => {
       version: 4,
     });
     expect(verified.version).toBe(4);
+  });
+
+  it('POST /api/applications/:id/approve-payment escapes applicant-controlled HTML in payment emails', async () => {
+    process.env.RESEND_API_KEY = 'test-resend';
+    mockResendEmailsSend.mockClear();
+    mockState.applications[0].name = '<img src=x onerror=alert(1)>';
+    mockState.applications[1].assigned_car_id = 2;
+    mockState.cars[0].name = '<a href="https://evil.example">Camry</a>';
+
+    const res = await request(app)
+      .post('/api/applications/1/approve-payment')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        assigned_car_id: 1,
+        approved_bond: 650,
+        approved_weekly_price: 285,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.email_delivered).toBe(true);
+    expect(mockResendEmailsSend).toHaveBeenCalledTimes(1);
+    expect(mockResendEmailsSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining('&lt;img src=x onerror=alert(1)&gt;'),
+      })
+    );
+    expect(mockResendEmailsSend.mock.calls[0]?.[0]?.html).toContain(
+      '&lt;a href=&quot;https://evil.example&quot;&gt;Camry&lt;/a&gt;'
+    );
+    expect(mockResendEmailsSend.mock.calls[0]?.[0]?.html).not.toContain(
+      '<a href="https://evil.example">Camry</a>'
+    );
+  });
+
+  it('POST /api/applications/:id/approve-payment maps allocation unique-index races to 409', async () => {
+    mockState.applications[1].assigned_car_id = 2;
+    mockMutationErrors.applicationsUpdate = {
+      code: '23505',
+      message:
+        'duplicate key value violates unique constraint "idx_applications_active_vehicle_allocation_unique"',
+    };
+
+    const res = await request(app)
+      .post('/api/applications/1/approve-payment')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        assigned_car_id: 1,
+        approved_bond: 650,
+        approved_weekly_price: 285,
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('active approval or payment review');
   });
 
   it('POST /api/applications/:id/approve-payment rejects vehicles already tied to another approved application', async () => {

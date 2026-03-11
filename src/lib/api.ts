@@ -22,11 +22,13 @@ api.interceptors.response.use(
   (error) => {
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
     const isAdminScreen = currentPath.startsWith('/admin');
+    const isUnauthorizedAdminResponse =
+      error.response?.status === 401 || error.response?.status === 403;
 
-    if (error.response?.status === 401 && isAdminScreen) {
+    if (isUnauthorizedAdminResponse && isAdminScreen) {
       // Avoid redirect loops on login page and keep public checkout flows on-page.
       if (!currentPath.includes('/admin/login')) {
-        window.location.href = '/admin/login';
+        window.location.replace('/admin/login');
       }
     }
     return Promise.reject(error);
@@ -35,6 +37,17 @@ api.interceptors.response.use(
 
 export const logoutAdmin = async (): Promise<{ message: string }> => {
   const { data } = await api.post('/auth/logout');
+  return data;
+};
+
+export interface AdminSessionResponse {
+  user: {
+    username: string;
+  };
+}
+
+export const verifyAdminSession = async (): Promise<AdminSessionResponse> => {
+  const { data } = await api.get('/auth/verify');
   return data;
 };
 

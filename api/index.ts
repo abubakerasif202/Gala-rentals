@@ -19,6 +19,8 @@ import financialRoutes from './routes/financials.js';
 import webhookRoutes from './routes/webhooks.js';
 import customerRoutes from './routes/customers.js';
 import invoiceRoutes from './routes/invoices.js';
+import indexNowAdminRoutes from './routes/indexNowAdmin.js';
+import { indexNowConfig } from './services/indexNow.js';
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -137,6 +139,11 @@ app.use(
 
 app.use(cookieParser());
 
+// IndexNow requires this key file at the site root to verify ownership.
+app.get(`/${indexNowConfig.key}.txt`, (_req, res) => {
+  res.type('text/plain').send(indexNowConfig.key);
+});
+
 // Webhooks (MUST be before express.json() for raw body)
 app.use('/api/webhook/stripe', webhookRoutes);
 app.use('/api/stripe/webhook', webhookRoutes);
@@ -206,6 +213,7 @@ app.use('/api/agreements', agreementRoutes);
 app.use('/api/financials', financialRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/admin', indexNowAdminRoutes);
 
 // Legacy/Compatibility Redirects or Aliases
 app.get('/api/stats', (_req, res) => res.redirect(307, '/api/financials/stats'));

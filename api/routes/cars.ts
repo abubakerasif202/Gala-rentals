@@ -12,8 +12,39 @@ import {
   getRentalCarIdColumn,
   toCarWritePayload,
 } from '../schemaCompat.js';
+import { enqueueIndexNowUrl } from '../services/indexNow.js';
 
 const router = express.Router();
+
+const toPublicSiteOrigin = () => {
+  const candidate = process.env.SITE_URL || process.env.APP_URL;
+  if (!candidate) return null;
+  try {
+    return new URL(candidate).origin;
+  } catch {
+    return null;
+  }
+};
+
+const toCarPublicUrl = (id: string) => {
+  const siteOrigin = toPublicSiteOrigin();
+  if (!siteOrigin) {
+    return null;
+  }
+  return `${siteOrigin}/cars/${id}`;
+};
+
+const notifyIndexNowForCarChange = (id: string, reason: 'created' | 'updated' | 'deleted') => {
+  // Hook into create/update/delete events so search engines discover fresh URLs quickly.
+  // In a CMS flow, call similar logic from your publish/unpublish handlers.
+  const publicUrl = toCarPublicUrl(id);
+  if (!publicUrl) {
+    console.warn(`[IndexNow] Skipping ${reason} notification for car ${id}: SITE_URL is not configured.`);
+    return;
+  }
+
+  enqueueIndexNowUrl(publicUrl);
+};
 
 const fetchCarById = async (id: string) => {
   const selectColumns = await getCarSelectColumns();
@@ -69,6 +100,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const { data: inserted, error } = await db.from('cars').insert([payload]).select('id').single();
 
     if (error) throw error;
+    notifyIndexNowForCarChange(String(inserted.id), 'created');
     res.status(201).json({ id: String(inserted.id) });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -91,6 +123,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     const { error } = await db.from('cars').update(payload).eq('id', req.params.id);
 
     if (error) throw error;
+    notifyIndexNowForCarChange(req.params.id, 'updated');
     res.json({ success: true });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -144,6 +177,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 
     const { error } = await db.from('cars').delete().eq('id', req.params.id);
     if (error) throw error;
+    notifyIndexNowForCarChange(req.params.id, 'deleted');
     res.json({ success: true });
   } catch (error) {
     console.error('Car deletion error:', error);

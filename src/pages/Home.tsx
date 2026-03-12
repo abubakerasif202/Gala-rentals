@@ -61,10 +61,10 @@ export default function Home() {
                 Premium Hybrid Fleet
               </motion.p>
               <motion.h1 variants={fadeIn} className="text-5xl lg:text-7xl font-serif font-bold tracking-tight mb-8 leading-[1.05] text-brand-navy">
-                Premium Hybrid Fleet for Professional Drivers.
+                Rideshare-Ready Fleet for Professional Drivers.
               </motion.h1>
               <motion.p variants={fadeIn} className="text-lg text-slate-600 mb-10 max-w-lg font-light leading-relaxed">
-                Drive with confidence in meticulously maintained Toyota Camry Hybrids. Reliable, efficient, and Uber-compliant, designed to maximize your weekly earnings.
+                Drive with confidence in meticulously maintained Camry, Corolla, and other rideshare-ready vehicles. Reliable, efficient, and Uber-compliant, designed to maximize your weekly earnings.
               </motion.p>
 
               <motion.div variants={fadeIn} className="flex flex-col sm:flex-row gap-4 mb-10">
@@ -137,7 +137,7 @@ export default function Home() {
               </h2>
               <div className="space-y-6 text-slate-400 text-lg font-light leading-relaxed max-w-xl">
                 <p>
-                  Maple Rentals provides professionally maintained Toyota Camry Hybrid vehicles designed for long hours, lower fuel costs, and reliable performance.
+                  Maple Rentals provides professionally maintained rideshare vehicles designed for long hours, lower fuel costs, and reliable performance.
                 </p>
                 <p>
                   We keep your car running smoothly so you can focus on earning. Our fleet is maintained to reduce downtime and preserve your weekly income.
@@ -326,7 +326,7 @@ export default function Home() {
             >
               <img
                 src="/cta-camry.webp"
-                alt="Toyota Camry Hybrid fleet"
+                alt="Maple Rentals fleet"
                 className="w-full h-auto shadow-2xl rounded-3xl"
               />
             </motion.div>

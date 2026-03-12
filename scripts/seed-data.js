@@ -1,6 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
+import { buildFleetCarSeedRows, buildFleetDriverSeedRows } from './realtime-fleet-data.js';
+import {
+    createSupabaseAdminClient,
+    getCoreSchemaMode,
+    mapApplicationPayloadForSchema,
+    mapCarPayloadForSchema,
+    mapRentalPayloadForSchema,
+} from './fleet-sync-utils.js';
+
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
@@ -13,52 +22,106 @@ if (!supabaseUrl || !supabaseServiceKey) {
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-async function seedData() {
-    console.log("Seeding initial fleet cars...");
+const insertInChunks = async (table, rows, select) => {
+    const inserted = [];
 
-    const mockCars = [
-        {
-            name: "Toyota Camry Hybrid Ascent",
-            model_year: 2023,
-            weekly_price: 350,
-            bond: 500,
-            status: "Available",
-            image: "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?q=80&w=1600&auto=format&fit=crop"
-        },
-        {
-            name: "Toyota Camry Hybrid SL",
-            model_year: 2024,
-            weekly_price: 400,
-            bond: 500,
-            status: "Available",
-            image: "https://images.unsplash.com/photo-1657872737697-737a2d123ef2?q=80&w=1600&auto=format&fit=crop"
-        },
-        {
-            name: "Toyota Camry Hybrid Ascent Sport",
-            model_year: 2023,
-            weekly_price: 380,
-            bond: 500,
-            status: "Available",
-            image: "https://images.unsplash.com/photo-1624578571415-09e9b1991929?q=80&w=1600&auto=format&fit=crop"
+    for (let offset = 0; offset < rows.length; offset += 100) {
+        const chunk = rows.slice(offset, offset + 100);
+        if (chunk.length === 0) {
+            continue;
         }
-    ];
 
-    const { data: cars, error: carsError } = await supabase
-        .from('cars')
-        .insert(mockCars)
-        .select();
+        const { data, error } = await supabase.from(table).insert(chunk).select(select);
 
-    if (carsError) {
-        if (carsError.code === 'PGRST205') {
-            console.error("ERROR: The 'cars' table does not exist yet. Please run the SQL schema in the Supabase Dashboard first!");
-            process.exit(1);
+        if (error) {
+            throw error;
         }
-        console.error("Error seeding cars:", carsError);
-        process.exit(1);
+
+        inserted.push(...(data || []));
     }
 
-    console.log(`Successfully seeded ${cars.length} cars!`);
-    process.exit(0);
+    return inserted;
+};
+
+async function seedData() {
+    console.log("Seeding live fleet data...");
+
+    try {
+        const { supabaseUrl: adminSupabaseUrl, supabaseServiceRoleKey } = createSupabaseAdminClient();
+        const coreMode = await getCoreSchemaMode({
+            supabaseUrl: adminSupabaseUrl,
+            supabaseServiceRoleKey,
+        });
+        const importDate = new Date().toISOString().slice(0, 10);
+        const importTimestamp = new Date().toISOString();
+
+        const cars = await insertInChunks(
+            'cars',
+            buildFleetCarSeedRows().map((car) => mapCarPayloadForSchema(car, coreMode)),
+            'id, name'
+        );
+
+        const carIdByRegistration = new Map(
+            cars.map((car) => {
+                const match = /\(([A-Z0-9]+)\)\s*$/.exec(car.name);
+                return [match ? match[1] : car.name, car.id];
+            })
+        );
+
+        const { applications, rentals } = buildFleetDriverSeedRows({
+            carIdByRegistration,
+            importDate,
+            importTimestamp,
+        });
+
+        const insertedApplications = await insertInChunks(
+            'applications',
+            applications.map((application) => mapApplicationPayloadForSchema(application, coreMode)),
+            'id, email'
+        );
+
+        const applicationIdByEmail = new Map(
+            insertedApplications.map((application) => [application.email, application.id])
+        );
+
+        await insertInChunks(
+            'rentals',
+            rentals.map((rental) => {
+                const carId = carIdByRegistration.get(rental.registration);
+                const applicationId = applicationIdByEmail.get(
+                    `legacy-${rental.registration.toLowerCase()}@example.invalid`
+                );
+
+                if (!carId || !applicationId) {
+                    throw new Error(`Missing seed ids for registration ${rental.registration}`);
+                }
+
+                return mapRentalPayloadForSchema(
+                    {
+                        car_id: carId,
+                        application_id: applicationId,
+                        start_date: rental.start_date,
+                        weekly_price: rental.weekly_price,
+                        bond_paid: rental.bond_paid,
+                        status: rental.status,
+                    },
+                    coreMode
+                );
+            }),
+            'id'
+        );
+
+        console.log(`Successfully seeded ${cars.length} cars and ${rentals.length} active rentals.`);
+        process.exit(0);
+    } catch (error) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'PGRST205') {
+            console.error("ERROR: The required tables do not exist yet. Please run the SQL schema in the Supabase Dashboard first!");
+            process.exit(1);
+        }
+
+        console.error("Error seeding fleet data:", error);
+        process.exit(1);
+    }
 }
 
 seedData();

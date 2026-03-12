@@ -55,8 +55,8 @@ export default function Cars() {
               Our <span className="text-brand-gold italic">Fleet</span>
             </h1>
             <p className="text-brand-grey text-lg max-w-xl font-light leading-relaxed">
-              Premium Toyota Camry Hybrids maintained to the highest standards. 
-              Efficiency, comfort, and reliability for every driver.
+              Rideshare-ready vehicles maintained to the highest standards.
+              Transparent weekly pricing, comfort, and reliability for every driver.
             </p>
           </motion.div>
 

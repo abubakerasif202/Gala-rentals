@@ -194,7 +194,7 @@ If transactional email is enabled, also provide:
 - Admin access is restricted to the single email in `ADMIN_EMAIL`.
 - Driver licence uploads are stored in the private `applications` storage bucket and accessed via short-lived signed URLs.
 - In production, the server fails fast if `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing.
-- `SUPABASE_DB_URL` is required in production so Stripe payment activation can commit rental, car, and application updates inside one database transaction.
+- `SUPABASE_DB_URL` enables transactional Stripe payment activation in production. If it is missing, the server stays online and falls back to best-effort activation writes.
 - `scripts/pg-seed.js` is destructive and requires `ALLOW_SCHEMA_RESET=true`.
 
 ## Verification checklist

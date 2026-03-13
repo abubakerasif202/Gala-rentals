@@ -161,6 +161,7 @@ Then verify:
 
 ## Notes
 
-- The backend now fails fast in production if `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, or `SUPABASE_DB_URL` is missing.
+- The backend fails fast in production if `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing.
+- If `SUPABASE_DB_URL` is missing, the app still boots and reports `paymentActivationMode: "best_effort"` from `/api/health` until a direct Postgres connection is configured.
 - Static assets are served directly from `dist/`.
 - SPA fallback applies only to non-API routes, so missing API endpoints do not return the frontend shell.

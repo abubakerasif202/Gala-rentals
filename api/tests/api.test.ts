@@ -8,6 +8,7 @@ const {
   mockStorageFrom,
   mockCheckDBHealth,
   mockCreateAuthClient,
+  mockHasDirectDatabaseConnection,
   mockMutationErrors,
   mockResendEmailsSend,
   mockStripe,
@@ -26,6 +27,7 @@ const {
   mockStorageFrom: vi.fn(),
   mockCheckDBHealth: vi.fn(),
   mockCreateAuthClient: vi.fn(),
+  mockHasDirectDatabaseConnection: vi.fn(() => false),
   mockMutationErrors: {
     applicationsUpdate: null as Record<string, any> | null,
   },
@@ -521,6 +523,14 @@ vi.mock('../db/index.js', () => {
   };
 });
 
+vi.mock('../db/postgres.js', () => ({
+  getDirectDatabaseConnectionString: vi.fn(() => ''),
+  hasDirectDatabaseConnection: mockHasDirectDatabaseConnection,
+  withPostgresTransaction: vi.fn(async (callback: (client: { query: ReturnType<typeof vi.fn> }) => Promise<unknown>) =>
+    callback({ query: vi.fn() })
+  ),
+}));
+
 process.env.CHECKOUT_LINK_SECRET = 'test-checkout-secret';
 
 import app from '../index.js';
@@ -708,6 +718,7 @@ beforeEach(() => {
     },
   });
   mockCheckDBHealth.mockResolvedValue({ configured: true });
+  mockHasDirectDatabaseConnection.mockReturnValue(false);
   mockStorageFrom.mockImplementation((bucket: string) => ({
     upload: vi.fn(async (path: string) => ({ data: { path }, error: null })),
     createSignedUrl: vi.fn(async (path: string) => ({
@@ -950,6 +961,7 @@ describe('Applications API', () => {
     expect(res.body).toMatchObject({
       status: 'ok',
       database: 'ok',
+      paymentActivationMode: 'best_effort',
     });
   });
 
@@ -962,6 +974,7 @@ describe('Applications API', () => {
     expect(res.body).toMatchObject({
       status: 'error',
       database: 'unavailable',
+      paymentActivationMode: 'best_effort',
     });
   });
 

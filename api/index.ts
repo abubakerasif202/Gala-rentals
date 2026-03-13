@@ -63,16 +63,23 @@ const validateProductionEnv = () => {
     'SUPABASE_SERVICE_ROLE_KEY',
   ].filter((key) => !process.env[key]);
 
-  if (!hasDirectDatabaseConnection()) {
-    missing.push('SUPABASE_DB_URL or DATABASE_URL');
-  }
-
   if (missing.length > 0) {
     throw new Error(
       `Missing required production environment variables: ${missing.join(', ')}. ` +
         'Populate them in Render before deploy. See README and render.yaml.'
     );
   }
+};
+
+const logProductionConfigurationWarnings = () => {
+  if (!isProduction || hasDirectDatabaseConnection()) {
+    return;
+  }
+
+  console.warn(
+    'SUPABASE_DB_URL or DATABASE_URL is not configured. Stripe payment activation ' +
+      'will use the non-transactional fallback until a direct Postgres connection is added.'
+  );
 };
 
 // CORS Configuration
@@ -184,6 +191,7 @@ app.get('/api/health', async (_req, res) => {
       status: 'ok',
       environment: process.env.NODE_ENV || 'development',
       database: configured ? 'ok' : 'not_configured',
+      paymentActivationMode: hasDirectDatabaseConnection() ? 'transactional' : 'best_effort',
     });
   } catch (error) {
     console.error('Healthcheck error:', error);
@@ -191,6 +199,7 @@ app.get('/api/health', async (_req, res) => {
       status: 'error',
       environment: process.env.NODE_ENV || 'development',
       database: 'unavailable',
+      paymentActivationMode: hasDirectDatabaseConnection() ? 'transactional' : 'best_effort',
     });
   }
 });
@@ -227,6 +236,7 @@ app.get('/api/rental-plans', (_req, res) => res.redirect(307, '/api/stripe/renta
 // Server Startup
 const startServer = async () => {
   validateProductionEnv();
+  logProductionConfigurationWarnings();
   await ensureDB();
 
   if (!isProduction) {

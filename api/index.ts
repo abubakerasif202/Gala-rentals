@@ -101,6 +101,11 @@ const corsOrigins = [
 ].filter((origin): origin is string => Boolean(origin));
 
 if (isProduction) {
+  // Render terminates TLS before forwarding requests to the app.
+  app.set('trust proxy', 1);
+}
+
+if (isProduction) {
   app.use(
     helmet({
       // Allow assets from Supabase Storage and other external origins used by the app.

@@ -1629,6 +1629,14 @@ describe('Stripe API', () => {
       status: 'Approved',
     });
 
+    expect(mockState.lease_agreements).toHaveLength(1);
+    expect(mockState.lease_agreements[0]).toMatchObject({
+      application_id: 1,
+      car_id: 1,
+      status: 'generated',
+    });
+    expect(res.body.lease_agreement_saved).toBe(true);
+
     const verified = verifyCheckoutToken({
       applicationId: 1,
       carId: 1,

@@ -41,6 +41,7 @@ export const sendDriverPaymentLinkEmail = async ({
   carName,
   checkoutUrl,
   setupFees,
+  agreement,
 }: {
   applicantEmail: string;
   applicantName: string;
@@ -49,6 +50,7 @@ export const sendDriverPaymentLinkEmail = async ({
   carName: string;
   checkoutUrl: string;
   setupFees: number;
+  agreement?: string;
 }) => {
   if (!process.env.RESEND_API_KEY) {
     return {
@@ -63,6 +65,7 @@ export const sendDriverPaymentLinkEmail = async ({
   const safeApplicantName = escapeHtml(applicantName);
   const safeCarName = escapeHtml(carName);
   const safeCheckoutUrl = escapeHtml(checkoutUrl);
+  const safeAgreement = agreement ? escapeHtml(agreement) : null;
 
   await resend.emails.send({
     from: 'Maple Rentals <noreply@maplerentals.com.au>',
@@ -87,6 +90,13 @@ export const sendDriverPaymentLinkEmail = async ({
           </a>
         </p>
         <p>This link is time-limited for security. If it expires, reply to this email and we will issue a fresh one.</p>
+        ${
+          safeAgreement
+            ? `
+        <h3 style="color: #0f172a;">Lease Agreement</h3>
+        <pre style="white-space: pre-wrap;padding:10px;background:#f9fafb;border:1px solid #d1d5db;border-radius:6px;">${safeAgreement}</pre>`
+            : ''
+        }
         <p>Best regards,<br /><strong>The Maple Rentals Team</strong></p>
       </div>
     `,

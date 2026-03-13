@@ -22,6 +22,7 @@ import {
 } from '../schemaCompat.js';
 import { RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
 import { buildDriverPaymentLink, sendDriverPaymentLinkEmail } from '../paymentLinks.js';
+import { renderCarLeaseAgreement } from '../templates/carLeaseAgreement.js';
 import {
   assertVehicleAllocationAvailable,
   VehicleAllocationConflictError,
@@ -99,6 +100,33 @@ type ApplicationPaymentApprovalRecord = {
   payment_link_version?: number | null;
   pending_checkout_session_id?: string | null;
   status: string;
+};
+
+const buildLeaseAgreementInput = (
+  application: Record<string, any>,
+  car: Record<string, any>,
+  approvedWeeklyPrice: number,
+  nowIso: string
+) => {
+  const carName = String(car.name || 'Vehicle');
+  const carTokens = carName.split(' ').filter(Boolean);
+  const vehicleMake = carTokens[0] || 'Vehicle';
+  const weeklyRentText = `$${Number(approvedWeeklyPrice || 0).toFixed(2)} per week`;
+  return {
+    agreementDate: nowIso.split('T')[0],
+    renteeName: application.name,
+    renteeEmail: application.email,
+    renteeContact: application.phone,
+    renteeAddress: application.address,
+    renteeLicenseNumber: application.license_number,
+    renteeLicenseState: application.license_state || 'NSW',
+    vehicleMake,
+    vehicleModel: carName,
+    vehicleYear: car.model_year ? String(car.model_year) : '',
+    weeklyRent: weeklyRentText,
+    rentalStartDate: nowIso.split('T')[0],
+    rentalEndDate: 'Open-ended',
+  };
 };
 
 const isRecoverableVehicleCheckoutSession = (
@@ -496,6 +524,7 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
     }
 
     const applicationRecord = application as unknown as ApplicationPaymentApprovalRecord;
+    const applicationDetails = application as Record<string, any>;
 
     if (applicationRecord.status === 'Paid') {
       return res.status(409).json({ error: 'This application has already been paid.' });
@@ -584,6 +613,35 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       token: checkoutToken.token,
     });
 
+    const agreementContent = renderCarLeaseAgreement(
+      buildLeaseAgreementInput(
+        applicationDetails,
+        car as Record<string, any>,
+        payload.approved_weekly_price,
+        nowIso
+      )
+    );
+
+    let leaseAgreementSaved = false;
+    try {
+      const { error: leaseError } = await db.from('lease_agreements').insert([
+        {
+          application_id: payload.application_id,
+          car_id: payload.assigned_car_id,
+          content: agreementContent,
+          status: 'generated',
+        },
+      ]);
+
+      if (leaseError) {
+        throw leaseError;
+      }
+
+      leaseAgreementSaved = true;
+    } catch (agreementError) {
+      console.error('Lease agreement save error:', agreementError);
+    }
+
     let emailDelivery = {
       delivered: false,
       reason: null as string | null,
@@ -598,6 +656,7 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
         carName: car.name,
         checkoutUrl,
         setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
+        agreement: agreementContent,
       });
     }
 
@@ -608,6 +667,7 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       checkout_url: checkoutUrl,
       email_delivered: emailDelivery.delivered,
       email_reason: emailDelivery.reason,
+      lease_agreement_saved: leaseAgreementSaved,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

@@ -85,11 +85,21 @@ const isStripeConfigurationError = (
 const toFloat = (value: number | string | null | undefined) =>
   Number(Number(value || 0).toFixed(2));
 const toCents = (value: number) => Math.round(value * 100);
+const fromCents = (value: number) => Number((value / 100).toFixed(2));
 const toOptionalPositiveInt = (value: string | undefined) => {
   const parsed = Number(value || 0);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+// TODO (Scalability): This in-memory Map only serializes checkout-session creation
+// inside a single Node.js process. It is not safe once this API runs on multiple
+// instances, across serverless cold starts, or during rolling deployments, because
+// concurrent requests hitting different instances can bypass the lock and create
+// duplicate Stripe checkout sessions for the same application.
+// Before scaling beyond a single instance, replace this with a database-backed lock,
+// preferably a Postgres advisory lock or a Supabase RPC that performs
+// `SELECT ... FOR UPDATE` around the application row used for checkout-session
+// creation and pending-session reuse.
 const checkoutSessionLocks = new Map<string, Promise<void>>();
 
 const withCheckoutSessionLock = async <T>(lockKey: string, task: () => Promise<T>) => {
@@ -115,19 +125,24 @@ const withCheckoutSessionLock = async <T>(lockKey: string, task: () => Promise<T
 };
 
 const buildApprovedBillingBreakdown = (application: StripeApplication): BillingBreakdown => {
-  const approvedBond = toFloat(application.approved_bond);
-  const approvedWeeklyPrice = toFloat(application.approved_weekly_price);
+  const approvedBondCents = Math.round(Number(application.approved_bond || 0) * 100);
+  const approvedWeeklyPriceCents = Math.round(
+    Number(application.approved_weekly_price || 0) * 100
+  );
+  const setupFeesCents = Math.round(RENTAL_PLAN_SETUP_FEES_AUD * 100);
+  const upfrontDueCents =
+    approvedBondCents + approvedWeeklyPriceCents + setupFeesCents;
 
   return {
-    bond: approvedBond,
+    bond: fromCents(approvedBondCents),
     currency: LEASE_SETTINGS.currency.toUpperCase(),
-    initialRental: approvedWeeklyPrice,
-    recurringAmount: approvedWeeklyPrice,
+    initialRental: fromCents(approvedWeeklyPriceCents),
+    recurringAmount: fromCents(approvedWeeklyPriceCents),
     recurringInterval: LEASE_SETTINGS.recurring_interval,
     recurringIntervalCount: 1,
     recurringLabel: 'per week',
-    setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
-    upfrontDue: toFloat(approvedBond + approvedWeeklyPrice + RENTAL_PLAN_SETUP_FEES_AUD),
+    setupFees: fromCents(setupFeesCents),
+    upfrontDue: fromCents(upfrontDueCents),
   };
 };
 

@@ -126,7 +126,7 @@ export const authenticateAdmin = async (req: express.Request, res: express.Respo
 
     const localAdminSession = verifyLocalAdminSessionToken(token);
     if (localAdminSession?.email.toLowerCase() === effectiveAdminEmail) {
-      (req as any).admin = { email: localAdminSession.email };
+      req.admin = { email: localAdminSession.email };
       next();
       return;
     }
@@ -142,7 +142,7 @@ export const authenticateAdmin = async (req: express.Request, res: express.Respo
       return res.status(403).json({ error: 'Access denied: Unauthorized email' });
     }
 
-    (req as any).admin = data.user;
+    req.admin = data.user;
     next();
   } catch (err) {
     console.error('Authentication error:', err);
@@ -206,7 +206,13 @@ router.post('/logout', async (_req, res) => {
 });
 
 router.get('/verify', authenticateAdmin, (req, res) => {
-  res.json({ user: { username: (req as any).admin.email } });
+  const adminEmail = req.admin?.email;
+
+  if (!adminEmail) {
+    return res.status(500).json({ error: 'Admin session is missing an email address' });
+  }
+
+  return res.json({ user: { username: adminEmail } });
 });
 
 export default router;

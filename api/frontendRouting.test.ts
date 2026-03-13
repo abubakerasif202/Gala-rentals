@@ -27,6 +27,14 @@ describe('shouldServeSpaEntry', () => {
     ).toBe(true);
   });
 
+  it('allows root path regardless of accept header', () => {
+    expect(
+      shouldServeSpaEntry(
+        createRequest({ accept: 'application/json', path: '/' })
+      )
+    ).toBe(true);
+  });
+
   it('rejects scanner-style secret and debug probes', () => {
     expect(shouldServeSpaEntry(createRequest({ path: '/.env' }))).toBe(false);
     expect(

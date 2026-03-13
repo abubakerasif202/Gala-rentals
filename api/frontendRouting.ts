@@ -30,6 +30,10 @@ export const shouldServeSpaEntry = (req: Request) => {
     return false;
   }
 
+  if (req.path === '/') {
+    return true;
+  }
+
   if (!acceptsHtmlNavigation(req)) {
     return false;
   }

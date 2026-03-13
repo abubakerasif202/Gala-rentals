@@ -83,6 +83,16 @@ const createSignedDocumentUrl = async (path: string | null | undefined) => {
     .createSignedUrl(storagePath, DOCUMENT_URL_TTL_SECONDS);
 
   if (error) {
+    if (
+      String((error as { statusCode?: string }).statusCode || '') === '404' ||
+      String((error as { status?: number }).status || '') === '404'
+    ) {
+      console.warn(
+        `Application document not found in storage bucket for ${storagePath}; returning null signed URL.`
+      );
+      return null;
+    }
+
     console.error(`Failed to sign application document ${storagePath}:`, error);
     return null;
   }

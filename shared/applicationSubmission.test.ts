@@ -6,11 +6,17 @@ import {
   isTodayOrFutureAustraliaDate,
   isValidDateOnly,
   normalizeApplicationEmail,
+  normalizeAustralianMobile,
 } from './applicationSubmission.js';
 
 describe('applicationSubmission helpers', () => {
   it('normalizes applicant emails before validation', () => {
     expect(normalizeApplicationEmail(' Driver@Example.com ')).toBe('driver@example.com');
+  });
+
+  it('normalizes Australian mobile numbers to a stable local format', () => {
+    expect(normalizeAustralianMobile('0400 000 111')).toBe('0400000111');
+    expect(normalizeAustralianMobile('+61 400 000 111')).toBe('0400000111');
   });
 
   it('validates date-only strings strictly', () => {

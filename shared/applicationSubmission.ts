@@ -5,6 +5,15 @@ export const MAX_APPLICATION_UPLOAD_BYTES = 7 * 1024 * 1024;
 export const APPLICATION_IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/jpg', 'image/png'] as const;
 
 export const normalizeApplicationEmail = (value: string) => value.trim().toLowerCase();
+export const normalizeAustralianMobile = (value: string) => {
+  const compact = value.replace(/[\s()-]+/g, '').trim();
+
+  if (compact.startsWith('+61')) {
+    return `0${compact.slice(3)}`;
+  }
+
+  return compact;
+};
 
 export const isValidDateOnly = (value: string) => {
   if (!DATE_ONLY_REGEX.test(value)) {

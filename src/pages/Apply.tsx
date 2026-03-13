@@ -24,6 +24,7 @@ import {
   isTodayOrFutureAustraliaDate,
   isValidDateOnly,
   normalizeApplicationEmail,
+  normalizeAustralianMobile,
 } from '../../shared/applicationSubmission';
 
 const ALLOWED_UPLOAD_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
@@ -35,8 +36,8 @@ const applySchema = z.object({
   name: z.string().trim().min(2, 'Full name is required'),
   phone: z
     .string()
-    .trim()
-    .regex(AUSTRALIAN_MOBILE_REGEX, 'Valid Australian mobile number required'),
+    .transform(normalizeAustralianMobile)
+    .pipe(z.string().regex(AUSTRALIAN_MOBILE_REGEX, 'Valid Australian mobile number required')),
   email: z
     .string()
     .transform(normalizeApplicationEmail)

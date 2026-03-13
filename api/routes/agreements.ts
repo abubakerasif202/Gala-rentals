@@ -4,6 +4,7 @@ import { authenticateAdmin } from './auth.js';
 import { renderCarLeaseAgreement } from '../templates/carLeaseAgreement.js';
 import { leaseAgreementSchema, createLeaseAgreementSchema } from '../validation.js';
 import { z } from 'zod';
+import { getApplicationSelectColumns, getCarSelectColumns } from '../schemaCompat.js';
 
 const router = express.Router();
 
@@ -29,6 +30,41 @@ router.post('/car-lease/render', authenticateAdmin, async (req, res) => {
 router.post('/', authenticateAdmin, async (req, res) => {
   try {
     const data = createLeaseAgreementSchema.parse(req.body);
+    const [applicationSelectColumns, carSelectColumns] = await Promise.all([
+      getApplicationSelectColumns(),
+      getCarSelectColumns(),
+    ]);
+    const [{ data: application, error: applicationError }, { data: car, error: carError }] =
+      await Promise.all([
+        db.from('applications').select(applicationSelectColumns).eq('id', data.application_id).single(),
+        db.from('cars').select(carSelectColumns).eq('id', data.car_id).single(),
+      ]);
+
+    if (applicationError || !application) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    if (carError || !car) {
+      return res.status(404).json({ error: 'Car not found' });
+    }
+
+    const applicationRecord = application as unknown as Record<string, unknown>;
+
+    if (String(applicationRecord.status) !== 'Paid') {
+      return res.status(409).json({
+        error: 'Lease agreements can only be created after driver payment is completed.',
+      });
+    }
+
+    if (
+      !applicationRecord.assigned_car_id ||
+      Number(applicationRecord.assigned_car_id) !== Number(data.car_id)
+    ) {
+      return res.status(409).json({
+        error: 'Lease agreement must use the vehicle assigned to the paid application.',
+      });
+    }
+
     const { data: inserted, error } = await db.from('lease_agreements').insert([data]).select('id').single();
 
     if (error) throw error;

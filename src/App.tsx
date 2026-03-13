@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Home from './pages/Home';
@@ -22,29 +22,44 @@ const queryClient = new QueryClient({
   },
 });
 
+function AppShell() {
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
+  return (
+    <div className="flex min-h-screen flex-col bg-brand-navy">
+      {!isAdminRoute && <Navbar />}
+      <main className="flex-grow">
+        <Suspense
+          fallback={
+            <div className="min-h-screen flex items-center justify-center bg-brand-navy text-white font-serif italic uppercase tracking-widest text-sm">
+              Loading Experience...
+            </div>
+          }
+        >
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/cars" element={<Cars />} />
+            <Route path="/cars/:id" element={<CarDetails />} />
+            <Route path="/checkout/:id" element={<Checkout />} />
+            <Route path="/apply" element={<Apply />} />
+            <Route path="/success" element={<Success />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          </Routes>
+        </Suspense>
+      </main>
+      {!isAdminRoute && <Footer />}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
-        <div className="flex flex-col min-h-screen bg-brand-navy">
-          <Navbar />
-          <main className="flex-grow">
-            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-brand-navy text-white font-serif italic uppercase tracking-widest text-sm">Loading Experience...</div>}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/pricing" element={<Pricing />} />
-                <Route path="/cars" element={<Cars />} />
-                <Route path="/cars/:id" element={<CarDetails />} />
-                <Route path="/checkout/:id" element={<Checkout />} />
-                <Route path="/apply" element={<Apply />} />
-                <Route path="/success" element={<Success />} />
-                <Route path="/admin/login" element={<AdminLogin />} />
-                <Route path="/admin/dashboard" element={<AdminDashboard />} />
-              </Routes>
-            </Suspense>
-          </main>
-          <Footer />
-        </div>
+        <AppShell />
       </Router>
     </QueryClientProvider>
   );

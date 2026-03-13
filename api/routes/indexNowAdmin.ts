@@ -1,6 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { submitIndexNowUrls } from '../services/indexNow.js';
+import { authenticateAdmin } from './auth.js';
 
 const router = express.Router();
 
@@ -9,10 +10,7 @@ const payloadSchema = z.object({
   urls: z.array(z.string().url()).optional(),
 });
 
-router.post('/test-indexnow', async (req, res) => {
-  // TODO: Replace with your real admin auth middleware/check.
-  // Example: if (!req.user?.isAdmin) return res.status(403).json({ error: 'Forbidden' });
-
+router.post('/test-indexnow', authenticateAdmin, async (req, res) => {
   try {
     const payload = payloadSchema.parse(req.body);
     const urls = [payload.url, ...(payload.urls || [])].filter((url): url is string => Boolean(url));

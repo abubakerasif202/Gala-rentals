@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus,
   Search,
-  MoreVertical, 
   CheckCircle2, 
   XCircle, 
   Clock,
@@ -23,7 +22,8 @@ import {
   Mail,
   Phone,
   MapPin,
-  BadgeCheck
+  BadgeCheck,
+  Menu
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
@@ -41,6 +41,27 @@ import Sidebar from '../components/admin/Sidebar';
 import { getTodayInAustralia } from '../../shared/applicationSubmission';
 
 const OPERATIONAL_PAGE_SIZE = 25;
+const adminTabLabels: Record<string, string> = {
+  agreements: 'Agreements',
+  applications: 'Applications',
+  cars: 'Fleet',
+  customers: 'Customers',
+  dashboard: 'Overview',
+  financials: 'Financials',
+  invoices: 'Invoices',
+  rentals: 'Rentals',
+};
+
+const matchesSearch = (searchTerm: string, fields: Array<string | number | null | undefined>) => {
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  if (!normalizedSearch) {
+    return true;
+  }
+
+  return fields.some((field) => String(field ?? '').toLowerCase().includes(normalizedSearch));
+};
+
 const copyTextToClipboard = async (value: string) => {
   if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
     return false;
@@ -67,6 +88,7 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const notificationTimeoutRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAddingCar, setIsAddingCar] = useState(false);
   const [editingCar, setEditingCar] = useState<CarType | null>(null);
   const [newCar, setNewCar] = useState<Partial<CarType>>({
@@ -101,10 +123,15 @@ export default function AdminDashboard() {
   });
   const [customerSearch, setCustomerSearch] = useState('');
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [applicationSearch, setApplicationSearch] = useState('');
+  const [rentalSearch, setRentalSearch] = useState('');
   const [customerPage, setCustomerPage] = useState(1);
   const [invoicePage, setInvoicePage] = useState(1);
+  const [agreementModalMode, setAgreementModalMode] = useState<'draft' | 'saved'>('draft');
   const deferredCustomerSearch = useDeferredValue(customerSearch.trim());
   const deferredInvoiceSearch = useDeferredValue(invoiceSearch.trim());
+  const deferredApplicationSearch = useDeferredValue(applicationSearch.trim());
+  const deferredRentalSearch = useDeferredValue(rentalSearch.trim());
 
   useEffect(() => {
     setCustomerPage(1);
@@ -275,6 +302,7 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agreements'] });
       setIsAgreementModalOpen(false);
+      setAgreementModalMode('draft');
       showNotification('Agreement saved successfully', 'success');
     },
     onError: () => showNotification('Failed to save agreement', 'error'),
@@ -379,6 +407,7 @@ export default function AdminDashboard() {
 
       const res = await api.renderCarLeaseAgreement(payload);
       setAgreementContent(res.agreement);
+      setAgreementModalMode('draft');
       set_selected_agreement_car_id(String(selectedCar.id));
       setIsAgreementModalOpen(true);
     } catch (err) {
@@ -524,6 +553,26 @@ export default function AdminDashboard() {
   const approvedApplications = applications.filter(
     (app) => app.status === 'Approved' || app.status === 'Paid'
   );
+  const filteredApplications = applications.filter((app) =>
+    matchesSearch(deferredApplicationSearch, [
+      app.address,
+      app.email,
+      app.experience,
+      app.name,
+      app.phone,
+      app.status,
+      app.uber_status,
+    ])
+  );
+  const filteredRentals = rentals.filter((rental) =>
+    matchesSearch(deferredRentalSearch, [
+      rental.applicant_name,
+      rental.car_name,
+      rental.start_date,
+      rental.status,
+      rental.weekly_price,
+    ])
+  );
   const selectedAgreementApplication = applications.find(
     (app) => app.id === Number(selected_agreement_application_id)
   );
@@ -597,17 +646,39 @@ export default function AdminDashboard() {
       </div>
     </div>
   );
+  const closeAgreementModal = () => {
+    setIsAgreementModalOpen(false);
+    setAgreementModalMode('draft');
+  };
 
   return (
-    <div className="min-h-screen bg-brand-navy flex">
+    <div className="min-h-screen bg-brand-navy">
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
-        handleLogout={handleLogout} 
+        handleLogout={handleLogout}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
       {/* Main Content */}
-      <div className="flex-1 ml-72 p-12 overflow-y-auto min-h-screen">
+      <div className="min-h-screen overflow-x-hidden px-4 pb-8 pt-0 sm:px-6 lg:ml-72 lg:min-h-screen lg:overflow-y-auto lg:p-12">
+        <div className="sticky top-0 z-30 -mx-4 mb-6 flex items-center justify-between border-b border-white/10 bg-brand-navy/95 px-4 py-4 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:hidden">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold">Admin Panel</p>
+            <h1 className="mt-1 text-lg font-bold uppercase tracking-tight text-white">
+              {adminTabLabels[activeTab] || 'Overview'}
+            </h1>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white transition-all hover:bg-white/10"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
+
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
             <motion.div
@@ -617,16 +688,16 @@ export default function AdminDashboard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-12"
             >
-              <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">Dashboard <span className="text-brand-gold italic">Overview</span></h2>
                   <p className="text-brand-grey font-light">Performance metrics and recent activities.</p>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                   <button
                     type="button"
                     onClick={() => setActiveTab('financials')}
-                    className="flex items-center gap-3 px-6 py-4 bg-white/5 border border-white/10 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
+                    className="flex w-full items-center justify-center gap-3 border border-white/10 bg-white/5 px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 sm:w-auto"
                   >
                     <TrendingUp className="w-4 h-4 text-brand-gold" /> View Detailed Financials
                   </button>
@@ -720,24 +791,26 @@ export default function AdminDashboard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-12"
             >
-              <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">Driver <span className="text-brand-gold italic">Applications</span></h2>
                   <p className="text-brand-grey font-light">Manage and review incoming driver requests.</p>
                 </div>
-                <div className="flex gap-4">
-                  <div className="relative">
+                <div className="flex w-full gap-4 md:w-auto">
+                  <div className="relative w-full md:w-auto">
                     <Search className="w-4 h-4 text-brand-grey absolute left-4 top-1/2 -translate-y-1/2" />
                     <input 
+                      value={applicationSearch}
+                      onChange={(event) => setApplicationSearch(event.target.value)}
                       placeholder="Search drivers..."
-                      className="bg-white/5 border border-white/10 rounded-xl pl-12 pr-6 py-4 text-sm text-white focus:border-brand-gold outline-none transition-all w-64"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 py-4 pl-12 pr-6 text-sm text-white outline-none transition-all focus:border-brand-gold md:w-64"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-                <table className="w-full text-left">
+              <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
+                <table className="w-full min-w-[720px] text-left">
                   <thead>
                     <tr className="bg-white/5 border-b border-white/10">
                       <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">Driver</th>
@@ -748,7 +821,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {applications.map((app) => (
+                    {filteredApplications.map((app) => (
                       <tr key={app.id} className="hover:bg-white/5 transition-all group">
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-4">
@@ -782,7 +855,7 @@ export default function AdminDashboard() {
                           {new Date(app.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-8 py-6 text-right">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-end gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                             <button 
                               className="p-2 bg-white/5 text-brand-grey rounded-lg hover:bg-brand-gold hover:text-brand-navy transition-all"
                               title="Review Application"
@@ -794,6 +867,13 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ))}
+                    {filteredApplications.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-8 py-12 text-center text-brand-grey text-xs font-light italic">
+                          No applications matched the current search.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -808,14 +888,14 @@ export default function AdminDashboard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-12"
             >
-              <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">Fleet <span className="text-brand-gold italic">Management</span></h2>
                   <p className="text-brand-grey font-light">Control and update your vehicle inventory.</p>
                 </div>
                 <button 
                   onClick={() => setIsAddingCar(true)}
-                  className="bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-[10px] hover:bg-brand-gold-light transition-all shadow-lg flex items-center gap-3"
+                  className="flex w-full items-center justify-center gap-3 bg-brand-gold px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light md:w-auto"
                 >
                   <Plus className="w-4 h-4" /> Add New Vehicle
                 </button>
@@ -878,35 +958,36 @@ export default function AdminDashboard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-12"
             >
-              <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">Active <span className="text-brand-gold italic">Rentals</span></h2>
                   <p className="text-brand-grey font-light">Monitor current driver subscriptions and vehicle usage.</p>
                 </div>
-                <div className="flex gap-4">
-                  <div className="relative">
+                <div className="flex w-full gap-4 md:w-auto">
+                  <div className="relative w-full md:w-auto">
                     <Search className="w-4 h-4 text-brand-grey absolute left-4 top-1/2 -translate-y-1/2" />
                     <input 
+                      value={rentalSearch}
+                      onChange={(event) => setRentalSearch(event.target.value)}
                       placeholder="Search rentals..."
-                      className="bg-white/5 border border-white/10 rounded-xl pl-12 pr-6 py-4 text-sm text-white focus:border-brand-gold outline-none transition-all w-64"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 py-4 pl-12 pr-6 text-sm text-white outline-none transition-all focus:border-brand-gold md:w-64"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-                <table className="w-full text-left">
+              <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
+                <table className="w-full min-w-[680px] text-left">
                   <thead>
                     <tr className="bg-white/5 border-b border-white/10">
                       <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">Driver & Vehicle</th>
                       <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">Start Date</th>
                       <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">Rate</th>
                       <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">Status</th>
-                      <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {rentals.map((rental) => (
+                    {filteredRentals.map((rental) => (
                       <tr key={rental.id} className="hover:bg-white/5 transition-all group">
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-4">
@@ -933,13 +1014,15 @@ export default function AdminDashboard() {
                             {rental.status}
                           </span>
                         </td>
-                        <td className="px-8 py-6 text-right">
-                          <button className="p-2 bg-white/5 text-brand-grey rounded-lg hover:bg-brand-gold hover:text-brand-navy transition-all">
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                        </td>
                       </tr>
                     ))}
+                    {filteredRentals.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-8 py-12 text-center text-brand-grey text-xs font-light italic">
+                          No rentals matched the current search.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -954,19 +1037,19 @@ export default function AdminDashboard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-12"
             >
-              <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">Legacy <span className="text-brand-gold italic">Customers</span></h2>
                   <p className="text-brand-grey font-light">Private customer records imported from the operational client roster.</p>
                 </div>
-                <div className="flex gap-4">
-                  <div className="relative">
+                <div className="flex w-full gap-4 md:w-auto">
+                  <div className="relative w-full md:w-auto">
                     <Search className="w-4 h-4 text-brand-grey absolute left-4 top-1/2 -translate-y-1/2" />
                     <input
                       value={customerSearch}
                       onChange={(event) => setCustomerSearch(event.target.value)}
                       placeholder="Search customers..."
-                      className="bg-white/5 border border-white/10 rounded-xl pl-12 pr-6 py-4 text-sm text-white focus:border-brand-gold outline-none transition-all w-72"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 py-4 pl-12 pr-6 text-sm text-white outline-none transition-all focus:border-brand-gold md:w-72"
                     />
                   </div>
                 </div>
@@ -1016,8 +1099,8 @@ export default function AdminDashboard() {
                     ))}
                   </div>
 
-                  <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-                    <table className="w-full text-left">
+                  <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
+                    <table className="w-full min-w-[860px] text-left">
                       <thead>
                         <tr className="bg-white/5 border-b border-white/10">
                           <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">Customer</th>
@@ -1069,18 +1152,18 @@ export default function AdminDashboard() {
                         )}
                       </tbody>
                     </table>
-                    <div className="flex items-center justify-between gap-4 border-t border-white/10 px-8 py-6">
+                    <div className="flex flex-col gap-3 border-t border-white/10 px-8 py-6 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-[11px] text-brand-grey">
                         Page {currentCustomerPage} of {customerTotalPages}
                         {' '}• {customerTotalItems} records
                         {customerDatasetQuery.isFetching ? ' • Updating...' : ''}
                       </p>
-                      <div className="flex gap-3">
+                      <div className="flex w-full gap-3 sm:w-auto">
                         <button
                           type="button"
                           onClick={() => setCustomerPage((page) => Math.max(1, page - 1))}
                           disabled={currentCustomerPage <= 1 || customerDatasetQuery.isFetching}
-                          className="px-4 py-2 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all disabled:opacity-40"
+                          className="flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
                         >
                           Previous
                         </button>
@@ -1088,7 +1171,7 @@ export default function AdminDashboard() {
                           type="button"
                           onClick={() => setCustomerPage((page) => Math.min(customerTotalPages, page + 1))}
                           disabled={currentCustomerPage >= customerTotalPages || customerDatasetQuery.isFetching}
-                          className="px-4 py-2 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all disabled:opacity-40"
+                          className="flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
                         >
                           Next
                         </button>
@@ -1108,19 +1191,19 @@ export default function AdminDashboard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-12"
             >
-              <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">Invoice <span className="text-brand-gold italic">History</span></h2>
                   <p className="text-brand-grey font-light">Imported legacy invoice history for operational review and reconciliation.</p>
                 </div>
-                <div className="flex gap-4">
-                  <div className="relative">
+                <div className="flex w-full gap-4 md:w-auto">
+                  <div className="relative w-full md:w-auto">
                     <Search className="w-4 h-4 text-brand-grey absolute left-4 top-1/2 -translate-y-1/2" />
                     <input
                       value={invoiceSearch}
                       onChange={(event) => setInvoiceSearch(event.target.value)}
                       placeholder="Search invoices..."
-                      className="bg-white/5 border border-white/10 rounded-xl pl-12 pr-6 py-4 text-sm text-white focus:border-brand-gold outline-none transition-all w-72"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 py-4 pl-12 pr-6 text-sm text-white outline-none transition-all focus:border-brand-gold md:w-72"
                     />
                   </div>
                 </div>
@@ -1170,8 +1253,8 @@ export default function AdminDashboard() {
                     ))}
                   </div>
 
-                  <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-                    <table className="w-full text-left">
+                  <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
+                    <table className="w-full min-w-[980px] text-left">
                       <thead>
                         <tr className="bg-white/5 border-b border-white/10">
                           <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">Invoice</th>
@@ -1231,18 +1314,18 @@ export default function AdminDashboard() {
                         )}
                       </tbody>
                     </table>
-                    <div className="flex items-center justify-between gap-4 border-t border-white/10 px-8 py-6">
+                    <div className="flex flex-col gap-3 border-t border-white/10 px-8 py-6 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-[11px] text-brand-grey">
                         Page {invoiceCurrentPage} of {invoiceTotalPages}
                         {' '}• {invoiceTotalItems} records
                         {invoiceDatasetQuery.isFetching ? ' • Updating...' : ''}
                       </p>
-                      <div className="flex gap-3">
+                      <div className="flex w-full gap-3 sm:w-auto">
                         <button
                           type="button"
                           onClick={() => setInvoicePage((page) => Math.max(1, page - 1))}
                           disabled={invoiceCurrentPage <= 1 || invoiceDatasetQuery.isFetching}
-                          className="px-4 py-2 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all disabled:opacity-40"
+                          className="flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
                         >
                           Previous
                         </button>
@@ -1250,7 +1333,7 @@ export default function AdminDashboard() {
                           type="button"
                           onClick={() => setInvoicePage((page) => Math.min(invoiceTotalPages, page + 1))}
                           disabled={invoiceCurrentPage >= invoiceTotalPages || invoiceDatasetQuery.isFetching}
-                          className="px-4 py-2 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all disabled:opacity-40"
+                          className="flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
                         >
                           Next
                         </button>
@@ -1270,7 +1353,7 @@ export default function AdminDashboard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-12"
             >
-              <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">Weekly <span className="text-brand-gold italic">Financials</span></h2>
                   <p className="text-brand-grey font-light">Projected revenue, payout performance, and recent transfers.</p>
@@ -1281,7 +1364,7 @@ export default function AdminDashboard() {
                     void queryClient.invalidateQueries({ queryKey: ['weekly-financials'] });
                     void queryClient.invalidateQueries({ queryKey: ['stats'] });
                   }}
-                  className="flex items-center gap-3 px-6 py-4 bg-white/5 border border-white/10 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
+                  className="flex w-full items-center justify-center gap-3 border border-white/10 bg-white/5 px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 md:w-auto"
                 >
                   <RefreshCw className="w-4 h-4 text-brand-gold" /> Refresh Data
                 </button>
@@ -1333,7 +1416,7 @@ export default function AdminDashboard() {
                 ))}
               </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+              <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
                 <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between">
                   <div>
                     <h3 className="text-white font-bold uppercase tracking-widest text-xs">Recent Stripe Payouts</h3>
@@ -1341,7 +1424,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <table className="w-full text-left">
+                <table className="w-full min-w-[720px] text-left">
                   <thead>
                     <tr className="bg-white/5 border-b border-white/10">
                       <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">Payout ID</th>
@@ -1388,7 +1471,7 @@ export default function AdminDashboard() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-12"
             >
-              <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">Lease <span className="text-brand-gold italic">Agreements</span></h2>
                   <p className="text-brand-grey font-light">Generate and manage legally binding rental contracts.</p>
@@ -1476,8 +1559,8 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-                <table className="w-full text-left">
+              <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
+                <table className="w-full min-w-[760px] text-left">
                   <thead>
                     <tr className="bg-white/5 border-b border-white/10">
                       <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">Agreement ID</th>
@@ -1502,10 +1585,11 @@ export default function AdminDashboard() {
                           {new Date(agreement.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-8 py-6 text-right">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-end gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                             <button 
                               className="p-2 bg-white/5 text-brand-grey rounded-lg hover:bg-brand-gold hover:text-brand-navy transition-all"
                               onClick={() => {
+                                setAgreementModalMode('saved');
                                 setAgreementContent(agreement.content);
                                 setIsAgreementModalOpen(true);
                               }}
@@ -1544,10 +1628,10 @@ export default function AdminDashboard() {
       <AnimatePresence>
         {notification && (
           <motion.div
-            initial={{ opacity: 0, y: 50, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: 50, x: '-50%' }}
-            className={`fixed bottom-12 left-1/2 z-50 px-8 py-5 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[300px] border ${
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            className={`fixed inset-x-4 bottom-4 z-50 flex items-center gap-4 rounded-2xl border px-5 py-4 shadow-2xl sm:px-8 sm:py-5 lg:inset-x-auto lg:left-1/2 lg:min-w-[300px] lg:-translate-x-1/2 ${
               notification.type === 'success' ? 'bg-green-500 border-green-400 text-white' : 'bg-red-500 border-red-400 text-white'
             }`}
           >
@@ -1560,14 +1644,14 @@ export default function AdminDashboard() {
       {/* Application Review Modal */}
       <AnimatePresence>
         {selectedApplication && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl bg-brand-navy/60">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-navy/60 backdrop-blur-xl sm:items-center sm:p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-brand-navy border border-white/10 w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl"
+              className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-brand-navy shadow-2xl sm:rounded-3xl"
             >
-              <div className="p-8 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <div className="flex items-center justify-between border-b border-white/10 bg-white/5 p-4 sm:p-8">
                 <div>
                   <h3 className="text-xl font-bold text-white uppercase tracking-tighter">Review Application</h3>
                   <p className="text-[10px] text-brand-grey uppercase tracking-widest mt-1">Driver profile and submitted documents</p>
@@ -1580,7 +1664,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              <div className="p-8 space-y-8 max-h-[75vh] overflow-y-auto">
+              <div className="max-h-[75vh] space-y-8 overflow-y-auto p-4 sm:p-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
                     <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Applicant Details</h4>
@@ -1594,7 +1678,7 @@ export default function AdminDashboard() {
 
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
                     <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Application Snapshot</h4>
-                    <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-2">
                       <div>
                         <p className="text-brand-grey uppercase tracking-widest mb-2">Status</p>
                         <p className="text-white font-bold">{selectedApplication.status}</p>
@@ -1809,10 +1893,10 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              <div className="p-8 border-t border-white/10 bg-white/5 flex gap-4">
+              <div className="flex flex-col-reverse gap-4 border-t border-white/10 bg-white/5 p-4 sm:flex-row sm:p-8">
                 <button
                   onClick={() => setSelectedApplication(null)}
-                  className="flex-1 py-5 border border-white/10 text-white font-bold uppercase tracking-widest text-xs hover:bg-white/5 transition-all"
+                  className="w-full border border-white/10 py-5 text-xs font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5 sm:flex-1"
                 >
                   Close
                 </button>
@@ -1822,7 +1906,7 @@ export default function AdminDashboard() {
                     onClick={() =>
                       updateStatusMutation.mutate({ id: selectedApplication.id, status: 'Rejected' })
                     }
-                    className="flex-1 py-5 border border-red-500/30 text-red-400 font-bold uppercase tracking-widest text-xs hover:bg-red-500/10 transition-all"
+                    className="w-full border border-red-500/30 py-5 text-xs font-bold uppercase tracking-widest text-red-400 transition-all hover:bg-red-500/10 sm:flex-1"
                   >
                     Reject Application
                   </button>
@@ -1833,7 +1917,7 @@ export default function AdminDashboard() {
                   <button
                     onClick={handleApproveSelectedApplication}
                     disabled={approveApplicationPaymentMutation.isPending}
-                    className="flex-[2] bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-3 bg-brand-gold py-5 text-xs font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light disabled:opacity-50 sm:flex-[2]"
                   >
                     {approveApplicationPaymentMutation.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -1857,7 +1941,7 @@ export default function AdminDashboard() {
                       setSelectedApplication(null);
                       setActiveTab('agreements');
                     }}
-                    className="flex-[2] bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3"
+                    className="flex w-full items-center justify-center gap-3 bg-brand-gold py-5 text-xs font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light sm:flex-[2]"
                   >
                     <FileText className="w-4 h-4" /> Continue to Agreement
                   </button>
@@ -1866,7 +1950,7 @@ export default function AdminDashboard() {
                   <button
                     onClick={handleRetrySelectedApplicationActivation}
                     disabled={retryPaymentReviewActivationMutation.isPending}
-                    className="flex-[2] bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-3 bg-brand-gold py-5 text-xs font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light disabled:opacity-50 sm:flex-[2]"
                   >
                     {retryPaymentReviewActivationMutation.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -1885,14 +1969,14 @@ export default function AdminDashboard() {
       {/* Car Modal */}
       <AnimatePresence>
         {(isAddingCar || editingCar) && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl bg-brand-navy/60">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-navy/60 backdrop-blur-xl sm:items-center sm:p-6">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-brand-navy border border-white/10 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl"
+              className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-brand-navy shadow-2xl sm:rounded-3xl"
             >
-              <div className="p-8 border-b border-white/10 flex justify-between items-center">
+              <div className="flex items-center justify-between border-b border-white/10 p-4 sm:p-8">
                 <h3 className="text-xl font-bold text-white uppercase tracking-tighter">
                   {editingCar ? 'Edit Vehicle' : 'Add New Vehicle'}
                 </h3>
@@ -1903,8 +1987,8 @@ export default function AdminDashboard() {
                   <XCircle className="w-6 h-6" />
                 </button>
               </div>
-              <div className="p-12 space-y-8">
-                <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-8 overflow-y-auto p-6 sm:p-12">
+                <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Model Name</label>
                     <input 
@@ -1972,52 +2056,54 @@ export default function AdminDashboard() {
       {/* Agreement Modal */}
       <AnimatePresence>
         {isAgreementModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl bg-brand-navy/60">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-navy/60 backdrop-blur-xl sm:items-center sm:p-6">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-brand-navy border border-white/10 w-full max-w-4xl h-[80vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+              className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-brand-navy shadow-2xl sm:rounded-3xl"
             >
-              <div className="p-8 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <div className="flex items-center justify-between border-b border-white/10 bg-white/5 p-4 sm:p-8">
                 <div>
                   <h3 className="text-xl font-bold text-white uppercase tracking-tighter">Review Lease Agreement</h3>
                   <p className="text-[10px] text-brand-grey uppercase tracking-widest mt-1">Legally binding Markdown contract</p>
                 </div>
-                <button onClick={() => setIsAgreementModalOpen(false)} className="text-brand-grey hover:text-white p-2 bg-white/5 rounded-full"><XCircle /></button>
+                <button onClick={closeAgreementModal} className="rounded-full bg-white/5 p-2 text-brand-grey hover:text-white"><XCircle /></button>
               </div>
-              <div className="flex-1 overflow-y-auto p-12 bg-white/[0.02]">
+              <div className="flex-1 overflow-y-auto bg-white/[0.02] p-4 sm:p-12">
                 <div className="prose prose-invert prose-brand max-w-none">
-                  <pre className="whitespace-pre-wrap font-sans text-sm text-brand-grey bg-brand-navy/50 p-8 border border-white/10 rounded-2xl">
+                  <pre className="whitespace-pre-wrap rounded-2xl border border-white/10 bg-brand-navy/50 p-4 font-sans text-xs text-brand-grey sm:p-8 sm:text-sm">
                     {agreementContent}
                   </pre>
                 </div>
               </div>
-              <div className="p-8 border-t border-white/10 bg-white/5 flex gap-4">
+              <div className="flex flex-col-reverse gap-4 border-t border-white/10 bg-white/5 p-4 sm:flex-row sm:p-8">
                 <button 
-                  onClick={() => setIsAgreementModalOpen(false)}
-                  className="flex-1 py-5 border border-white/10 text-white font-bold uppercase tracking-widest text-xs hover:bg-white/5 transition-all"
+                  onClick={closeAgreementModal}
+                  className="w-full border border-white/10 py-5 text-xs font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5 sm:flex-1"
                 >
-                  Discard
+                  {agreementModalMode === 'saved' ? 'Close' : 'Discard'}
                 </button>
-                <button 
-                  onClick={() => {
-                    const application_id = Number(selected_agreement_application_id);
-                    const car_id = Number(selected_agreement_car_id);
-                    if (application_id && car_id) {
-                      saveAgreementMutation.mutate({
-                        application_id,
-                        car_id,
-                        content: agreementContent
-                      });
-                    }
-                  }}
-                  disabled={saveAgreementMutation.isPending}
-                  className="flex-[2] bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
-                >
-                  {saveAgreementMutation.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                  Finalize & Save Agreement
-                </button>
+                {agreementModalMode === 'draft' && (
+                  <button 
+                    onClick={() => {
+                      const application_id = Number(selected_agreement_application_id);
+                      const car_id = Number(selected_agreement_car_id);
+                      if (application_id && car_id) {
+                        saveAgreementMutation.mutate({
+                          application_id,
+                          car_id,
+                          content: agreementContent
+                        });
+                      }
+                    }}
+                    disabled={saveAgreementMutation.isPending}
+                    className="flex w-full items-center justify-center gap-3 bg-brand-gold py-5 text-xs font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light disabled:opacity-50 sm:flex-[2]"
+                  >
+                    {saveAgreementMutation.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                    Finalize & Save Agreement
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>

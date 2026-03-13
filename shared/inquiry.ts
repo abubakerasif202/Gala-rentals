@@ -5,9 +5,8 @@ import {
   isTodayOrFutureAustraliaDate,
   isValidDateOnly,
   normalizeApplicationEmail,
+  normalizeAustralianMobile,
 } from './applicationSubmission.js';
-
-const normalizePhone = (value: string) => value.replace(/[\s-]+/g, '').trim();
 
 const dateField = (label: string) =>
   z
@@ -26,8 +25,7 @@ export const inquirySchema = z
     email: z.string().transform(normalizeApplicationEmail).pipe(z.string().email('Invalid email address')),
     phone: z
       .string()
-      .trim()
-      .transform(normalizePhone)
+      .transform(normalizeAustralianMobile)
       .pipe(z.string().regex(AUSTRALIAN_MOBILE_REGEX, 'Valid Australian mobile number required')),
     startDate: dateField('Start date'),
     endDate: dateField('End date'),

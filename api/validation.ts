@@ -7,6 +7,7 @@ import {
   isTodayOrFutureAustraliaDate,
   isValidDateOnly,
   normalizeApplicationEmail,
+  normalizeAustralianMobile,
 } from '../shared/applicationSubmission.js';
 
 export const modelYearSchema = z.number().int().min(1900).max(new Date().getFullYear() + 1);
@@ -28,8 +29,8 @@ export const applicationSchema = z.object({
   name: z.string().trim().min(2),
   phone: z
     .string()
-    .trim()
-    .regex(AUSTRALIAN_MOBILE_REGEX, 'Valid Australian mobile number required'),
+    .transform(normalizeAustralianMobile)
+    .pipe(z.string().regex(AUSTRALIAN_MOBILE_REGEX, 'Valid Australian mobile number required')),
   email: z.string().transform(normalizeApplicationEmail).pipe(z.string().email()),
   license_number: z.string().trim().min(5),
   license_expiry: dateOnlySchema(

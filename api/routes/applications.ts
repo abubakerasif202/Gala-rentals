@@ -279,14 +279,20 @@ router.post('/', async (req, res) => {
   try {
     const data = applicationSchema.parse(req.body);
     const email = data.email;
+    const phone = data.phone;
 
     if (!email) {
       throw createRequestError(400, 'Email is required.');
     }
 
+    if (!phone) {
+      throw createRequestError(400, 'Phone is required.');
+    }
+
     const normalizedApplicationData = {
       ...data,
       email,
+      phone,
     };
     let licensePhotoUrl = null;
     let licenseBackPhotoUrl = null;

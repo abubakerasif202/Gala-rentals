@@ -865,6 +865,81 @@ describe('Agreements API', () => {
 
     expect(res.status).toBe(401);
   });
+
+  it('POST /api/agreements blocks creation before payment is completed', async () => {
+    const res = await request(app)
+      .post('/api/agreements')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        application_id: 1,
+        car_id: 1,
+        content: '# Draft agreement',
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('payment is completed');
+    expect(mockState.lease_agreements).toHaveLength(0);
+  });
+
+  it('POST /api/agreements blocks creation for a car that was not assigned to the paid application', async () => {
+    mockState.applications[1].status = 'Paid';
+
+    const res = await request(app)
+      .post('/api/agreements')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        application_id: 2,
+        car_id: 2,
+        content: '# Draft agreement',
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('assigned to the paid application');
+    expect(mockState.lease_agreements).toHaveLength(0);
+  });
+
+  it('POST /api/agreements stores agreements only for paid applications and their assigned car', async () => {
+    mockState.applications[1].status = 'Paid';
+
+    const res = await request(app)
+      .post('/api/agreements')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        application_id: 2,
+        car_id: 1,
+        content: '# Final agreement',
+      });
+
+    expect(res.status).toBe(201);
+    expect(mockState.lease_agreements).toHaveLength(1);
+    expect(mockState.lease_agreements[0]).toMatchObject({
+      application_id: 2,
+      car_id: 1,
+      content: '# Final agreement',
+    });
+  });
+});
+
+describe('IndexNow admin route', () => {
+  it('POST /admin/test-indexnow requires admin auth', async () => {
+    const res = await request(app).post('/admin/test-indexnow').send({
+      url: 'http://localhost:5173/cars/1',
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /admin/test-indexnow accepts authenticated admin submissions', async () => {
+    const res = await request(app)
+      .post('/admin/test-indexnow')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        url: 'http://localhost:5173/cars/1',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
 });
 
 describe('Applications API', () => {
@@ -1047,6 +1122,26 @@ describe('Applications API', () => {
     expect(mockState.applications).toHaveLength(2);
   });
 
+  it('POST /api/applications stores applicant phone numbers in a normalized format', async () => {
+    const res = await request(app).post('/api/applications').send({
+      name: 'Normalized Phone Driver',
+      phone: '0400 000 111',
+      email: 'normalized-phone@example.com',
+      license_number: 'NSW55555',
+      license_expiry: '2027-01-01',
+      uber_status: 'Applying',
+      experience: 'New Driver',
+      address: '88 Test Street',
+      weekly_budget: '$320/week',
+      intended_start_date: '2026-03-20',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockState.applications.at(-1)?.phone).toBe('0400000111');
+  });
+
   it('PUT /api/applications/:id/status returns 404 when the application does not exist', async () => {
     const res = await request(app)
       .put('/api/applications/999/status')
@@ -1153,6 +1248,29 @@ describe('Applications API', () => {
       address: '1 Test Street',
       experience: 'New Driver',
     });
+  });
+
+  it('POST /api/applications normalizes Australian mobile formats before duplicate checks', async () => {
+    mockState.applications[0].status = 'Rejected';
+
+    const res = await request(app).post('/api/applications').send({
+      name: 'Jane Driver',
+      phone: '+61 412 345 678',
+      email: 'Jane@Example.com',
+      license_number: 'NSW12345',
+      license_expiry: '2027-01-01',
+      uber_status: 'Active',
+      experience: '1-3 years',
+      address: '12 Mixed Case Street',
+      weekly_budget: '$360/week',
+      intended_start_date: '2026-03-25',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('already been reviewed');
+    expect(mockState.applications).toHaveLength(2);
   });
 
   it('POST /api/applications does not treat underscores in emails as wildcard matches', async () => {

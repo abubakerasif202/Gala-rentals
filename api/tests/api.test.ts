@@ -4,6 +4,7 @@ import request from 'supertest';
 const {
   mockState,
   mockGetUser,
+  mockRefreshSession,
   mockSignInWithPassword,
   mockStorageFrom,
   mockCheckDBHealth,
@@ -12,6 +13,7 @@ const {
   mockGetSupabaseAuthConfigurationIssues,
   mockGetSupabaseConfigurationIssues,
   mockHasDirectDatabaseConnection,
+  mockWithPostgresAdvisoryLock,
   mockMutationErrors,
   mockResendEmailsSend,
   mockStripe,
@@ -26,6 +28,7 @@ const {
     bookings: [] as Array<Record<string, any>>,
   },
   mockGetUser: vi.fn(),
+  mockRefreshSession: vi.fn(),
   mockSignInWithPassword: vi.fn(),
   mockStorageFrom: vi.fn(),
   mockCheckDBHealth: vi.fn(),
@@ -34,6 +37,9 @@ const {
   mockGetSupabaseAuthConfigurationIssues: vi.fn(() => []),
   mockGetSupabaseConfigurationIssues: vi.fn(() => []),
   mockHasDirectDatabaseConnection: vi.fn(() => false),
+  mockWithPostgresAdvisoryLock: vi.fn(async (_lockKey: string, callback: () => Promise<unknown>) =>
+    callback()
+  ),
   mockMutationErrors: {
     applicationsUpdate: null as Record<string, any> | null,
   },
@@ -169,6 +175,42 @@ vi.mock('../db/index.js', () => {
     }
 
     return [];
+  };
+
+  const setTableRows = (table: string, rows: Array<Record<string, any>>) => {
+    if (table === 'cars') {
+      mockState.cars = rows;
+      return;
+    }
+
+    if (table === 'applications') {
+      mockState.applications = rows;
+      return;
+    }
+
+    if (table === 'rentals') {
+      mockState.rentals = rows;
+      return;
+    }
+
+    if (table === 'lease_agreements') {
+      mockState.lease_agreements = rows;
+      return;
+    }
+
+    if (table === 'customers') {
+      mockState.customers = rows;
+      return;
+    }
+
+    if (table === 'invoices') {
+      mockState.invoices = rows;
+      return;
+    }
+
+    if (table === 'bookings') {
+      mockState.bookings = rows;
+    }
   };
 
   type QueryFilter =
@@ -411,54 +453,100 @@ vi.mock('../db/index.js', () => {
   const createMutationQuery = (
     table: string,
     action: 'update' | 'delete',
-    payload?: Record<string, any>
-  ) => ({
-    eq: vi.fn(async (column: string, value: unknown) => {
+    payload?: Record<string, any>,
+    filters: QueryFilter[] = []
+  ) => {
+    const applyMutation = async () => {
       if (action === 'update' && table === 'applications' && mockMutationErrors.applicationsUpdate) {
         const error = structuredClone(mockMutationErrors.applicationsUpdate);
         mockMutationErrors.applicationsUpdate = null;
-        return { error };
+        return {
+          data: null,
+          error,
+        };
       }
 
       const rows = getTableRows(table);
+      const matchingRows = applyFilters(rows, filters);
       const nextRows =
         action === 'delete'
-          ? rows.filter((row) => String(row[column]) !== String(value))
+          ? rows.filter(
+              (row) =>
+                !matchingRows.some(
+                  (matchingRow) => String(matchingRow.id) === String(row.id)
+                )
+            )
           : rows.map((row) =>
-              String(row[column]) === String(value) ? { ...row, ...payload } : row
+              matchingRows.some(
+                (matchingRow) => String(matchingRow.id) === String(row.id)
+              )
+                ? { ...row, ...payload }
+                : row
             );
 
-      if (table === 'cars') {
-        mockState.cars = nextRows;
-      }
+      setTableRows(table, nextRows);
 
-      if (table === 'applications') {
-        mockState.applications = nextRows;
-      }
+      const updatedRows =
+        action === 'delete'
+          ? []
+          : nextRows.filter((row) =>
+              matchingRows.some(
+                (matchingRow) => String(matchingRow.id) === String(row.id)
+              )
+            );
 
-      if (table === 'rentals') {
-        mockState.rentals = nextRows;
-      }
+      return {
+        data: structuredClone(updatedRows),
+        error: null,
+      };
+    };
 
-      if (table === 'lease_agreements') {
-        mockState.lease_agreements = nextRows;
-      }
-
-      if (table === 'customers') {
-        mockState.customers = nextRows;
-      }
-
-      if (table === 'invoices') {
-        mockState.invoices = nextRows;
-      }
-
-      if (table === 'bookings') {
-        mockState.bookings = nextRows;
-      }
-
-      return { error: null };
-    }),
-  });
+    return {
+      then: (
+        onFulfilled: (value: {
+          data: Array<Record<string, any>> | null;
+          error: null | Record<string, any>;
+        }) => unknown,
+        onRejected?: (reason: unknown) => unknown
+      ) =>
+        applyMutation().then(
+          ({ error }) => onFulfilled({ data: null, error }),
+          onRejected
+        ),
+      eq: vi.fn((column: string, value: unknown) =>
+        createMutationQuery(table, action, payload, [
+          ...filters,
+          { type: 'eq', column, value },
+        ])
+      ),
+      select: vi.fn(() => ({
+        maybeSingle: vi.fn(async () => {
+          const { data, error } = await applyMutation();
+          return {
+            data: data?.[0] ? structuredClone(data[0]) : null,
+            error,
+          };
+        }),
+        single: vi.fn(async () => {
+          const { data, error } = await applyMutation();
+          return data?.[0]
+            ? {
+                data: structuredClone(data[0]),
+                error,
+              }
+            : {
+                data: null,
+                error:
+                  error || {
+                    code: 'PGRST116',
+                    details: 'The result contains 0 rows',
+                    message: 'Not found',
+                  },
+              };
+        }),
+      })),
+    };
+  };
 
   const createInsertQuery = (table: string, records: Array<Record<string, any>>) => {
     const currentRows = getTableRows(table);
@@ -535,6 +623,7 @@ vi.mock('../db/postgres.js', () => ({
   closePostgresPool: mockClosePostgresPool,
   getDirectDatabaseConnectionString: vi.fn(() => ''),
   hasDirectDatabaseConnection: mockHasDirectDatabaseConnection,
+  withPostgresAdvisoryLock: mockWithPostgresAdvisoryLock,
   withPostgresTransaction: vi.fn(async (callback: (client: { query: ReturnType<typeof vi.fn> }) => Promise<unknown>) =>
     callback({ query: vi.fn() })
   ),
@@ -713,9 +802,24 @@ beforeEach(() => {
     data: { user: { email: 'admin@maplerentals.com.au' } },
     error: null,
   });
+  mockRefreshSession.mockImplementation(async () => ({
+    data: {
+      session: {
+        access_token: 'refreshed-token',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        refresh_token: 'refresh-token',
+      },
+      user: { email: 'admin@maplerentals.com.au' },
+    },
+    error: null,
+  }));
   mockSignInWithPassword.mockImplementation(async ({ email }: { email: string }) => ({
     data: {
-      session: { access_token: 'fake-token' },
+      session: {
+        access_token: 'fake-token',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        refresh_token: 'refresh-token',
+      },
       user: { email },
     },
     error: null,
@@ -723,6 +827,7 @@ beforeEach(() => {
   mockCreateAuthClient.mockReturnValue({
     auth: {
       getUser: mockGetUser,
+      refreshSession: mockRefreshSession,
       signInWithPassword: mockSignInWithPassword,
     },
   });
@@ -731,6 +836,9 @@ beforeEach(() => {
   mockGetSupabaseAuthConfigurationIssues.mockReturnValue([]);
   mockGetSupabaseConfigurationIssues.mockReturnValue([]);
   mockHasDirectDatabaseConnection.mockReturnValue(false);
+  mockWithPostgresAdvisoryLock.mockImplementation(async (_lockKey: string, callback: () => Promise<unknown>) =>
+    callback()
+  );
   mockStorageFrom.mockImplementation((bucket: string) => ({
     upload: vi.fn(async (path: string) => ({ data: { path }, error: null })),
     createSignedUrl: vi.fn(async (path: string) => ({
@@ -864,6 +972,40 @@ describe('Auth API', () => {
     expect(res.headers['set-cookie']).toBeDefined();
   });
 
+  it('POST /api/auth/login sets a cross-site compatible cookie when the frontend is on another host', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .set('Origin', 'https://admin.maplerentals.com.au')
+      .send({ username: 'admin@maplerentals.com.au', password: 'password' });
+
+    expect(res.status).toBe(200);
+    expect(res.headers['set-cookie']?.[0]).toContain('SameSite=None');
+    expect(res.headers['set-cookie']?.[0]).toContain('Secure');
+  });
+
+  it('GET /api/auth/verify refreshes an expired Supabase access token stored in the admin cookie', async () => {
+    const agent = request.agent(app);
+    const loginRes = await agent
+      .post('/api/auth/login')
+      .send({ username: 'admin@maplerentals.com.au', password: 'password' });
+
+    expect(loginRes.status).toBe(200);
+
+    mockGetUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: 'JWT expired' },
+    });
+
+    const verifyRes = await agent.get('/api/auth/verify');
+
+    expect(verifyRes.status).toBe(200);
+    expect(verifyRes.body.user.username).toBe('admin@maplerentals.com.au');
+    expect(mockRefreshSession).toHaveBeenCalledWith({
+      refresh_token: 'refresh-token',
+    });
+    expect(verifyRes.headers['set-cookie']).toBeDefined();
+  });
+
   it('POST /api/auth/login should deny non-admin email', async () => {
     const res = await request(app)
       .post('/api/auth/login')
@@ -939,6 +1081,55 @@ describe('Agreements API', () => {
       application_id: 2,
       car_id: 1,
       content: '# Final agreement',
+    });
+  });
+
+  it('GET /api/agreements returns saved agreements without relying on embedded foreign-key relations', async () => {
+    mockState.lease_agreements = [
+      {
+        id: 31,
+        application_id: 2,
+        car_id: 1,
+        content: '# Agreement',
+        status: 'generated',
+        created_at: '2026-03-08T00:00:00.000Z',
+      },
+    ];
+
+    const res = await request(app)
+      .get('/api/agreements')
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({
+      id: 31,
+      applicant_name: 'Approved Driver',
+      car_name: 'Toyota Camry',
+    });
+  });
+
+  it('GET /api/agreements/:id returns the saved agreement with applicant and car labels', async () => {
+    mockState.lease_agreements = [
+      {
+        id: 31,
+        application_id: 2,
+        car_id: 1,
+        content: '# Agreement',
+        status: 'generated',
+        created_at: '2026-03-08T00:00:00.000Z',
+      },
+    ];
+
+    const res = await request(app)
+      .get('/api/agreements/31')
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: 31,
+      applicant_name: 'Approved Driver',
+      car_name: 'Toyota Camry',
     });
   });
 });
@@ -1534,6 +1725,28 @@ describe('Stripe API', () => {
     expect(res.body.error).toContain('awaiting manual activation review');
   });
 
+  it('POST /api/applications/:id/approve-payment rejects stale approvals when the payment version changed mid-request', async () => {
+    mockState.applications[0].pending_checkout_session_id = 'cs_old_pending';
+    mockState.applications[0].payment_link_version = 3;
+    mockState.applications[1].assigned_car_id = 2;
+    mockStripe.checkoutSessionsExpire.mockImplementationOnce(async () => {
+      mockState.applications[0].payment_link_version = 4;
+      return { id: 'cs_old_pending' };
+    });
+
+    const res = await request(app)
+      .post('/api/applications/1/approve-payment')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        assigned_car_id: 1,
+        approved_bond: 650,
+        approved_weekly_price: 285,
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('payment details changed');
+  });
+
   it('POST /api/applications/:id/approve-payment allows a car to be re-approved after the prior rental is only historically paid', async () => {
     mockState.applications[1].status = 'Paid';
     mockState.applications[1].paid_at = '2026-03-06T00:00:00.000Z';
@@ -1792,7 +2005,7 @@ describe('Stripe API', () => {
     );
   });
 
-  it('POST /api/stripe/vehicle-checkout-session uses a fresh idempotency key after clearing a closed session', async () => {
+  it('POST /api/stripe/vehicle-checkout-session derives a stable retry idempotency key from the stale session id', async () => {
     mockState.applications[1].pending_checkout_session_id = 'cs_closed_attempt';
     mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
       id: 'cs_closed_attempt',
@@ -1824,12 +2037,60 @@ describe('Stripe API', () => {
 
     expect(res.status).toBe(200);
     expect(mockState.applications[1].pending_checkout_session_id).toBe('cs_test_123');
-    expect(mockStripe.checkoutSessionsCreate.mock.calls[0][1].idempotencyKey).toMatch(
-      /^vehicle-checkout:2:v1:attempt:/
+    expect(mockStripe.checkoutSessionsCreate.mock.calls[0][1].idempotencyKey).toBe(
+      'vehicle-checkout:2:v1:retry:cs_closed_attempt'
     );
-    expect(mockStripe.checkoutSessionsCreate.mock.calls[0][1].idempotencyKey).not.toBe(
-      'vehicle-checkout:2:v1'
+  });
+
+  it('POST /api/stripe/vehicle-checkout-session uses a Postgres advisory lock when direct DB access is configured', async () => {
+    mockHasDirectDatabaseConnection.mockReturnValue(true);
+
+    const token = createCheckoutToken({
+      applicationId: 2,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+
+    const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
+      application_id: 2,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockWithPostgresAdvisoryLock).toHaveBeenCalledWith(
+      'vehicle-checkout:2',
+      expect.any(Function)
     );
+  });
+
+  it('POST /api/stripe/vehicle-checkout-session expires a newly created session when the link version changes mid-request', async () => {
+    mockStripe.checkoutSessionsCreate.mockImplementationOnce(async () => {
+      mockState.applications[1].payment_link_version = 2;
+      return {
+        id: 'cs_superseded',
+        url: 'https://checkout.stripe.com/c/pay/cs_superseded',
+      };
+    });
+
+    const token = createCheckoutToken({
+      applicationId: 2,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+
+    const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
+      application_id: 2,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('latest link');
+    expect(mockStripe.checkoutSessionsExpire).toHaveBeenCalledWith('cs_superseded');
+    expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
   });
 
   it('POST /api/stripe/vehicle-checkout-link requires admin auth', async () => {
@@ -1863,6 +2124,20 @@ describe('Stripe API', () => {
     });
     expect(verified.applicationId).toBe(2);
     expect(verified.carId).toBe(1);
+  });
+
+  it('POST /api/stripe/vehicle-checkout-link rejects approved applications that are missing pricing', async () => {
+    mockState.applications[1].approved_weekly_price = 0;
+
+    const res = await request(app)
+      .post('/api/stripe/vehicle-checkout-link')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        application_id: 2,
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('missing approved pricing');
   });
 
   it('GET /api/stripe/checkout-sessions/:id requires a matching checkout token', async () => {

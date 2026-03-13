@@ -1,5 +1,7 @@
 import express from 'express';
 import Stripe from 'stripe';
+
+import { updateApplicationPaymentStateIfCurrentVersion } from '../applicationPaymentState.js';
 import { db } from '../db/index.js';
 import { authenticateAdmin } from './auth.js';
 import {
@@ -16,7 +18,6 @@ import {
   getApplicationDocumentColumn,
   getApplicationSelectColumns,
   getCarSelectColumns,
-  toApplicationPaymentWritePayload,
   toApplicationWritePayload,
 } from '../schemaCompat.js';
 import { RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
@@ -547,32 +548,35 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       }
     }
 
-    const updatePayload = await toApplicationPaymentWritePayload({
-      approved_at: nowIso,
-      approved_bond: payload.approved_bond,
-      approved_weekly_price: payload.approved_weekly_price,
-      assigned_car_id: payload.assigned_car_id,
-      paid_at: null,
-      payment_link_sent_at: payload.send_payment_link ? nowIso : null,
-      payment_link_version: nextVersion,
-      pending_checkout_session_id: null,
-      status: 'Approved',
-    });
+    const updatedApplication =
+      await updateApplicationPaymentStateIfCurrentVersion({
+        applicationId: payload.application_id,
+        expectedPaymentLinkVersion: currentVersion,
+        payload: {
+          approved_at: nowIso,
+          approved_bond: payload.approved_bond,
+          approved_weekly_price: payload.approved_weekly_price,
+          assigned_car_id: payload.assigned_car_id,
+          paid_at: null,
+          payment_link_sent_at: payload.send_payment_link ? nowIso : null,
+          payment_link_version: nextVersion,
+          pending_checkout_session_id: null,
+          status: 'Approved',
+        },
+      });
 
-    const { error: updateError } = await db
-      .from('applications')
-      .update(updatePayload)
-      .eq('id', payload.application_id);
-
-    if (updateError) {
-      throw updateError;
+    if (!updatedApplication) {
+      return res.status(409).json({
+        error:
+          'Application payment details changed while approving. Refresh and try again.',
+      });
     }
 
     const checkoutToken = createCheckoutToken({
       applicationId: payload.application_id,
       carId: payload.assigned_car_id,
       purpose: 'vehicle',
-      version: nextVersion,
+      version: Number(updatedApplication.payment_link_version || nextVersion),
     });
     const checkoutUrl = buildDriverPaymentLink({
       applicationId: payload.application_id,
@@ -619,6 +623,13 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
         error:
           'Assigned vehicle already has another active approval or payment review. Resolve that allocation first.',
       });
+    }
+
+    if (
+      error instanceof Error &&
+      error.message.toLowerCase().includes('payment details changed')
+    ) {
+      return res.status(409).json({ error: error.message });
     }
 
     console.error('Application approve-payment error:', error);

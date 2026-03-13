@@ -1,6 +1,8 @@
+import crypto from 'node:crypto';
 import pg from 'pg';
 
 type PoolClient = import('pg').PoolClient;
+type PostgresConnectionMode = 'none' | 'session' | 'transaction';
 
 const { Pool } = pg;
 
@@ -9,13 +11,41 @@ let postgresPool: InstanceType<typeof Pool> | null = null;
 export const getDirectDatabaseConnectionString = () =>
   (process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '').trim();
 
-export const hasDirectDatabaseConnection = () => Boolean(getDirectDatabaseConnectionString());
+const inferPostgresConnectionMode = (
+  connectionString: string
+): PostgresConnectionMode => {
+  if (!connectionString) {
+    return 'none';
+  }
+
+  try {
+    const url = new URL(connectionString);
+    return url.port === '6543' ? 'transaction' : 'session';
+  } catch {
+    return connectionString.includes(':6543') ? 'transaction' : 'session';
+  }
+};
+
+export const getPostgresConnectionMode = () =>
+  inferPostgresConnectionMode(getDirectDatabaseConnectionString());
+
+export const hasDirectDatabaseConnection = () =>
+  getPostgresConnectionMode() === 'session';
 
 const getPostgresPool = () => {
   const connectionString = getDirectDatabaseConnectionString();
-  if (!connectionString) {
+  const connectionMode = inferPostgresConnectionMode(connectionString);
+
+  if (connectionMode === 'none') {
     throw new Error(
       'SUPABASE_DB_URL or DATABASE_URL is required for transactional payment activation.'
+    );
+  }
+
+  if (connectionMode !== 'session') {
+    throw new Error(
+      'Transactional payment activation requires a session-capable Postgres connection. ' +
+        'Supabase transaction pooler URLs on port 6543 are not supported for this path.'
     );
   }
 
@@ -48,6 +78,39 @@ export const withPostgresTransaction = async <T>(
 
     throw error;
   } finally {
+    client.release();
+  }
+};
+
+const toAdvisoryLockKeyParts = (lockKey: string): [number, number] => {
+  const digest = crypto.createHash('sha256').update(lockKey).digest();
+  return [digest.readInt32BE(0), digest.readInt32BE(4)];
+};
+
+export const withPostgresAdvisoryLock = async <T>(
+  lockKey: string,
+  callback: () => Promise<T>
+) => {
+  const client = await getPostgresPool().connect();
+  const [keyPartOne, keyPartTwo] = toAdvisoryLockKeyParts(lockKey);
+
+  try {
+    await client.query('SELECT pg_advisory_lock($1, $2)', [
+      keyPartOne,
+      keyPartTwo,
+    ]);
+
+    return await callback();
+  } finally {
+    try {
+      await client.query('SELECT pg_advisory_unlock($1, $2)', [
+        keyPartOne,
+        keyPartTwo,
+      ]);
+    } catch (unlockError) {
+      console.error('Failed to release PostgreSQL advisory lock:', unlockError);
+    }
+
     client.release();
   }
 };

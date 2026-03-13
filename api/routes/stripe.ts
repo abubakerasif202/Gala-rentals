@@ -1,8 +1,16 @@
 import express from 'express';
-import crypto from 'node:crypto';
 import Stripe from 'stripe';
 import { z } from 'zod';
+
+import {
+  persistPendingCheckoutSessionIdIfCurrentVersion,
+  updateApplicationPaymentStateIfCurrentVersion,
+} from '../applicationPaymentState.js';
 import { db } from '../db/index.js';
+import {
+  hasDirectDatabaseConnection,
+  withPostgresAdvisoryLock,
+} from '../db/postgres.js';
 import { authenticateAdmin } from './auth.js';
 import { createCheckoutToken, verifyCheckoutToken } from '../checkoutTokens.js';
 import { LEASE_SETTINGS, RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
@@ -19,7 +27,6 @@ import {
   getCarSelectColumns,
   getRentalApplicationIdColumn,
   getRentalCarIdColumn,
-  toApplicationPaymentWritePayload,
 } from '../schemaCompat.js';
 import { buildDriverPaymentLink, getAppBaseUrl } from '../paymentLinks.js';
 import {
@@ -45,6 +52,11 @@ type BillingBreakdown = {
 type HostedCheckoutSessionResponse = {
   checkout_url: string | null;
   session_id: string;
+};
+
+type PendingCheckoutSessionResolution = {
+  retryKeySeed: string | null;
+  session: Stripe.Checkout.Session | null;
 };
 
 type StripeApplication = {
@@ -91,18 +103,12 @@ const toOptionalPositiveInt = (value: string | undefined) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
-// TODO (Scalability): This in-memory Map only serializes checkout-session creation
-// inside a single Node.js process. It is not safe once this API runs on multiple
-// instances, across serverless cold starts, or during rolling deployments, because
-// concurrent requests hitting different instances can bypass the lock and create
-// duplicate Stripe checkout sessions for the same application.
-// Before scaling beyond a single instance, replace this with a database-backed lock,
-// preferably a Postgres advisory lock or a Supabase RPC that performs
-// `SELECT ... FOR UPDATE` around the application row used for checkout-session
-// creation and pending-session reuse.
 const checkoutSessionLocks = new Map<string, Promise<void>>();
 
-const withCheckoutSessionLock = async <T>(lockKey: string, task: () => Promise<T>) => {
+const withInMemoryCheckoutSessionLock = async <T>(
+  lockKey: string,
+  task: () => Promise<T>
+) => {
   const previous = checkoutSessionLocks.get(lockKey) || Promise.resolve();
   let releaseCurrentLock!: () => void;
   const currentLock = new Promise<void>((resolve) => {
@@ -122,6 +128,30 @@ const withCheckoutSessionLock = async <T>(lockKey: string, task: () => Promise<T
       checkoutSessionLocks.delete(lockKey);
     }
   }
+};
+
+const withCheckoutSessionLock = async <T>(
+  lockKey: string,
+  task: () => Promise<T>
+) => {
+  if (hasDirectDatabaseConnection()) {
+    return withPostgresAdvisoryLock(lockKey, task);
+  }
+
+  return withInMemoryCheckoutSessionLock(lockKey, task);
+};
+
+const buildHostedCheckoutSessionIdempotencyKey = ({
+  applicationId,
+  paymentLinkVersion,
+  retryKeySeed,
+}: {
+  applicationId: number;
+  paymentLinkVersion: number;
+  retryKeySeed?: string | null;
+}) => {
+  const baseKey = `vehicle-checkout:${applicationId}:v${paymentLinkVersion}`;
+  return retryKeySeed ? `${baseKey}:retry:${retryKeySeed}` : baseKey;
 };
 
 const buildApprovedBillingBreakdown = (application: StripeApplication): BillingBreakdown => {
@@ -369,16 +399,16 @@ const expirePendingCheckoutSession = async (sessionId: string | null | undefined
 
 const persistPendingCheckoutSessionId = async (
   applicationId: number,
+  paymentLinkVersion: number,
   sessionId: string | null
 ) => {
-  const payload = await toApplicationPaymentWritePayload({
-    pending_checkout_session_id: sessionId,
+  const didPersist = await persistPendingCheckoutSessionIdIfCurrentVersion({
+    applicationId,
+    expectedPaymentLinkVersion: paymentLinkVersion,
+    sessionId,
   });
-  const { error } = await db.from('applications').update(payload).eq('id', applicationId);
 
-  if (error) {
-    throw error;
-  }
+  return didPersist;
 };
 
 const resolvePendingCheckoutSession = async ({
@@ -387,10 +417,13 @@ const resolvePendingCheckoutSession = async ({
 }: {
   application: StripeApplication;
   carId: number;
-}) => {
+}): Promise<PendingCheckoutSessionResolution> => {
   const pendingSessionId = application.pending_checkout_session_id;
   if (!pendingSessionId) {
-    return null;
+    return {
+      retryKeySeed: null,
+      session: null,
+    };
   }
 
   try {
@@ -406,18 +439,19 @@ const resolvePendingCheckoutSession = async ({
       sessionVersion === Number(application.payment_link_version || 0) &&
       session.url
     ) {
-      return session;
-    }
-
-    if (session.status !== 'open') {
-      await persistPendingCheckoutSessionId(application.id, null);
+      return {
+        retryKeySeed: null,
+        session,
+      };
     }
   } catch (error) {
     console.warn(`Unable to reuse checkout session ${pendingSessionId}:`, error);
-    await persistPendingCheckoutSessionId(application.id, null);
   }
 
-  return null;
+  return {
+    retryKeySeed: pendingSessionId,
+    session: null,
+  };
 };
 
 router.get('/rental-plans', (_req, res) => {
@@ -546,15 +580,15 @@ router.post('/vehicle-checkout-session', async (req, res) => {
           throw new Error('Selected vehicle is no longer available.');
         }
 
-        const existingSession = await resolvePendingCheckoutSession({
+        const pendingSessionResolution = await resolvePendingCheckoutSession({
           application,
           carId: car.id,
         });
 
-        if (existingSession?.url) {
+        if (pendingSessionResolution.session?.url) {
           return {
-            checkout_url: existingSession.url,
-            session_id: existingSession.id,
+            checkout_url: pendingSessionResolution.session.url,
+            session_id: pendingSessionResolution.session.id,
           };
         }
 
@@ -563,9 +597,24 @@ router.post('/vehicle-checkout-session', async (req, res) => {
           billingBreakdown: buildApprovedBillingBreakdown(application),
           car,
           checkoutToken: checkout_token,
-          idempotencyKey: `vehicle-checkout:${application.id}:v${Number(application.payment_link_version || 0)}:attempt:${crypto.randomUUID()}`,
+          idempotencyKey: buildHostedCheckoutSessionIdempotencyKey({
+            applicationId: application.id,
+            paymentLinkVersion: Number(application.payment_link_version || 0),
+            retryKeySeed: pendingSessionResolution.retryKeySeed,
+          }),
         });
-        await persistPendingCheckoutSessionId(application_id, session.id);
+        const didPersistSession = await persistPendingCheckoutSessionId(
+          application_id,
+          Number(application.payment_link_version || 0),
+          session.id
+        );
+
+        if (!didPersistSession) {
+          await expirePendingCheckoutSession(session.id);
+          throw new Error(
+            'Payment link is no longer active. Please reload the latest link.'
+          );
+        }
 
         return {
           checkout_url: session.url,
@@ -602,7 +651,8 @@ router.post('/vehicle-checkout-session', async (req, res) => {
       error instanceof Error &&
       (error.message.toLowerCase().includes('payment link') ||
         error.message.toLowerCase().includes('manual review') ||
-        error.message.toLowerCase().includes('no longer available'))
+        error.message.toLowerCase().includes('no longer available') ||
+        error.message.toLowerCase().includes('reload the latest link'))
     ) {
       return res.status(409).json({ error: error.message });
     }
@@ -645,6 +695,11 @@ router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Assigned vehicle not found' });
     }
 
+    requireApprovedPaymentContext({
+      application,
+      carId: Number(application.assigned_car_id),
+    });
+
     if (car.status !== 'Available') {
       return res.status(409).json({ error: 'Assigned vehicle is not available.' });
     }
@@ -658,25 +713,29 @@ router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
 
     const nextVersion = Number(application.payment_link_version || 0) + 1;
     await expirePendingCheckoutSession(application.pending_checkout_session_id);
-    const updatePayload = await toApplicationPaymentWritePayload({
-      payment_link_sent_at: new Date().toISOString(),
-      payment_link_version: nextVersion,
-      pending_checkout_session_id: null,
-    });
-    const { error: updateError } = await db
-      .from('applications')
-      .update(updatePayload)
-      .eq('id', application_id);
+    const updatedApplication =
+      await updateApplicationPaymentStateIfCurrentVersion({
+        applicationId: application_id,
+        expectedPaymentLinkVersion: Number(application.payment_link_version || 0),
+        payload: {
+          payment_link_sent_at: new Date().toISOString(),
+          payment_link_version: nextVersion,
+          pending_checkout_session_id: null,
+        },
+      });
 
-    if (updateError) {
-      throw updateError;
+    if (!updatedApplication) {
+      return res.status(409).json({
+        error:
+          'Payment link details changed while generating a new link. Refresh and try again.',
+      });
     }
 
     const checkoutToken = createCheckoutToken({
       applicationId: application_id,
       carId: car.id,
       purpose: 'vehicle',
-      version: nextVersion,
+      version: Number(updatedApplication.payment_link_version || nextVersion),
     });
 
     res.json({
@@ -695,6 +754,13 @@ router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
 
     if (error instanceof VehicleAllocationConflictError) {
       return res.status(error.status).json({ error: error.message });
+    }
+
+    if (
+      error instanceof Error &&
+      error.message.toLowerCase().includes('payment link')
+    ) {
+      return res.status(409).json({ error: error.message });
     }
 
     console.error('Vehicle checkout link error:', error);

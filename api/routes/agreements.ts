@@ -8,6 +8,68 @@ import { getApplicationSelectColumns, getCarSelectColumns } from '../schemaCompa
 
 const router = express.Router();
 
+type LeaseAgreementRecord = {
+  application_id: number;
+  car_id: number;
+  content: string;
+  created_at: string;
+  id: number;
+  status: string;
+};
+
+const enrichLeaseAgreements = async (
+  agreements: LeaseAgreementRecord[]
+) => {
+  const applicationIds = Array.from(
+    new Set(
+      agreements
+        .map((agreement) => Number(agreement.application_id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+  const carIds = Array.from(
+    new Set(
+      agreements
+        .map((agreement) => Number(agreement.car_id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+
+  const [applicationsResult, carsResult] = await Promise.all([
+    applicationIds.length > 0
+      ? db.from('applications').select('id, name').in('id', applicationIds)
+      : Promise.resolve({ data: [], error: null }),
+    carIds.length > 0
+      ? db.from('cars').select('id, name').in('id', carIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (applicationsResult.error) {
+    throw applicationsResult.error;
+  }
+
+  if (carsResult.error) {
+    throw carsResult.error;
+  }
+
+  const applicationNames = new Map<number, string>();
+  for (const application of applicationsResult.data || []) {
+    applicationNames.set(Number(application.id), String(application.name || ''));
+  }
+
+  const carNames = new Map<number, string>();
+  for (const car of carsResult.data || []) {
+    carNames.set(Number(car.id), String(car.name || ''));
+  }
+
+  return agreements.map((agreement) => ({
+    ...agreement,
+    applicant_name:
+      applicationNames.get(Number(agreement.application_id)) || undefined,
+    car_name: carNames.get(Number(agreement.car_id)) || undefined,
+  }));
+};
+
 router.get('/car-lease/template', authenticateAdmin, (_req, res) => {
   const template = renderCarLeaseAgreement();
   res.type('text/markdown').send(template);
@@ -82,22 +144,14 @@ router.get('/', authenticateAdmin, async (_req, res) => {
   try {
     const { data, error } = await db
       .from('lease_agreements')
-      .select(`
-        *,
-        applications:application_id(name),
-        cars:car_id(name)
-      `)
+      .select('id, application_id, car_id, content, status, created_at')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    const formattedAgreements = data.map((item: any) => ({
-      ...item,
-      applicant_name: item.applications?.name,
-      car_name: item.cars?.name
-    }));
-
-    res.json(formattedAgreements);
+    res.json(
+      await enrichLeaseAgreements((data || []) as LeaseAgreementRecord[])
+    );
   } catch (error) {
     console.error('Fetch lease agreements error:', error);
     res.status(500).json({ error: 'Failed to fetch lease agreements' });
@@ -108,11 +162,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
   try {
     const { data, error } = await db
       .from('lease_agreements')
-      .select(`
-        *,
-        applications:application_id(name),
-        cars:car_id(name)
-      `)
+      .select('id, application_id, car_id, content, status, created_at')
       .eq('id', req.params.id)
       .single();
 
@@ -120,11 +170,10 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Lease agreement not found' });
     }
 
-    res.json({
-      ...data,
-      applicant_name: data.applications?.name,
-      car_name: data.cars?.name
-    });
+    const [agreement] = await enrichLeaseAgreements([
+      data as LeaseAgreementRecord,
+    ]);
+    res.json(agreement);
   } catch (error) {
     console.error('Fetch lease agreement error:', error);
     res.status(500).json({ error: 'Failed to fetch lease agreement' });

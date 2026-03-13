@@ -22,6 +22,7 @@ import {
   closePostgresPool,
   hasDirectDatabaseConnection,
 } from './db/postgres.js';
+import { shouldServeSpaEntry } from './frontendRouting.js';
 import { apiNotFoundHandler, errorHandler } from './middleware/errors.js';
 import { requestContext, requestLogger } from './middleware/requestLogger.js';
 
@@ -126,8 +127,9 @@ const validateProductionEnv = () => {
 const logProductionConfigurationWarnings = () => {
   if (isProduction && !hasDirectDatabaseConnection()) {
     console.warn(
-      'SUPABASE_DB_URL or DATABASE_URL is not configured. Stripe payment activation ' +
-        'will use the non-transactional fallback until a direct Postgres connection is added.'
+      'SUPABASE_DB_URL or DATABASE_URL is not configured for a session-capable Postgres connection. ' +
+        'Stripe payment activation will use the non-transactional fallback until a direct connection ' +
+        'or Supabase shared pooler session-mode URL on port 5432 is added.'
     );
   }
 };
@@ -339,7 +341,7 @@ const registerProductionFrontend = (app: express.Express) => {
   );
 
   app.use((req, res, next) => {
-    if (!['GET', 'HEAD'].includes(req.method) || req.path.startsWith('/api/')) {
+    if (!shouldServeSpaEntry(req)) {
       next();
       return;
     }

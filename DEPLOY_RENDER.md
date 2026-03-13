@@ -86,6 +86,10 @@ The backend then:
   - Purpose: privileged backend Supabase key for server-side database operations
   - Used in: `api/db/index.ts`
 
+- `SUPABASE_DB_URL`
+  - Purpose: direct Postgres connection used for atomic Stripe payment activation writes
+  - Used in: `api/db/postgres.ts`, `api/paymentActivation.ts`
+
 - `STRIPE_SECRET_KEY`
   - Purpose: Stripe server SDK key used by payment, webhook, and financial routes
   - Used in: `api/routes/stripe.ts`, `api/routes/webhooks.ts`, `api/routes/financials.ts`
@@ -157,6 +161,6 @@ Then verify:
 
 ## Notes
 
-- The backend now fails fast in production if `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing.
+- The backend now fails fast in production if `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, or `SUPABASE_DB_URL` is missing.
 - Static assets are served directly from `dist/`.
 - SPA fallback applies only to non-API routes, so missing API endpoints do not return the frontend shell.

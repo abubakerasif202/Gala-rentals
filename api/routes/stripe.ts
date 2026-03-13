@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'node:crypto';
 import Stripe from 'stripe';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -39,6 +40,11 @@ type BillingBreakdown = {
   recurringLabel: string;
   setupFees: number;
   upfrontDue: number;
+};
+
+type HostedCheckoutSessionResponse = {
+  checkout_url: string | null;
+  session_id: string;
 };
 
 type StripeApplication = {
@@ -82,6 +88,30 @@ const toCents = (value: number) => Math.round(value * 100);
 const toOptionalPositiveInt = (value: string | undefined) => {
   const parsed = Number(value || 0);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const checkoutSessionLocks = new Map<string, Promise<void>>();
+
+const withCheckoutSessionLock = async <T>(lockKey: string, task: () => Promise<T>) => {
+  const previous = checkoutSessionLocks.get(lockKey) || Promise.resolve();
+  let releaseCurrentLock!: () => void;
+  const currentLock = new Promise<void>((resolve) => {
+    releaseCurrentLock = resolve;
+  });
+  const currentChain = previous.then(() => currentLock);
+
+  checkoutSessionLocks.set(lockKey, currentChain);
+  await previous;
+
+  try {
+    return await task();
+  } finally {
+    releaseCurrentLock();
+
+    if (checkoutSessionLocks.get(lockKey) === currentChain) {
+      checkoutSessionLocks.delete(lockKey);
+    }
+  }
 };
 
 const buildApprovedBillingBreakdown = (application: StripeApplication): BillingBreakdown => {
@@ -203,11 +233,13 @@ const createHostedCheckoutSession = async ({
   billingBreakdown,
   car,
   checkoutToken,
+  idempotencyKey,
 }: {
   application: StripeApplication;
   billingBreakdown: BillingBreakdown;
   car: StripeCar;
   checkoutToken: string;
+  idempotencyKey: string;
 }) => {
   const metadata = {
     application_id: String(application.id),
@@ -245,7 +277,7 @@ const createHostedCheckoutSession = async ({
       }),
     },
     {
-      idempotencyKey: `vehicle-checkout:${application.id}:v${Number(application.payment_link_version || 0)}`,
+      idempotencyKey,
     }
   );
 };
@@ -462,63 +494,72 @@ router.get('/payment-context', async (req, res) => {
 router.post('/vehicle-checkout-session', async (req, res) => {
   try {
     const { application_id, car_id, checkout_token } = vehicleCheckoutSessionSchema.parse(req.body);
+    const lockKey = `vehicle-checkout:${application_id}`;
 
-    const [application, car] = await Promise.all([
-      fetchApplication(application_id),
-      fetchCar(car_id),
-    ]);
+    const responsePayload = await withCheckoutSessionLock<HostedCheckoutSessionResponse>(
+      lockKey,
+      async () => {
+        const [application, car] = await Promise.all([
+          fetchApplication(application_id),
+          fetchCar(car_id),
+        ]);
 
-    if (!application) {
-      return res.status(404).json({ error: 'Application not found' });
-    }
+        if (!application) {
+          throw new Error('Application not found');
+        }
 
-    if (!car) {
-      return res.status(404).json({ error: 'Car not found' });
-    }
+        if (!car) {
+          throw new Error('Car not found');
+        }
 
-    verifyCheckoutToken({
-      applicationId: application_id,
-      carId: car_id,
-      purpose: 'vehicle',
-      token: checkout_token,
-      version: Number(application.payment_link_version || 0),
-    });
-    requireApprovedPaymentContext({ application, carId: car_id });
-    await assertVehicleAllocationAvailable({
-      applicationId: application_id,
-      carId: car_id,
-      message:
-        'This payment link is no longer active because the vehicle has been allocated elsewhere. Contact Maple Rentals for a fresh link.',
-    });
+        verifyCheckoutToken({
+          applicationId: application_id,
+          carId: car_id,
+          purpose: 'vehicle',
+          token: checkout_token,
+          version: Number(application.payment_link_version || 0),
+        });
+        requireApprovedPaymentContext({ application, carId: car_id });
+        await assertVehicleAllocationAvailable({
+          applicationId: application_id,
+          carId: car_id,
+          message:
+            'This payment link is no longer active because the vehicle has been allocated elsewhere. Contact Maple Rentals for a fresh link.',
+        });
 
-    if (car.status !== 'Available') {
-      return res.status(409).json({ error: 'Selected vehicle is no longer available.' });
-    }
+        if (car.status !== 'Available') {
+          throw new Error('Selected vehicle is no longer available.');
+        }
 
-    const existingSession = await resolvePendingCheckoutSession({
-      application,
-      carId: car.id,
-    });
+        const existingSession = await resolvePendingCheckoutSession({
+          application,
+          carId: car.id,
+        });
 
-    if (existingSession?.url) {
-      return res.json({
-        checkout_url: existingSession.url,
-        session_id: existingSession.id,
-      });
-    }
+        if (existingSession?.url) {
+          return {
+            checkout_url: existingSession.url,
+            session_id: existingSession.id,
+          };
+        }
 
-    const session = await createHostedCheckoutSession({
-      application,
-      billingBreakdown: buildApprovedBillingBreakdown(application),
-      car,
-      checkoutToken: checkout_token,
-    });
-    await persistPendingCheckoutSessionId(application_id, session.id);
+        const session = await createHostedCheckoutSession({
+          application,
+          billingBreakdown: buildApprovedBillingBreakdown(application),
+          car,
+          checkoutToken: checkout_token,
+          idempotencyKey: `vehicle-checkout:${application.id}:v${Number(application.payment_link_version || 0)}:attempt:${crypto.randomUUID()}`,
+        });
+        await persistPendingCheckoutSessionId(application_id, session.id);
 
-    res.json({
-      checkout_url: session.url,
-      session_id: session.id,
-    });
+        return {
+          checkout_url: session.url,
+          session_id: session.id,
+        };
+      }
+    );
+
+    res.json(responsePayload);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });
@@ -537,8 +578,16 @@ router.post('/vehicle-checkout-session', async (req, res) => {
 
     if (
       error instanceof Error &&
+      (error.message === 'Application not found' || error.message === 'Car not found')
+    ) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (
+      error instanceof Error &&
       (error.message.toLowerCase().includes('payment link') ||
-        error.message.toLowerCase().includes('manual review'))
+        error.message.toLowerCase().includes('manual review') ||
+        error.message.toLowerCase().includes('no longer available'))
     ) {
       return res.status(409).json({ error: error.message });
     }

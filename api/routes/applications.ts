@@ -115,47 +115,20 @@ const isRecoverableVehicleCheckoutSession = (
 const recoverPaymentReviewSession = async (application: ApplicationPaymentApprovalRecord) => {
   const storedSessionId = application.pending_checkout_session_id;
 
-  if (storedSessionId) {
-    try {
-      const session = await stripe.checkout.sessions.retrieve(storedSessionId);
-      if (isRecoverableVehicleCheckoutSession(session, application)) {
-        return session;
-      }
-    } catch (error) {
-      console.warn(`Unable to retrieve stored checkout session ${storedSessionId}:`, error);
-    }
+  if (!storedSessionId) {
+    return null;
   }
 
-  const matches: Stripe.Checkout.Session[] = [];
-  let cursor: string | undefined;
-  while (true) {
-    const sessionPage = await stripe.checkout.sessions.list({
-      limit: 100,
-      ...(cursor ? { starting_after: cursor } : {}),
-    });
-    for (const session of sessionPage.data) {
-      if (!isRecoverableVehicleCheckoutSession(session, application)) {
-        continue;
-      }
-
-      matches.push(session);
-
-      if (matches.length > 1) {
-        throw createRequestError(
-          409,
-          'Multiple paid Stripe checkout sessions were found for this payment review. Reconcile the payment manually before retrying activation.'
-        );
-      }
+  try {
+    const session = await stripe.checkout.sessions.retrieve(storedSessionId);
+    if (isRecoverableVehicleCheckoutSession(session, application)) {
+      return session;
     }
-
-    if (!sessionPage.has_more || sessionPage.data.length === 0) {
-      break;
-    }
-
-    cursor = sessionPage.data[sessionPage.data.length - 1]?.id;
+  } catch (error) {
+    console.warn(`Unable to retrieve stored checkout session ${storedSessionId}:`, error);
   }
 
-  return matches[0] || null;
+  return null;
 };
 
 const getApplicationBackPhotoValue = (application: Record<string, any>) =>

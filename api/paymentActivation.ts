@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 
 import { db } from './db/index.js';
+import { hasDirectDatabaseConnection, withPostgresTransaction } from './db/postgres.js';
 import {
   getApplicationSelectColumns,
   getCarSelectColumns,
@@ -74,24 +75,182 @@ export const updateRentalsBySubscriptionIdentity = async (
   const compat = await getSchemaCompat();
 
   if (compat.rentalStripeSubscriptionColumn) {
-    const result = await db
+    const { data: rentalBySubscription, error: rentalBySubscriptionError } = await db
       .from('rentals')
-      .update(payload)
-      .eq(compat.rentalStripeSubscriptionColumn, subscriptionId);
-    assertSupabaseWrite(result, 'Failed to update rental by subscription id');
-    return;
+      .select('id')
+      .eq(compat.rentalStripeSubscriptionColumn, subscriptionId)
+      .maybeSingle();
+
+    if (rentalBySubscriptionError) {
+      throw new Error(
+        `Failed to inspect rental by subscription id: ${rentalBySubscriptionError.message || 'Unknown error'}`
+      );
+    }
+
+    if (rentalBySubscription?.id) {
+      const result = await db.from('rentals').update(payload).eq('id', rentalBySubscription.id);
+      assertSupabaseWrite(result, 'Failed to update rental by subscription id');
+      return;
+    }
   }
 
   if (!metadata.car_id || !metadata.application_id) {
     return;
   }
 
-  const result = await db
+  const { data: rentalByIdentity, error: rentalByIdentityError } = await db
     .from('rentals')
-    .update(payload)
+    .select('id')
     .eq(await getRentalCarIdColumn(), Number(metadata.car_id))
-    .eq(await getRentalApplicationIdColumn(), Number(metadata.application_id));
+    .eq(await getRentalApplicationIdColumn(), Number(metadata.application_id))
+    .maybeSingle();
+
+  if (rentalByIdentityError) {
+    throw new Error(
+      `Failed to inspect rental by car/application id: ${rentalByIdentityError.message || 'Unknown error'}`
+    );
+  }
+
+  if (!rentalByIdentity?.id) {
+    return;
+  }
+
+  const result = await db.from('rentals').update(payload).eq('id', rentalByIdentity.id);
   assertSupabaseWrite(result, 'Failed to update rental by car/application id');
+};
+
+const quoteIdentifier = (identifier: string) => `"${identifier.replace(/"/g, '""')}"`;
+
+const stripRentalIdentityFields = (payload: Record<string, unknown>) => {
+  const {
+    startDate: _unusedCamelStartDate,
+    start_date: _unusedSnakeStartDate,
+    carId: _unusedCamelCarId,
+    car_id: _unusedSnakeCarId,
+    applicationId: _unusedCamelApplicationId,
+    application_id: _unusedSnakeApplicationId,
+    ...repairPayload
+  } = payload;
+
+  return repairPayload;
+};
+
+const insertRowInTransaction = async (
+  client: import('pg').PoolClient,
+  table: string,
+  payload: Record<string, unknown>
+) => {
+  const entries = Object.entries(payload);
+  const columns = entries.map(([column]) => quoteIdentifier(column)).join(', ');
+  const placeholders = entries.map((_, index) => `$${index + 1}`).join(', ');
+  const values = entries.map(([, value]) => value);
+
+  const result = await client.query(
+    `INSERT INTO ${quoteIdentifier(table)} (${columns}) VALUES (${placeholders})`,
+    values
+  );
+
+  if (result.rowCount !== 1) {
+    throw new Error(`Failed to insert ${table} row within transaction.`);
+  }
+};
+
+const updateRowByIdInTransaction = async (
+  client: import('pg').PoolClient,
+  table: string,
+  id: number,
+  payload: Record<string, unknown>,
+  context: string
+) => {
+  const entries = Object.entries(payload);
+  const setClauses = entries
+    .map(([column], index) => `${quoteIdentifier(column)} = $${index + 1}`)
+    .join(', ');
+  const values = [...entries.map(([, value]) => value), id];
+
+  const result = await client.query(
+    `UPDATE ${quoteIdentifier(table)} SET ${setClauses} WHERE id = $${entries.length + 1}`,
+    values
+  );
+
+  if (result.rowCount !== 1) {
+    throw new Error(context);
+  }
+};
+
+const applyVehicleCheckoutActivationWrites = async ({
+  applicationId,
+  carId,
+  existingRentalId,
+  rentalInsertPayload,
+  rentalRepairPayload,
+}: {
+  applicationId: number;
+  carId: number;
+  existingRentalId: number | null;
+  rentalInsertPayload: Record<string, unknown>;
+  rentalRepairPayload: Record<string, unknown>;
+}) => {
+  const paidAt = new Date().toISOString();
+  const applicationPaymentPayload = await toApplicationPaymentWritePayload({
+    paid_at: paidAt,
+    pending_checkout_session_id: null,
+    status: 'Paid',
+  });
+
+  if (hasDirectDatabaseConnection()) {
+    await withPostgresTransaction(async (client) => {
+      if (existingRentalId) {
+        await updateRowByIdInTransaction(
+          client,
+          'rentals',
+          existingRentalId,
+          rentalRepairPayload,
+          'Failed to repair existing rental after checkout completion'
+        );
+      } else {
+        await insertRowInTransaction(client, 'rentals', rentalInsertPayload);
+      }
+
+      await updateRowByIdInTransaction(
+        client,
+        'cars',
+        carId,
+        { status: 'Rented' },
+        'Failed to mark car as rented'
+      );
+
+      await updateRowByIdInTransaction(
+        client,
+        'applications',
+        applicationId,
+        applicationPaymentPayload,
+        'Failed to update application payment state'
+      );
+    });
+    return;
+  }
+
+  if (existingRentalId) {
+    const result = await db
+      .from('rentals')
+      .update(rentalRepairPayload)
+      .eq('id', existingRentalId);
+    assertSupabaseWrite(result, 'Failed to repair existing rental after checkout completion');
+  } else {
+    const rentalInsert = await db.from('rentals').insert([rentalInsertPayload]);
+    assertSupabaseWrite(rentalInsert, 'Failed to create rental after checkout completion');
+  }
+
+  const carUpdate = await db.from('cars').update({ status: 'Rented' }).eq('id', carId);
+  assertSupabaseWrite(carUpdate, 'Failed to mark car as rented');
+
+  await updateApplicationPaymentState({
+    applicationId,
+    paidAt,
+    pendingCheckoutSessionId: null,
+    status: 'Paid',
+  });
 };
 
 const fetchExistingRentalsForCar = async (carId: number) => {
@@ -313,7 +472,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       return;
     }
 
-    const rentalPayload = await toRentalWritePayload({
+    const rentalInsertPayload = (await toRentalWritePayload({
       application_id: applicationId,
       bond_paid: approvedBond,
       car_id: carId,
@@ -322,16 +481,22 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       stripe_customer_id: customerId,
       stripe_subscription_id: subscriptionId,
       weekly_price: approvedWeeklyPrice,
-    });
+    })) as Record<string, unknown>;
+    const rentalRepairPayload = stripRentalIdentityFields(rentalInsertPayload);
 
-    const rentalInsert = await db.from('rentals').insert([rentalPayload]);
-    if (rentalInsert.error && !isDuplicateWrite(rentalInsert.error)) {
-      throw new Error(
-        `Failed to create rental after checkout completion: ${rentalInsert.error.message || 'Unknown error'}`
-      );
-    }
+    try {
+      await applyVehicleCheckoutActivationWrites({
+        applicationId,
+        carId,
+        existingRentalId: null,
+        rentalInsertPayload,
+        rentalRepairPayload,
+      });
+    } catch (error) {
+      if (!isDuplicateWrite(error)) {
+        throw error;
+      }
 
-    if (rentalInsert.error) {
       const refetchedRentals = await fetchExistingRentalsForCar(carId);
       existingRental =
         (compat.rentalStripeSubscriptionColumn
@@ -352,40 +517,27 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
     }
   }
 
-  const rentalUpdatePayload = await toRentalWritePayload({
-    application_id: applicationId,
-    bond_paid: approvedBond,
-    car_id: carId,
-    start_date: activeDate,
-    status: 'Active',
-    stripe_customer_id: customerId,
-    stripe_subscription_id: subscriptionId,
-    weekly_price: approvedWeeklyPrice,
-  });
-  const {
-    startDate: _unusedCamelStartDate,
-    start_date: _unusedSnakeStartDate,
-    carId: _unusedCamelCarId,
-    car_id: _unusedSnakeCarId,
-    applicationId: _unusedCamelApplicationId,
-    application_id: _unusedSnakeApplicationId,
-    ...repairPayload
-  } = rentalUpdatePayload as unknown as Record<string, unknown>;
-
   if (existingRental) {
-    const result = await db.from('rentals').update(repairPayload).eq('id', existingRental.id);
-    assertSupabaseWrite(result, 'Failed to repair existing rental after checkout completion');
+    const rentalInsertPayload = (await toRentalWritePayload({
+      application_id: applicationId,
+      bond_paid: approvedBond,
+      car_id: carId,
+      start_date: activeDate,
+      status: 'Active',
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscriptionId,
+      weekly_price: approvedWeeklyPrice,
+    })) as Record<string, unknown>;
+    const rentalRepairPayload = stripRentalIdentityFields(rentalInsertPayload);
+
+    await applyVehicleCheckoutActivationWrites({
+      applicationId,
+      carId,
+      existingRentalId: Number(existingRental.id),
+      rentalInsertPayload,
+      rentalRepairPayload,
+    });
   }
-
-  const carUpdate = await db.from('cars').update({ status: 'Rented' }).eq('id', carId);
-  assertSupabaseWrite(carUpdate, 'Failed to mark car as rented');
-
-  await updateApplicationPaymentState({
-    applicationId,
-    paidAt: new Date().toISOString(),
-    pendingCheckoutSessionId: null,
-    status: 'Paid',
-  });
 
   if (!process.env.RESEND_API_KEY || String(application.status) === 'Paid') {
     return;

@@ -6,6 +6,7 @@ import path from 'node:path';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { checkDBHealth, initializeDB } from './db/index.js';
+import { hasDirectDatabaseConnection } from './db/postgres.js';
 
 // Route Imports
 import authRoutes from './routes/auth.js';
@@ -61,6 +62,10 @@ const validateProductionEnv = () => {
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
   ].filter((key) => !process.env[key]);
+
+  if (!hasDirectDatabaseConnection()) {
+    missing.push('SUPABASE_DB_URL or DATABASE_URL');
+  }
 
   if (missing.length > 0) {
     throw new Error(

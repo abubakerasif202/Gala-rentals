@@ -1,51 +1,63 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
-
 # Maple Rental
 
-Maple Rental is a full-stack rental operations app for a hybrid vehicle fleet. The public site lets drivers browse vehicles, compare plans, submit an application with driver licence front and back photos, and continue into Stripe checkout. The admin side handles application review, fleet management, rentals, lease agreements, operational customer and invoice records, and weekly financial reporting.
+Maple Rental is a single-service full-stack rental platform for a hybrid vehicle fleet. The same Express process serves the API and the built React/Vite frontend in production.
 
-## What the app includes
+## Executive Summary
 
-- Public marketing site with pricing, fleet pages, and inquiry flow
-- Driver application flow with document upload and Stripe checkout handoff
-- Admin login backed by Supabase Auth
-- Admin dashboard for applications, rentals, customers, invoices, agreements, and financial summaries
-- Supabase Postgres for primary data storage
-- Supabase Storage for private application documents
-- Stripe checkout and webhook processing
-- Render-ready production deployment via a single web service
+- Public users can browse vehicles, submit applications, upload driver documents, and complete Stripe checkout.
+- Admin users can review applications, manage cars, activate rentals, inspect customer and invoice history, and work with lease agreements.
+- Supabase provides Postgres data storage, auth, and private document storage.
+- Render deploys the app as one Node web service.
 
 ## Stack
 
 - Frontend: React 19, Vite, React Router, TanStack Query, Tailwind CSS
-- Backend: Express, TypeScript, Supabase client, Stripe SDK, Resend
-- Data: Supabase Postgres + Supabase Storage
+- Backend: Express, TypeScript
+- Data: Supabase Postgres and Supabase Storage
+- Payments: Stripe
+- Email: Resend
 - Deployment: Render
 
-## Route overview
+## Runtime Architecture
 
-### Public routes
+### Development
 
-- `/` home page
-- `/pricing` rental plans
-- `/cars` fleet listing
-- `/cars/:id` vehicle details
-- `/apply` driver application
-- `/checkout/:id` vehicle checkout
-- `/success` checkout completion
+- `npm run dev` starts the Express server through `tsx watch`.
+- In development, Express mounts Vite in middleware mode.
+- The full app runs from one local origin: `http://localhost:3000`.
 
-### Admin routes
+### Production
 
-- `/admin/login` admin sign-in
-- `/admin/dashboard` protected admin workspace
+- `npm run build` builds the Vite client into `dist/` and the server into `server-dist/`.
+- `npm start` runs `node server-dist/api/index.js`.
+- Express serves `/api/*` routes directly.
+- Express serves built static assets from `dist/`.
+- Non-API SPA routes fall back to `dist/index.html`.
+- Health checks are exposed at `/api/health`.
 
-### API routes
+## Routes
+
+### Public
+
+- `/`
+- `/pricing`
+- `/cars`
+- `/cars/:id`
+- `/apply`
+- `/checkout/:id`
+- `/success`
+
+### Admin
+
+- `/admin/login`
+- `/admin/dashboard`
+
+### API
 
 - `/api/auth`
 - `/api/cars`
 - `/api/applications`
+- `/api/inquiries`
 - `/api/stripe`
 - `/api/rentals`
 - `/api/agreements`
@@ -54,7 +66,7 @@ Maple Rental is a full-stack rental operations app for a hybrid vehicle fleet. T
 - `/api/invoices`
 - `/api/health`
 
-## Local development
+## Local Development
 
 ### Prerequisites
 
@@ -62,152 +74,227 @@ Maple Rental is a full-stack rental operations app for a hybrid vehicle fleet. T
 - A Supabase project
 - A Stripe account for checkout and webhooks
 
-### 1. Install dependencies
+### Install
 
 ```bash
 npm ci
 ```
 
-### 2. Configure environment variables
+### Configure environment variables
 
 Copy `.env.example` to `.env.local` and fill in the values.
-The backend and helper scripts load `.env` first and then `.env.local` during local development, so `.env.local` works for both Vite and Node flows.
+
+The server loads `.env` first and then `.env.local` in non-production environments.
+
+Minimum local variables:
 
 ```env
-# Backend
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-SUPABASE_DB_URL=your_direct_postgres_connection_string
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_ANON_KEY=your_anon_key
 ADMIN_EMAIL=admin@maplerentals.com.au
-APP_URL=http://localhost:5173
+CHECKOUT_LINK_SECRET=replace_with_a_long_random_secret
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-CHECKOUT_LINK_SECRET=replace_with_a_long_random_secret
-RESEND_API_KEY=re_...
-
-# Frontend
+APP_URL=http://localhost:3000
+SITE_URL=http://localhost:3000
 VITE_API_BASE_URL=/api
-
-# Optional
-# FRONTEND_URL=http://localhost:5173
-# CORS_ORIGIN=http://localhost:5173
 ```
 
-### 3. Create the database schema
+Recommended for full local parity:
 
-Run the helper below to print the SQL you need to paste into the Supabase SQL Editor:
+```env
+SUPABASE_DB_URL=postgresql://...
+RESEND_API_KEY=re_...
+```
+
+Optional local-only admin shortcut:
+
+```env
+ADMIN_PASSWORD=change_me
+```
+
+If `ADMIN_PASSWORD` is set in development, the admin login route can issue a local signed admin session without requiring a live Supabase Auth sign-in.
+
+### Prepare Supabase
+
+Print the base schema SQL:
 
 ```bash
 node scripts/seed-schema.js
 ```
 
-That script does not apply migrations automatically. It prints the contents of `supabase-schema.sql` and tells you where to run it in Supabase.
-
-If you are upgrading an existing environment, apply the active vehicle allocation index as well:
+Apply additional migrations for existing environments as needed:
 
 ```bash
+npm run migrate:payment-workflow
 npm run migrate:vehicle-allocation
+npm run migrate:operational-history
 ```
 
-### 4. Create the private document bucket
-
-The application uploads driver documents into a private Supabase Storage bucket named `applications`.
+Create the private storage bucket used for driver documents:
 
 ```bash
 npx tsx scripts/setup-bucket.ts
 ```
 
-### 5. Create the admin account
-
-Create the whitelisted admin user in Supabase Auth and mirror it into the `admins` table:
+Create or reset the admin user:
 
 ```bash
 node scripts/seed-admin.js admin@maplerentals.com.au your-password
-```
-
-To reset the password later:
-
-```bash
 node scripts/reset-admin.js admin@maplerentals.com.au new-password
 ```
 
-### 6. Start the app
+### Start development
 
 ```bash
 npm run dev
 ```
 
-In development, the Express API runs with Vite middleware on the same server. By default the app is available at `http://localhost:5173`.
+Open:
 
-## Production build and run
+- App: [http://localhost:3000](http://localhost:3000)
+- Health: [http://localhost:3000/api/health](http://localhost:3000/api/health)
 
-Build the client and server:
+## Build, Start, and Validate
 
 ```bash
+npm run lint
+npm run test
+npm run validate
 npm run build
-```
-
-Start the compiled production server:
-
-```bash
 npm start
 ```
 
-The production server serves the built frontend from `dist/` and exposes the API from the same process.
+What each command does:
 
-## Useful scripts
+- `npm run dev`: full-stack local development server
+- `npm run lint`: TypeScript type-check
+- `npm run test`: Vitest suite
+- `npm run validate`: lint plus tests
+- `npm run build`: client plus server production build
+- `npm start`: compiled production server
+- `npm run preview`: Vite preview for the static client bundle only
 
-- `npm run dev` start the local full-stack development server
-- `npm run build` build client and server for production
-- `npm start` run the compiled production server from `server-dist/`
-- `npm run lint` run TypeScript type-checking
-- `npm run test` run the Vitest suite
-- `npm run clean` remove build output, generated review artifacts, and local server logs
-- `npm run migrate:vehicle-allocation` apply the active vehicle allocation index to an existing database
-- `npm run migrate:operational-history` run the operational history migration helper
+## Environment Variables
 
-## Deployment
+### Required in production
 
-This repo includes `render.yaml` for a single Render web service deployment.
+- `APP_URL`
+  - Public application origin, for example `https://www.maplerentals.com.au`
+- `ADMIN_EMAIL`
+  - Single allowed admin email
+- `SUPABASE_URL`
+  - Must be the HTTPS project URL, not a Postgres URI
+- `SUPABASE_ANON_KEY`
+  - Required for auth-scoped Supabase operations such as admin sign-in and token verification
+- `SUPABASE_SERVICE_ROLE_KEY`
+  - Server-side privileged Supabase key
+- `CHECKOUT_LINK_SECRET`
+  - Secret used to sign secure payment-link tokens
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
 
-- Build command: `npm ci && npm run build`
+### Recommended in production
+
+- `SUPABASE_DB_URL`
+  - Direct or pooled Postgres connection string used for transactional Stripe activation writes
+- `RESEND_API_KEY`
+  - Transactional email delivery
+
+### Optional
+
+- `SITE_URL`
+  - Canonical site URL for IndexNow publication. Falls back to `APP_URL`.
+- `FRONTEND_URL`
+  - Extra allowed browser origin
+- `CORS_ORIGIN`
+  - Extra allowed browser origin
+- `JSON_BODY_LIMIT`
+  - Override request body limit. Defaults to `25mb`.
+- `INDEXNOW_ENABLED`
+- `INDEXNOW_KEY`
+- `INDEXNOW_TIMEOUT_MS`
+- `INDEXNOW_DEBOUNCE_MS`
+
+## Health Check
+
+`GET /api/health` returns:
+
+- `status`
+- `environment`
+- `database`
+- `paymentActivationMode`
+
+`paymentActivationMode` will be:
+
+- `transactional` when `SUPABASE_DB_URL` or `DATABASE_URL` is configured
+- `best_effort` when the app is running without a direct Postgres connection
+
+## Security and Operational Notes
+
+- Express trusts one proxy hop in production so rate limiting works correctly on Render.
+- Helmet is enabled in production.
+- Global API rate limiting is enabled, plus a stricter limiter on admin login attempts.
+- API request bodies are size-limited.
+- Admin auth cookies are `httpOnly`, `secure` in production, and `sameSite=strict`.
+- Driver licence documents are stored in a private Supabase Storage bucket and served through short-lived signed URLs.
+- The server fails fast in production on invalid or missing core config instead of constructing unsafe fallback clients.
+
+## Render Deployment
+
+This repo includes [`render.yaml`](./render.yaml) for a single web-service deployment.
+
+Render runtime contract:
+
+- Build command: `npm ci --include=dev && npm run validate && npm run build`
 - Start command: `npm start`
-- Health check: `/api/health`
+- Health check path: `/api/health`
 
-Required Render environment variables:
+Recommended Render environment variables:
 
 - `APP_URL`
 - `ADMIN_EMAIL`
 - `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_DB_URL`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `CHECKOUT_LINK_SECRET`
+- `RESEND_API_KEY` if email delivery is enabled
 
-If transactional email is enabled, also provide:
+## Troubleshooting
 
-- `RESEND_API_KEY`
+### `Invalid supabaseUrl`
 
-## Operational notes
+`SUPABASE_URL` must be the HTTPS project URL, for example:
 
-- Admin access is restricted to the single email in `ADMIN_EMAIL`.
-- Driver licence uploads are stored in the private `applications` storage bucket and accessed via short-lived signed URLs.
-- In production, the server fails fast if `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing.
-- `SUPABASE_DB_URL` enables transactional Stripe payment activation in production. If it is missing, the server stays online and falls back to best-effort activation writes.
-- `scripts/pg-seed.js` is destructive and requires `ALLOW_SCHEMA_RESET=true`.
+```env
+SUPABASE_URL=https://your-project.supabase.co
+```
 
-## Verification checklist
+Do not paste the Postgres connection string into `SUPABASE_URL`.
 
-After setup, verify the basics:
+### Health endpoint reports `best_effort`
 
-1. Open `/` and confirm the public site loads.
-2. Submit a test application on `/apply`.
-3. Confirm an admin can log in at `/admin/login`.
-4. Confirm the new application appears in `/admin/dashboard`.
-5. Confirm `/api/health` returns `{"status":"ok"}`.
+Add `SUPABASE_DB_URL` or `DATABASE_URL` to enable transactional Stripe payment activation.
 
-## Repository notes
+### Admin login loops back to `/admin/login`
 
-- Do not commit raw customer, invoice, or operational exports.
-- Keep temporary imports and scrape artifacts in local untracked paths only.
+Check:
+
+- `ADMIN_EMAIL`
+- `SUPABASE_ANON_KEY`
+- Supabase Auth user existence
+- cookie settings on the deployed domain
+
+### Render logs mention rate limiting and `X-Forwarded-For`
+
+The server is already configured to trust Render’s proxy hop. If this appears again, confirm the service is running the latest commit from `main`.
+
+## Repository Notes
+
+- Do not commit real customer exports, invoice exports, or private documents.
+- Keep destructive scripts gated behind explicit env checks.
+- Treat `scripts/pg-seed.js` as destructive. It requires `ALLOW_SCHEMA_RESET=true`.

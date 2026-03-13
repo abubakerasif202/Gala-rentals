@@ -51,3 +51,13 @@ export const withPostgresTransaction = async <T>(
     client.release();
   }
 };
+
+export const closePostgresPool = async () => {
+  if (!postgresPool) {
+    return;
+  }
+
+  const pool = postgresPool;
+  postgresPool = null;
+  await pool.end();
+};

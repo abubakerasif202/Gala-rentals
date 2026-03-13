@@ -13,6 +13,11 @@ import {
 export const modelYearSchema = z.number().int().min(1900).max(new Date().getFullYear() + 1);
 export const weeklyPriceSchema = z.number().positive();
 
+export const adminLoginSchema = z.object({
+  username: z.string().trim().min(1, 'Username is required'),
+  password: z.string().min(1, 'Password is required'),
+});
+
 const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
   z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
 

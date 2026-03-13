@@ -1,90 +1,75 @@
 import '../scripts/load-env.js';
-import express from 'express';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
+import 'express-async-errors';
+
+import http from 'node:http';
 import path from 'node:path';
+
+import cookieParser from 'cookie-parser';
+import cors from 'cors';
+import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { checkDBHealth, initializeDB } from './db/index.js';
-import { hasDirectDatabaseConnection } from './db/postgres.js';
+import type { ViteDevServer } from 'vite';
+import { z } from 'zod';
 
-// Route Imports
+import {
+  checkDBHealth,
+  getSupabaseAuthConfigurationIssues,
+  getSupabaseConfigurationIssues,
+  initializeDB,
+} from './db/index.js';
+import {
+  closePostgresPool,
+  hasDirectDatabaseConnection,
+} from './db/postgres.js';
+import { apiNotFoundHandler, errorHandler } from './middleware/errors.js';
+import { requestContext, requestLogger } from './middleware/requestLogger.js';
+
+import agreementRoutes from './routes/agreements.js';
+import applicationRoutes from './routes/applications.js';
 import authRoutes from './routes/auth.js';
 import carRoutes from './routes/cars.js';
-import applicationRoutes from './routes/applications.js';
-import inquiryRoutes from './routes/inquiries.js';
-import stripeRoutes from './routes/stripe.js';
-import rentalRoutes from './routes/rentals.js';
-import agreementRoutes from './routes/agreements.js';
-import financialRoutes from './routes/financials.js';
-import webhookRoutes from './routes/webhooks.js';
 import customerRoutes from './routes/customers.js';
-import invoiceRoutes from './routes/invoices.js';
+import financialRoutes from './routes/financials.js';
 import indexNowAdminRoutes from './routes/indexNowAdmin.js';
+import inquiryRoutes from './routes/inquiries.js';
+import invoiceRoutes from './routes/invoices.js';
+import rentalRoutes from './routes/rentals.js';
+import stripeRoutes from './routes/stripe.js';
+import webhookRoutes from './routes/webhooks.js';
 import { indexNowConfig } from './services/indexNow.js';
 
-const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
 const shouldListen = process.env.VITEST !== 'true';
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
-const JSON_BODY_LIMIT = '25mb';
+const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '25mb';
 const frontendDistDir = path.resolve(process.cwd(), 'dist');
 const frontendIndexPath = path.join(frontendDistDir, 'index.html');
-const rateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  skip: () => process.env.VITEST === 'true',
-});
 const cspReportingEnabled = isProduction && process.env.CSP_REPORTING === 'true';
 const cspReportUri =
-  (process.env.CSP_REPORT_URI && process.env.CSP_REPORT_URI.trim()) || '/api/csp-report';
+  (process.env.CSP_REPORT_URI && process.env.CSP_REPORT_URI.trim()) ||
+  '/api/csp-report';
 const cspReportPath =
   cspReportUri.startsWith('http://') || cspReportUri.startsWith('https://')
     ? null
     : cspReportUri;
-const toCspOrigin = (value?: string) => {
-  const origin = toOrigin(value);
-  return origin || null;
-};
-const validateProductionEnv = () => {
-  if (!isProduction) {
-    return;
-  }
 
-  const missing = [
-    'APP_URL',
-    'CHECKOUT_LINK_SECRET',
-    'STRIPE_SECRET_KEY',
-    'STRIPE_WEBHOOK_SECRET',
-    'SUPABASE_URL',
-    'SUPABASE_SERVICE_ROLE_KEY',
-  ].filter((key) => !process.env[key]);
+const appUrlSchema = z
+  .string()
+  .trim()
+  .url('APP_URL must be a valid HTTP or HTTPS URL');
 
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required production environment variables: ${missing.join(', ')}. ` +
-        'Populate them in Render before deploy. See README and render.yaml.'
-    );
-  }
-};
+const adminEmailSchema = z
+  .string()
+  .trim()
+  .email('ADMIN_EMAIL must be a valid email address');
 
-const logProductionConfigurationWarnings = () => {
-  if (!isProduction || hasDirectDatabaseConnection()) {
-    return;
-  }
-
-  console.warn(
-    'SUPABASE_DB_URL or DATABASE_URL is not configured. Stripe payment activation ' +
-      'will use the non-transactional fallback until a direct Postgres connection is added.'
-  );
-};
-
-// CORS Configuration
 const toOrigin = (value?: string) => {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
+
   try {
     return new URL(value).origin;
   } catch {
@@ -92,195 +77,410 @@ const toOrigin = (value?: string) => {
   }
 };
 
-const corsOrigins = [
-  toOrigin(process.env.APP_URL),
-  toOrigin(process.env.FRONTEND_URL),
-  process.env.CORS_ORIGIN || null,
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-].filter((origin): origin is string => Boolean(origin));
+const toCspOrigin = (value?: string) => {
+  const origin = toOrigin(value);
+  return origin || null;
+};
 
-if (isProduction) {
-  // Render terminates TLS before forwarding requests to the app.
-  app.set('trust proxy', 1);
-}
+const validateProductionEnv = () => {
+  if (!isProduction) {
+    return;
+  }
 
-if (isProduction) {
-  app.use(
-    helmet({
-      // Allow assets from Supabase Storage and other external origins used by the app.
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-      contentSecurityPolicy: {
-        useDefaults: false,
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: [
-            "'self'",
-            'https://js.stripe.com',
-          ],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-          fontSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: [
-            "'self'",
-            toCspOrigin(process.env.SUPABASE_URL) || 'https://*.supabase.co',
-            'https://*.supabase.co',
-            'https://*.supabase.in',
-          ],
-          frameSrc: ['https://js.stripe.com', 'https://hooks.stripe.com', 'https://checkout.stripe.com'],
-          objectSrc: ["'none'"],
-          baseUri: ["'self'"],
-          formAction: ["'self'"],
-          upgradeInsecureRequests: [],
-          ...(cspReportingEnabled && cspReportUri
-            ? { reportUri: [cspReportUri] }
-            : {}),
-        },
-      },
-    })
-  );
-}
+  const missing = [
+    'APP_URL',
+    'ADMIN_EMAIL',
+    'CHECKOUT_LINK_SECRET',
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+  ].filter((key) => !process.env[key]?.trim());
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || corsOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-      callback(null, false);
-    },
-    credentials: true,
-  })
-);
+  const invalid = Array.from(new Set([
+    ...getSupabaseConfigurationIssues(),
+    ...getSupabaseAuthConfigurationIssues(),
+  ]));
 
-app.use(cookieParser());
+  if (process.env.APP_URL) {
+    const parsedAppUrl = appUrlSchema.safeParse(process.env.APP_URL);
+    if (!parsedAppUrl.success) {
+      invalid.push(parsedAppUrl.error.issues[0]?.message || 'APP_URL');
+    }
+  }
 
-// IndexNow requires this key file at the site root to verify ownership.
-app.get(`/${indexNowConfig.key}.txt`, (_req, res) => {
-  res.type('text/plain').send(indexNowConfig.key);
+  if (process.env.ADMIN_EMAIL) {
+    const parsedAdminEmail = adminEmailSchema.safeParse(process.env.ADMIN_EMAIL);
+    if (!parsedAdminEmail.success) {
+      invalid.push(parsedAdminEmail.error.issues[0]?.message || 'ADMIN_EMAIL');
+    }
+  }
+
+  if (missing.length > 0 || invalid.length > 0) {
+    const details = [...missing, ...invalid].join(', ');
+    throw new Error(
+      `Invalid production environment configuration: ${details}. ` +
+        'Populate or correct the values in Render before deploy. See README and render.yaml.'
+    );
+  }
+};
+
+const logProductionConfigurationWarnings = () => {
+  if (isProduction && !hasDirectDatabaseConnection()) {
+    console.warn(
+      'SUPABASE_DB_URL or DATABASE_URL is not configured. Stripe payment activation ' +
+        'will use the non-transactional fallback until a direct Postgres connection is added.'
+    );
+  }
+};
+
+const rateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: () => process.env.VITEST === 'true',
 });
 
-// Webhooks (MUST be before express.json() for raw body)
-app.use('/api/webhook/stripe', webhookRoutes);
-app.use('/api/stripe/webhook', webhookRoutes);
-
-// Allow room for two base64-encoded licence images plus form fields.
-app.use(express.json({ limit: JSON_BODY_LIMIT }));
-
-if (cspReportingEnabled && cspReportPath) {
-  app.post(
-    cspReportPath,
-    express.json({ type: ['application/csp-report', 'application/csp-report+json', 'application/json'] }),
-    (req, res) => {
-      console.warn('CSP report received:', JSON.stringify(req.body));
-      res.status(204).end();
-    }
-  );
-}
-
-// Database Initialization Middleware
 let dbInitialized: Promise<void> | null = null;
+
 const ensureDB = async () => {
   if (!dbInitialized) {
     dbInitialized = initializeDB();
   }
+
   return dbInitialized;
 };
 
-app.get('/api/health', async (_req, res) => {
-  try {
-    const { configured } = await checkDBHealth();
+const buildCorsOrigins = () =>
+  [
+    toOrigin(process.env.APP_URL),
+    toOrigin(process.env.FRONTEND_URL),
+    process.env.CORS_ORIGIN || null,
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:4173',
+    'http://127.0.0.1:4173',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ].filter((origin): origin is string => Boolean(origin));
 
-    res.json({
-      status: 'ok',
-      environment: process.env.NODE_ENV || 'development',
-      database: configured ? 'ok' : 'not_configured',
-      paymentActivationMode: hasDirectDatabaseConnection() ? 'transactional' : 'best_effort',
-    });
-  } catch (error) {
-    console.error('Healthcheck error:', error);
-    res.status(503).json({
-      status: 'error',
-      environment: process.env.NODE_ENV || 'development',
-      database: 'unavailable',
-      paymentActivationMode: hasDirectDatabaseConnection() ? 'transactional' : 'best_effort',
-    });
+const applySecurityMiddleware = (app: express.Express) => {
+  app.disable('x-powered-by');
+
+  if (isProduction) {
+    // Render terminates TLS before proxying traffic to the Node process.
+    app.set('trust proxy', 1);
   }
-});
 
-app.use('/api', rateLimiter);
-
-app.use('/api', async (_req, res, next) => {
-  try {
-    await ensureDB();
-    next();
-  } catch (err) {
-    console.error('Database initialization error:', err);
-    res.status(500).json({ error: 'Database error' });
+  if (isProduction) {
+    app.use(
+      helmet({
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+        contentSecurityPolicy: {
+          useDefaults: false,
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", 'https://js.stripe.com'],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+            fontSrc: ["'self'", 'data:', 'https:'],
+            connectSrc: [
+              "'self'",
+              toCspOrigin(process.env.SUPABASE_URL) || 'https://*.supabase.co',
+              'https://*.supabase.co',
+              'https://*.supabase.in',
+            ],
+            frameSrc: [
+              'https://js.stripe.com',
+              'https://hooks.stripe.com',
+              'https://checkout.stripe.com',
+            ],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"],
+            upgradeInsecureRequests: [],
+            ...(cspReportingEnabled && cspReportUri
+              ? { reportUri: [cspReportUri] }
+              : {}),
+          },
+        },
+      })
+    );
   }
-});
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/cars', carRoutes);
-app.use('/api/applications', applicationRoutes);
-app.use('/api/inquiries', inquiryRoutes);
-app.use('/api/stripe', stripeRoutes);
-app.use('/api/rentals', rentalRoutes);
-app.use('/api/agreements', agreementRoutes);
-app.use('/api/financials', financialRoutes);
-app.use('/api/customers', customerRoutes);
-app.use('/api/invoices', invoiceRoutes);
-app.use('/admin', indexNowAdminRoutes);
+  const corsOrigins = buildCorsOrigins();
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || corsOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
 
-// Legacy/Compatibility Redirects or Aliases
-app.get('/api/stats', (_req, res) => res.redirect(307, '/api/financials/stats'));
-app.get('/api/rental-plans', (_req, res) => res.redirect(307, '/api/stripe/rental-plans'));
+        callback(null, false);
+      },
+      credentials: true,
+    })
+  );
 
-// Server Startup
-const startServer = async () => {
+  app.use(cookieParser());
+  app.use(requestContext);
+  app.use(requestLogger);
+};
+
+const registerCoreRoutes = (app: express.Express) => {
+  app.get(`/${indexNowConfig.key}.txt`, (_req, res) => {
+    res.type('text/plain').send(indexNowConfig.key);
+  });
+
+  app.use('/api/webhook/stripe', webhookRoutes);
+  app.use('/api/stripe/webhook', webhookRoutes);
+
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
+  app.use(express.urlencoded({ extended: false, limit: JSON_BODY_LIMIT }));
+
+  if (cspReportingEnabled && cspReportPath) {
+    app.post(
+      cspReportPath,
+      express.json({
+        type: [
+          'application/csp-report',
+          'application/csp-report+json',
+          'application/json',
+        ],
+      }),
+      (req, res) => {
+        console.warn('CSP report received:', JSON.stringify(req.body));
+        res.status(204).end();
+      }
+    );
+  }
+
+  app.get('/api/health', async (_req, res) => {
+    try {
+      const { configured } = await checkDBHealth();
+
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({
+        status: 'ok',
+        environment: process.env.NODE_ENV || 'development',
+        database: configured ? 'ok' : 'not_configured',
+        paymentActivationMode: hasDirectDatabaseConnection()
+          ? 'transactional'
+          : 'best_effort',
+      });
+    } catch (error) {
+      console.error('Healthcheck error:', error);
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(503).json({
+        status: 'error',
+        environment: process.env.NODE_ENV || 'development',
+        database: 'unavailable',
+        paymentActivationMode: hasDirectDatabaseConnection()
+          ? 'transactional'
+          : 'best_effort',
+      });
+    }
+  });
+
+  app.use('/api', rateLimiter);
+  app.use('/api', async (_req, _res, next) => {
+    try {
+      await ensureDB();
+      next();
+    } catch (error) {
+      next(
+        Object.assign(new Error('Database initialization failed'), {
+          status: 503,
+          cause: error,
+        })
+      );
+    }
+  });
+
+  app.use('/api/auth', authRoutes);
+  app.use('/api/cars', carRoutes);
+  app.use('/api/applications', applicationRoutes);
+  app.use('/api/inquiries', inquiryRoutes);
+  app.use('/api/stripe', stripeRoutes);
+  app.use('/api/rentals', rentalRoutes);
+  app.use('/api/agreements', agreementRoutes);
+  app.use('/api/financials', financialRoutes);
+  app.use('/api/customers', customerRoutes);
+  app.use('/api/invoices', invoiceRoutes);
+  app.use('/admin', indexNowAdminRoutes);
+
+  app.get('/api/stats', (_req, res) =>
+    res.redirect(307, '/api/financials/stats')
+  );
+  app.get('/api/rental-plans', (_req, res) =>
+    res.redirect(307, '/api/stripe/rental-plans')
+  );
+
+  app.use(apiNotFoundHandler);
+};
+
+const registerProductionFrontend = (app: express.Express) => {
+  app.use(
+    express.static(frontendDistDir, {
+      index: false,
+      dotfiles: 'ignore',
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader(
+            'Cache-Control',
+            'public, max-age=31536000, immutable'
+          );
+          return;
+        }
+
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      },
+    })
+  );
+
+  app.use((req, res, next) => {
+    if (!['GET', 'HEAD'].includes(req.method) || req.path.startsWith('/api/')) {
+      next();
+      return;
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(frontendIndexPath, (error) => {
+      if (error) {
+        next(error);
+      }
+    });
+  });
+};
+
+const registerDevelopmentFrontend = async (app: express.Express) => {
+  const { ensureEsbuildBinaryPath } = await import(
+    '../scripts/ensureEsbuildBinaryPath.js'
+  );
+  ensureEsbuildBinaryPath();
+
+  const { createServer: createViteServer } = await import('vite');
+  const viteServer = await createViteServer({
+    server: { middlewareMode: true },
+    appType: 'spa',
+  });
+
+  app.use(viteServer.middlewares);
+  return viteServer;
+};
+
+export const createApp = () => {
+  const app = express();
+  applySecurityMiddleware(app);
+  registerCoreRoutes(app);
+  return app;
+};
+
+const app = createApp();
+
+const closeHttpServer = (server: http.Server) =>
+  new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+
+type RunningResources = {
+  server: http.Server | null;
+  viteServer: ViteDevServer | null;
+};
+
+export const startServer = async (): Promise<RunningResources> => {
   validateProductionEnv();
   logProductionConfigurationWarnings();
   await ensureDB();
 
-  if (!isProduction) {
-    const { ensureEsbuildBinaryPath } = await import('../scripts/ensureEsbuildBinaryPath.js');
-    ensureEsbuildBinaryPath();
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+  let viteServer: ViteDevServer | null = null;
+  if (isProduction) {
+    registerProductionFrontend(app);
   } else {
-    app.use(express.static(frontendDistDir, { index: false }));
-    app.use((req, res, next) => {
-      if (!['GET', 'HEAD'].includes(req.method) || req.path.startsWith('/api/')) {
-        next();
-        return;
-      }
-
-      res.sendFile(frontendIndexPath, (err) => {
-        if (err) {
-          next(err);
-        }
-      });
-    });
+    viteServer = await registerDevelopmentFrontend(app);
   }
 
-  if (shouldListen) {
-    app.listen(PORT, HOST, () => {
+  app.use(errorHandler);
+
+  if (!shouldListen) {
+    return { server: null, viteServer };
+  }
+
+  const server = await new Promise<http.Server>((resolve, reject) => {
+    const createdServer = app.listen(PORT, HOST, () => {
       console.log(`Server running on http://${HOST}:${PORT}`);
+      resolve(createdServer);
     });
+
+    createdServer.on('error', reject);
+  });
+
+  return { server, viteServer };
+};
+
+let runningResources: RunningResources | null = null;
+let shutdownPromise: Promise<void> | null = null;
+
+const shutdown = async (reason: string, error?: unknown) => {
+  if (shutdownPromise) {
+    return shutdownPromise;
   }
+
+  shutdownPromise = (async () => {
+    if (error) {
+      console.error(`Shutting down after ${reason}:`, error);
+    } else {
+      console.info(`Received ${reason}. Shutting down gracefully...`);
+    }
+
+    const resources = runningResources;
+    const tasks: Promise<unknown>[] = [closePostgresPool()];
+
+    if (resources?.viteServer) {
+      tasks.push(resources.viteServer.close());
+    }
+
+    if (resources?.server) {
+      tasks.push(closeHttpServer(resources.server));
+    }
+
+    await Promise.allSettled(tasks);
+  })();
+
+  return shutdownPromise;
 };
 
 if (shouldListen) {
-  void startServer().catch((error) => {
-    console.error('Server startup error:', error);
-    process.exit(1);
+  const exitAfterShutdown = (code: number) => () => {
+    void shutdown(code === 0 ? 'signal' : 'process error').finally(() =>
+      process.exit(code)
+    );
+  };
+
+  process.on('SIGTERM', exitAfterShutdown(0));
+  process.on('SIGINT', exitAfterShutdown(0));
+  process.on('unhandledRejection', (reason) => {
+    void shutdown('unhandledRejection', reason).finally(() => process.exit(1));
   });
+  process.on('uncaughtException', (error) => {
+    void shutdown('uncaughtException', error).finally(() => process.exit(1));
+  });
+
+  void startServer()
+    .then((resources) => {
+      runningResources = resources;
+    })
+    .catch((error) => {
+      console.error('Server startup error:', error);
+      void shutdown('startup failure', error).finally(() => process.exit(1));
+    });
 }
 
 export default app;

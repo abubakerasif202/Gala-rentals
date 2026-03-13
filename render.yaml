@@ -2,10 +2,10 @@ services:
   - type: web
     name: maple-rental
     runtime: node
-    plan: free
+    plan: starter
     branch: main
     autoDeployTrigger: commit
-    buildCommand: npm ci --include=dev && npm run lint && npm test && npm run build
+    buildCommand: npm ci --include=dev && npm run validate && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
@@ -16,6 +16,8 @@ services:
       - key: ADMIN_EMAIL
         sync: false
       - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false

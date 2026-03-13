@@ -8,6 +8,9 @@ const {
   mockStorageFrom,
   mockCheckDBHealth,
   mockCreateAuthClient,
+  mockClosePostgresPool,
+  mockGetSupabaseAuthConfigurationIssues,
+  mockGetSupabaseConfigurationIssues,
   mockHasDirectDatabaseConnection,
   mockMutationErrors,
   mockResendEmailsSend,
@@ -27,6 +30,9 @@ const {
   mockStorageFrom: vi.fn(),
   mockCheckDBHealth: vi.fn(),
   mockCreateAuthClient: vi.fn(),
+  mockClosePostgresPool: vi.fn(async () => undefined),
+  mockGetSupabaseAuthConfigurationIssues: vi.fn(() => []),
+  mockGetSupabaseConfigurationIssues: vi.fn(() => []),
   mockHasDirectDatabaseConnection: vi.fn(() => false),
   mockMutationErrors: {
     applicationsUpdate: null as Record<string, any> | null,
@@ -519,11 +525,14 @@ vi.mock('../db/index.js', () => {
     },
     createAuthClient: mockCreateAuthClient,
     checkDBHealth: mockCheckDBHealth,
+    getSupabaseAuthConfigurationIssues: mockGetSupabaseAuthConfigurationIssues,
+    getSupabaseConfigurationIssues: mockGetSupabaseConfigurationIssues,
     initializeDB: vi.fn(() => Promise.resolve()),
   };
 });
 
 vi.mock('../db/postgres.js', () => ({
+  closePostgresPool: mockClosePostgresPool,
   getDirectDatabaseConnectionString: vi.fn(() => ''),
   hasDirectDatabaseConnection: mockHasDirectDatabaseConnection,
   withPostgresTransaction: vi.fn(async (callback: (client: { query: ReturnType<typeof vi.fn> }) => Promise<unknown>) =>
@@ -718,6 +727,9 @@ beforeEach(() => {
     },
   });
   mockCheckDBHealth.mockResolvedValue({ configured: true });
+  mockClosePostgresPool.mockResolvedValue(undefined);
+  mockGetSupabaseAuthConfigurationIssues.mockReturnValue([]);
+  mockGetSupabaseConfigurationIssues.mockReturnValue([]);
   mockHasDirectDatabaseConnection.mockReturnValue(false);
   mockStorageFrom.mockImplementation((bucket: string) => ({
     upload: vi.fn(async (path: string) => ({ data: { path }, error: null })),

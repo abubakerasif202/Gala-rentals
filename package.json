@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite-node api/index.ts",
+    "dev": "tsx watch api/index.ts",
     "start": "node server-dist/api/index.js",
     "build": "npm run build:client && npm run build:server",
     "build:client": "node scripts/run-vite.js build",
@@ -16,7 +16,8 @@
     "migrate:operational-history": "node scripts/migrate-operational-history.js",
     "sync:realtime-fleet": "node scripts/sync-realtime-fleet.js",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "validate": "npm run lint && npm run test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -31,6 +32,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "express-async-errors": "^3.1.1",
     "express-rate-limit": "^8.3.1",
     "helmet": "^8.1.0",
     "lucide-react": "^0.546.0",
@@ -59,7 +61,6 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^7.3.1",
-    "vite-node": "^5.1.0",
     "vitest": "^4.0.18"
   },
   "engines": {

@@ -1,22 +1,39 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_PUBLIC_KEY || '';
-const hasRequiredSupabaseEnv = Boolean(supabaseUrl && supabaseKey);
+type MapleSupabaseClient = SupabaseClient;
 
-if (!hasRequiredSupabaseEnv) {
-  const message = 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required.';
+const readEnv = (key: string) => {
+  const value = process.env[key];
+  return typeof value === 'string' ? value.trim() : '';
+};
 
-  if (process.env.NODE_ENV === 'production') {
-    console.error(`CRITICAL: ${message}`);
-  } else {
-    console.warn(`WARNING: ${message} Creating a dummy client for local development.`);
+const normalizeHttpUrl = (value: string) => {
+  if (!value) {
+    return null;
   }
-}
 
-const createScopedClient = (key: string) =>
-  createClient(supabaseUrl || 'https://dummy.supabase.co', key || 'dummy', {
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return null;
+    }
+
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return null;
+  }
+};
+
+const supabaseUrlRaw = readEnv('SUPABASE_URL');
+const supabaseUrl = normalizeHttpUrl(supabaseUrlRaw);
+const supabaseServiceRoleKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
+const supabaseAnonKey =
+  readEnv('SUPABASE_ANON_KEY') || readEnv('SUPABASE_ANON_PUBLIC_KEY');
+
+let serviceClient: MapleSupabaseClient | null = null;
+
+const createScopedClient = (url: string, key: string) =>
+  createClient(url, key, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -24,27 +41,106 @@ const createScopedClient = (key: string) =>
     },
   });
 
-// Create a singleton client for privileged database operations only.
-// Never use this client for user auth calls because auth methods can attach
-// request-scoped credentials and cause later queries to run under RLS.
-export const db = createScopedClient(supabaseKey);
+const buildConfigurationErrorMessage = (
+  issues: string[],
+  context: 'admin' | 'auth'
+) => {
+  const prefix =
+    context === 'admin'
+      ? 'Supabase admin client is not configured correctly'
+      : 'Supabase auth client is not configured correctly';
 
-// Use a fresh auth client per request so admin login/verification never mutates
-// the singleton service-role client used by data routes.
-export const createAuthClient = () => createScopedClient(supabaseAnonKey || supabaseKey);
+  return `${prefix}: ${issues.join(', ')}.`;
+};
+
+export const getSupabaseConfigurationIssues = () => {
+  const issues: string[] = [];
+
+  if (!supabaseUrlRaw) {
+    issues.push('SUPABASE_URL');
+  } else if (!supabaseUrl) {
+    issues.push('SUPABASE_URL (must be a valid HTTP or HTTPS URL)');
+  }
+
+  if (!supabaseServiceRoleKey) {
+    issues.push('SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  return issues;
+};
+
+export const hasSupabaseAdminConfig = () =>
+  getSupabaseConfigurationIssues().length === 0;
+
+export const getSupabaseAuthConfigurationIssues = () => {
+  const issues: string[] = [];
+
+  if (!supabaseUrlRaw) {
+    issues.push('SUPABASE_URL');
+  } else if (!supabaseUrl) {
+    issues.push('SUPABASE_URL (must be a valid HTTP or HTTPS URL)');
+  }
+
+  if (!supabaseAnonKey) {
+    issues.push('SUPABASE_ANON_KEY');
+  }
+
+  return issues;
+};
+
+const getServiceClient = () => {
+  const issues = getSupabaseConfigurationIssues();
+  if (issues.length > 0 || !supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error(buildConfigurationErrorMessage(issues, 'admin'));
+  }
+
+  if (!serviceClient) {
+    serviceClient = createScopedClient(supabaseUrl, supabaseServiceRoleKey);
+  }
+
+  return serviceClient;
+};
+
+export const db = new Proxy({} as MapleSupabaseClient, {
+  get(_target, property, receiver) {
+    const client = getServiceClient();
+    const value = Reflect.get(client, property, receiver);
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+});
+
+export const createAuthClient = () => {
+  const issues = getSupabaseAuthConfigurationIssues();
+  const authKey = supabaseAnonKey;
+
+  if (issues.length > 0 || !supabaseUrl || !authKey) {
+    throw new Error(buildConfigurationErrorMessage(issues, 'auth'));
+  }
+
+  return createScopedClient(supabaseUrl, authKey);
+};
 
 export const checkDBHealth = async () => {
-  if (!hasRequiredSupabaseEnv) {
+  if (!hasSupabaseAdminConfig()) {
+    const errorMessage = buildConfigurationErrorMessage(
+      getSupabaseConfigurationIssues(),
+      'admin'
+    );
+
     if (process.env.NODE_ENV === 'production') {
-      throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables.');
+      throw new Error(errorMessage);
     }
 
     return {
       configured: false,
+      issues: getSupabaseConfigurationIssues(),
     };
   }
 
-  const { error } = await db.from('cars').select('id', { head: true }).limit(1);
+  const { error } = await getServiceClient()
+    .from('cars')
+    .select('id', { head: true })
+    .limit(1);
 
   if (error) {
     throw new Error(`Supabase connectivity check failed: ${error.message || 'Unknown error'}`);
@@ -52,6 +148,7 @@ export const checkDBHealth = async () => {
 
   return {
     configured: true,
+    issues: [] as string[],
   };
 };
 

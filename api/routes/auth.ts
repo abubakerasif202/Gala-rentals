@@ -1,17 +1,14 @@
 import express from 'express';
 import crypto from 'node:crypto';
+import rateLimit from 'express-rate-limit';
+import { ZodError } from 'zod';
 import { createAuthClient } from '../db/index.js';
+import { adminLoginSchema } from '../validation.js';
 
 const router = express.Router();
 const isProduction = process.env.NODE_ENV === 'production';
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-if (!ADMIN_EMAIL && isProduction) {
-  throw new Error('CRITICAL: ADMIN_EMAIL environment variable is missing in production!');
-}
-
 const devAdminEmail = 'admin@maplerentals.com.au';
-const effectiveAdminEmail = (ADMIN_EMAIL || devAdminEmail).toLowerCase();
 const devAdminPassword = (process.env.ADMIN_PASSWORD || '').trim();
 const localAdminSessionSecret = (
   process.env.JWT_SECRET ||
@@ -19,6 +16,15 @@ const localAdminSessionSecret = (
   ''
 ).trim();
 const LOCAL_ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  skip: () => process.env.VITEST === 'true',
+  message: { error: 'Too many login attempts. Try again later.' },
+});
 
 type LocalAdminSessionPayload = {
   email: string;
@@ -29,10 +35,25 @@ type LocalAdminSessionPayload = {
 const canUseLocalAdminSession =
   !isProduction && Boolean(devAdminPassword && localAdminSessionSecret);
 
+const getEffectiveAdminEmail = () => {
+  const configuredAdminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+
+  if (configuredAdminEmail) {
+    return configuredAdminEmail;
+  }
+
+  if (!isProduction) {
+    return devAdminEmail;
+  }
+
+  return null;
+};
+
 const createCookieOptions = () => ({
   httpOnly: true,
   maxAge: LOCAL_ADMIN_SESSION_TTL_MS,
-  sameSite: 'lax' as const,
+  path: '/',
+  sameSite: 'strict' as const,
   secure: isProduction,
 });
 
@@ -98,6 +119,11 @@ export const authenticateAdmin = async (req: express.Request, res: express.Respo
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
+    const effectiveAdminEmail = getEffectiveAdminEmail();
+    if (!effectiveAdminEmail) {
+      return res.status(500).json({ error: 'Admin authentication is not configured' });
+    }
+
     const localAdminSession = verifyLocalAdminSessionToken(token);
     if (localAdminSession?.email.toLowerCase() === effectiveAdminEmail) {
       (req as any).admin = { email: localAdminSession.email };
@@ -124,26 +150,33 @@ export const authenticateAdmin = async (req: express.Request, res: express.Respo
   }
 };
 
-router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-  const email = typeof username === 'string' ? username.trim().toLowerCase() : '';
-  const pass = typeof password === 'string' ? password : '';
-
-  if (!email || !pass) {
-    return res.status(400).json({ error: 'Username and password are required' });
-  }
-
-  // Single-Admin Email Whitelist Check
-  if (email !== effectiveAdminEmail) {
-    return res.status(403).json({ error: 'Unauthorized: Access restricted to primary admin' });
-  }
-
-  if (canUseLocalAdminSession && pass === devAdminPassword) {
-    res.cookie('admin_token', createLocalAdminSessionToken(email), createCookieOptions());
-    return res.json({ username: email });
-  }
-
+router.post('/login', loginRateLimiter, async (req, res) => {
   try {
+    const effectiveAdminEmail = getEffectiveAdminEmail();
+    if (!effectiveAdminEmail) {
+      return res.status(500).json({ error: 'Admin authentication is not configured' });
+    }
+
+    const { username, password } = adminLoginSchema.parse(req.body ?? {});
+    const email = username.trim().toLowerCase();
+    const pass = password;
+
+    // Single-Admin Email Whitelist Check
+    if (email !== effectiveAdminEmail) {
+      return res
+        .status(403)
+        .json({ error: 'Unauthorized: Access restricted to primary admin' });
+    }
+
+    if (canUseLocalAdminSession && pass === devAdminPassword) {
+      res.cookie(
+        'admin_token',
+        createLocalAdminSessionToken(email),
+        createCookieOptions()
+      );
+      return res.json({ username: email });
+    }
+
     const authClient = createAuthClient();
     const { data, error } = await authClient.auth.signInWithPassword({
       email,
@@ -158,6 +191,10 @@ router.post('/login', async (req, res) => {
     res.cookie('admin_token', token, createCookieOptions());
     res.json({ username: data.user?.email });
   } catch (err) {
+    if (err instanceof ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: err.issues });
+    }
+
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
   }

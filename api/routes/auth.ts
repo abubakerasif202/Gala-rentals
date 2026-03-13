@@ -7,7 +7,8 @@ import { createAuthClient } from '../db/index.js';
 import { adminLoginSchema } from '../validation.js';
 
 const router = express.Router();
-const isProduction = process.env.NODE_ENV === 'production';
+const isVitest = process.env.VITEST === 'true';
+const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
 
 const devAdminEmail = 'admin@maplerentals.com.au';
 const devAdminPassword = (process.env.ADMIN_PASSWORD || '').trim();

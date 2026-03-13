@@ -40,7 +40,8 @@ import stripeRoutes from './routes/stripe.js';
 import webhookRoutes from './routes/webhooks.js';
 import { indexNowConfig } from './services/indexNow.js';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isVitest = process.env.VITEST === 'true';
+const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
 const shouldListen = process.env.VITEST !== 'true';
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';

@@ -629,10 +629,11 @@ vi.mock('../db/postgres.js', () => ({
   ),
 }));
 
+process.env.NODE_ENV = 'test';
 process.env.CHECKOUT_LINK_SECRET = 'test-checkout-secret';
 
-import app from '../index.js';
-import { createCheckoutToken, verifyCheckoutToken } from '../checkoutTokens.js';
+const { default: app } = await import('../index.js');
+const { createCheckoutToken, verifyCheckoutToken } = await import('../checkoutTokens.js');
 
 beforeEach(() => {
   delete process.env.RESEND_API_KEY;

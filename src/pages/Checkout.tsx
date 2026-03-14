@@ -61,7 +61,7 @@ export default function Checkout() {
 
       if (!session.checkout_url) {
         throw new Error(
-          'Stripe did not return a checkout URL. Request a fresh secure payment link from the Maple Rentals team.'
+          'Stripe did not return a checkout URL. Request a fresh secure checkout link from the Maple Rentals team.'
         );
       }
 
@@ -85,11 +85,11 @@ export default function Checkout() {
             Secure link required
           </p>
           <h1 className="text-4xl font-bold uppercase tracking-tighter">
-            This payment page needs an approved secure link
+            This payment page needs a valid checkout link
           </h1>
           <p className="text-brand-grey font-light">
-            Driver payments are only available through a time-limited link issued after admin
-            approval.
+            Start with a vehicle application so we can generate the agreement and secure checkout
+            link for the selected car.
           </p>
           <Link
             to={id ? `/apply?carId=${id}` : '/apply'}
@@ -114,10 +114,10 @@ export default function Checkout() {
     return (
       <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white px-6">
         <div className="text-center space-y-4 max-w-xl">
-          <p>Unable to load the approved payment details for this link.</p>
+          <p>Unable to load the payment details for this link.</p>
           <p className="text-sm text-brand-grey font-light">
-            Request a fresh payment link from the Maple Rentals team if this one has expired or was
-            replaced.
+            Request a fresh checkout link from Maple Rentals if this one has expired or was
+            replaced by a newer application.
           </p>
           <Link to="/apply" className="text-brand-gold hover:underline">
             Submit a new application
@@ -127,7 +127,8 @@ export default function Checkout() {
     );
   }
 
-  const { billing, car } = paymentContext;
+  const { agreement, billing, car } = paymentContext;
+  const hasSetupFees = billing.setupFees > 0;
 
   return (
     <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
@@ -151,10 +152,10 @@ export default function Checkout() {
               <motion.div initial="hidden" animate="visible" variants={fadeIn} className="space-y-10">
                 <div>
                   <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 uppercase tracking-tighter">
-                    Secure <span className="text-brand-gold italic">Payment</span>
+                    Checkout <span className="text-brand-gold italic">& Agreement</span>
                   </h1>
                   <p className="text-brand-grey font-light">
-                    Your application has been approved. Review the confirmed pricing below, then continue to Stripe.
+                    Review the rental terms, confirm the upfront amount, then continue to Stripe.
                   </p>
                 </div>
 
@@ -168,10 +169,19 @@ export default function Checkout() {
                         Hosted Stripe session
                       </p>
                       <p className="text-sm text-brand-grey font-light leading-relaxed">
-                        This payment covers the approved bond, first weekly payment, setup fees, and starts your recurring subscription.
+                        This payment collects your two-week bond plus the first weekly rental payment and starts automatic weekly billing.
                       </p>
                     </div>
                   </div>
+
+                  <details className="rounded-2xl border border-white/10 bg-brand-navy/40 px-5 py-4">
+                    <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-widest text-brand-gold">
+                      View generated agreement
+                    </summary>
+                    <pre className="mt-4 whitespace-pre-wrap text-xs text-brand-grey font-light leading-relaxed">
+                      {agreement}
+                    </pre>
+                  </details>
 
                   <button
                     type="button"
@@ -221,7 +231,7 @@ export default function Checkout() {
 
                   <div className="p-8 space-y-6">
                     <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest border-b border-white/5 pb-4">
-                      Approved payment breakdown
+                      Payment breakdown
                     </h4>
 
                     <div className="space-y-4 text-sm">
@@ -233,10 +243,12 @@ export default function Checkout() {
                         <span className="text-brand-grey font-light">First weekly payment</span>
                         <span className="text-white font-bold">{formatCurrency(billing.initialRental)}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-brand-grey font-light">Setup fees</span>
-                        <span className="text-white font-bold">{formatCurrency(billing.setupFees)}</span>
-                      </div>
+                      {hasSetupFees && (
+                        <div className="flex justify-between">
+                          <span className="text-brand-grey font-light">Setup fees</span>
+                          <span className="text-white font-bold">{formatCurrency(billing.setupFees)}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-6 border-t border-white/10 flex justify-between items-center">

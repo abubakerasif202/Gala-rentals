@@ -40,7 +40,7 @@ export default function Pricing() {
             transition={{ duration: 0.6 }}
             className="text-slate-300 text-lg max-w-3xl mx-auto font-light leading-relaxed"
           >
-            Compare the standard weekly pricing, bond, and onboarding costs before you apply. Final pricing is confirmed by admin review, then sent as a secure payment link after approval.
+            Compare the standard weekly pricing, two-week bond, and upfront amount before you apply. Checkout starts as soon as your application and documents are submitted.
           </motion.p>
         </div>
       </section>
@@ -100,7 +100,11 @@ export default function Pricing() {
                         </span>
                       </div>
                       <p className={`text-xs uppercase tracking-[0.18em] ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Includes ${plan.pricing.serviceFeeAud.toFixed(2)} service fee each billing cycle
+                        Automatic recurring charge every {plan.pricing.recurringInterval === 'month'
+                          ? 'month'
+                          : plan.pricing.recurringIntervalCount > 1
+                            ? `${plan.pricing.recurringIntervalCount} weeks`
+                            : 'week'}
                       </p>
                     </div>
 
@@ -152,12 +156,12 @@ export default function Pricing() {
             {
               icon: ShieldCheck,
               title: 'Protected payments',
-              body: 'Stripe is only used after admin approval, when the confirmed quote is sent through a secure payment link.',
+              body: 'Stripe checkout opens as soon as the selected vehicle application is submitted and the agreement is generated.',
             },
             {
               icon: CreditCard,
-              title: 'Transparent onboarding costs',
-              body: 'Every plan shows the standard upfront estimate, setup fees, and recurring charge before review and approval.',
+              title: 'Transparent upfront cost',
+              body: 'Every plan shows the two-week bond, first rental week, and recurring weekly amount before checkout starts.',
             },
             {
               icon: Check,

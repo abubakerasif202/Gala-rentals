@@ -4,9 +4,9 @@ export const LEASE_SETTINGS = {
   minimum_rental_weeks: 6,
   insurance_coverage_region: 'NSW',
   fees: {
-    account_management_weekly: 1.0,
-    new_account_setup: 10.0,
-    direct_debit_account_setup: 2.2,
+    account_management_weekly: 0,
+    new_account_setup: 0,
+    direct_debit_account_setup: 0,
   },
 };
 

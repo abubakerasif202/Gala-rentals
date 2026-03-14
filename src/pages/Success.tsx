@@ -60,7 +60,7 @@ export default function Success() {
                 Payment Successful
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
-                Your payment has been confirmed and the rental is now active. The team will contact you with collection details.
+                Your payment has been confirmed and the rental is now active. Weekly payments will now be charged automatically through Stripe, and the team will contact you with collection details.
               </p>
               <Link
                 to="/"
@@ -127,8 +127,8 @@ export default function Success() {
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
                 {isError || !hasVerificationContext
-                  ? 'We could not verify this secure payment session. Request a fresh payment link if the amount has not been charged.'
-                  : 'Stripe did not report a completed paid session for this payment link. Retry from the original secure link or contact support.'}
+                  ? 'We could not verify this secure checkout session. Request a fresh checkout link if the amount has not been charged.'
+                  : 'Stripe did not report a completed paid session for this checkout link. Retry from the original secure link or contact support.'}
               </p>
               <Link
                 to={retryHref}

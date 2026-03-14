@@ -33,6 +33,7 @@ import {
   assertVehicleAllocationAvailable,
   VehicleAllocationConflictError,
 } from '../vehicleAllocations.js';
+import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
 
 const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
@@ -60,6 +61,7 @@ type PendingCheckoutSessionResolution = {
 };
 
 type StripeApplication = {
+  approved_at?: string | null;
   approved_bond?: number | string | null;
   approved_weekly_price?: number | string | null;
   assigned_car_id?: number | null;
@@ -357,6 +359,36 @@ const fetchCar = async (carId: number) => {
   return car as StripeCar;
 };
 
+const fetchAgreementContent = async ({
+  application,
+  car,
+}: {
+  application: StripeApplication;
+  car: StripeCar;
+}) => {
+  const { data, error } = await db
+    .from('lease_agreements')
+    .select('content')
+    .eq('application_id', application.id)
+    .eq('car_id', car.id)
+    .order('created_at', { ascending: false })
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to fetch saved lease agreement:', error);
+  } else if (data?.content) {
+    return String(data.content);
+  }
+
+  return renderApplicationLeaseAgreement(
+    application as Record<string, any>,
+    car as Record<string, any>,
+    toFloat(application.approved_weekly_price),
+    String(application.approved_at || new Date().toISOString()),
+    toFloat(application.approved_bond)
+  );
+};
+
 const requireApprovedPaymentContext = ({
   application,
   carId,
@@ -506,9 +538,13 @@ router.get('/payment-context', async (req, res) => {
         'This payment link is no longer active because the vehicle has been allocated elsewhere. Contact Maple Rentals for a fresh link.',
     });
 
-    const billing = buildApprovedBillingBreakdown(application);
+    const [billing, agreement] = await Promise.all([
+      Promise.resolve(buildApprovedBillingBreakdown(application)),
+      fetchAgreementContent({ application, car }),
+    ]);
 
     res.json({
+      agreement,
       applicant_name: application.name,
       application_id,
       billing,

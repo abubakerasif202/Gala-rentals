@@ -127,6 +127,10 @@ export const fetchRentalPlans = async (): Promise<RentalPlanWithPricing[]> => {
 
 export interface ApplicationSubmissionResponse {
   application_id: string;
+  checkout_token?: string;
+  checkout_token_expires_at?: string;
+  checkout_url?: string;
+  lease_agreement_saved?: boolean;
   success: boolean;
 }
 
@@ -163,6 +167,7 @@ export interface ApplicationActivationRetryResponse {
 }
 
 export interface ApprovedPaymentContextResponse {
+  agreement: string;
   applicant_name: string;
   application_id: number;
   billing: {

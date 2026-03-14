@@ -1,5 +1,7 @@
 type SchemaMode = 'snake' | 'camel';
 
+import { calculateBondFromWeeklyRent } from '../shared/rentalPricing.js';
+
 type OpenApiDefinition = {
   properties?: Record<string, unknown>;
 };
@@ -220,13 +222,14 @@ export const toCarWritePayload = async (car: {
   image: string;
 }) => {
   const { coreMode } = await getSchemaCompat();
+  const calculatedBond = calculateBondFromWeeklyRent(car.weekly_price);
 
   return coreMode === 'camel'
     ? {
         name: car.name,
         modelYear: car.model_year,
         weeklyPrice: car.weekly_price,
-        bond: car.bond,
+        bond: calculatedBond,
         status: car.status,
         image: car.image,
       }
@@ -234,7 +237,7 @@ export const toCarWritePayload = async (car: {
         name: car.name,
         model_year: car.model_year,
         weekly_price: car.weekly_price,
-        bond: car.bond,
+        bond: calculatedBond,
         status: car.status,
         image: car.image,
       };

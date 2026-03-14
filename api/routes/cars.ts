@@ -13,6 +13,7 @@ import {
   toCarWritePayload,
 } from '../schemaCompat.js';
 import { enqueueIndexNowUrl } from '../services/indexNow.js';
+import { calculateBondFromWeeklyRent } from '../../shared/rentalPricing.js';
 
 const router = express.Router();
 
@@ -54,7 +55,10 @@ const fetchCarById = async (id: string) => {
     return null;
   }
 
-  return data;
+  return {
+    ...data,
+    bond: calculateBondFromWeeklyRent(Number(data.weekly_price || 0)),
+  };
 };
 
 const countRowsForCar = async (table: string, column: string, id: string) => {
@@ -81,7 +85,12 @@ router.get('/', async (_req, res) => {
     console.error('Fetch cars error', error);
     return res.status(500).json({ error: 'Failed to fetch cars' });
   }
-  res.json(data || []);
+  res.json(
+    (data || []).map((car) => ({
+      ...car,
+      bond: calculateBondFromWeeklyRent(Number(car.weekly_price || 0)),
+    }))
+  );
 });
 
 router.get('/:id', async (req, res) => {

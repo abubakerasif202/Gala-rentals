@@ -32,20 +32,16 @@ export type CarLeaseAgreementInput = {
   fees: LeaseFee[];
 };
 
-const defaultFees: LeaseFee[] = [
-  { code: '4.1', title: 'Security Bond', amount: '$0' },
+export const buildCarLeaseAgreementFees = (bondAmount = 0): LeaseFee[] => [
+  { code: '4.1', title: 'Security Bond', amount: `$${Number(bondAmount || 0).toFixed(2)}` },
   { code: '4.2', title: 'Standard Excess For Rentee', amount: '$1000.00' },
   { code: '4.3', title: 'Additional to 4.2 - Second accident within 6 months', amount: '$500' },
   { code: '4.4', title: 'Additional to 4.2 - Unlisted Drivers Excess', amount: '$5000' },
   { code: '4.5', title: 'Additional to 4.2 - Age Excess if under 25 years', amount: '$500' },
   { code: '4.6', title: 'Late Payment Fee', amount: '$10' },
   { code: '4.7', title: 'Toll Management Fee (Per Toll)', amount: '$5' },
-  { code: '4.8', title: 'Account Management Fee Per Week', amount: '$1.00' },
-  { code: '4.9', title: 'New Account Set Up Fee', amount: '$10' },
-  { code: '4.10', title: 'Direct Debit Fee Per Transaction', amount: '$0.99' },
-  { code: '4.11', title: 'Direct Debit Account Set Up Fee', amount: '$2.20' },
-  { code: '4.12', title: 'Direct Debit Decline Fee', amount: '$11.00' },
-  { code: '4.13', title: 'Declaration Fee', amount: '$10.00' },
+  { code: '4.8', title: 'Direct Debit Decline Fee', amount: '$11.00' },
+  { code: '4.9', title: 'Declaration Fee', amount: '$10.00' },
 ];
 
 export const defaultCarLeaseAgreement: CarLeaseAgreementInput = {
@@ -74,7 +70,7 @@ export const defaultCarLeaseAgreement: CarLeaseAgreementInput = {
   minimumRentalPeriod: 'Minimum 6 weeks',
   returnPolicy:
     'Car must be full of fuel on return. Failure incurs $20 + fuel cost per liter. Two weeks notice is required before return.',
-  fees: defaultFees,
+  fees: buildCarLeaseAgreementFees(),
 };
 
 export const renderCarLeaseAgreement = (input: Partial<CarLeaseAgreementInput> = {}) => {

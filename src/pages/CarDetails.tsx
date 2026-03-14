@@ -4,6 +4,10 @@ import { motion } from 'motion/react';
 import { Calendar, Gauge, Shield, ChevronRight, CheckCircle2, ArrowLeft, Loader2, Info } from 'lucide-react';
 import { fetchCar } from '../lib/api';
 import { Car } from '../types';
+import {
+  calculateBondFromWeeklyRent,
+  calculateUpfrontDueFromWeeklyRent,
+} from '../../shared/rentalPricing';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -112,6 +116,11 @@ export default function CarDetails() {
                 <p className="text-5xl font-bold text-brand-gold">${car.weekly_price}</p>
                 <p className="text-brand-grey uppercase tracking-widest text-xs">/ Per Week</p>
               </div>
+              <p className="text-sm text-brand-grey font-light mt-4">
+                Start with ${calculateUpfrontDueFromWeeklyRent(car.weekly_price).toFixed(2)} today:
+                ${calculateBondFromWeeklyRent(car.weekly_price).toFixed(2)} bond plus your first
+                weekly rental payment.
+              </p>
             </div>
 
             <div className="space-y-12">
@@ -148,6 +157,7 @@ export default function CarDetails() {
                       <li>• Clean driving record (last 3 years)</li>
                       <li>• Proof of address & identity</li>
                       <li>• Approved Uber/Rideshare account</li>
+                      <li>• Weekly auto debit after the initial payment</li>
                     </ul>
                   </div>
                 </div>
@@ -164,7 +174,7 @@ export default function CarDetails() {
               >
                 {car.status === 'Available' ? (
                   <>
-                    Start Application
+                    Apply & Checkout
                     <ChevronRight className="w-5 h-5" />
                   </>
                 ) : 'Currently Rented'}

@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { motion } from 'motion/react';
 import {
   AlertCircle,
@@ -14,7 +14,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { submitApplication } from '../lib/api';
+import { fetchCars, submitApplication } from '../lib/api';
+import type { Car } from '../types';
 import {
   APPLICATION_IMAGE_CONTENT_TYPES,
   AUSTRALIAN_MOBILE_REGEX,
@@ -26,6 +27,10 @@ import {
   normalizeApplicationEmail,
   normalizeAustralianMobile,
 } from '../../shared/applicationSubmission';
+import {
+  calculateBondFromWeeklyRent,
+  calculateUpfrontDueFromWeeklyRent,
+} from '../../shared/rentalPricing';
 
 const ALLOWED_UPLOAD_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
 
@@ -33,6 +38,7 @@ const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
   z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
 
 const applySchema = z.object({
+  selected_car_id: z.number().int().positive('Select a vehicle to continue'),
   name: z.string().trim().min(2, 'Full name is required'),
   phone: z
     .string()
@@ -68,6 +74,7 @@ const applySchema = z.object({
 type ApplyValues = z.infer<typeof applySchema>;
 
 const defaultValues: ApplyValues = {
+  selected_car_id: 0,
   name: '',
   phone: '',
   email: '',
@@ -122,10 +129,13 @@ function StepHeader({ step }: { step: number }) {
 
 export default function Apply() {
   const [searchParams] = useSearchParams();
-  const requestedCarId = searchParams.get('carId');
+  const requestedCarId = Number(searchParams.get('carId') || 0);
   const [step, setStep] = useState(1);
   const [pageError, setPageError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingCars, setIsLoadingCars] = useState(true);
+  const [availableCars, setAvailableCars] = useState<Car[]>([]);
+  const [carsError, setCarsError] = useState<string | null>(null);
   const [submittedApplicationId, setSubmittedApplicationId] = useState<string | null>(null);
   const {
     register,
@@ -137,11 +147,50 @@ export default function Apply() {
   } = useForm<ApplyValues>({
     resolver: zodResolver(applySchema),
     mode: 'onChange',
-    defaultValues,
+    defaultValues: {
+      ...defaultValues,
+      selected_car_id: requestedCarId || 0,
+    },
   });
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadCars = async () => {
+      setIsLoadingCars(true);
+      setCarsError(null);
+
+      try {
+        const cars = await fetchCars();
+        if (!isActive) {
+          return;
+        }
+
+        setAvailableCars(cars.filter((car) => car.status === 'Available'));
+      } catch {
+        if (!isActive) {
+          return;
+        }
+
+        setCarsError('We could not load the fleet right now. Refresh and try again.');
+      } finally {
+        if (isActive) {
+          setIsLoadingCars(false);
+        }
+      }
+    };
+
+    void loadCars();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const licensePhoto = watch('license_photo');
   const licenseBackPhoto = watch('license_back_photo');
+  const selectedCarId = watch('selected_car_id');
+  const selectedCar = availableCars.find((car) => car.id === Number(selectedCarId)) || null;
 
   const handleFileUpload = (
     event: ChangeEvent<HTMLInputElement>,
@@ -172,6 +221,7 @@ export default function Apply() {
 
   const goToDocumentsStep = async () => {
     const isValid = await trigger([
+      'selected_car_id',
       'name',
       'phone',
       'email',
@@ -193,6 +243,12 @@ export default function Apply() {
 
     try {
       const submission = await submitApplication(values);
+
+      if (submission.checkout_url) {
+        window.location.assign(submission.checkout_url);
+        return;
+      }
+
       setSubmittedApplicationId(submission.application_id);
     } catch (error: any) {
       setPageError(
@@ -228,11 +284,11 @@ export default function Apply() {
                   Application received
                 </p>
                 <h1 className="text-4xl font-bold text-white uppercase tracking-tighter">
-                  Review starts now
+                  Checkout link created
                 </h1>
                 <p className="text-brand-grey font-light leading-relaxed max-w-2xl mx-auto">
-                  The team will review your documents, update the final bond and weekly payment if
-                  needed, then send you a secure payment link after approval.
+                  Your application was saved successfully. If checkout did not open automatically,
+                  contact Maple Rentals with the reference below and we will resend the secure link.
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-6 py-5">
@@ -288,22 +344,71 @@ export default function Apply() {
                       Driver Application
                     </h1>
                     <p className="text-brand-grey font-light max-w-2xl">
-                      Submit your documents first. After review, the team approves the application,
-                      sets the final bond and weekly payment, and sends a secure payment link.
+                      Choose your vehicle, upload your documents, and continue straight to secure
+                      checkout. Upfront payment is always two weeks bond plus your first weekly rent.
                     </p>
                   </div>
 
-                  {requestedCarId && (
-                    <div className="rounded-2xl border border-brand-gold/20 bg-brand-gold/5 px-6 py-5">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
-                        Vehicle selected
-                      </p>
-                      <p className="text-sm text-brand-grey font-light">
-                        You are applying from a vehicle page. Final vehicle assignment and pricing
-                        are confirmed after review and approval.
-                      </p>
+                  <div className="rounded-3xl border border-white/10 bg-brand-navy/40 p-6 space-y-5">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                        Vehicle
+                      </label>
+                      <select
+                        {...register('selected_car_id', { valueAsNumber: true })}
+                        disabled={isLoadingCars || availableCars.length === 0}
+                        className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none font-light appearance-none disabled:opacity-60"
+                      >
+                        <option value="">
+                          {isLoadingCars ? 'Loading available vehicles...' : 'Select your vehicle'}
+                        </option>
+                        {availableCars.map((car) => (
+                          <option key={car.id} value={car.id}>
+                            {car.name} ({car.model_year}) - ${car.weekly_price.toFixed(2)}/week
+                          </option>
+                        ))}
+                      </select>
+                      <FieldError message={errors.selected_car_id?.message} />
+                      {carsError && (
+                        <p className="text-red-400 text-xs font-light">{carsError}</p>
+                      )}
                     </div>
-                  )}
+
+                    {selectedCar && (
+                      <div className="rounded-2xl border border-brand-gold/20 bg-brand-gold/5 px-5 py-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-3">
+                          Checkout summary
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <p className="text-brand-grey font-light">Weekly rent</p>
+                            <p className="text-white font-bold">${selectedCar.weekly_price.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-brand-grey font-light">Bond</p>
+                            <p className="text-white font-bold">
+                              ${calculateBondFromWeeklyRent(selectedCar.weekly_price).toFixed(2)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-brand-grey font-light">Due today</p>
+                            <p className="text-white font-bold">
+                              ${calculateUpfrontDueFromWeeklyRent(selectedCar.weekly_price).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-brand-grey font-light mt-4">
+                          After checkout, Stripe automatically deducts ${selectedCar.weekly_price.toFixed(2)} every week.
+                        </p>
+                      </div>
+                    )}
+
+                    {requestedCarId > 0 && !selectedCar && !isLoadingCars && !carsError && (
+                      <p className="text-xs text-red-300 font-light">
+                        The vehicle linked from the previous page is no longer available. Please choose another vehicle.
+                      </p>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
@@ -411,17 +516,15 @@ export default function Apply() {
                         Document Verification
                       </h2>
                       <p className="text-brand-grey font-light max-w-2xl">
-                        Upload the documents needed for review. Payment is only requested after admin
-                        approval.
+                        Upload the final documents needed to generate your agreement and open secure checkout.
                       </p>
                     </div>
                     <div className="rounded-2xl border border-brand-gold/20 bg-brand-gold/5 px-5 py-4 min-w-[260px]">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
-                        Next step after approval
+                        Next step after submit
                       </p>
                       <p className="text-xs text-brand-grey mt-1">
-                        The team finalizes your bond and weekly payment, then emails a secure payment
-                        link.
+                        We generate your agreement, reserve the selected vehicle, and send you to secure checkout immediately.
                       </p>
                     </div>
                   </div>
@@ -522,10 +625,10 @@ export default function Apply() {
                     >
                       {isSubmitting ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" /> Saving application
+                          <Loader2 className="w-4 h-4 animate-spin" /> Creating checkout
                         </>
                       ) : (
-                        <>Submit Application</>
+                        <>Continue to Checkout</>
                       )}
                     </button>
                   </div>

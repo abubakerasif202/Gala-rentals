@@ -31,6 +31,7 @@ export const carSchema = z.object({
 });
 
 export const applicationSchema = z.object({
+  selected_car_id: z.coerce.number().int().positive(),
   name: z.string().trim().min(2),
   phone: z
     .string()

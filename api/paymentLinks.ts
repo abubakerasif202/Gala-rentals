@@ -66,21 +66,27 @@ export const sendDriverPaymentLinkEmail = async ({
   const safeCarName = escapeHtml(carName);
   const safeCheckoutUrl = escapeHtml(checkoutUrl);
   const safeAgreement = agreement ? escapeHtml(agreement) : null;
+  const hasSetupFees = setupFees > 0;
 
   await resend.emails.send({
     from: 'Maple Rentals <noreply@maplerentals.com.au>',
     to: applicantEmail,
-    subject: 'Your Maple Rentals payment link is ready',
+    subject: 'Your Maple Rentals checkout link is ready',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
-        <h2 style="color: #D4AF37;">Application Approved</h2>
+        <h2 style="color: #D4AF37;">Application Ready For Checkout</h2>
         <p>Hi ${safeApplicantName},</p>
-        <p>Your application has been approved and your secure payment link is now ready.</p>
+        <p>Your application is complete and your secure checkout link is now ready.</p>
         <p><strong>Assigned vehicle:</strong> ${safeCarName}</p>
         <p><strong>Bond:</strong> ${formatCurrency(approvedBond)}</p>
         <p><strong>Weekly payment:</strong> ${formatCurrency(approvedWeeklyPrice)}</p>
-        <p><strong>Setup fees:</strong> ${formatCurrency(setupFees)}</p>
+        ${
+          hasSetupFees
+            ? `<p><strong>Setup fees:</strong> ${formatCurrency(setupFees)}</p>`
+            : ''
+        }
         <p><strong>Total due now:</strong> ${formatCurrency(upfrontDue)}</p>
+        <p>After the upfront payment, Stripe automatically charges ${formatCurrency(approvedWeeklyPrice)} each week.</p>
         <p>
           <a
             href="${safeCheckoutUrl}"

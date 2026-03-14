@@ -1,5 +1,10 @@
 export type RentalPlanInterval = 'week' | 'month';
 
+import {
+  calculateBondFromWeeklyRent,
+  calculateUpfrontDueFromWeeklyRent,
+} from '../../shared/rentalPricing.js';
+
 export interface RentalPlan {
   id: string;
   name: string;
@@ -47,7 +52,7 @@ export const rentalPlans: RentalPlan[] = [
     highlight: 'Best for trial runs',
     billingInterval: 'week',
     billingIntervalCount: 1,
-    bondAud: 500,
+    bondAud: calculateBondFromWeeklyRent(450),
     features: [
       'Toyota Camry Hybrid',
       'Full insurance coverage',
@@ -65,7 +70,7 @@ export const rentalPlans: RentalPlan[] = [
     popular: true,
     billingInterval: 'week',
     billingIntervalCount: 2,
-    bondAud: 500,
+    bondAud: calculateBondFromWeeklyRent(800),
     features: [
       'Toyota Camry Hybrid',
       'Full insurance coverage',
@@ -83,7 +88,7 @@ export const rentalPlans: RentalPlan[] = [
     highlight: 'Best value',
     billingInterval: 'month',
     billingIntervalCount: 1,
-    bondAud: 500,
+    bondAud: calculateBondFromWeeklyRent(1500),
     features: [
       'Toyota Camry Hybrid',
       'Full insurance coverage',
@@ -100,13 +105,6 @@ export function getRentalPlanById(id?: string | null): RentalPlan | undefined {
   return rentalPlans.find((plan) => plan.id === id);
 }
 
-function getManagementFeeMultiplier(plan: RentalPlan): number {
-  if (plan.billingInterval === 'month') {
-    return 4 * plan.billingIntervalCount;
-  }
-  return plan.billingIntervalCount;
-}
-
 export function buildRentalPlanWithPricing(
   plan: RentalPlan,
   fees: RentalFeeSettings
@@ -114,13 +112,9 @@ export function buildRentalPlanWithPricing(
   const setupFeesAud = Number(
     (fees.new_account_setup + fees.direct_debit_account_setup).toFixed(2)
   );
-  const serviceFeeAud = Number(
-    (fees.account_management_weekly * getManagementFeeMultiplier(plan)).toFixed(2)
-  );
-  const upfrontDueAud = Number(
-    (plan.bondAud + plan.priceAud + setupFeesAud).toFixed(2)
-  );
-  const recurringDueAud = Number((plan.priceAud + serviceFeeAud).toFixed(2));
+  const serviceFeeAud = Number(fees.account_management_weekly.toFixed(2));
+  const upfrontDueAud = calculateUpfrontDueFromWeeklyRent(plan.priceAud);
+  const recurringDueAud = Number(plan.priceAud.toFixed(2));
 
   return {
     ...plan,

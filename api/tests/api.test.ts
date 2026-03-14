@@ -1230,7 +1230,11 @@ describe('Applications API', () => {
   });
 
   it('POST /api/applications supports camel-case Supabase application schemas', async () => {
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
+
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: 'New Driver',
       phone: '0400111222',
       email: 'newdriver@example.com',
@@ -1257,8 +1261,11 @@ describe('Applications API', () => {
   it('POST /api/applications escapes applicant-controlled HTML before sending emails', async () => {
     process.env.RESEND_API_KEY = 'test-resend';
     mockResendEmailsSend.mockClear();
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
 
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: '<img src=x onerror=alert(1)>',
       phone: '0400111222',
       email: 'markup@example.com',
@@ -1291,7 +1298,11 @@ describe('Applications API', () => {
   });
 
   it('POST /api/applications rejects unsupported image formats', async () => {
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
+
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: 'Unsafe Driver',
       phone: '0400111222',
       email: 'unsafe@example.com',
@@ -1313,6 +1324,7 @@ describe('Applications API', () => {
 
   it('POST /api/applications validates phone and date fields on the server', async () => {
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: 'Direct API Driver',
       phone: '12345',
       email: 'direct-api@example.com',
@@ -1340,7 +1352,11 @@ describe('Applications API', () => {
   });
 
   it('POST /api/applications stores applicant phone numbers in a normalized format', async () => {
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
+
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: 'Normalized Phone Driver',
       phone: '0400 000 111',
       email: 'normalized-phone@example.com',
@@ -1384,6 +1400,7 @@ describe('Applications API', () => {
     };
 
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: 'Jane Driver',
       phone: '0412345678',
       email: 'jane@example.com',
@@ -1419,6 +1436,7 @@ describe('Applications API', () => {
 
   it('POST /api/applications blocks public overwrites for pending applications', async () => {
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: 'Jane Driver',
       phone: '0412345678',
       email: 'jane@example.com',
@@ -1442,6 +1460,7 @@ describe('Applications API', () => {
     mockState.applications[0].status = 'Rejected';
 
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: 'Jane Driver',
       phone: '0412345678',
       email: 'Jane@Example.com',
@@ -1471,6 +1490,7 @@ describe('Applications API', () => {
     mockState.applications[0].status = 'Rejected';
 
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: 'Jane Driver',
       phone: '+61 412 345 678',
       email: 'Jane@Example.com',
@@ -1510,6 +1530,7 @@ describe('Applications API', () => {
     ];
 
     const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
       name: 'Jane Driver',
       phone: '0412345678',
       email: 'foo_bar@example.com',

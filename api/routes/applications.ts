@@ -18,11 +18,11 @@ import {
   getApplicationDocumentColumn,
   getApplicationSelectColumns,
   getCarSelectColumns,
+  toApplicationPaymentWritePayload,
   toApplicationWritePayload,
 } from '../schemaCompat.js';
 import { RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
 import { buildDriverPaymentLink, sendDriverPaymentLinkEmail } from '../paymentLinks.js';
-import { renderCarLeaseAgreement } from '../templates/carLeaseAgreement.js';
 import {
   assertVehicleAllocationAvailable,
   VehicleAllocationConflictError,
@@ -34,6 +34,8 @@ import {
   normalizeApplicationEmail,
 } from '../../shared/applicationSubmission.js';
 import { escapeHtml, sanitizeEmailHeaderValue } from '../email.js';
+import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
+import { calculateBondFromWeeklyRent } from '../../shared/rentalPricing.js';
 
 const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
@@ -112,33 +114,6 @@ type ApplicationPaymentApprovalRecord = {
   status: string;
 };
 
-const buildLeaseAgreementInput = (
-  application: Record<string, any>,
-  car: Record<string, any>,
-  approvedWeeklyPrice: number,
-  nowIso: string
-) => {
-  const carName = String(car.name || 'Vehicle');
-  const carTokens = carName.split(' ').filter(Boolean);
-  const vehicleMake = carTokens[0] || 'Vehicle';
-  const weeklyRentText = `$${Number(approvedWeeklyPrice || 0).toFixed(2)} per week`;
-  return {
-    agreementDate: nowIso.split('T')[0],
-    renteeName: application.name,
-    renteeEmail: application.email,
-    renteeContact: application.phone,
-    renteeAddress: application.address,
-    renteeLicenseNumber: application.license_number,
-    renteeLicenseState: application.license_state || 'NSW',
-    vehicleMake,
-    vehicleModel: carName,
-    vehicleYear: car.model_year ? String(car.model_year) : '',
-    weeklyRent: weeklyRentText,
-    rentalStartDate: nowIso.split('T')[0],
-    rentalEndDate: 'Open-ended',
-  };
-};
-
 const isRecoverableVehicleCheckoutSession = (
   session: Stripe.Checkout.Session,
   application: ApplicationPaymentApprovalRecord
@@ -213,6 +188,43 @@ const removeUploadedApplicationDocuments = async (paths: string[]) => {
 
   if (error) {
     console.warn('Failed to clean up uploaded application documents:', error);
+  }
+};
+
+const fetchCarById = async (carId: number) => {
+  const { data: car, error } = await db
+    .from('cars')
+    .select(await getCarSelectColumns())
+    .eq('id', carId)
+    .single();
+
+  if (error || !car) {
+    return null;
+  }
+
+  return car as Record<string, any>;
+};
+
+const saveLeaseAgreement = async ({
+  applicationId,
+  carId,
+  content,
+}: {
+  applicationId: number;
+  carId: number;
+  content: string;
+}) => {
+  const { error } = await db.from('lease_agreements').insert([
+    {
+      application_id: applicationId,
+      car_id: carId,
+      content,
+      status: 'generated',
+    },
+  ]);
+
+  if (error) {
+    throw error;
   }
 };
 
@@ -355,6 +367,29 @@ router.post('/', async (req, res) => {
       }
     }
 
+    const selectedCarId = Number(normalizedApplicationData.selected_car_id);
+    const selectedCar = await fetchCarById(selectedCarId);
+
+    if (!selectedCar) {
+      return res.status(404).json({ error: 'Selected vehicle was not found.' });
+    }
+
+    if (String(selectedCar.status) !== 'Available') {
+      return res.status(409).json({
+        error: 'Selected vehicle is no longer available. Please choose another vehicle.',
+      });
+    }
+
+    await assertVehicleAllocationAvailable({
+      applicationId: 0,
+      carId: selectedCarId,
+      message: 'Selected vehicle is no longer available. Please choose another vehicle.',
+    });
+
+    const approvedWeeklyPrice = Number(selectedCar.weekly_price || 0);
+    const approvedBond = calculateBondFromWeeklyRent(approvedWeeklyPrice);
+    const nowIso = new Date().toISOString();
+
     const uploadImage = async (
       base64Str: string,
       filePrefix: string,
@@ -382,7 +417,7 @@ router.post('/', async (req, res) => {
         throw createRequestError(400, `${fieldLabel} must be smaller than 7 MB.`);
       }
 
-      const filename = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}-${filePrefix}`;
+      const filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${filePrefix}`;
 
       const { data: uploadData, error: uploadError } = await db.storage
         .from(APPLICATIONS_BUCKET)
@@ -414,15 +449,27 @@ router.post('/', async (req, res) => {
       );
     }
 
-    const payload = await toApplicationWritePayload({
+    const basePayload = await toApplicationWritePayload({
       ...normalizedApplicationData,
       weekly_budget: normalizedApplicationData.weekly_budget?.trim() || null,
       license_photo: licensePhotoUrl,
       license_back_photo: licenseBackPhotoUrl,
+      status: 'Approved',
+    });
+    const paymentPayload = await toApplicationPaymentWritePayload({
+      approved_at: nowIso,
+      approved_bond: approvedBond,
+      approved_weekly_price: approvedWeeklyPrice,
+      assigned_car_id: selectedCarId,
+      paid_at: null,
+      payment_link_sent_at: nowIso,
+      payment_link_version: 1,
+      pending_checkout_session_id: null,
+      status: 'Approved',
     });
     const { data: inserted, error } = await db
       .from('applications')
-      .insert([payload])
+      .insert([{ ...basePayload, ...paymentPayload }])
       .select('id')
       .single();
 
@@ -431,8 +478,45 @@ router.post('/', async (req, res) => {
     }
 
     const applicationId = Number(inserted.id);
+    const checkoutToken = createCheckoutToken({
+      applicationId,
+      carId: selectedCarId,
+      purpose: 'vehicle',
+      version: 1,
+    });
+    const checkoutUrl = buildDriverPaymentLink({
+      applicationId,
+      carId: selectedCarId,
+      token: checkoutToken.token,
+    });
 
-    // Send Confirmation Emails via Resend
+    const agreementContent = renderApplicationLeaseAgreement(
+      {
+        ...normalizedApplicationData,
+        approved_bond: approvedBond,
+        approved_weekly_price: approvedWeeklyPrice,
+        assigned_car_id: selectedCarId,
+        license_back_photo: licenseBackPhotoUrl,
+        license_photo: licensePhotoUrl,
+      },
+      selectedCar,
+      approvedWeeklyPrice,
+      nowIso,
+      approvedBond
+    );
+
+    let leaseAgreementSaved = false;
+    try {
+      await saveLeaseAgreement({
+        applicationId,
+        carId: selectedCarId,
+        content: agreementContent,
+      });
+      leaseAgreementSaved = true;
+    } catch (agreementError) {
+      console.error('Lease agreement save error during application submission:', agreementError);
+    }
+
     if (process.env.RESEND_API_KEY) {
       try {
         const { Resend } = await import('resend');
@@ -445,28 +529,20 @@ router.post('/', async (req, res) => {
         const safeUberStatus = escapeHtml(normalizedApplicationData.uber_status);
         const safeExperience = escapeHtml(normalizedApplicationData.experience);
         const safeIntendedStart = escapeHtml(normalizedApplicationData.intended_start_date);
+        const safeCarName = escapeHtml(String(selectedCar.name || 'Vehicle'));
         const applicantNameForSubject = sanitizeEmailHeaderValue(normalizedApplicationData.name);
 
-        // Email to the Applicant
-        await resend.emails.send({
-          from: 'Maple Rentals <noreply@maplerentals.com.au>',
-          to: normalizedApplicationData.email,
-          subject: 'Application Received - Maple Rentals',
-          html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
-              <h2 style="color: #D4AF37;">Application Received</h2>
-              <p>Hi ${safeApplicantName},</p>
-              <p>Thank you for applying to rent a Toyota Camry Hybrid with Maple Rentals.</p>
-              <p>We have successfully received your application, including the front and back of your driver licence. Our team will review your application and try to get back to you within 24 hours.</p>
-              <p>If you have any urgent questions, please contact us directly.</p>
-              <br>
-              <p>Best regards,</p>
-              <p><strong>The Maple Rentals Team</strong></p>
-            </div>
-          `
+        await sendDriverPaymentLinkEmail({
+          applicantEmail: normalizedApplicationData.email,
+          applicantName: normalizedApplicationData.name,
+          approvedBond,
+          approvedWeeklyPrice,
+          carName: String(selectedCar.name || 'Vehicle'),
+          checkoutUrl,
+          setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
+          agreement: agreementContent,
         });
 
-        // Email to the Admin
         await resend.emails.send({
           from: 'Maple Rentals Notifications <noreply@maplerentals.com.au>',
           to: adminEmail,
@@ -474,7 +550,7 @@ router.post('/', async (req, res) => {
           html: `
             <div style="font-family: sans-serif; color: #1a202c;">
               <h2>New Driver Application</h2>
-              <p>A new driver application has been submitted:</p>
+              <p>A new driver application has been submitted and moved straight to checkout.</p>
               <ul>
                 <li><strong>Name:</strong> ${safeApplicantName}</li>
                 <li><strong>Phone:</strong> ${safeApplicantPhone}</li>
@@ -483,22 +559,26 @@ router.post('/', async (req, res) => {
                 <li><strong>Uber Status:</strong> ${safeUberStatus}</li>
                 <li><strong>Experience:</strong> ${safeExperience}</li>
                 <li><strong>Intended Start:</strong> ${safeIntendedStart}</li>
+                <li><strong>Vehicle:</strong> ${safeCarName}</li>
+                <li><strong>Bond:</strong> $${approvedBond.toFixed(2)}</li>
+                <li><strong>Weekly Rent:</strong> $${approvedWeeklyPrice.toFixed(2)}</li>
               </ul>
-              <p>Please log in to the admin dashboard to review their documents and approve/deny the application.</p>
+              <p>The secure checkout link was issued automatically when the application was submitted.</p>
             </div>
-          `
+          `,
         });
-        console.log(
-          `Confirmation emails sent successfully for applicant: ${normalizedApplicationData.email}`
-        );
       } catch (emailError) {
-        console.error("Failed to send Resend emails:", emailError);
+        console.error('Failed to send application checkout emails:', emailError);
       }
     }
 
     res.json({
       success: true,
       application_id: String(applicationId),
+      checkout_token: checkoutToken.token,
+      checkout_token_expires_at: checkoutToken.expiresAt,
+      checkout_url: checkoutUrl,
+      lease_agreement_saved: leaseAgreementSaved,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -509,6 +589,16 @@ router.post('/', async (req, res) => {
 
     if (err instanceof Error && 'status' in err && typeof err.status === 'number') {
       return res.status(err.status).json({ error: err.message });
+    }
+
+    if (err instanceof VehicleAllocationConflictError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+
+    if (isVehicleAllocationUniqueConstraintError(err)) {
+      return res.status(409).json({
+        error: 'Selected vehicle is no longer available. Please choose another vehicle.',
+      });
     }
 
     console.error('Application submission error:', err);
@@ -623,30 +713,21 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       token: checkoutToken.token,
     });
 
-    const agreementContent = renderCarLeaseAgreement(
-      buildLeaseAgreementInput(
-        applicationDetails,
-        car as Record<string, any>,
-        payload.approved_weekly_price,
-        nowIso
-      )
+    const agreementContent = renderApplicationLeaseAgreement(
+      applicationDetails,
+      car as Record<string, any>,
+      payload.approved_weekly_price,
+      nowIso,
+      payload.approved_bond
     );
 
     let leaseAgreementSaved = false;
     try {
-      const { error: leaseError } = await db.from('lease_agreements').insert([
-        {
-          application_id: payload.application_id,
-          car_id: payload.assigned_car_id,
-          content: agreementContent,
-          status: 'generated',
-        },
-      ]);
-
-      if (leaseError) {
-        throw leaseError;
-      }
-
+      await saveLeaseAgreement({
+        applicationId: payload.application_id,
+        carId: payload.assigned_car_id,
+        content: agreementContent,
+      });
       leaseAgreementSaved = true;
     } catch (agreementError) {
       console.error('Lease agreement save error:', agreementError);

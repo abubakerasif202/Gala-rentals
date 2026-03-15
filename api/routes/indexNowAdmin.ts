@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { submitIndexNowUrls } from '../services/indexNow.js';
-import { authenticateAdmin } from './auth.js';
+import { authenticateAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 

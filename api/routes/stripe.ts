@@ -11,7 +11,7 @@ import {
   hasDirectDatabaseConnection,
   withPostgresAdvisoryLock,
 } from '../db/postgres.js';
-import { authenticateAdmin } from './auth.js';
+import { authenticateAdmin } from '../middleware/auth.js';
 import { createCheckoutToken, verifyCheckoutToken } from '../checkoutTokens.js';
 import { LEASE_SETTINGS, RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
 import {

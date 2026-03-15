@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, lazy } from 'react';
 import { Navigate } from 'react-router-dom';
-import AdminDashboard from './AdminDashboard';
 import { verifyAdminSession } from '../lib/api';
+
+const AdminDashboard = lazy(() => import('./AdminDashboard'));
 
 export default function AdminDashboardRoute() {
   const [sessionState, setSessionState] = useState<'checking' | 'ready' | 'unauthorized' | 'error'>(
@@ -68,5 +69,18 @@ export default function AdminDashboardRoute() {
     );
   }
 
-  return <AdminDashboard />;
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[60vh] flex items-center justify-center bg-brand-navy text-white">
+          <div className="flex items-center gap-3 text-sm font-bold uppercase tracking-widest text-brand-gold">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Loading dashboard...
+          </div>
+        </div>
+      }
+    >
+      <AdminDashboard />
+    </Suspense>
+  );
 }

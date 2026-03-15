@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../db/index.js';
-import { authenticateAdmin } from './auth.js';
+import { authenticateAdmin } from '../middleware/auth.js';
 import Stripe from 'stripe';
 import { LEASE_SETTINGS, STRIPE_CONFIG } from '../constants.js';
 import { getRentalSelectColumns } from '../schemaCompat.js';

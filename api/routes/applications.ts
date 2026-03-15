@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 
 import { updateApplicationPaymentStateIfCurrentVersion } from '../applicationPaymentState.js';
 import { db } from '../db/index.js';
-import { authenticateAdmin } from './auth.js';
+import { authenticateAdmin } from '../middleware/auth.js';
 import {
   applicationApprovalSchema,
   applicationSchema,

@@ -18,7 +18,7 @@ const todayIsoDate = () => getTodayInAustralia();
 const shouldReleaseVehicleAfterSubscriptionDeletion = (subscription: Stripe.Subscription) =>
   subscription.cancellation_details?.reason === 'cancellation_requested';
 
-router.post('/', express.raw({ type: 'application/json' }), async (request, response) => {
+router.post('/', async (request, response) => {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     console.error('Stripe webhook secret is not configured.');
     response.status(503).send('Webhook configuration missing');

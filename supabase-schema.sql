@@ -144,36 +144,36 @@ END;
 $$;
 
 -- --- INDEXES (For Performance) ---
-CREATE INDEX idx_rentals_car_id ON rentals(car_id);
-CREATE INDEX idx_rentals_application_id ON rentals(application_id);
-CREATE UNIQUE INDEX idx_rentals_live_car_unique
+CREATE INDEX IF NOT EXISTS idx_rentals_car_id ON rentals(car_id);
+CREATE INDEX IF NOT EXISTS idx_rentals_application_id ON rentals(application_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rentals_live_car_unique
   ON rentals(car_id)
   WHERE lower(status) IN ('active', 'overdue');
-CREATE UNIQUE INDEX idx_rentals_live_application_unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rentals_live_application_unique
   ON rentals(application_id)
   WHERE lower(status) IN ('active', 'overdue');
-CREATE UNIQUE INDEX idx_rentals_stripe_subscription_unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rentals_stripe_subscription_unique
   ON rentals(stripe_subscription_id)
   WHERE stripe_subscription_id IS NOT NULL;
-CREATE INDEX idx_bookings_car_id ON bookings(car_id);
-CREATE INDEX idx_bookings_application_id ON bookings(application_id);
-CREATE INDEX idx_lease_agreements_application_id ON lease_agreements(application_id);
-CREATE INDEX idx_lease_agreements_car_id ON lease_agreements(car_id);
-CREATE INDEX idx_applications_assigned_car_id ON applications(assigned_car_id);
-CREATE UNIQUE INDEX idx_applications_active_vehicle_allocation_unique
+CREATE INDEX IF NOT EXISTS idx_bookings_car_id ON bookings(car_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_application_id ON bookings(application_id);
+CREATE INDEX IF NOT EXISTS idx_lease_agreements_application_id ON lease_agreements(application_id);
+CREATE INDEX IF NOT EXISTS idx_lease_agreements_car_id ON lease_agreements(car_id);
+CREATE INDEX IF NOT EXISTS idx_applications_assigned_car_id ON applications(assigned_car_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_active_vehicle_allocation_unique
   ON applications(assigned_car_id)
   WHERE assigned_car_id IS NOT NULL
     AND lower(status) IN ('approved', 'payment review');
-CREATE UNIQUE INDEX idx_applications_single_active
+CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_single_active
   ON applications(email)
   WHERE lower(status) IN ('pending', 'approved', 'payment review');
-CREATE UNIQUE INDEX idx_customers_external_id_unique ON customers(external_id) WHERE external_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_customers_staff_number_unique ON customers(staff_number) WHERE staff_number IS NOT NULL;
-CREATE INDEX idx_customers_email ON customers(email);
-CREATE INDEX idx_customers_full_name ON customers(full_name);
-CREATE INDEX idx_invoices_customer_id ON invoices(customer_id);
-CREATE INDEX idx_invoices_car_registration ON invoices(car_registration);
-CREATE INDEX idx_invoices_invoice_date ON invoices(invoice_date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_external_id_unique ON customers(external_id) WHERE external_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_staff_number_unique ON customers(staff_number) WHERE staff_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
+CREATE INDEX IF NOT EXISTS idx_customers_full_name ON customers(full_name);
+CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON invoices(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_car_registration ON invoices(car_registration);
+CREATE INDEX IF NOT EXISTS idx_invoices_invoice_date ON invoices(invoice_date);
 
 -- --- SECURITY (Row Level Security) ---
 

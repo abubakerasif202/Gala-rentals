@@ -235,8 +235,8 @@ const registerCoreRoutes = (app: express.Express) => {
     res.type('text/plain').send(indexNowConfig.key);
   });
 
-  app.use('/api/webhook/stripe', webhookRoutes);
-  app.use('/api/stripe/webhook', webhookRoutes);
+  app.use('/api/webhook/stripe', express.raw({ type: 'application/json' }), webhookRoutes);
+  app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), webhookRoutes);
 
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
   app.use(express.urlencoded({ extended: false, limit: JSON_BODY_LIMIT }));

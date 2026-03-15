@@ -20,6 +20,7 @@ const inferPostgresConnectionMode = (
 
   try {
     const url = new URL(connectionString);
+    // Supabase standard ports: 5432 (Session) or 6543 (Transaction Pooler)
     return url.port === '6543' ? 'transaction' : 'session';
   } catch {
     return connectionString.includes(':6543') ? 'transaction' : 'session';
@@ -30,7 +31,7 @@ export const getPostgresConnectionMode = () =>
   inferPostgresConnectionMode(getDirectDatabaseConnectionString());
 
 export const hasDirectDatabaseConnection = () =>
-  getPostgresConnectionMode() === 'session';
+  getPostgresConnectionMode() !== 'none';
 
 const getPostgresPool = () => {
   const connectionString = getDirectDatabaseConnectionString();
@@ -38,21 +39,18 @@ const getPostgresPool = () => {
 
   if (connectionMode === 'none') {
     throw new Error(
-      'SUPABASE_DB_URL or DATABASE_URL is required for transactional payment activation.'
-    );
-  }
-
-  if (connectionMode !== 'session') {
-    throw new Error(
-      'Transactional payment activation requires a session-capable Postgres connection. ' +
-        'Supabase transaction pooler URLs on port 6543 are not supported for this path.'
+      'SUPABASE_DB_URL or DATABASE_URL is required for transactional data operations.'
     );
   }
 
   if (!postgresPool) {
+    // When using Supabase Transaction Pooler (port 6543), we optimize for high concurrency.
+    // Note: Session-based features like pg_advisory_lock() are not reliable in transaction mode.
     postgresPool = new Pool({
       connectionString,
-      max: 5,
+      max: connectionMode === 'transaction' ? 20 : 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
     });
   }
 

@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../db/index.js';
-import { authenticateAdmin } from './auth.js';
+import { authenticateAdmin } from '../middleware/auth.js';
 import { getRentalCreatedAtColumn, getRentalSelectColumns } from '../schemaCompat.js';
 
 const router = express.Router();

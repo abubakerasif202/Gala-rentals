@@ -31,7 +31,7 @@ export const getPostgresConnectionMode = () =>
   inferPostgresConnectionMode(getDirectDatabaseConnectionString());
 
 export const hasDirectDatabaseConnection = () =>
-  getPostgresConnectionMode() !== 'none';
+  getPostgresConnectionMode() === 'session';
 
 const getPostgresPool = () => {
   const connectionString = getDirectDatabaseConnectionString();

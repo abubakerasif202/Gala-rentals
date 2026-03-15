@@ -29,3 +29,5 @@ services:
         sync: false
       - key: CHECKOUT_LINK_SECRET
         sync: false
+      - key: JWT_SECRET
+        sync: false

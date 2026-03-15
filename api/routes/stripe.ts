@@ -453,12 +453,14 @@ const resolvePendingCheckoutSession = async ({
     const sessionCarId = Number(session.metadata?.car_id || 0);
     const sessionApplicationId = Number(session.metadata?.application_id || 0);
 
-    if (
-      session.status === 'open' &&
+    const isSameContext =
       sessionApplicationId === application.id &&
       sessionCarId === carId &&
-      sessionVersion === Number(application.payment_link_version || 0) &&
-      session.url
+      sessionVersion === Number(application.payment_link_version || 0);
+
+    if (
+      isSameContext &&
+      (session.status === 'open' || session.status === 'complete')
     ) {
       return {
         retryKeySeed: null,
@@ -522,7 +524,7 @@ router.get('/payment-context', async (req, res) => {
     requireApprovedPaymentContext({ application, carId: car_id });
 
     if (car.status !== 'Available') {
-      throw new Error('This vehicle is no longer available for rent.');
+      throw new Error('Selected vehicle is no longer available.');
     }
 
     await assertVehicleAllocationAvailable({
@@ -599,8 +601,8 @@ router.post('/vehicle-checkout-session', async (req, res) => {
           version: Number(application.payment_link_version || 0),
         });
         requireApprovedPaymentContext({ application, carId: car_id });
-        await assertVehicleAllocationAvailable({
-          applicationId: application_id,
+
+        await assertVehicleAllocationAvailable({          applicationId: application_id,
           carId: car_id,
           message:
             'This payment link is no longer active because the vehicle has been allocated elsewhere. Contact Maple Rentals for a fresh link.',
@@ -615,11 +617,17 @@ router.post('/vehicle-checkout-session', async (req, res) => {
           carId: car.id,
         });
 
-        if (pendingSessionResolution.session?.url) {
-          return {
-            checkout_url: pendingSessionResolution.session.url,
-            session_id: pendingSessionResolution.session.id,
-          };
+        if (pendingSessionResolution.session) {
+          if (pendingSessionResolution.session.status === 'complete') {
+            throw new Error('Payment has already been received and is being processed.');
+          }
+
+          if (pendingSessionResolution.session.url) {
+            return {
+              checkout_url: pendingSessionResolution.session.url,
+              session_id: pendingSessionResolution.session.id,
+            };
+          }
         }
 
         const session = await createHostedCheckoutSession({

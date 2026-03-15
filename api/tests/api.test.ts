@@ -2045,9 +2045,9 @@ describe('Stripe API', () => {
     mockState.applications[1].pending_checkout_session_id = 'cs_closed_attempt';
     mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
       id: 'cs_closed_attempt',
-      status: 'complete',
+      status: 'expired',
       url: null,
-      payment_status: 'paid',
+      payment_status: 'unpaid',
       metadata: {
         application_id: '2',
         approved_bond: '500.00',

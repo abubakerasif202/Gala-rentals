@@ -93,6 +93,7 @@ const validateProductionEnv = () => {
     'APP_URL',
     'ADMIN_EMAIL',
     'CHECKOUT_LINK_SECRET',
+    'JWT_SECRET',
     'STRIPE_SECRET_KEY',
     'STRIPE_WEBHOOK_SECRET',
   ].filter((key) => !process.env[key]?.trim());

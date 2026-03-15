@@ -89,7 +89,18 @@ export const withPostgresAdvisoryLock = async <T>(
   lockKey: string,
   callback: () => Promise<T>
 ) => {
-  const client = await getPostgresPool().connect();
+  const pool = getPostgresPool();
+  const connectionString = getDirectDatabaseConnectionString();
+  const connectionMode = inferPostgresConnectionMode(connectionString);
+
+  if (connectionMode === 'transaction') {
+    throw new Error(
+      'PostgreSQL advisory locks are not supported when using a transaction-mode pooler (port 6543). ' +
+        'Please use a direct connection or session-mode pooler (port 5432) for this operation.'
+    );
+  }
+
+  const client = await pool.connect();
   const [keyPartOne, keyPartTwo] = toAdvisoryLockKeyParts(lockKey);
 
   try {

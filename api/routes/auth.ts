@@ -25,6 +25,11 @@ const loginRateLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true,
   skip: () => process.env.VITEST === 'true',
+  keyGenerator: (req) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const email = (req.body?.username || '').trim().toLowerCase();
+    return `${ip}_${email}`;
+  },
   message: { error: 'Too many login attempts. Try again later.' },
 });
 

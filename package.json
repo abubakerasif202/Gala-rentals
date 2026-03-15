@@ -11,6 +11,7 @@
     "build:server": "tsc -p tsconfig.server.json",
     "preview": "node scripts/run-vite.js preview",
     "clean": "node scripts/clean.js",
+    "clean:documents": "tsx scripts/cleanup-orphaned-documents.ts",
     "migrate:payment-workflow": "node scripts/migrate-payment-workflow-upgrade.js",
     "migrate:vehicle-allocation": "node scripts/migrate-active-vehicle-allocation.js",
     "migrate:operational-history": "node scripts/migrate-operational-history.js",

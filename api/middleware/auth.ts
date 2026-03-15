@@ -6,11 +6,7 @@ const isVitest = process.env.VITEST === 'true';
 const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
 
 const devAdminEmail = 'admin@maplerentals.com.au';
-const adminSessionSecret = (
-  process.env.JWT_SECRET ||
-  process.env.CHECKOUT_LINK_SECRET ||
-  ''
-).trim();
+const adminSessionSecret = (process.env.JWT_SECRET || '').trim();
 
 const LOCAL_ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 60 * 1000;

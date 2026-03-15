@@ -45,7 +45,7 @@ const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
 const shouldListen = process.env.VITEST !== 'true';
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
-const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '25mb';
+const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '100kb';
 const frontendDistDir = path.resolve(process.cwd(), 'dist');
 const frontendIndexPath = path.join(frontendDistDir, 'index.html');
 const cspReportingEnabled = isProduction && process.env.CSP_REPORTING === 'true';

@@ -234,17 +234,6 @@ const buildSubscriptionLineItems = ({
       price_data: {
         currency: LEASE_SETTINGS.currency,
         product_data: {
-          name: `First week for ${carName}`,
-          description: 'First weekly payment charged during signup.',
-        },
-        unit_amount: toCents(billingBreakdown.initialRental),
-      },
-      quantity: 1,
-    },
-    {
-      price_data: {
-        currency: LEASE_SETTINGS.currency,
-        product_data: {
           name: 'Onboarding setup fees',
           description: 'Account and direct debit setup.',
         },
@@ -531,6 +520,11 @@ router.get('/payment-context', async (req, res) => {
       version: Number(application.payment_link_version || 0),
     });
     requireApprovedPaymentContext({ application, carId: car_id });
+
+    if (car.status !== 'Available') {
+      throw new Error('This vehicle is no longer available for rent.');
+    }
+
     await assertVehicleAllocationAvailable({
       applicationId: application_id,
       carId: car_id,
@@ -858,7 +852,7 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
       .select('id, status')
       .eq(rentalCarIdColumn, car_id)
       .eq(rentalApplicationIdColumn, application_id)
-      .single();
+      .maybeSingle();
 
     const internalStatus =
       application.status === 'Paid' && rental?.status === 'Active'

@@ -2020,11 +2020,16 @@ describe('Stripe API', () => {
     expect(mockState.applications[1].pending_checkout_session_id).toBe('cs_test_123');
 
     const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
+    expect(payload.line_items).toHaveLength(2);
     expect(payload.metadata.checkout_kind).toBe('vehicle');
     expect(payload.metadata.application_id).toBe('2');
     expect(payload.metadata.approved_bond).toBe('500.00');
     expect(payload.metadata.approved_weekly_price).toBe('250.00');
     expect(payload.metadata.car_id).toBe('1');
+
+    const recurringItem = payload.line_items.find((item: any) => item.price_data.recurring);
+    expect(recurringItem.price_data.unit_amount).toBe(25000);
+    expect(recurringItem.price_data.product_data.name).toContain('weekly rental');
     expect(payload.cancel_url).toContain('/checkout/1?');
     expect(payload.cancel_url).toContain('application_id=2');
     expect(payload.cancel_url).toContain('resume_payment=1');

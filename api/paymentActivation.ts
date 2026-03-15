@@ -200,6 +200,17 @@ const applyVehicleCheckoutActivationWrites = async ({
 
   if (hasDirectDatabaseConnection()) {
     await withPostgresTransaction(async (client) => {
+      // Lock the car row and re-validate availability inside the transaction
+      const carRes = await client.query(
+        'SELECT status FROM cars WHERE id = $1 FOR UPDATE',
+        [carId]
+      );
+      const currentCarStatus = carRes.rows[0]?.status;
+
+      if (!existingRentalId && currentCarStatus !== 'Available' && currentCarStatus !== 'Rented') {
+        throw new Error(`Vehicle is no longer available for activation (currently ${currentCarStatus})`);
+      }
+
       if (existingRentalId) {
         await updateRowByIdInTransaction(
           client,

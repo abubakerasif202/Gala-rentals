@@ -297,7 +297,7 @@ router.get('/:id/documents/:document', authenticateAdmin, async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', express.json({ limit: '10mb' }), async (req, res) => {
   const uploadedPaths: string[] = [];
 
   try {

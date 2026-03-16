@@ -41,6 +41,14 @@ const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
 const ALLOWED_APPLICATION_IMAGE_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
+const APPLICATION_IMAGE_UPLOAD_FIELDS = 2;
+const APPLICATION_SUBMISSION_JSON_LIMIT_BYTES =
+  Math.ceil(
+    MAX_APPLICATION_UPLOAD_BYTES *
+      APPLICATION_IMAGE_UPLOAD_FIELDS *
+      (4 / 3)
+  ) +
+  1024 * 1024;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
 
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
@@ -297,8 +305,11 @@ router.get('/:id/documents/:document', authenticateAdmin, async (req, res) => {
   }
 });
 
-router.post('/', express.json({ limit: '10mb' }), async (req, res) => {
-  const uploadedPaths: string[] = [];
+router.post(
+  '/',
+  express.json({ limit: APPLICATION_SUBMISSION_JSON_LIMIT_BYTES }),
+  async (req, res) => {
+    const uploadedPaths: string[] = [];
 
   try {
     const data = applicationSchema.parse(req.body);
@@ -604,7 +615,8 @@ router.post('/', express.json({ limit: '10mb' }), async (req, res) => {
     console.error('Application submission error:', err);
     res.status(500).json({ error: 'Application submission failed' });
   }
-});
+  }
+);
 
 router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
   try {

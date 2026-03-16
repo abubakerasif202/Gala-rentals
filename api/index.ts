@@ -117,6 +117,12 @@ const validateProductionEnv = () => {
     }
   }
 
+  if (!hasDirectDatabaseConnection()) {
+    invalid.push(
+      'SUPABASE_DB_URL or DATABASE_URL must use a session-capable Postgres connection (port 5432) for transactional payment activation'
+    );
+  }
+
   if (missing.length > 0 || invalid.length > 0) {
     const details = [...missing, ...invalid].join(', ');
     throw new Error(
@@ -127,7 +133,7 @@ const validateProductionEnv = () => {
 };
 
 const logProductionConfigurationWarnings = () => {
-  if (isProduction && !hasDirectDatabaseConnection()) {
+  if (!isProduction && !hasDirectDatabaseConnection()) {
     console.warn(
       'SUPABASE_DB_URL or DATABASE_URL is not configured for a session-capable Postgres connection. ' +
         'Stripe payment activation will use the non-transactional fallback until a direct connection ' +

@@ -190,6 +190,8 @@ What each command does:
   - Required for auth-scoped Supabase operations such as admin sign-in and token verification
 - `SUPABASE_SERVICE_ROLE_KEY`
   - Server-side privileged Supabase key
+- `SUPABASE_DB_URL` or `DATABASE_URL`
+  - Must be a session-capable Postgres connection on port `5432`; transaction-pooler URLs on port `6543` are not sufficient for production payment activation
 - `CHECKOUT_LINK_SECRET`
   - Secret used to sign secure payment-link tokens
 - `STRIPE_SECRET_KEY`

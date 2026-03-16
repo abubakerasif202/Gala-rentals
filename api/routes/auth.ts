@@ -1,5 +1,5 @@
 import express from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { ZodError } from 'zod';
 
 import { createAuthClient } from '../db/index.js';
@@ -27,7 +27,7 @@ const loginRateLimiter = rateLimit({
   skip: () => process.env.VITEST === 'true',
   validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
-    const ip = req.ip || 'unknown';
+    const ip = req.ip ? ipKeyGenerator(req.ip) : 'unknown';
     const email = (req.body?.username || '').trim().toLowerCase();
     return `auth_${ip}_${email}`;
   },

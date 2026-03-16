@@ -102,7 +102,7 @@ export const getFleetCarName = (row) =>
   )})`;
 
 export const getFleetCarImage = (row) =>
-  IMAGE_BY_MODEL_CODE[row.modelCode] || IMAGE_BY_MODEL_CODE.CMRY;
+  `/cars/${canonicalizeRegistration(row.registration)}.jpeg`;
 
 export const getFleetApplicationEmail = (row) =>
   `legacy-${canonicalizeRegistration(row.registration).toLowerCase()}@example.invalid`;

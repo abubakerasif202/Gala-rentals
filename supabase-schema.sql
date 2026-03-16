@@ -175,6 +175,13 @@ CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON invoices(customer_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_car_registration ON invoices(car_registration);
 CREATE INDEX IF NOT EXISTS idx_invoices_invoice_date ON invoices(invoice_date);
 
+CREATE INDEX IF NOT EXISTS idx_applications_email ON applications(email);
+CREATE INDEX IF NOT EXISTS idx_applications_phone ON applications(phone);
+CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status);
+CREATE INDEX IF NOT EXISTS idx_applications_created_at ON applications(created_at);
+CREATE INDEX IF NOT EXISTS idx_cars_status ON cars(status);
+CREATE INDEX IF NOT EXISTS idx_rentals_status ON rentals(status);
+
 -- --- SECURITY (Row Level Security) ---
 
 -- Enable RLS on all tables

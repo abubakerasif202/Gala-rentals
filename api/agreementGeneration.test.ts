@@ -1,0 +1,52 @@
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { renderApplicationLeaseAgreement } from './agreementGeneration.js';
+
+const restoreLeaseAgreementEnv = () => {
+  delete process.env.LEASE_OWNER_NAME;
+  delete process.env.LEASE_OWNER_ADDRESS;
+  delete process.env.LEASE_OWNER_CONTACT;
+  delete process.env.LEASE_OWNER_EMAIL;
+};
+
+afterEach(() => {
+  restoreLeaseAgreementEnv();
+});
+
+describe('renderApplicationLeaseAgreement', () => {
+  it('fills lease agreements with configured owner details and non-placeholder fallbacks', () => {
+    process.env.LEASE_OWNER_NAME = 'Maple Rentals Pty Ltd';
+    process.env.LEASE_OWNER_ADDRESS = '123 Fleet Street, Sydney NSW 2000, Australia';
+    process.env.LEASE_OWNER_CONTACT = '0420 550 556';
+    process.env.LEASE_OWNER_EMAIL = 'hello@maplerentals.com.au';
+
+    const agreement = renderApplicationLeaseAgreement(
+      {
+        name: 'Jordan Driver',
+        email: 'jordan@example.com',
+        phone: '0400111222',
+        address: '22 Test Street',
+        license_number: 'NSW12345',
+        intended_start_date: '2026-03-20',
+      },
+      {
+        name: 'Toyota Camry Hybrid',
+        model_year: 2024,
+      },
+      450,
+      '2026-03-19T08:00:00.000Z',
+      900
+    );
+
+    expect(agreement).toContain('Name: Maple Rentals Pty Ltd');
+    expect(agreement).toContain('Address: 123 Fleet Street, Sydney NSW 2000, Australia');
+    expect(agreement).toContain('Contact: 0420 550 556');
+    expect(agreement).toContain('Email: hello@maplerentals.com.au');
+    expect(agreement).toContain('Date of Birth: Not provided');
+    expect(agreement).toContain('VIN: Not recorded');
+    expect(agreement).not.toContain('Business Address');
+    expect(agreement).not.toContain('leasing@example.com');
+    expect(agreement).not.toContain('TBD');
+    expect(agreement).not.toContain('1990-01-01');
+  });
+});

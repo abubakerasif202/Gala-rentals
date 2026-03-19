@@ -259,6 +259,12 @@ export default function Home() {
                     <p className={`mt-3 text-xs uppercase tracking-[0.18em] ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>
                       Includes ${plan.pricing.serviceFeeAud.toFixed(2)} service fee each billing cycle
                     </p>
+                    {(plan.pricing.recurringInterval !== 'week' ||
+                      plan.pricing.recurringIntervalCount !== 1) && (
+                      <p className={`mt-3 text-sm ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>
+                        Equivalent to ${plan.pricing.comparisonWeeklyAud.toFixed(2)} per week for bond planning.
+                      </p>
+                    )}
                   </div>
 
                   <ul className="space-y-4">

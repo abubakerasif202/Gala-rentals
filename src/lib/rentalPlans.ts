@@ -28,6 +28,7 @@ export interface RentalFeeSettings {
 export interface RentalPlanPricing {
   currency: 'AUD';
   bondAud: number;
+  comparisonWeeklyAud: number;
   initialRentalAud: number;
   setupFeesAud: number;
   serviceFeeAud: number;
@@ -42,6 +43,27 @@ export interface RentalPlanWithPricing extends RentalPlan {
   pricing: RentalPlanPricing;
 }
 
+const MONTHLY_PLAN_COMPARISON_WEEKS = 4;
+
+const getPlanBillingCycleWeeks = (
+  plan: Pick<RentalPlan, 'billingInterval' | 'billingIntervalCount'>
+) => {
+  if (plan.billingInterval === 'month') {
+    return plan.billingIntervalCount * MONTHLY_PLAN_COMPARISON_WEEKS;
+  }
+
+  return plan.billingIntervalCount;
+};
+
+export const getRentalPlanWeeklyEquivalentAud = (
+  plan: Pick<RentalPlan, 'priceAud' | 'billingInterval' | 'billingIntervalCount'>
+) =>
+  Number(
+    (
+      plan.priceAud / getPlanBillingCycleWeeks(plan)
+    ).toFixed(2)
+  );
+
 export const rentalPlans: RentalPlan[] = [
   {
     id: 'weekly',
@@ -52,7 +74,13 @@ export const rentalPlans: RentalPlan[] = [
     highlight: 'Best for trial runs',
     billingInterval: 'week',
     billingIntervalCount: 1,
-    bondAud: calculateBondFromWeeklyRent(450),
+    bondAud: calculateBondFromWeeklyRent(
+      getRentalPlanWeeklyEquivalentAud({
+        priceAud: 450,
+        billingInterval: 'week',
+        billingIntervalCount: 1,
+      })
+    ),
     features: [
       'Toyota Camry Hybrid',
       'Full insurance coverage',
@@ -70,7 +98,13 @@ export const rentalPlans: RentalPlan[] = [
     popular: true,
     billingInterval: 'week',
     billingIntervalCount: 2,
-    bondAud: calculateBondFromWeeklyRent(800),
+    bondAud: calculateBondFromWeeklyRent(
+      getRentalPlanWeeklyEquivalentAud({
+        priceAud: 800,
+        billingInterval: 'week',
+        billingIntervalCount: 2,
+      })
+    ),
     features: [
       'Toyota Camry Hybrid',
       'Full insurance coverage',
@@ -88,7 +122,13 @@ export const rentalPlans: RentalPlan[] = [
     highlight: 'Best value',
     billingInterval: 'month',
     billingIntervalCount: 1,
-    bondAud: calculateBondFromWeeklyRent(1500),
+    bondAud: calculateBondFromWeeklyRent(
+      getRentalPlanWeeklyEquivalentAud({
+        priceAud: 1500,
+        billingInterval: 'month',
+        billingIntervalCount: 1,
+      })
+    ),
     features: [
       'Toyota Camry Hybrid',
       'Full insurance coverage',
@@ -109,19 +149,32 @@ export function buildRentalPlanWithPricing(
   plan: RentalPlan,
   fees: RentalFeeSettings
 ): RentalPlanWithPricing {
+  const comparisonWeeklyAud = getRentalPlanWeeklyEquivalentAud(plan);
   const setupFeesAud = Number(
     (fees.new_account_setup + fees.direct_debit_account_setup).toFixed(2)
   );
-  const serviceFeeAud = Number(fees.account_management_weekly.toFixed(2));
-  const upfrontDueAud = calculateUpfrontDueFromWeeklyRent(plan.priceAud);
+  const serviceFeeAud = Number(
+    (
+      fees.account_management_weekly * getPlanBillingCycleWeeks(plan)
+    ).toFixed(2)
+  );
+  const bondAud = calculateBondFromWeeklyRent(comparisonWeeklyAud);
+  const initialRentalAud = comparisonWeeklyAud;
+  const upfrontDueAud = Number(
+    (
+      calculateUpfrontDueFromWeeklyRent(comparisonWeeklyAud) + setupFeesAud
+    ).toFixed(2)
+  );
   const recurringDueAud = Number(plan.priceAud.toFixed(2));
 
   return {
     ...plan,
+    bondAud,
     pricing: {
       currency: 'AUD',
-      bondAud: plan.bondAud,
-      initialRentalAud: plan.priceAud,
+      bondAud,
+      comparisonWeeklyAud,
+      initialRentalAud,
       setupFeesAud,
       serviceFeeAud,
       upfrontDueAud,

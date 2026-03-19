@@ -94,10 +94,15 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 SUPABASE_ANON_KEY=your_anon_key
 ADMIN_EMAIL=admin@maplerentals.com.au
 CHECKOUT_LINK_SECRET=replace_with_a_long_random_secret
+JWT_SECRET=replace_with_a_long_random_secret
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 APP_URL=http://localhost:3000
 SITE_URL=http://localhost:3000
+LEASE_OWNER_NAME=Maple Rentals Pty Ltd
+LEASE_OWNER_ADDRESS=123 Fleet Street, Sydney NSW 2000, Australia
+LEASE_OWNER_CONTACT=0420 550 556
+LEASE_OWNER_EMAIL=hello@maplerentals.com.au
 VITE_API_BASE_URL=/api
 ```
 
@@ -196,6 +201,13 @@ What each command does:
   - Must be a session-capable Postgres connection on port `5432`; transaction-pooler URLs on port `6543` are not sufficient for production payment activation
 - `CHECKOUT_LINK_SECRET`
   - Secret used to sign secure payment-link tokens
+- `JWT_SECRET`
+  - Secret used to sign admin session cookies
+- `LEASE_OWNER_NAME`
+- `LEASE_OWNER_ADDRESS`
+- `LEASE_OWNER_CONTACT`
+- `LEASE_OWNER_EMAIL`
+  - Registered-owner details inserted into generated lease agreements
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 
@@ -215,7 +227,9 @@ What each command does:
 - `CORS_ORIGIN`
   - Extra allowed browser origin
 - `JSON_BODY_LIMIT`
-  - Override request body limit. Defaults to `25mb`.
+  - Override the global request body limit. Defaults to `100kb`.
+- `/api/applications`
+  - Uses a dedicated JSON parser sized for two 7 MB base64 licence uploads; this route is not controlled by `JSON_BODY_LIMIT`
 - `INDEXNOW_ENABLED`
 - `INDEXNOW_KEY`
 - `INDEXNOW_TIMEOUT_MS`
@@ -266,6 +280,11 @@ Recommended Render environment variables:
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `CHECKOUT_LINK_SECRET`
+- `JWT_SECRET`
+- `LEASE_OWNER_NAME`
+- `LEASE_OWNER_ADDRESS`
+- `LEASE_OWNER_CONTACT`
+- `LEASE_OWNER_EMAIL`
 - `RESEND_API_KEY` if email delivery is enabled
 
 ## Troubleshooting

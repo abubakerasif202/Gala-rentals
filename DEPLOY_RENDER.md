@@ -74,6 +74,15 @@ That server:
 - `CHECKOUT_LINK_SECRET`
   - HMAC secret used to sign checkout link tokens
 
+- `JWT_SECRET`
+  - Secret used to sign admin session cookies
+
+- `LEASE_OWNER_NAME`
+- `LEASE_OWNER_ADDRESS`
+- `LEASE_OWNER_CONTACT`
+- `LEASE_OWNER_EMAIL`
+  - Registered-owner details inserted into generated lease agreements
+
 ### Strongly recommended
 
 - `SUPABASE_DB_URL`
@@ -95,7 +104,10 @@ That server:
   - Dev/test fallback only; not required in production
 
 - `JSON_BODY_LIMIT`
-  - Overrides the default JSON payload limit of `25mb`
+  - Overrides the default JSON payload limit of `100kb` for non-application routes
+
+- `/api/applications`
+  - Uses its own parser budget sized for two 7 MB base64 licence uploads
 
 ## Important env rules
 

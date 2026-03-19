@@ -1,3 +1,5 @@
+import { getLeaseAgreementBusinessDetails } from '../agreementConfig.js';
+
 export type LeaseFee = {
   code: string;
   title: string;
@@ -44,14 +46,11 @@ export const buildCarLeaseAgreementFees = (bondAmount = 0): LeaseFee[] => [
   { code: '4.9', title: 'Declaration Fee', amount: '$10.00' },
 ];
 
-export const defaultCarLeaseAgreement: CarLeaseAgreementInput = {
-  agreementDate: '2026-03-11',
-  registeredOwnerName: 'Maple Rentals Pty Ltd',
-  registeredOwnerAddress: 'Business Address, Sydney NSW 2000, Australia',
-  registeredOwnerContact: '+61 400 000 000',
-  registeredOwnerEmail: 'leasing@example.com',
+export const buildDefaultCarLeaseAgreement = (): CarLeaseAgreementInput => ({
+  agreementDate: new Date().toISOString().split('T')[0],
+  ...getLeaseAgreementBusinessDetails(),
   renteeName: 'Sample Driver',
-  renteeDob: '1990-01-01',
+  renteeDob: 'Not provided',
   renteeLicenseNumber: 'NSW0000000',
   renteeLicenseState: 'NSW',
   renteeAddress: 'Sample Address, Sydney NSW 2000, Australia',
@@ -60,20 +59,15 @@ export const defaultCarLeaseAgreement: CarLeaseAgreementInput = {
   vehicleMake: 'Toyota',
   vehicleModel: 'Camry Hybrid',
   vehicleYear: '2024',
-  vehicleVin: 'TBD',
-  kmAllowance: 'As agreed in booking',
+  vehicleVin: 'Not recorded',
   weeklyRent: '$250.00 per week',
-  fuelPolicy: 'Rentee must pay fuel usage. Extra amount may be added to excess according to age.',
-  insuranceCoverage: 'Insurance coverage applies only in New South Wales.',
-  rentalStartDate: '2026-03-11',
+  rentalStartDate: new Date().toISOString().split('T')[0],
   rentalEndDate: 'Open-ended',
-  minimumRentalPeriod: 'Minimum 6 weeks',
-  returnPolicy:
-    'Car must be full of fuel on return. Failure incurs $20 + fuel cost per liter. Two weeks notice is required before return.',
   fees: buildCarLeaseAgreementFees(),
-};
+});
 
 export const renderCarLeaseAgreement = (input: Partial<CarLeaseAgreementInput> = {}) => {
+  const defaultCarLeaseAgreement = buildDefaultCarLeaseAgreement();
   const agreement: CarLeaseAgreementInput = {
     ...defaultCarLeaseAgreement,
     ...input,

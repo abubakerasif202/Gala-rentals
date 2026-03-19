@@ -39,6 +39,8 @@ import rentalRoutes from './routes/rentals.js';
 import stripeRoutes from './routes/stripe.js';
 import webhookRoutes from './routes/webhooks.js';
 import { indexNowConfig } from './services/indexNow.js';
+import { LEASE_AGREEMENT_PRODUCTION_ENV_KEYS } from './agreementConfig.js';
+import { APPLICATION_SUBMISSION_JSON_LIMIT_BYTES } from '../shared/applicationSubmission.js';
 
 const isVitest = process.env.VITEST === 'true';
 const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
@@ -94,6 +96,7 @@ const validateProductionEnv = () => {
     'ADMIN_EMAIL',
     'CHECKOUT_LINK_SECRET',
     'JWT_SECRET',
+    ...LEASE_AGREEMENT_PRODUCTION_ENV_KEYS,
     'STRIPE_SECRET_KEY',
     'STRIPE_WEBHOOK_SECRET',
   ].filter((key) => !process.env[key]?.trim());
@@ -244,9 +247,6 @@ const registerCoreRoutes = (app: express.Express) => {
 
   app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), webhookRoutes);
 
-  app.use(express.json({ limit: JSON_BODY_LIMIT }));
-  app.use(express.urlencoded({ extended: false, limit: JSON_BODY_LIMIT }));
-
   if (cspReportingEnabled && cspReportPath) {
     app.post(
       cspReportPath,
@@ -305,6 +305,16 @@ const registerCoreRoutes = (app: express.Express) => {
       );
     }
   });
+
+  // Applications include two base64-encoded licence images and need a much larger
+  // parser budget than the rest of the API. Mount this before the global parser.
+  app.use(
+    '/api/applications',
+    express.json({ limit: APPLICATION_SUBMISSION_JSON_LIMIT_BYTES })
+  );
+
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
+  app.use(express.urlencoded({ extended: false, limit: JSON_BODY_LIMIT }));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/cars', carRoutes);

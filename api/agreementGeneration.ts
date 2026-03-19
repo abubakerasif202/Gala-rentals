@@ -3,8 +3,13 @@ import {
   renderCarLeaseAgreement,
 } from './templates/carLeaseAgreement.js';
 import { calculateBondFromWeeklyRent } from '../shared/rentalPricing.js';
+import { getLeaseAgreementBusinessDetails } from './agreementConfig.js';
 
 const toDateOnly = (value: string) => value.split('T')[0];
+const toOptionalString = (value: unknown) =>
+  typeof value === 'string' ? value.trim() : '';
+const toNonEmptyString = (value: unknown, fallback: string) =>
+  toOptionalString(value) || fallback;
 
 export const buildLeaseAgreementInput = (
   application: Record<string, any>,
@@ -17,21 +22,40 @@ export const buildLeaseAgreementInput = (
   const carTokens = carName.split(' ').filter(Boolean);
   const vehicleMake = carTokens[0] || 'Vehicle';
   const weeklyRentText = `$${Number(approvedWeeklyPrice || 0).toFixed(2)} per week`;
+  const leaseAgreementBusinessDetails = getLeaseAgreementBusinessDetails();
+  const rentalStartDate = toOptionalString(
+    application.intended_start_date ?? application.intendedStartDate
+  );
+  const vehicleVin = toOptionalString(
+    car.vin ?? car.vin_number ?? car.registration ?? car.car_registration
+  );
 
   return {
+    ...leaseAgreementBusinessDetails,
     agreementDate: toDateOnly(nowIso),
     fees: buildCarLeaseAgreementFees(approvedBond),
-    renteeName: application.name,
-    renteeEmail: application.email,
-    renteeContact: application.phone,
-    renteeAddress: application.address,
-    renteeLicenseNumber: application.license_number,
-    renteeLicenseState: application.license_state || 'NSW',
+    renteeName: toNonEmptyString(application.name, 'Driver'),
+    renteeDob: toNonEmptyString(
+      application.date_of_birth ?? application.dateOfBirth,
+      'Not provided'
+    ),
+    renteeEmail: toNonEmptyString(application.email, 'Not provided'),
+    renteeContact: toNonEmptyString(application.phone, 'Not provided'),
+    renteeAddress: toNonEmptyString(application.address, 'Not provided'),
+    renteeLicenseNumber: toNonEmptyString(
+      application.license_number ?? application.licenseNumber,
+      'Not provided'
+    ),
+    renteeLicenseState: toNonEmptyString(
+      application.license_state ?? application.licenseState,
+      'NSW'
+    ),
     vehicleMake,
     vehicleModel: carName,
-    vehicleYear: car.model_year ? String(car.model_year) : '',
+    vehicleYear: car.model_year ? String(car.model_year) : 'Not recorded',
+    vehicleVin: vehicleVin || 'Not recorded',
     weeklyRent: weeklyRentText,
-    rentalStartDate: application.intended_start_date || toDateOnly(nowIso),
+    rentalStartDate: rentalStartDate ? toDateOnly(rentalStartDate) : toDateOnly(nowIso),
     rentalEndDate: 'Open-ended',
   };
 };

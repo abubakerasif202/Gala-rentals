@@ -93,7 +93,7 @@ router.post('/', async (request, response) => {
           await getRentalStatusUpdatePayload(nextRentalStatus, todayIsoDate())
         );
 
-        if (car_id) {
+        if (car_id && shouldReleaseVehicle) {
           await maybeMarkCarAvailable(Number(car_id));
         }
         break;

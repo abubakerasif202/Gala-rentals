@@ -40,7 +40,7 @@ export default function Pricing() {
             transition={{ duration: 0.6 }}
             className="text-slate-300 text-lg max-w-3xl mx-auto font-light leading-relaxed"
           >
-            Compare the standard weekly pricing, two-week bond, and upfront amount before you apply. Checkout starts as soon as your application and documents are submitted.
+            Compare each plan&apos;s billing cadence, weekly-equivalent economics, two-week bond, and starting quote before you apply. Bond and upfront figures use the plan&apos;s weekly equivalent rate.
           </motion.p>
         </div>
       </section>
@@ -106,6 +106,12 @@ export default function Pricing() {
                             ? `${plan.pricing.recurringIntervalCount} weeks`
                             : 'week'}
                       </p>
+                      {(plan.pricing.recurringInterval !== 'week' ||
+                        plan.pricing.recurringIntervalCount !== 1) && (
+                        <p className={`text-sm ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>
+                          Equivalent to ${plan.pricing.comparisonWeeklyAud.toFixed(2)} per week for bond and upfront calculations.
+                        </p>
+                      )}
                     </div>
 
                     <div className={`grid grid-cols-2 gap-4 rounded-2xl border p-4 mb-8 ${plan.popular ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
@@ -161,7 +167,7 @@ export default function Pricing() {
             {
               icon: CreditCard,
               title: 'Transparent upfront cost',
-              body: 'Every plan shows the two-week bond, first rental week, and recurring weekly amount before checkout starts.',
+              body: 'Every plan shows the two-week bond and starting quote using the plan&apos;s weekly equivalent rate before checkout starts.',
             },
             {
               icon: Check,

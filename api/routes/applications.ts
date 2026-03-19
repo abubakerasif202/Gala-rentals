@@ -35,8 +35,8 @@ import {
 import { handleVehicleCheckoutCompletion } from '../paymentActivation.js';
 import {
   APPLICATION_IMAGE_CONTENT_TYPES,
-  MAX_APPLICATION_UPLOAD_BYTES,
   normalizeApplicationEmail,
+  MAX_APPLICATION_UPLOAD_BYTES,
 } from '../../shared/applicationSubmission.js';
 import { escapeHtml, getResend, sanitizeEmailHeaderValue } from '../email.js';
 import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
@@ -46,14 +46,6 @@ const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
 const ALLOWED_APPLICATION_IMAGE_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
-const APPLICATION_IMAGE_UPLOAD_FIELDS = 2;
-const APPLICATION_SUBMISSION_JSON_LIMIT_BYTES =
-  Math.ceil(
-    MAX_APPLICATION_UPLOAD_BYTES *
-      APPLICATION_IMAGE_UPLOAD_FIELDS *
-      (4 / 3)
-  ) +
-  1024 * 1024;
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) throw new Error('STRIPE_SECRET_KEY is required');
 const stripe = new Stripe(stripeSecretKey, STRIPE_CONFIG);
@@ -324,7 +316,6 @@ router.get('/:id/documents/:document', authenticateAdmin, async (req, res) => {
 router.post(
   '/',
   applicationSubmissionLimiter,
-  express.json({ limit: APPLICATION_SUBMISSION_JSON_LIMIT_BYTES }),
   async (req, res) => {
     const uploadedPaths: string[] = [];
 

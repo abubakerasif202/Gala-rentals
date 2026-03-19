@@ -639,6 +639,16 @@ const { createCheckoutToken, verifyCheckoutToken } = await import('../checkoutTo
 
 beforeEach(() => {
   delete process.env.RESEND_API_KEY;
+  delete process.env.LEASE_OWNER_NAME;
+  delete process.env.LEASE_OWNER_ADDRESS;
+  delete process.env.LEASE_OWNER_CONTACT;
+  delete process.env.LEASE_OWNER_EMAIL;
+  delete process.env.LEASE_FUEL_POLICY;
+  delete process.env.LEASE_INSURANCE_COVERAGE;
+  delete process.env.LEASE_MINIMUM_RENTAL_PERIOD;
+  delete process.env.LEASE_RETURN_POLICY;
+  delete process.env.LEASE_RETURN_NOTICE_DAYS;
+  delete process.env.LEASE_KM_ALLOWANCE;
   mockState.cars = [
     {
       id: 1,
@@ -1258,6 +1268,65 @@ describe('Applications API', () => {
       email: 'newdriver@example.com',
       license_number: 'NSW55555',
     });
+  });
+
+  it('POST /api/applications accepts valid submissions that exceed the global JSON parser limit', async () => {
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
+    const largeImagePayload = `data:image/png;base64,${'A'.repeat(140 * 1024)}`;
+
+    const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
+      name: 'Large Payload Driver',
+      phone: '0400999888',
+      email: 'large-payload@example.com',
+      license_number: 'NSW88888',
+      license_expiry: '2027-12-31',
+      uber_status: 'Applying',
+      experience: 'New Driver',
+      address: '101 Parser Street',
+      weekly_budget: '$390/week',
+      intended_start_date: '2026-03-20',
+      license_photo: largeImagePayload,
+      license_back_photo: largeImagePayload,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockState.applications.at(-1)?.email).toBe('large-payload@example.com');
+  });
+
+  it('POST /api/applications stores agreements with Maple Rentals contact details instead of template placeholders', async () => {
+    process.env.LEASE_OWNER_ADDRESS = '123 Fleet Street, Sydney NSW 2000, Australia';
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
+
+    const res = await request(app).post('/api/applications').send({
+      selected_car_id: 1,
+      name: 'Agreement Driver',
+      phone: '0400222333',
+      email: 'agreement@example.com',
+      license_number: 'NSW12121',
+      license_expiry: '2027-12-31',
+      uber_status: 'Applying',
+      experience: 'New Driver',
+      address: '44 Agreement Street',
+      weekly_budget: '$360/week',
+      intended_start_date: '2026-03-20',
+      license_photo: 'data:image/png;base64,ZmFrZQ==',
+      license_back_photo: 'data:image/png;base64,ZmFrZQ==',
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockState.lease_agreements).toHaveLength(1);
+    expect(mockState.lease_agreements[0]?.content).toContain('Maple Rentals Pty Ltd');
+    expect(mockState.lease_agreements[0]?.content).toContain(
+      '123 Fleet Street, Sydney NSW 2000, Australia'
+    );
+    expect(mockState.lease_agreements[0]?.content).toContain('hello@maplerentals.com.au');
+    expect(mockState.lease_agreements[0]?.content).toContain('0420 550 556');
+    expect(mockState.lease_agreements[0]?.content).not.toContain('Business Address');
+    expect(mockState.lease_agreements[0]?.content).not.toContain('leasing@example.com');
   });
 
   it('POST /api/applications escapes applicant-controlled HTML before sending emails', async () => {
@@ -2621,7 +2690,7 @@ describe('Stripe API', () => {
     expect(mockState.rentals.find((rental) => rental.id === 21)?.status).toBe('Active');
   });
 
-  it('POST /api/stripe/webhook releases the car after involuntary subscription cancellation when no live rentals remain', async () => {
+  it('POST /api/stripe/webhook keeps the car unavailable after involuntary subscription cancellation', async () => {
     mockState.cars[0].status = 'Rented';
     mockState.rentals = [
       {
@@ -2660,7 +2729,7 @@ describe('Stripe API', () => {
       .send('{}');
 
     expect(res.status).toBe(200);
-    expect(mockState.cars[0].status).toBe('Available');
+    expect(mockState.cars[0].status).toBe('Rented');
     expect(mockState.rentals.find((rental) => rental.id === 20)?.status).toBe('Cancelled');
   });
 });

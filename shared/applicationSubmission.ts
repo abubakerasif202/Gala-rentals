@@ -3,6 +3,14 @@ export const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 export const AUSTRALIA_TIME_ZONE = 'Australia/Sydney';
 export const MAX_APPLICATION_UPLOAD_BYTES = 7 * 1024 * 1024;
 export const APPLICATION_IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/jpg', 'image/png'] as const;
+export const APPLICATION_IMAGE_UPLOAD_FIELDS = 2;
+export const APPLICATION_SUBMISSION_JSON_LIMIT_BYTES =
+  Math.ceil(
+    MAX_APPLICATION_UPLOAD_BYTES *
+      APPLICATION_IMAGE_UPLOAD_FIELDS *
+      (4 / 3)
+  ) +
+  1024 * 1024;
 
 export const normalizeApplicationEmail = (value: string) => value.trim().toLowerCase();
 export const normalizeAustralianMobile = (value: string) => {

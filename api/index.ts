@@ -39,7 +39,6 @@ import rentalRoutes from './routes/rentals.js';
 import stripeRoutes from './routes/stripe.js';
 import webhookRoutes from './routes/webhooks.js';
 import { indexNowConfig } from './services/indexNow.js';
-import { LEASE_AGREEMENT_PRODUCTION_ENV_KEYS } from './agreementConfig.js';
 import { APPLICATION_SUBMISSION_JSON_LIMIT_BYTES } from '../shared/applicationSubmission.js';
 
 const isVitest = process.env.VITEST === 'true';
@@ -96,7 +95,6 @@ const validateProductionEnv = () => {
     'ADMIN_EMAIL',
     'CHECKOUT_LINK_SECRET',
     'JWT_SECRET',
-    ...LEASE_AGREEMENT_PRODUCTION_ENV_KEYS,
     'STRIPE_SECRET_KEY',
     'STRIPE_WEBHOOK_SECRET',
   ].filter((key) => !process.env[key]?.trim());

@@ -203,15 +203,16 @@ What each command does:
   - Secret used to sign secure payment-link tokens
 - `JWT_SECRET`
   - Secret used to sign admin session cookies
-- `LEASE_OWNER_NAME`
-- `LEASE_OWNER_ADDRESS`
-- `LEASE_OWNER_CONTACT`
-- `LEASE_OWNER_EMAIL`
-  - Registered-owner details inserted into generated lease agreements
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 
 ### Recommended in production
+
+- `LEASE_OWNER_NAME`
+- `LEASE_OWNER_ADDRESS`
+- `LEASE_OWNER_CONTACT`
+- `LEASE_OWNER_EMAIL`
+  - Optional overrides for the default Maple Rentals business details inserted into generated lease agreements
 
 - `SUPABASE_DB_URL`
   - Direct or pooled Postgres connection string used for transactional Stripe activation writes
@@ -281,11 +282,10 @@ Recommended Render environment variables:
 - `STRIPE_WEBHOOK_SECRET`
 - `CHECKOUT_LINK_SECRET`
 - `JWT_SECRET`
-- `LEASE_OWNER_NAME`
-- `LEASE_OWNER_ADDRESS`
-- `LEASE_OWNER_CONTACT`
-- `LEASE_OWNER_EMAIL`
 - `RESEND_API_KEY` if email delivery is enabled
+
+`render.yaml` pre-populates the `LEASE_OWNER_*` values with the current Maple Rentals business details.
+Override them in Render only if those agreement details need to change.
 
 ## Troubleshooting
 

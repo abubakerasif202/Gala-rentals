@@ -32,10 +32,10 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: LEASE_OWNER_NAME
-        sync: false
+        value: "Maple Rentals"
       - key: LEASE_OWNER_ADDRESS
-        sync: false
+        value: "13/27-33 Addlestone Rd, Merrylands NSW 2160"
       - key: LEASE_OWNER_CONTACT
-        sync: false
+        value: "0420 550 556"
       - key: LEASE_OWNER_EMAIL
-        sync: false
+        value: "admin@maplerentals.com.au"

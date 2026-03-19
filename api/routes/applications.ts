@@ -1,10 +1,11 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 
 import { updateApplicationPaymentStateIfCurrentVersion } from '../applicationPaymentState.js';
 import { db } from '../db/index.js';
 import { authenticateAdmin } from '../middleware/auth.js';
+import { getStripeClient } from '../stripeClient.js';
 import {
   applicationApprovalSchema,
   applicationSchema,
@@ -25,7 +26,6 @@ import {
 import {
   FALLBACK_ADMIN_EMAIL,
   RENTAL_PLAN_SETUP_FEES_AUD,
-  STRIPE_CONFIG,
 } from '../constants.js';
 import { buildDriverPaymentLink, sendDriverPaymentLinkEmail } from '../paymentLinks.js';
 import {
@@ -45,9 +45,7 @@ const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
 const ALLOWED_APPLICATION_IMAGE_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-if (!stripeSecretKey) throw new Error('STRIPE_SECRET_KEY is required');
-const stripe = new Stripe(stripeSecretKey, STRIPE_CONFIG);
+const stripe = getStripeClient();
 
 const applicationSubmissionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,

@@ -17,6 +17,8 @@
     "migrate:operational-history": "node scripts/migrate-operational-history.js",
     "migrate:application-indexes": "node scripts/migrate-application-indexes.js",
     "sync:realtime-fleet": "node scripts/sync-realtime-fleet.js",
+    "stripe:setup": "tsx scripts/stripe-setup.ts",
+    "stripe:reset": "tsx scripts/stripe-reset.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "validate": "npm run lint && npm run test"
@@ -45,7 +47,7 @@
     "react-hook-form": "^7.71.2",
     "react-router-dom": "^7.13.1",
     "resend": "^6.9.3",
-    "stripe": "^20.4.0",
+    "stripe": "^20.4.1",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
   },

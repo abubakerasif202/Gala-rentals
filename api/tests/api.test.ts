@@ -633,6 +633,9 @@ process.env.NODE_ENV = 'test';
 process.env.CHECKOUT_LINK_SECRET = 'test-checkout-secret';
 process.env.JWT_SECRET = 'test-jwt-secret';
 process.env.STRIPE_SECRET_KEY = 'sk_test_123';
+process.env.STRIPE_SECURITY_BOND_PRODUCT_ID = 'prod_security_bond';
+process.env.STRIPE_ONBOARDING_SETUP_PRODUCT_ID = 'prod_onboarding_setup';
+process.env.STRIPE_WEEKLY_RENTAL_PRODUCT_ID = 'prod_weekly_rental';
 
 const { default: app } = await import('../index.js');
 const { createCheckoutToken, verifyCheckoutToken } = await import('../checkoutTokens.js');
@@ -2122,7 +2125,7 @@ describe('Stripe API', () => {
 
     const recurringItem = payload.line_items.find((item: any) => item.price_data.recurring);
     expect(recurringItem.price_data.unit_amount).toBe(25000);
-    expect(recurringItem.price_data.product_data.name).toContain('weekly rental');
+    expect(recurringItem.price_data.product).toBe('prod_weekly_rental');
     expect(payload.cancel_url).toContain('/checkout/1?');
     expect(payload.cancel_url).toContain('application_id=2');
     expect(payload.cancel_url).toContain('resume_payment=1');

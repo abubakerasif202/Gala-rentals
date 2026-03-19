@@ -1,3 +1,5 @@
+import type Stripe from 'stripe';
+
 export const FALLBACK_ADMIN_EMAIL = 'admin@maplerentals.com.au';
 
 export const LEASE_SETTINGS = {
@@ -19,6 +21,11 @@ export const RENTAL_PLAN_SETUP_FEES_AUD = Number(
   ).toFixed(2)
 );
 
-export const STRIPE_CONFIG = {
-  apiVersion: '2023-10-16' as any,
+export const STRIPE_API_VERSION = '2025-04-30.basil' as const;
+
+export const STRIPE_CONFIG: Stripe.StripeConfig = {
+  // stripe-node only types the library's latest API version literal. Maple Rental
+  // intentionally pins a validated account version until a broader Stripe upgrade.
+  apiVersion: STRIPE_API_VERSION as Stripe.LatestApiVersion,
+  typescript: true,
 };

@@ -3,6 +3,7 @@
 Maple Rental is a single-service full-stack rental platform for a hybrid vehicle fleet. The same Express process serves the API and the built React/Vite frontend in production.
 
 Client-ready deployment and release notes are documented in [docs/CLIENT_HANDOFF.md](docs/CLIENT_HANDOFF.md).
+Stripe operational setup and reset steps are documented in [docs/STRIPE_SETUP.md](docs/STRIPE_SETUP.md).
 
 ## Executive Summary
 
@@ -162,6 +163,13 @@ node scripts/reset-admin.js admin@maplerentals.com.au new-password
 npm run dev
 ```
 
+Stripe setup helpers:
+
+```bash
+npm run stripe:setup
+npm run stripe:reset
+```
+
 Open:
 
 - App: [http://localhost:3000](http://localhost:3000)
@@ -180,6 +188,8 @@ npm start
 What each command does:
 
 - `npm run dev`: full-stack local development server
+- `npm run stripe:setup`: verify the configured Stripe account and ensure the reusable Stripe catalog exists
+- `npm run stripe:reset`: preview a destructive Stripe test-data reset
 - `npm run lint`: TypeScript type-check
 - `npm run test`: Vitest suite
 - `npm run validate`: lint plus tests

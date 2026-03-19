@@ -1,7 +1,7 @@
 import express from 'express';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 
-import { STRIPE_CONFIG } from '../constants.js';
+import { getStripeClient } from '../stripeClient.js';
 import {
   getRentalStatusUpdatePayload,
   handleVehicleCheckoutCompletion,
@@ -11,9 +11,7 @@ import {
 import { getTodayInAustralia } from '../../shared/applicationSubmission.js';
 
 const router = express.Router();
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-if (!stripeSecretKey) throw new Error('STRIPE_SECRET_KEY is required');
-const stripe = new Stripe(stripeSecretKey, STRIPE_CONFIG);
+const stripe = getStripeClient();
 
 const todayIsoDate = () => getTodayInAustralia();
 

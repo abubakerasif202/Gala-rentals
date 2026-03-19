@@ -1,11 +1,13 @@
 import express from 'express';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { z } from 'zod';
 
 import {
   persistPendingCheckoutSessionIdIfCurrentVersion,
   updateApplicationPaymentStateIfCurrentVersion,
 } from '../applicationPaymentState.js';
+import { ensureStripeCatalog } from '../stripeCatalog.js';
+import { getStripeClient } from '../stripeClient.js';
 import { db } from '../db/index.js';
 import {
   hasDirectDatabaseConnection,
@@ -13,7 +15,7 @@ import {
 } from '../db/postgres.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { createCheckoutToken, verifyCheckoutToken } from '../checkoutTokens.js';
-import { LEASE_SETTINGS, RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
+import { LEASE_SETTINGS, RENTAL_PLAN_SETUP_FEES_AUD } from '../constants.js';
 import {
   vehicleCheckoutLinkSchema,
   vehicleCheckoutSessionSchema,
@@ -36,9 +38,7 @@ import {
 import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
 
 const router = express.Router();
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-if (!stripeSecretKey) throw new Error('STRIPE_SECRET_KEY is required');
-const stripe = new Stripe(stripeSecretKey, STRIPE_CONFIG);
+const stripe = getStripeClient();
 
 type BillingBreakdown = {
   bond: number;
@@ -213,21 +213,17 @@ const buildSuccessUrl = ({
   return url.toString();
 };
 
-const buildSubscriptionLineItems = ({
+const buildSubscriptionLineItems = async ({
   billingBreakdown,
-  carName,
 }: {
   billingBreakdown: BillingBreakdown;
-  carName: string;
 }) => {
+  const stripeCatalog = await ensureStripeCatalog(stripe);
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
     {
       price_data: {
         currency: LEASE_SETTINGS.currency,
-        product_data: {
-          name: 'Security Bond',
-          description: 'Refundable bond collected before activation.',
-        },
+        product: stripeCatalog.securityBond.productId,
         unit_amount: toCents(billingBreakdown.bond),
       },
       quantity: 1,
@@ -235,10 +231,7 @@ const buildSubscriptionLineItems = ({
     {
       price_data: {
         currency: LEASE_SETTINGS.currency,
-        product_data: {
-          name: 'Onboarding setup fees',
-          description: 'Account and direct debit setup.',
-        },
+        product: stripeCatalog.onboardingSetup.productId,
         unit_amount: toCents(billingBreakdown.setupFees),
       },
       quantity: 1,
@@ -246,10 +239,7 @@ const buildSubscriptionLineItems = ({
     {
       price_data: {
         currency: LEASE_SETTINGS.currency,
-        product_data: {
-          name: `${carName} weekly rental`,
-          description: 'Recurring weekly rental subscription.',
-        },
+        product: stripeCatalog.weeklyRental.productId,
         recurring: {
           interval: billingBreakdown.recurringInterval,
           interval_count: billingBreakdown.recurringIntervalCount,
@@ -298,10 +288,7 @@ const createHostedCheckoutSession = async ({
       }),
       client_reference_id: String(application.id),
       customer_email: application.email,
-      line_items: buildSubscriptionLineItems({
-        billingBreakdown,
-        carName: car.name,
-      }),
+      line_items: await buildSubscriptionLineItems({ billingBreakdown }),
       metadata,
       mode: 'subscription',
       payment_method_types: ['card'],

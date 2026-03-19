@@ -1,16 +1,17 @@
 import express from 'express';
 import { db } from '../db/index.js';
 import { authenticateAdmin } from '../middleware/auth.js';
-import Stripe from 'stripe';
-import { LEASE_SETTINGS, STRIPE_CONFIG } from '../constants.js';
+import { LEASE_SETTINGS } from '../constants.js';
 import { getRentalSelectColumns } from '../schemaCompat.js';
+import { getOptionalStripeClient } from '../stripeClient.js';
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
 
 router.get('/weekly', authenticateAdmin, async (_req, res) => {
   try {
-    if (!process.env.STRIPE_SECRET_KEY) {
+    const stripe = getOptionalStripeClient();
+
+    if (!stripe) {
       return res
         .status(503)
         .json({ error: 'Stripe is not configured. Set STRIPE_SECRET_KEY to enable payouts data.' });

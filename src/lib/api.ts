@@ -22,15 +22,12 @@ api.interceptors.response.use(
   (error) => {
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
     const isAdminScreen = currentPath.startsWith('/admin');
-    const isUnauthorizedAdminResponse =
-      error.response?.status === 401 || error.response?.status === 403;
 
-    if (isUnauthorizedAdminResponse && isAdminScreen) {
-      // Avoid redirect loops on login page and keep public checkout flows on-page.
-      if (!currentPath.includes('/admin/login')) {
-        window.location.replace('/admin/login');
-      }
+    if (error.response?.status === 401 && isAdminScreen && !currentPath.includes('/admin/login')) {
+      window.location.replace('/admin/login');
     }
+    // 403 = wrong account, not unauthenticated — don't redirect silently.
+    // Let the calling code handle it and show a user-facing message.
     return Promise.reject(error);
   }
 );

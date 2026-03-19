@@ -632,6 +632,7 @@ vi.mock('../db/postgres.js', () => ({
 process.env.NODE_ENV = 'test';
 process.env.CHECKOUT_LINK_SECRET = 'test-checkout-secret';
 process.env.JWT_SECRET = 'test-jwt-secret';
+process.env.STRIPE_SECRET_KEY = 'sk_test_123';
 
 const { default: app } = await import('../index.js');
 const { createCheckoutToken, verifyCheckoutToken } = await import('../checkoutTokens.js');

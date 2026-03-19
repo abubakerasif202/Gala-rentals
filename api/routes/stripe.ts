@@ -36,7 +36,9 @@ import {
 import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeSecretKey) throw new Error('STRIPE_SECRET_KEY is required');
+const stripe = new Stripe(stripeSecretKey, STRIPE_CONFIG);
 
 type BillingBreakdown = {
   bond: number;

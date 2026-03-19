@@ -16,6 +16,8 @@ This repository includes `render.yaml`, so Render can provision the service dire
 Blueprint link:
 [https://dashboard.render.com/blueprint/new?repo=https://github.com/abubakerasif202/maple-rental](https://dashboard.render.com/blueprint/new?repo=https://github.com/abubakerasif202/maple-rental)
 
+Supabase SQL files are organized under `supabase/migrations/`, with the base schema in `supabase/migrations/01_schema.sql`.
+
 ## Expected service configuration
 
 - Service type: `Web Service`

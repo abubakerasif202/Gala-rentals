@@ -118,6 +118,8 @@ If `ADMIN_PASSWORD` is set in development, the admin login route can issue a loc
 
 ### Prepare Supabase
 
+Base schema and incremental SQL migrations live under `supabase/migrations/`.
+
 Print the base schema SQL:
 
 ```bash

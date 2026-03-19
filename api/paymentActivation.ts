@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 
+import { FALLBACK_ADMIN_EMAIL } from './constants.js';
 import { db } from './db/index.js';
 import { hasDirectDatabaseConnection, withPostgresTransaction } from './db/postgres.js';
 import {
@@ -12,7 +13,7 @@ import {
   toRentalWritePayload,
 } from './schemaCompat.js';
 import { getTodayInAustralia } from '../shared/applicationSubmission.js';
-import { escapeHtml } from './email.js';
+import { escapeHtml, getResend } from './email.js';
 
 const assertSupabaseWrite = (
   result: { error: { code?: string; message?: string } | null } | null | undefined,
@@ -375,9 +376,8 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
     }
 
     try {
-      const { Resend } = await import('resend');
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const adminEmail = process.env.ADMIN_EMAIL || 'admin@maplerentals.com.au';
+      const resend = await getResend();
+      const adminEmail = process.env.ADMIN_EMAIL || FALLBACK_ADMIN_EMAIL;
 
       await resend.emails.send({
         from: 'Maple Rentals <noreply@maplerentals.com.au>',
@@ -555,8 +555,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
   }
 
   try {
-    const { Resend } = await import('resend');
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    const resend = await getResend();
     await resend.emails.send({
       from: 'Maple Rentals <noreply@maplerentals.com.au>',
       to: String(application.email),

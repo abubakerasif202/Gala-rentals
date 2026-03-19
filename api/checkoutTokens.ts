@@ -13,9 +13,9 @@ type CheckoutTokenPayload = {
 const DEFAULT_TOKEN_TTL_HOURS = 24 * 7;
 
 const getCheckoutLinkSecret = () => {
-  const secret = process.env.CHECKOUT_LINK_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const secret = (process.env.CHECKOUT_LINK_SECRET || '').trim();
   if (!secret) {
-    throw new Error('CHECKOUT_LINK_SECRET or SUPABASE_SERVICE_ROLE_KEY is required to mint checkout tokens.');
+    throw new Error('CHECKOUT_LINK_SECRET is required to mint checkout tokens.');
   }
   return secret;
 };

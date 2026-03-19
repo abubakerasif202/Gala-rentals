@@ -19,10 +19,10 @@ async function runMigration() {
     await client.connect();
     console.log('Connected to PostgreSQL using the provided connection string.');
 
-    const sqlPath = path.join(process.cwd(), 'supabase-active-vehicle-allocation-index.sql');
+    const sqlPath = path.join(process.cwd(), 'supabase', 'migrations', '03_vehicle_allocation_index.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
 
-    console.log('Executing supabase-active-vehicle-allocation-index.sql...');
+    console.log('Executing supabase/migrations/03_vehicle_allocation_index.sql...');
     await client.query(sql);
     console.log('Active vehicle allocation index applied successfully.');
   } catch (error) {

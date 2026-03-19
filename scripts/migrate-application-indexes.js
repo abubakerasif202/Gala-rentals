@@ -19,10 +19,10 @@ async function runMigration() {
     await client.connect();
     console.log('Connected to PostgreSQL using the provided connection string.');
 
-    const sqlPath = path.join(process.cwd(), 'supabase-application-indexes.sql');
+    const sqlPath = path.join(process.cwd(), 'supabase', 'migrations', '04_application_indexes.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
 
-    console.log('Executing supabase-application-indexes.sql...');
+    console.log('Executing supabase/migrations/04_application_indexes.sql...');
     await client.query(sql);
     console.log('Application indexes applied successfully.');
   } catch (error) {

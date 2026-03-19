@@ -11,7 +11,9 @@ import {
 import { getTodayInAustralia } from '../../shared/applicationSubmission.js';
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeSecretKey) throw new Error('STRIPE_SECRET_KEY is required');
+const stripe = new Stripe(stripeSecretKey, STRIPE_CONFIG);
 
 const todayIsoDate = () => getTodayInAustralia();
 
@@ -25,13 +27,18 @@ router.post('/', async (request, response) => {
     return;
   }
 
-  const sig = request.headers['stripe-signature'];
+  const sigHeader = request.headers['stripe-signature'];
+  const sig = Array.isArray(sigHeader) ? sigHeader[0] : sigHeader;
+  if (!sig) {
+    response.status(400).send('Missing Stripe signature');
+    return;
+  }
   let event: Stripe.Event;
 
   try {
     event = stripe.webhooks.constructEvent(
       request.body,
-      sig as string,
+      sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {

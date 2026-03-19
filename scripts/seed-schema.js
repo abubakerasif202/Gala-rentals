@@ -30,8 +30,11 @@ async function runSQLQueue(queries) {
 }
 
 async function prepareSchema() {
-    console.log("Reading schema from supabase-schema.sql");
-    const sql = fs.readFileSync(path.join(process.cwd(), 'supabase-schema.sql'), 'utf-8');
+    console.log("Reading schema from supabase/migrations/01_schema.sql");
+    const sql = fs.readFileSync(
+        path.join(process.cwd(), 'supabase', 'migrations', '01_schema.sql'),
+        'utf-8'
+    );
 
     console.log("\n===========================================");
     console.log("ACTION REQUIRED: PLEASE RUN THIS IN YOUR SUPABASE SQL EDITOR");

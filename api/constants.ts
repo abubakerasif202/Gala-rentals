@@ -1,3 +1,5 @@
+export const FALLBACK_ADMIN_EMAIL = 'admin@maplerentals.com.au';
+
 export const LEASE_SETTINGS = {
   currency: 'aud',
   recurring_interval: 'week' as const,

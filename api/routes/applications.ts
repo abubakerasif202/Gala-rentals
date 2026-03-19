@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import Stripe from 'stripe';
 
 import { updateApplicationPaymentStateIfCurrentVersion } from '../applicationPaymentState.js';
@@ -21,7 +22,11 @@ import {
   toApplicationPaymentWritePayload,
   toApplicationWritePayload,
 } from '../schemaCompat.js';
-import { RENTAL_PLAN_SETUP_FEES_AUD, STRIPE_CONFIG } from '../constants.js';
+import {
+  FALLBACK_ADMIN_EMAIL,
+  RENTAL_PLAN_SETUP_FEES_AUD,
+  STRIPE_CONFIG,
+} from '../constants.js';
 import { buildDriverPaymentLink, sendDriverPaymentLinkEmail } from '../paymentLinks.js';
 import {
   assertVehicleAllocationAvailable,
@@ -33,7 +38,7 @@ import {
   MAX_APPLICATION_UPLOAD_BYTES,
   normalizeApplicationEmail,
 } from '../../shared/applicationSubmission.js';
-import { escapeHtml, sanitizeEmailHeaderValue } from '../email.js';
+import { escapeHtml, getResend, sanitizeEmailHeaderValue } from '../email.js';
 import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
 import { calculateBondFromWeeklyRent } from '../../shared/rentalPricing.js';
 
@@ -49,7 +54,18 @@ const APPLICATION_SUBMISSION_JSON_LIMIT_BYTES =
       (4 / 3)
   ) +
   1024 * 1024;
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', STRIPE_CONFIG);
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeSecretKey) throw new Error('STRIPE_SECRET_KEY is required');
+const stripe = new Stripe(stripeSecretKey, STRIPE_CONFIG);
+
+const applicationSubmissionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many applications submitted. Please try again later.' },
+  skip: () => process.env.VITEST === 'true',
+});
 
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
 const SUPABASE_STORAGE_PATH_PREFIXES = [
@@ -307,6 +323,7 @@ router.get('/:id/documents/:document', authenticateAdmin, async (req, res) => {
 
 router.post(
   '/',
+  applicationSubmissionLimiter,
   express.json({ limit: APPLICATION_SUBMISSION_JSON_LIMIT_BYTES }),
   async (req, res) => {
     const uploadedPaths: string[] = [];
@@ -465,6 +482,9 @@ router.post(
       weekly_budget: normalizedApplicationData.weekly_budget?.trim() || null,
       license_photo: licensePhotoUrl,
       license_back_photo: licenseBackPhotoUrl,
+      // Business rule: applications are auto-approved on submission — the system
+      // immediately assigns the selected vehicle and issues a checkout link.
+      // A manual approval flow (status: 'Pending') is not currently in use.
       status: 'Approved',
     });
     const paymentPayload = await toApplicationPaymentWritePayload({
@@ -530,9 +550,8 @@ router.post(
 
     if (process.env.RESEND_API_KEY) {
       try {
-        const { Resend } = await import('resend');
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        const adminEmail = process.env.ADMIN_EMAIL || 'admin@maplerentals.com.au';
+        const resend = await getResend();
+        const adminEmail = process.env.ADMIN_EMAIL || FALLBACK_ADMIN_EMAIL;
         const safeApplicantName = escapeHtml(normalizedApplicationData.name);
         const safeApplicantEmail = escapeHtml(normalizedApplicationData.email);
         const safeApplicantPhone = escapeHtml(normalizedApplicationData.phone);

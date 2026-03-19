@@ -32,7 +32,7 @@ const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   coreMode: 'snake',
   // Default to the modern column name so environments without schema
   // introspection (e.g. missing SUPABASE_SERVICE_ROLE_KEY) still write to
-  // the correct column defined in supabase-schema.sql.
+  // the correct column defined in supabase/migrations/01_schema.sql.
   applicationBackPhotoColumn: 'license_back_photo',
   applicationAssignedCarColumn: 'assigned_car_id',
   applicationApprovedBondColumn: 'approved_bond',
@@ -250,7 +250,7 @@ export const getCarWeeklyPriceColumn = async () => {
 
 export const getCarCreatedAtColumn = async () => {
   const { coreMode } = await getSchemaCompat();
-  return coreMode === 'camel' ? 'created_at' : 'created_at';
+  return coreMode === 'camel' ? 'createdAt' : 'created_at';
 };
 
 export const getApplicationSelectColumns = async () => {

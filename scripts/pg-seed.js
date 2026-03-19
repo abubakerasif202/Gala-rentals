@@ -26,10 +26,10 @@ async function runSchema() {
         await client.connect();
         console.log("Connected to PostgreSQL using the provided connection string.");
 
-        const sqlPath = path.join(process.cwd(), 'supabase-schema.sql');
+        const sqlPath = path.join(process.cwd(), 'supabase', 'migrations', '01_schema.sql');
         const sql = fs.readFileSync(sqlPath, 'utf8');
 
-        console.log("Executing supabase-schema.sql...");
+        console.log("Executing supabase/migrations/01_schema.sql...");
 
         await client.query(sql);
 

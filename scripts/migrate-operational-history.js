@@ -19,10 +19,10 @@ async function runMigration() {
     await client.connect();
     console.log('Connected to PostgreSQL using the provided connection string.');
 
-    const sqlPath = path.join(process.cwd(), 'supabase-operational-history.sql');
+    const sqlPath = path.join(process.cwd(), 'supabase', 'migrations', '06_operational_history.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
 
-    console.log('Executing supabase-operational-history.sql...');
+    console.log('Executing supabase/migrations/06_operational_history.sql...');
     await client.query(sql);
     console.log('Operational history schema applied successfully.');
   } catch (error) {

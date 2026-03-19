@@ -19,10 +19,10 @@ async function runMigration() {
     await client.connect();
     console.log('Connected to PostgreSQL using the provided connection string.');
 
-    const sqlPath = path.join(process.cwd(), 'supabase-payment-workflow-upgrade.sql');
+    const sqlPath = path.join(process.cwd(), 'supabase', 'migrations', '02_payment_workflow.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
 
-    console.log('Executing supabase-payment-workflow-upgrade.sql...');
+    console.log('Executing supabase/migrations/02_payment_workflow.sql...');
     await client.query(sql);
     console.log('Payment workflow schema upgrade applied successfully.');
   } catch (error) {

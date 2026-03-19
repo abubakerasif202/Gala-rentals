@@ -74,7 +74,7 @@ const countRowsForCar = async (table: string, column: string, id: string) => {
   return count || 0;
 };
 
-router.get('/', async (_req, res) => {
+const fetchCarsWithFallback = async () => {
   const selectColumns = await getCarSelectColumns();
   const orderColumn = await getCarCreatedAtColumn();
   let { data, error } = await db
@@ -82,13 +82,37 @@ router.get('/', async (_req, res) => {
     .select(selectColumns)
     .order(orderColumn, { ascending: false });
 
-  if (error) {
-    console.warn('Fetch cars ordered query failed, retrying with id order:', error);
-    ({ data, error } = await db
-      .from('cars')
-      .select(selectColumns)
-      .order('id', { ascending: false }));
+  if (!error) {
+    return { data: data || [], error: null as typeof error };
   }
+
+  console.warn('Fetch cars ordered query failed, retrying with id hydration:', error);
+  const { data: idRows, error: idError } = await db
+    .from('cars')
+    .select('id')
+    .order('id', { ascending: false });
+
+  if (idError) {
+    return {
+      data: null,
+      error: idError,
+    };
+  }
+
+  const cars = (
+    await Promise.all(
+      (idRows || []).map(async (row) => fetchCarById(String(row.id)))
+    )
+  ).filter((car): car is NonNullable<Awaited<ReturnType<typeof fetchCarById>>> => Boolean(car));
+
+  return {
+    data: cars,
+    error: null as typeof error,
+  };
+};
+
+router.get('/', async (_req, res) => {
+  const { data, error } = await fetchCarsWithFallback();
 
   if (error) {
     console.error('Fetch cars error', error);

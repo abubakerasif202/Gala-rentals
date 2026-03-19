@@ -77,10 +77,19 @@ const countRowsForCar = async (table: string, column: string, id: string) => {
 router.get('/', async (_req, res) => {
   const selectColumns = await getCarSelectColumns();
   const orderColumn = await getCarCreatedAtColumn();
-  const { data, error } = await db
+  let { data, error } = await db
     .from('cars')
     .select(selectColumns)
     .order(orderColumn, { ascending: false });
+
+  if (error) {
+    console.warn('Fetch cars ordered query failed, retrying with id order:', error);
+    ({ data, error } = await db
+      .from('cars')
+      .select(selectColumns)
+      .order('id', { ascending: false }));
+  }
+
   if (error) {
     console.error('Fetch cars error', error);
     return res.status(500).json({ error: 'Failed to fetch cars' });

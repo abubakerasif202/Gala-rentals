@@ -46,6 +46,18 @@ const getEffectiveAdminEmail = () => {
   return null;
 };
 
+const toOrigin = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+};
+
 const getRequestOrigin = (req: express.Request) => {
   const host = req.get('host');
 
@@ -58,6 +70,44 @@ const getRequestOrigin = (req: express.Request) => {
     forwardedProto?.split(',')[0]?.trim() || (req.secure ? 'https' : 'http');
 
   return `${protocol}://${host}`;
+};
+
+const getTrustedWriteOrigins = (req: express.Request) =>
+  new Set(
+    [
+      getRequestOrigin(req),
+      toOrigin(process.env.APP_URL),
+      toOrigin(process.env.FRONTEND_URL),
+      toOrigin(process.env.CORS_ORIGIN),
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:4173',
+      'http://127.0.0.1:4173',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+    ].filter((origin): origin is string => Boolean(origin))
+  );
+
+const isSafeMethod = (method: string) =>
+  ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+
+const hasTrustedWriteOrigin = (req: express.Request) => {
+  if (isSafeMethod(req.method)) {
+    return true;
+  }
+
+  const trustedOrigins = getTrustedWriteOrigins(req);
+  const requestOrigin = toOrigin(req.get('origin'));
+  if (requestOrigin && trustedOrigins.has(requestOrigin)) {
+    return true;
+  }
+
+  const refererOrigin = toOrigin(req.get('referer'));
+  if (refererOrigin && trustedOrigins.has(refererOrigin)) {
+    return true;
+  }
+
+  return false;
 };
 
 const isCrossSiteCookieRequest = (req: express.Request) => {
@@ -93,6 +143,19 @@ export const createCookieOptions = (req: express.Request) => {
       | 'strict',
     secure: isProduction || requiresCrossSiteCookie,
   };
+};
+
+export const requireTrustedAdminWriteOrigin = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  if (!req.cookies.admin_token || hasTrustedWriteOrigin(req)) {
+    next();
+    return;
+  }
+
+  res.status(403).json({ error: 'Cross-site admin request rejected' });
 };
 
 const signAdminSessionValue = (value: string) =>
@@ -165,7 +228,9 @@ const verifySupabaseAdminSessionToken = (token: string) => {
 };
 
 const clearAdminSessionCookie = (req: express.Request, res: express.Response) => {
-  res.clearCookie('admin_token', createCookieOptions(req));
+  const { maxAge, ...cookieOptions } = createCookieOptions(req);
+  void maxAge;
+  res.clearCookie('admin_token', cookieOptions);
 };
 
 const getSupabaseSessionExpiry = (
@@ -308,9 +373,15 @@ export const authenticateAdmin = async (
   res: express.Response,
   next: express.NextFunction
 ) => {
-  const token = req.cookies.admin_token || getBearerToken(req);
+  const bearerToken = getBearerToken(req);
+  const cookieToken = req.cookies.admin_token;
+  const token = bearerToken || cookieToken;
   if (!token) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!bearerToken && cookieToken && !hasTrustedWriteOrigin(req)) {
+    return res.status(403).json({ error: 'Cross-site admin request rejected' });
   }
 
   try {

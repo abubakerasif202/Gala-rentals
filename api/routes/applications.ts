@@ -40,7 +40,6 @@ import {
 } from '../../shared/applicationSubmission.js';
 import { escapeHtml, getResend, sanitizeEmailHeaderValue } from '../email.js';
 import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
-import { calculateBondFromWeeklyRent } from '../../shared/rentalPricing.js';
 
 const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
@@ -399,16 +398,6 @@ router.post(
       });
     }
 
-    await assertVehicleAllocationAvailable({
-      applicationId: 0,
-      carId: selectedCarId,
-      message: 'Selected vehicle is no longer available. Please choose another vehicle.',
-    });
-
-    const approvedWeeklyPrice = Number(selectedCar.weekly_price || 0);
-    const approvedBond = calculateBondFromWeeklyRent(approvedWeeklyPrice);
-    const nowIso = new Date().toISOString();
-
     const uploadImage = async (
       base64Str: string,
       filePrefix: string,
@@ -473,25 +462,14 @@ router.post(
       weekly_budget: normalizedApplicationData.weekly_budget?.trim() || null,
       license_photo: licensePhotoUrl,
       license_back_photo: licenseBackPhotoUrl,
-      // Business rule: applications are auto-approved on submission — the system
-      // immediately assigns the selected vehicle and issues a checkout link.
-      // A manual approval flow (status: 'Pending') is not currently in use.
-      status: 'Approved',
+      status: 'Pending',
     });
-    const paymentPayload = await toApplicationPaymentWritePayload({
-      approved_at: nowIso,
-      approved_bond: approvedBond,
-      approved_weekly_price: approvedWeeklyPrice,
+    const selectionPayload = await toApplicationPaymentWritePayload({
       assigned_car_id: selectedCarId,
-      paid_at: null,
-      payment_link_sent_at: nowIso,
-      payment_link_version: 1,
-      pending_checkout_session_id: null,
-      status: 'Approved',
     });
     const { data: inserted, error } = await db
       .from('applications')
-      .insert([{ ...basePayload, ...paymentPayload }])
+      .insert([{ ...basePayload, ...selectionPayload }])
       .select('id')
       .single();
 
@@ -500,44 +478,6 @@ router.post(
     }
 
     const applicationId = Number(inserted.id);
-    const checkoutToken = createCheckoutToken({
-      applicationId,
-      carId: selectedCarId,
-      purpose: 'vehicle',
-      version: 1,
-    });
-    const checkoutUrl = buildDriverPaymentLink({
-      applicationId,
-      carId: selectedCarId,
-      token: checkoutToken.token,
-    });
-
-    const agreementContent = renderApplicationLeaseAgreement(
-      {
-        ...normalizedApplicationData,
-        approved_bond: approvedBond,
-        approved_weekly_price: approvedWeeklyPrice,
-        assigned_car_id: selectedCarId,
-        license_back_photo: licenseBackPhotoUrl,
-        license_photo: licensePhotoUrl,
-      },
-      selectedCar,
-      approvedWeeklyPrice,
-      nowIso,
-      approvedBond
-    );
-
-    let leaseAgreementSaved = false;
-    try {
-      await saveLeaseAgreement({
-        applicationId,
-        carId: selectedCarId,
-        content: agreementContent,
-      });
-      leaseAgreementSaved = true;
-    } catch (agreementError) {
-      console.error('Lease agreement save error during application submission:', agreementError);
-    }
 
     if (process.env.RESEND_API_KEY) {
       try {
@@ -552,54 +492,53 @@ router.post(
         const safeIntendedStart = escapeHtml(normalizedApplicationData.intended_start_date);
         const safeCarName = escapeHtml(String(selectedCar.name || 'Vehicle'));
         const applicantNameForSubject = sanitizeEmailHeaderValue(normalizedApplicationData.name);
-
-        await sendDriverPaymentLinkEmail({
-          applicantEmail: normalizedApplicationData.email,
-          applicantName: normalizedApplicationData.name,
-          approvedBond,
-          approvedWeeklyPrice,
-          carName: String(selectedCar.name || 'Vehicle'),
-          checkoutUrl,
-          setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
-          agreement: agreementContent,
-        });
-
-        await resend.emails.send({
-          from: 'Maple Rentals Notifications <noreply@maplerentals.com.au>',
-          to: adminEmail,
-          subject: `New Driver Application: ${applicantNameForSubject}`,
-          html: `
-            <div style="font-family: sans-serif; color: #1a202c;">
-              <h2>New Driver Application</h2>
-              <p>A new driver application has been submitted and moved straight to checkout.</p>
-              <ul>
-                <li><strong>Name:</strong> ${safeApplicantName}</li>
-                <li><strong>Phone:</strong> ${safeApplicantPhone}</li>
-                <li><strong>Email:</strong> ${safeApplicantEmail}</li>
-                <li><strong>Address:</strong> ${safeApplicantAddress}</li>
-                <li><strong>Uber Status:</strong> ${safeUberStatus}</li>
-                <li><strong>Experience:</strong> ${safeExperience}</li>
-                <li><strong>Intended Start:</strong> ${safeIntendedStart}</li>
-                <li><strong>Vehicle:</strong> ${safeCarName}</li>
-                <li><strong>Bond:</strong> $${approvedBond.toFixed(2)}</li>
-                <li><strong>Weekly Rent:</strong> $${approvedWeeklyPrice.toFixed(2)}</li>
-              </ul>
-              <p>The secure checkout link was issued automatically when the application was submitted.</p>
-            </div>
-          `,
-        });
+        await Promise.all([
+          resend.emails.send({
+            from: 'Maple Rentals Notifications <noreply@maplerentals.com.au>',
+            to: adminEmail,
+            subject: `New Driver Application: ${applicantNameForSubject}`,
+            html: `
+              <div style="font-family: sans-serif; color: #1a202c;">
+                <h2>New Driver Application</h2>
+                <p>A new driver application has been submitted and is waiting for review.</p>
+                <ul>
+                  <li><strong>Name:</strong> ${safeApplicantName}</li>
+                  <li><strong>Phone:</strong> ${safeApplicantPhone}</li>
+                  <li><strong>Email:</strong> ${safeApplicantEmail}</li>
+                  <li><strong>Address:</strong> ${safeApplicantAddress}</li>
+                  <li><strong>Uber Status:</strong> ${safeUberStatus}</li>
+                  <li><strong>Experience:</strong> ${safeExperience}</li>
+                  <li><strong>Intended Start:</strong> ${safeIntendedStart}</li>
+                  <li><strong>Requested Vehicle:</strong> ${safeCarName}</li>
+                </ul>
+                <p>Review the application in the admin dashboard before issuing any payment link.</p>
+              </div>
+            `,
+          }),
+          resend.emails.send({
+            from: 'Maple Rentals <noreply@maplerentals.com.au>',
+            to: normalizedApplicationData.email,
+            subject: 'We received your Maple Rentals application',
+            html: `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
+                <h2 style="color: #D4AF37;">Application Received</h2>
+                <p>Hi ${safeApplicantName},</p>
+                <p>Thanks for applying to rent the ${safeCarName}.</p>
+                <p>Our team is reviewing your documents now. If your application is approved, we will email you a secure checkout link with the final pricing and agreement.</p>
+                <p><strong>Application reference:</strong> #${applicationId}</p>
+                <p>Best regards,<br /><strong>The Maple Rentals Team</strong></p>
+              </div>
+            `,
+          }),
+        ]);
       } catch (emailError) {
-        console.error('Failed to send application checkout emails:', emailError);
+        console.error('Failed to send application review emails:', emailError);
       }
     }
 
     res.json({
       success: true,
       application_id: String(applicationId),
-      checkout_token: checkoutToken.token,
-      checkout_token_expires_at: checkoutToken.expiresAt,
-      checkout_url: checkoutUrl,
-      lease_agreement_saved: leaseAgreementSaved,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {

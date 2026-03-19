@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { inquirySchema } from '../../shared/inquiry.js';
 import { escapeHtml, sanitizeEmailHeaderValue } from '../email.js';
@@ -6,7 +7,16 @@ import { escapeHtml, sanitizeEmailHeaderValue } from '../email.js';
 const router = express.Router();
 const SUPPORT_FALLBACK_MESSAGE =
   'Availability inquiries are temporarily unavailable online. Please call or email Maple Rentals directly.';
-router.post('/', async (req, res) => {
+const inquirySubmissionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many inquiries submitted. Please try again later.' },
+  skip: () => process.env.VITEST === 'true',
+});
+
+router.post('/', inquirySubmissionLimiter, async (req, res) => {
   try {
     const inquiry = inquirySchema.parse(req.body ?? {});
 

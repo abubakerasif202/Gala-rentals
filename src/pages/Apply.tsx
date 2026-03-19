@@ -243,12 +243,6 @@ export default function Apply() {
 
     try {
       const submission = await submitApplication(values);
-
-      if (submission.checkout_url) {
-        window.location.assign(submission.checkout_url);
-        return;
-      }
-
       setSubmittedApplicationId(submission.application_id);
     } catch (error: any) {
       setPageError(
@@ -284,11 +278,11 @@ export default function Apply() {
                   Application received
                 </p>
                 <h1 className="text-4xl font-bold text-white uppercase tracking-tighter">
-                  Checkout link created
+                  Review in progress
                 </h1>
                 <p className="text-brand-grey font-light leading-relaxed max-w-2xl mx-auto">
-                  Your application was saved successfully. If checkout did not open automatically,
-                  contact Maple Rentals with the reference below and we will resend the secure link.
+                  Your application was saved successfully. Maple Rentals will review your documents
+                  and email a secure checkout link if everything is approved.
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-6 py-5">
@@ -344,8 +338,9 @@ export default function Apply() {
                       Driver Application
                     </h1>
                     <p className="text-brand-grey font-light max-w-2xl">
-                      Choose your vehicle, upload your documents, and continue straight to secure
-                      checkout. Upfront payment is always two weeks bond plus your first weekly rent.
+                      Choose your vehicle, upload your documents, and submit your application for
+                      review. If approved, Maple Rentals will email a secure checkout link with the
+                      final agreement and pricing.
                     </p>
                   </div>
 
@@ -521,10 +516,11 @@ export default function Apply() {
                     </div>
                     <div className="rounded-2xl border border-brand-gold/20 bg-brand-gold/5 px-5 py-4 min-w-[260px]">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
-                        Next step after submit
+                        What happens next
                       </p>
                       <p className="text-xs text-brand-grey mt-1">
-                        We generate your agreement, reserve the selected vehicle, and send you to secure checkout immediately.
+                        We review your documents, confirm vehicle availability, and email a secure
+                        checkout link if the application is approved.
                       </p>
                     </div>
                   </div>
@@ -625,10 +621,10 @@ export default function Apply() {
                     >
                       {isSubmitting ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" /> Creating checkout
+                          <Loader2 className="w-4 h-4 animate-spin" /> Submitting application
                         </>
                       ) : (
-                        <>Continue to Checkout</>
+                        <>Submit Application</>
                       )}
                     </button>
                   </div>

@@ -1019,6 +1019,26 @@ describe('Auth API', () => {
     expect(verifyRes.headers['set-cookie']).toBeDefined();
   });
 
+  it('POST /api/auth/logout rejects cookie-authenticated writes without a trusted origin', async () => {
+    const agent = request.agent(app);
+    const loginRes = await agent
+      .post('/api/auth/login')
+      .send({ username: 'admin@maplerentals.com.au', password: 'password' });
+
+    expect(loginRes.status).toBe(200);
+
+    const rejectedRes = await agent.post('/api/auth/logout');
+    expect(rejectedRes.status).toBe(403);
+    expect(rejectedRes.body.error).toContain('Cross-site admin request rejected');
+
+    const allowedRes = await agent
+      .post('/api/auth/logout')
+      .set('Origin', 'http://localhost:3000');
+
+    expect(allowedRes.status).toBe(200);
+    expect(allowedRes.body.message).toBe('Logged out');
+  });
+
   it('POST /api/auth/login should deny non-admin email', async () => {
     const res = await request(app)
       .post('/api/auth/login')
@@ -1263,10 +1283,13 @@ describe('Applications API', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    expect(res.body.checkout_url).toBeUndefined();
     expect(mockState.applications).toHaveLength(3);
     expect(mockState.applications[2]).toMatchObject({
+      assigned_car_id: 1,
       email: 'newdriver@example.com',
       license_number: 'NSW55555',
+      status: 'Pending',
     });
   });
 
@@ -1293,10 +1316,11 @@ describe('Applications API', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    expect(res.body.checkout_url).toBeUndefined();
     expect(mockState.applications.at(-1)?.email).toBe('large-payload@example.com');
   });
 
-  it('POST /api/applications stores agreements with Maple Rentals contact details instead of template placeholders', async () => {
+  it('POST /api/applications creates a pending application without generating an agreement or checkout link', async () => {
     process.env.LEASE_OWNER_NAME = 'Maple Rentals';
     process.env.LEASE_OWNER_ADDRESS = '13/27-33 Addlestone Rd, Merrylands NSW 2160';
     process.env.LEASE_OWNER_EMAIL = 'admin@maplerentals.com.au';
@@ -1320,15 +1344,12 @@ describe('Applications API', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(mockState.lease_agreements).toHaveLength(1);
-    expect(mockState.lease_agreements[0]?.content).toContain('Maple Rentals');
-    expect(mockState.lease_agreements[0]?.content).toContain(
-      '13/27-33 Addlestone Rd, Merrylands NSW 2160'
-    );
-    expect(mockState.lease_agreements[0]?.content).toContain('admin@maplerentals.com.au');
-    expect(mockState.lease_agreements[0]?.content).toContain('0420 550 556');
-    expect(mockState.lease_agreements[0]?.content).not.toContain('Business Address');
-    expect(mockState.lease_agreements[0]?.content).not.toContain('leasing@example.com');
+    expect(res.body.checkout_url).toBeUndefined();
+    expect(mockState.lease_agreements).toHaveLength(0);
+    expect(mockState.applications.at(-1)).toMatchObject({
+      assigned_car_id: 1,
+      status: 'Pending',
+    });
   });
 
   it('POST /api/applications escapes applicant-controlled HTML before sending emails', async () => {
@@ -1364,10 +1385,10 @@ describe('Applications API', () => {
     expect(mockResendEmailsSend).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        html: expect.stringContaining('&lt;a href=&quot;https://evil.example&quot;&gt;Click me&lt;/a&gt;'),
+        html: expect.stringContaining('&lt;img src=x onerror=alert(1)&gt;'),
       })
     );
-    expect(mockResendEmailsSend.mock.calls[1]?.[0]?.html).not.toContain('<a href="https://evil.example">');
+    expect(mockResendEmailsSend.mock.calls[1]?.[0]?.html).not.toContain('<img src=x onerror=alert(1)>');
   });
 
   it('POST /api/applications rejects unsupported image formats', async () => {

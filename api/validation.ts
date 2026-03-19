@@ -12,6 +12,24 @@ import {
 
 export const modelYearSchema = z.number().int().min(1900).max(new Date().getFullYear() + 1);
 export const weeklyPriceSchema = z.number().positive();
+const isRootRelativeAssetPath = (value: string) =>
+  value.startsWith('/') && !value.startsWith('//');
+const isHttpUrl = (value: string) => {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+const carImageSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine(
+    (value) => isRootRelativeAssetPath(value) || isHttpUrl(value),
+    'Image must be a root-relative asset path or an absolute HTTP(S) URL'
+  );
 
 export const adminLoginSchema = z.object({
   username: z.string().trim().min(1, 'Username is required'),
@@ -27,7 +45,7 @@ export const carSchema = z.object({
   weekly_price: weeklyPriceSchema,
   bond: z.number().nonnegative(),
   status: z.enum(['Available', 'Rented', 'Maintenance']),
-  image: z.string().url(),
+  image: carImageSchema,
 });
 
 export const applicationSchema = z.object({

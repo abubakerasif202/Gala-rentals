@@ -2,9 +2,11 @@
 
 Maple Rental is a single-service full-stack rental platform for a hybrid vehicle fleet. The same Express process serves the API and the built React/Vite frontend in production.
 
+Client-ready deployment and release notes are documented in [docs/CLIENT_HANDOFF.md](docs/CLIENT_HANDOFF.md).
+
 ## Executive Summary
 
-- Public users can browse vehicles, submit applications, upload driver documents, and complete Stripe checkout.
+- Public users can browse vehicles, submit applications, upload driver documents, and receive a payment link after admin review.
 - Admin users can review applications, manage cars, activate rentals, inspect customer and invoice history, and work with lease agreements.
 - Supabase provides Postgres data storage, auth, and private document storage.
 - Render deploys the app as one Node web service.
@@ -138,6 +140,8 @@ npm run migrate:payment-workflow
 npm run migrate:vehicle-allocation
 npm run migrate:operational-history
 ```
+
+Also apply any newer SQL files under `supabase/migrations/` for security and integrity updates before handoff.
 
 Create the private storage bucket used for driver documents:
 

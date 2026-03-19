@@ -185,6 +185,7 @@ CREATE INDEX IF NOT EXISTS idx_rentals_status ON rentals(status);
 -- --- SECURITY (Row Level Security) ---
 
 -- Enable RLS on all tables
+ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cars ENABLE ROW LEVEL SECURITY;
 ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rentals ENABLE ROW LEVEL SECURITY;
@@ -192,6 +193,8 @@ ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lease_agreements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.admins FROM anon, authenticated;
 
 -- Define Admin Policy (Restricts access to the admins table)
 CREATE POLICY admin_full_access ON cars FOR ALL TO authenticated USING (is_admin());

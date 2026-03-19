@@ -8,6 +8,7 @@ import {
   authenticateAdmin,
   createCookieOptions,
   createLocalAdminSessionToken,
+  requireTrustedAdminWriteOrigin,
   createSupabaseAdminSessionToken,
 } from '../middleware/auth.js';
 
@@ -54,7 +55,9 @@ const getEffectiveAdminEmail = () => {
 };
 
 const clearAdminSessionCookie = (req: express.Request, res: express.Response) => {
-  res.clearCookie('admin_token', createCookieOptions(req));
+  const { maxAge, ...cookieOptions } = createCookieOptions(req);
+  void maxAge;
+  res.clearCookie('admin_token', cookieOptions);
 };
 
 const getSupabaseSessionExpiry = (
@@ -140,7 +143,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
   }
 });
 
-router.post('/logout', async (req, res) => {
+router.post('/logout', requireTrustedAdminWriteOrigin, async (req, res) => {
   clearAdminSessionCookie(req, res);
   res.json({ message: 'Logged out' });
 });

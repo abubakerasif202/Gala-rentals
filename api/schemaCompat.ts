@@ -209,7 +209,7 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
 export const getCarSelectColumns = async () => {
   const { coreMode } = await getSchemaCompat();
   return coreMode === 'camel'
-    ? 'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at'
+    ? 'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at:createdAt'
     : 'id, name, model_year, weekly_price, bond, status, image, created_at';
 };
 

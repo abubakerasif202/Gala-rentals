@@ -19,7 +19,7 @@ describe('schemaCompat', () => {
     vi.unstubAllGlobals();
   });
 
-  it('aliases createdAt when the cars table uses camelCase fields', async () => {
+  it('keeps created_at snake_case when the cars table mixes camel and snake fields', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -29,7 +29,7 @@ describe('schemaCompat', () => {
             applications: { properties: {} },
             cars: {
               properties: {
-                createdAt: { type: 'string' },
+                created_at: { type: 'string' },
                 modelYear: { type: 'number' },
                 weeklyPrice: { type: 'number' },
               },
@@ -44,9 +44,9 @@ describe('schemaCompat', () => {
 
     const { getCarCreatedAtColumn, getCarSelectColumns } = await import('./schemaCompat.js');
 
-    await expect(getCarCreatedAtColumn()).resolves.toBe('createdAt');
+    await expect(getCarCreatedAtColumn()).resolves.toBe('created_at');
     await expect(getCarSelectColumns()).resolves.toBe(
-      'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at:createdAt'
+      'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at'
     );
   });
 });

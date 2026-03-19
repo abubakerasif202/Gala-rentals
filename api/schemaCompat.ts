@@ -14,6 +14,7 @@ type ApplicationBackPhotoColumn =
 
 type SchemaCompat = {
   applicationApprovedAtColumn: string;
+  carCreatedAtColumn: string;
   coreMode: SchemaMode;
   applicationBackPhotoColumn: ApplicationBackPhotoColumn;
   applicationAssignedCarColumn: string;
@@ -29,6 +30,7 @@ type SchemaCompat = {
 
 const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationApprovedAtColumn: 'approved_at',
+  carCreatedAtColumn: 'created_at',
   coreMode: 'snake',
   // Default to the modern column name so environments without schema
   // introspection (e.g. missing SUPABASE_SERVICE_ROLE_KEY) still write to
@@ -89,6 +91,9 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
         const rentalsDefinition = definitions.rentals;
 
         const coreMode: SchemaMode = hasProperty(carsDefinition, 'modelYear') ? 'camel' : 'snake';
+        const carCreatedAtColumn = hasProperty(carsDefinition, 'createdAt')
+          ? 'createdAt'
+          : 'created_at';
         const applicationBackPhotoColumn: ApplicationBackPhotoColumn = hasProperty(
           applicationsDefinition,
           'licenseBackPhoto'
@@ -184,6 +189,7 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
 
         return {
           applicationApprovedAtColumn,
+          carCreatedAtColumn,
           coreMode,
           applicationBackPhotoColumn,
           applicationAssignedCarColumn,
@@ -207,10 +213,15 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
 };
 
 export const getCarSelectColumns = async () => {
-  const { coreMode } = await getSchemaCompat();
-  return coreMode === 'camel'
+  const { carCreatedAtColumn, coreMode } = await getSchemaCompat();
+
+  if (coreMode !== 'camel') {
+    return 'id, name, model_year, weekly_price, bond, status, image, created_at';
+  }
+
+  return carCreatedAtColumn === 'createdAt'
     ? 'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at:createdAt'
-    : 'id, name, model_year, weekly_price, bond, status, image, created_at';
+    : 'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at';
 };
 
 export const toCarWritePayload = async (car: {
@@ -249,8 +260,8 @@ export const getCarWeeklyPriceColumn = async () => {
 };
 
 export const getCarCreatedAtColumn = async () => {
-  const { coreMode } = await getSchemaCompat();
-  return coreMode === 'camel' ? 'createdAt' : 'created_at';
+  const { carCreatedAtColumn } = await getSchemaCompat();
+  return carCreatedAtColumn;
 };
 
 export const getApplicationSelectColumns = async () => {

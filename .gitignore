@@ -16,8 +16,5 @@ data/
 *.har
 
 skills/
-.vercel/
-
-.gemini/
 
 /net-commander

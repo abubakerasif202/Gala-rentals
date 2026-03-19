@@ -38,6 +38,7 @@ import invoiceRoutes from './routes/invoices.js';
 import rentalRoutes from './routes/rentals.js';
 import stripeRoutes from './routes/stripe.js';
 import webhookRoutes from './routes/webhooks.js';
+import { buildContentSecurityPolicyDirectives } from './securityPolicy.js';
 import { indexNowConfig } from './services/indexNow.js';
 import { APPLICATION_SUBMISSION_JSON_LIMIT_BYTES } from '../shared/applicationSubmission.js';
 
@@ -78,11 +79,6 @@ const toOrigin = (value?: string) => {
   } catch {
     return null;
   }
-};
-
-const toCspOrigin = (value?: string) => {
-  const origin = toOrigin(value);
-  return origin || null;
 };
 
 const validateProductionEnv = () => {
@@ -188,31 +184,11 @@ const applySecurityMiddleware = (app: express.Express) => {
         crossOriginResourcePolicy: { policy: 'cross-origin' },
         contentSecurityPolicy: {
           useDefaults: false,
-          directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", 'https://js.stripe.com'],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-            fontSrc: ["'self'", 'data:', 'https:'],
-            connectSrc: [
-              "'self'",
-              toCspOrigin(process.env.SUPABASE_URL) || 'https://*.supabase.co',
-              'https://*.supabase.co',
-              'https://*.supabase.in',
-            ],
-            frameSrc: [
-              'https://js.stripe.com',
-              'https://hooks.stripe.com',
-              'https://checkout.stripe.com',
-            ],
-            objectSrc: ["'none'"],
-            baseUri: ["'self'"],
-            formAction: ["'self'"],
-            upgradeInsecureRequests: [],
-            ...(cspReportingEnabled && cspReportUri
-              ? { reportUri: [cspReportUri] }
-              : {}),
-          },
+          directives: buildContentSecurityPolicyDirectives({
+            cspReportUri,
+            cspReportingEnabled,
+            supabaseUrl: process.env.SUPABASE_URL,
+          }),
         },
       })
     );

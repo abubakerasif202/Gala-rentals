@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Mail, Phone } from 'lucide-react';
+import { Mail, MapPin, Phone } from 'lucide-react';
 
 const quickLinks = [
   { label: 'Home', path: '/' },
@@ -49,7 +49,15 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-4">
                 <Mail className="h-4 w-4 text-brand-gold" />
-                <a href="mailto:hello@maplerentals.com.au" className="text-sm hover:text-brand-gold transition-colors font-light">hello@maplerentals.com.au</a>
+                <a href="mailto:admin@maplerentals.com.au" className="text-sm hover:text-brand-gold transition-colors font-light">admin@maplerentals.com.au</a>
+              </li>
+              <li className="flex items-start gap-4">
+                <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />
+                <span className="text-sm font-light leading-relaxed">
+                  13/27-33 Addlestone Rd
+                  <br />
+                  Merrylands NSW 2160
+                </span>
               </li>
               <li className="text-xs text-gray-600 mt-8 space-y-2 font-light">
                 <p>Sarfaraz Rajabi</p>

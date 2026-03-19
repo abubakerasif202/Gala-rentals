@@ -1297,7 +1297,9 @@ describe('Applications API', () => {
   });
 
   it('POST /api/applications stores agreements with Maple Rentals contact details instead of template placeholders', async () => {
-    process.env.LEASE_OWNER_ADDRESS = '123 Fleet Street, Sydney NSW 2000, Australia';
+    process.env.LEASE_OWNER_NAME = 'Maple Rentals';
+    process.env.LEASE_OWNER_ADDRESS = '13/27-33 Addlestone Rd, Merrylands NSW 2160';
+    process.env.LEASE_OWNER_EMAIL = 'admin@maplerentals.com.au';
     mockState.applications[1].status = 'Paid';
     mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
 
@@ -1319,11 +1321,11 @@ describe('Applications API', () => {
 
     expect(res.status).toBe(200);
     expect(mockState.lease_agreements).toHaveLength(1);
-    expect(mockState.lease_agreements[0]?.content).toContain('Maple Rentals Pty Ltd');
+    expect(mockState.lease_agreements[0]?.content).toContain('Maple Rentals');
     expect(mockState.lease_agreements[0]?.content).toContain(
-      '123 Fleet Street, Sydney NSW 2000, Australia'
+      '13/27-33 Addlestone Rd, Merrylands NSW 2160'
     );
-    expect(mockState.lease_agreements[0]?.content).toContain('hello@maplerentals.com.au');
+    expect(mockState.lease_agreements[0]?.content).toContain('admin@maplerentals.com.au');
     expect(mockState.lease_agreements[0]?.content).toContain('0420 550 556');
     expect(mockState.lease_agreements[0]?.content).not.toContain('Business Address');
     expect(mockState.lease_agreements[0]?.content).not.toContain('leasing@example.com');

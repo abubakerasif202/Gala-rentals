@@ -15,10 +15,10 @@ afterEach(() => {
 
 describe('renderApplicationLeaseAgreement', () => {
   it('fills lease agreements with configured owner details and non-placeholder fallbacks', () => {
-    process.env.LEASE_OWNER_NAME = 'Maple Rentals Pty Ltd';
-    process.env.LEASE_OWNER_ADDRESS = '123 Fleet Street, Sydney NSW 2000, Australia';
+    process.env.LEASE_OWNER_NAME = 'Maple Rentals';
+    process.env.LEASE_OWNER_ADDRESS = '13/27-33 Addlestone Rd, Merrylands NSW 2160';
     process.env.LEASE_OWNER_CONTACT = '0420 550 556';
-    process.env.LEASE_OWNER_EMAIL = 'hello@maplerentals.com.au';
+    process.env.LEASE_OWNER_EMAIL = 'admin@maplerentals.com.au';
 
     const agreement = renderApplicationLeaseAgreement(
       {
@@ -38,10 +38,10 @@ describe('renderApplicationLeaseAgreement', () => {
       900
     );
 
-    expect(agreement).toContain('Name: Maple Rentals Pty Ltd');
-    expect(agreement).toContain('Address: 123 Fleet Street, Sydney NSW 2000, Australia');
+    expect(agreement).toContain('Name: Maple Rentals');
+    expect(agreement).toContain('Address: 13/27-33 Addlestone Rd, Merrylands NSW 2160');
     expect(agreement).toContain('Contact: 0420 550 556');
-    expect(agreement).toContain('Email: hello@maplerentals.com.au');
+    expect(agreement).toContain('Email: admin@maplerentals.com.au');
     expect(agreement).toContain('Date of Birth: Not provided');
     expect(agreement).toContain('VIN: Not recorded');
     expect(agreement).not.toContain('Business Address');

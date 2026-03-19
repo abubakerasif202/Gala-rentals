@@ -99,10 +99,10 @@ STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 APP_URL=http://localhost:3000
 SITE_URL=http://localhost:3000
-LEASE_OWNER_NAME=Maple Rentals Pty Ltd
-LEASE_OWNER_ADDRESS=123 Fleet Street, Sydney NSW 2000, Australia
+LEASE_OWNER_NAME=Maple Rentals
+LEASE_OWNER_ADDRESS=13/27-33 Addlestone Rd, Merrylands NSW 2160
 LEASE_OWNER_CONTACT=0420 550 556
-LEASE_OWNER_EMAIL=hello@maplerentals.com.au
+LEASE_OWNER_EMAIL=admin@maplerentals.com.au
 VITE_API_BASE_URL=/api
 ```
 

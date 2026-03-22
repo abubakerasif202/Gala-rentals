@@ -632,15 +632,118 @@ vi.mock('../db/index.js', () => {
   };
 });
 
-vi.mock('../db/postgres.js', () => ({
-  closePostgresPool: mockClosePostgresPool,
-  getDirectDatabaseConnectionString: vi.fn(() => ''),
-  hasDirectDatabaseConnection: mockHasDirectDatabaseConnection,
-  withPostgresAdvisoryLock: mockWithPostgresAdvisoryLock,
-  withPostgresTransaction: vi.fn(async (callback: (client: { query: ReturnType<typeof vi.fn> }) => Promise<unknown>) =>
-    callback({ query: vi.fn() })
-  ),
-}));
+vi.mock('../db/postgres.js', () => {
+  const getTableRows = (table: string) => {
+    if (table === 'cars') {
+      return mockState.cars;
+    }
+
+    if (table === 'applications') {
+      return mockState.applications;
+    }
+
+    if (table === 'rentals') {
+      return mockState.rentals;
+    }
+
+    return [];
+  };
+
+  const setTableRows = (table: string, rows: Array<Record<string, any>>) => {
+    if (table === 'cars') {
+      mockState.cars = rows;
+      return;
+    }
+
+    if (table === 'applications') {
+      mockState.applications = rows;
+      return;
+    }
+
+    if (table === 'rentals') {
+      mockState.rentals = rows;
+    }
+  };
+
+  const parseQuotedIdentifiers = (source: string) =>
+    source
+      .split(',')
+      .map((segment) => segment.trim().match(/^"((?:[^"]|"")+)"/)?.[1]?.replace(/""/g, '"') || null)
+      .filter((value): value is string => Boolean(value));
+
+  const createTransactionalQuery = () =>
+    vi.fn(async (sql: string, values: unknown[] = []) => {
+      if (sql.startsWith('SELECT status FROM cars WHERE id = $1 FOR UPDATE')) {
+        const car = mockState.cars.find((row) => Number(row.id) === Number(values[0]));
+        return {
+          rowCount: car ? 1 : 0,
+          rows: car ? [{ status: car.status }] : [],
+        };
+      }
+
+      if (sql.startsWith('INSERT INTO "rentals"')) {
+        const columnsMatch = sql.match(/^INSERT INTO "rentals" \((.+)\) VALUES \(/);
+        const columns = columnsMatch ? parseQuotedIdentifiers(columnsMatch[1]) : [];
+        const nextId =
+          mockState.rentals.reduce(
+            (max, row) => Math.max(max, Number(row.id) || 0),
+            0
+          ) + 1;
+        const insertedRow = columns.reduce<Record<string, unknown>>(
+          (accumulator, column, index) => {
+            accumulator[column] = values[index];
+            return accumulator;
+          },
+          { id: nextId }
+        );
+        mockState.rentals = [...mockState.rentals, insertedRow];
+        return { rowCount: 1, rows: [] };
+      }
+
+      const updateMatch = sql.match(/^UPDATE "([^"]+)" SET (.+) WHERE id = \$\d+$/);
+      if (updateMatch) {
+        const [, table, setClause] = updateMatch;
+        const columns = parseQuotedIdentifiers(setClause);
+        const rowId = Number(values[values.length - 1]);
+        const rows = getTableRows(table);
+        let updated = false;
+        const nextRows = rows.map((row) => {
+          if (Number(row.id) !== rowId) {
+            return row;
+          }
+
+          updated = true;
+          const nextRow = { ...row };
+          columns.forEach((column, index) => {
+            nextRow[column] = values[index];
+          });
+          return nextRow;
+        });
+
+        if (updated) {
+          setTableRows(table, nextRows);
+        }
+
+        return {
+          rowCount: updated ? 1 : 0,
+          rows: [],
+        };
+      }
+
+      throw new Error(`Unexpected PostgreSQL query in test: ${sql}`);
+    });
+
+  return {
+    closePostgresPool: mockClosePostgresPool,
+    getDirectDatabaseConnectionString: vi.fn(() => ''),
+    hasDirectDatabaseConnection: mockHasDirectDatabaseConnection,
+    withPostgresAdvisoryLock: mockWithPostgresAdvisoryLock,
+    withPostgresTransaction: vi.fn(
+      async (callback: (client: { query: ReturnType<typeof vi.fn> }) => Promise<unknown>) =>
+        callback({ query: createTransactionalQuery() })
+    ),
+  };
+});
 
 process.env.NODE_ENV = 'test';
 process.env.CHECKOUT_LINK_SECRET = 'test-checkout-secret';
@@ -865,7 +968,7 @@ beforeEach(() => {
   mockClosePostgresPool.mockResolvedValue(undefined);
   mockGetSupabaseAuthConfigurationIssues.mockReturnValue([]);
   mockGetSupabaseConfigurationIssues.mockReturnValue([]);
-  mockHasDirectDatabaseConnection.mockReturnValue(false);
+  mockHasDirectDatabaseConnection.mockReturnValue(true);
   mockWithPostgresAdvisoryLock.mockImplementation(async (_lockKey: string, callback: () => Promise<unknown>) =>
     callback()
   );
@@ -1215,7 +1318,7 @@ describe('Applications API', () => {
     expect(res.body).toMatchObject({
       status: 'ok',
       database: 'ok',
-      paymentActivationMode: 'best_effort',
+      paymentActivationMode: 'transactional',
     });
   });
 
@@ -1228,7 +1331,20 @@ describe('Applications API', () => {
     expect(res.body).toMatchObject({
       status: 'error',
       database: 'unavailable',
-      paymentActivationMode: 'best_effort',
+      paymentActivationMode: 'transactional',
+    });
+  });
+
+  it('GET /api/health reports restricted payment handling without direct DB access', async () => {
+    mockHasDirectDatabaseConnection.mockReturnValue(false);
+
+    const res = await request(app).get('/api/health');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: 'ok',
+      database: 'ok',
+      paymentActivationMode: 'restricted',
     });
   });
 
@@ -1784,6 +1900,25 @@ describe('Stripe API', () => {
     expect(verified.version).toBe(4);
   });
 
+  it('POST /api/applications/:id/approve-payment blocks payment-link sending without direct DB access', async () => {
+    mockHasDirectDatabaseConnection.mockReturnValue(false);
+
+    const res = await request(app)
+      .post('/api/applications/1/approve-payment')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        assigned_car_id: 1,
+        approved_bond: 650,
+        approved_weekly_price: 285,
+        send_payment_link: true,
+      });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toContain('session-capable Postgres connection');
+    expect(mockState.applications[0].status).toBe('Pending');
+    expect(mockState.lease_agreements).toHaveLength(0);
+  });
+
   it('POST /api/applications/:id/approve-payment escapes applicant-controlled HTML in payment emails', async () => {
     process.env.RESEND_API_KEY = 'test-resend';
     mockResendEmailsSend.mockClear();
@@ -2027,6 +2162,27 @@ describe('Stripe API', () => {
     expect(res.body.error).toContain('not ready for payment');
   });
 
+  it('POST /api/stripe/vehicle-checkout-session requires direct DB access', async () => {
+    mockHasDirectDatabaseConnection.mockReturnValue(false);
+    const token = createCheckoutToken({
+      applicationId: 2,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+
+    const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
+      application_id: 2,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toContain('temporarily unavailable');
+    expect(mockWithPostgresAdvisoryLock).not.toHaveBeenCalled();
+    expect(mockStripe.checkoutSessionsCreate).not.toHaveBeenCalled();
+  });
+
   it('POST /api/stripe/vehicle-checkout-session rejects outdated payment-link versions', async () => {
     const token = createCheckoutToken({
       applicationId: 2,
@@ -2253,6 +2409,20 @@ describe('Stripe API', () => {
     expect(res.status).toBe(401);
   });
 
+  it('POST /api/stripe/vehicle-checkout-link requires direct DB access', async () => {
+    mockHasDirectDatabaseConnection.mockReturnValue(false);
+
+    const res = await request(app)
+      .post('/api/stripe/vehicle-checkout-link')
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        application_id: 2,
+      });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toContain('session-capable Postgres connection');
+  });
+
   it('POST /api/stripe/vehicle-checkout-link returns a fresh signed payment link', async () => {
     const res = await request(app)
       .post('/api/stripe/vehicle-checkout-link')
@@ -2470,6 +2640,41 @@ describe('Stripe API', () => {
       status: 'Active',
       stripe_subscription_id: 'sub_123',
     });
+  });
+
+  it('POST /api/stripe/webhook moves paid checkouts to Payment Review when direct DB access is unavailable', async () => {
+    mockHasDirectDatabaseConnection.mockReturnValue(false);
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_live_vehicle',
+          payment_status: 'paid',
+          metadata: {
+            application_id: '2',
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+          customer: 'cus_123',
+          subscription: 'sub_123',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(mockState.cars[0].status).toBe('Available');
+    expect(mockState.applications[1].status).toBe('Payment Review');
+    expect(mockState.applications[1].pending_checkout_session_id).toBe('cs_live_vehicle');
+    expect(mockState.rentals).toHaveLength(0);
   });
 
   it('POST /api/stripe/webhook falls back to car/application identity when the rental has no Stripe subscription id', async () => {

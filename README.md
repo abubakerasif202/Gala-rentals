@@ -116,6 +116,8 @@ SUPABASE_DB_URL=postgresql://...
 RESEND_API_KEY=re_...
 ```
 
+Stripe payment links, hosted checkout session creation, and automatic rental activation are gated until `SUPABASE_DB_URL` or `DATABASE_URL` points to a session-capable Postgres connection on port `5432`.
+
 Optional local-only admin shortcut:
 
 ```env
@@ -262,7 +264,7 @@ What each command does:
 `paymentActivationMode` will be:
 
 - `transactional` when `SUPABASE_DB_URL` or `DATABASE_URL` is configured
-- `best_effort` when the app is running without a direct Postgres connection
+- `restricted` when the app is running without a session-capable Postgres connection; payment links and automatic activation stay disabled
 
 ## Security and Operational Notes
 
@@ -313,9 +315,9 @@ SUPABASE_URL=https://your-project.supabase.co
 
 Do not paste the Postgres connection string into `SUPABASE_URL`.
 
-### Health endpoint reports `best_effort`
+### Health endpoint reports `restricted`
 
-Add `SUPABASE_DB_URL` or `DATABASE_URL` to enable transactional Stripe payment activation.
+Add `SUPABASE_DB_URL` or `DATABASE_URL` with a session-capable Postgres connection on port `5432` to enable payment-link generation and automatic Stripe activation.
 
 ### Admin login loops back to `/admin/login`
 

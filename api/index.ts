@@ -40,6 +40,7 @@ import stripeRoutes from './routes/stripe.js';
 import webhookRoutes from './routes/webhooks.js';
 import { buildContentSecurityPolicyDirectives } from './securityPolicy.js';
 import { indexNowConfig } from './services/indexNow.js';
+import { getPaymentProcessingMode } from './paymentProcessing.js';
 import { APPLICATION_SUBMISSION_JSON_LIMIT_BYTES } from '../shared/applicationSubmission.js';
 
 const isVitest = process.env.VITEST === 'true';
@@ -247,9 +248,7 @@ const registerCoreRoutes = (app: express.Express) => {
         status: 'ok',
         environment: process.env.NODE_ENV || 'development',
         database: configured ? 'ok' : 'not_configured',
-        paymentActivationMode: hasDirectDatabaseConnection()
-          ? 'transactional'
-          : 'best_effort',
+        paymentActivationMode: getPaymentProcessingMode(),
       });
     } catch (error) {
       console.error('Healthcheck error:', error);
@@ -258,9 +257,7 @@ const registerCoreRoutes = (app: express.Express) => {
         status: 'error',
         environment: process.env.NODE_ENV || 'development',
         database: 'unavailable',
-        paymentActivationMode: hasDirectDatabaseConnection()
-          ? 'transactional'
-          : 'best_effort',
+        paymentActivationMode: getPaymentProcessingMode(),
       });
     }
   });

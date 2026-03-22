@@ -14,6 +14,10 @@ import {
 } from './schemaCompat.js';
 import { getTodayInAustralia } from '../shared/applicationSubmission.js';
 import { escapeHtml, getResend } from './email.js';
+import {
+  AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON,
+  hasTransactionalPaymentProcessing,
+} from './paymentProcessing.js';
 
 const assertSupabaseWrite = (
   result: { error: { code?: string; message?: string } | null } | null | undefined,
@@ -200,69 +204,51 @@ const applyVehicleCheckoutActivationWrites = async ({
     status: 'Paid',
   });
 
-  if (hasDirectDatabaseConnection()) {
-    await withPostgresTransaction(async (client) => {
-      // Lock the car row and re-validate availability inside the transaction
-      const carRes = await client.query(
-        'SELECT status FROM cars WHERE id = $1 FOR UPDATE',
-        [carId]
-      );
-      const currentCarStatus = carRes.rows[0]?.status;
-
-      if (!existingRentalId && currentCarStatus !== 'Available' && currentCarStatus !== 'Rented') {
-        throw new Error(`Vehicle is no longer available for activation (currently ${currentCarStatus})`);
-      }
-
-      if (existingRentalId) {
-        await updateRowByIdInTransaction(
-          client,
-          'rentals',
-          existingRentalId,
-          rentalRepairPayload,
-          'Failed to repair existing rental after checkout completion'
-        );
-      } else {
-        await insertRowInTransaction(client, 'rentals', rentalInsertPayload);
-      }
-
-      await updateRowByIdInTransaction(
-        client,
-        'cars',
-        carId,
-        { status: 'Rented' },
-        'Failed to mark car as rented'
-      );
-
-      await updateRowByIdInTransaction(
-        client,
-        'applications',
-        applicationId,
-        applicationPaymentPayload,
-        'Failed to update application payment state'
-      );
-    });
-    return;
+  if (!hasDirectDatabaseConnection()) {
+    throw new Error(
+      'Automatic payment activation requires a session-capable Postgres connection.'
+    );
   }
 
-  if (existingRentalId) {
-    const result = await db
-      .from('rentals')
-      .update(rentalRepairPayload)
-      .eq('id', existingRentalId);
-    assertSupabaseWrite(result, 'Failed to repair existing rental after checkout completion');
-  } else {
-    const rentalInsert = await db.from('rentals').insert([rentalInsertPayload]);
-    assertSupabaseWrite(rentalInsert, 'Failed to create rental after checkout completion');
-  }
+  await withPostgresTransaction(async (client) => {
+    // Lock the car row and re-validate availability inside the transaction
+    const carRes = await client.query(
+      'SELECT status FROM cars WHERE id = $1 FOR UPDATE',
+      [carId]
+    );
+    const currentCarStatus = carRes.rows[0]?.status;
 
-  const carUpdate = await db.from('cars').update({ status: 'Rented' }).eq('id', carId);
-  assertSupabaseWrite(carUpdate, 'Failed to mark car as rented');
+    if (!existingRentalId && currentCarStatus !== 'Available' && currentCarStatus !== 'Rented') {
+      throw new Error(`Vehicle is no longer available for activation (currently ${currentCarStatus})`);
+    }
 
-  await updateApplicationPaymentState({
-    applicationId,
-    paidAt,
-    pendingCheckoutSessionId: null,
-    status: 'Paid',
+    if (existingRentalId) {
+      await updateRowByIdInTransaction(
+        client,
+        'rentals',
+        existingRentalId,
+        rentalRepairPayload,
+        'Failed to repair existing rental after checkout completion'
+      );
+    } else {
+      await insertRowInTransaction(client, 'rentals', rentalInsertPayload);
+    }
+
+    await updateRowByIdInTransaction(
+      client,
+      'cars',
+      carId,
+      { status: 'Rented' },
+      'Failed to mark car as rented'
+    );
+
+    await updateRowByIdInTransaction(
+      client,
+      'applications',
+      applicationId,
+      applicationPaymentPayload,
+      'Failed to update application payment state'
+    );
   });
 };
 
@@ -403,6 +389,13 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       console.error('Failed to send activation review alert email:', emailError);
     }
   };
+
+  if (!hasTransactionalPaymentProcessing()) {
+    await moveApplicationToPaymentReview(
+      AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON
+    );
+    return;
+  }
 
   const applicationStatus = String(application.status || '');
   const assignedCarId = Number(application.assigned_car_id || 0);

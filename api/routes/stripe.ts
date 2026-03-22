@@ -10,7 +10,6 @@ import { ensureStripeCatalog } from '../stripeCatalog.js';
 import { getStripeClient } from '../stripeClient.js';
 import { db } from '../db/index.js';
 import {
-  hasDirectDatabaseConnection,
   withPostgresAdvisoryLock,
 } from '../db/postgres.js';
 import { authenticateAdmin } from '../middleware/auth.js';
@@ -36,6 +35,10 @@ import {
   VehicleAllocationConflictError,
 } from '../vehicleAllocations.js';
 import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
+import {
+  ADMIN_PAYMENTS_RESTRICTED_MESSAGE,
+  assertTransactionalPaymentProcessing,
+} from '../paymentProcessing.js';
 
 const router = express.Router();
 const stripe = getStripeClient();
@@ -105,44 +108,6 @@ const fromCents = (value: number) => Number((value / 100).toFixed(2));
 const toOptionalPositiveInt = (value: string | undefined) => {
   const parsed = Number(value || 0);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-};
-
-const checkoutSessionLocks = new Map<string, Promise<void>>();
-
-const withInMemoryCheckoutSessionLock = async <T>(
-  lockKey: string,
-  task: () => Promise<T>
-) => {
-  const previous = checkoutSessionLocks.get(lockKey) || Promise.resolve();
-  let releaseCurrentLock!: () => void;
-  const currentLock = new Promise<void>((resolve) => {
-    releaseCurrentLock = resolve;
-  });
-  const currentChain = previous.then(() => currentLock);
-
-  checkoutSessionLocks.set(lockKey, currentChain);
-  await previous;
-
-  try {
-    return await task();
-  } finally {
-    releaseCurrentLock();
-
-    if (checkoutSessionLocks.get(lockKey) === currentChain) {
-      checkoutSessionLocks.delete(lockKey);
-    }
-  }
-};
-
-const withCheckoutSessionLock = async <T>(
-  lockKey: string,
-  task: () => Promise<T>
-) => {
-  if (hasDirectDatabaseConnection()) {
-    return withPostgresAdvisoryLock(lockKey, task);
-  }
-
-  return withInMemoryCheckoutSessionLock(lockKey, task);
 };
 
 const buildHostedCheckoutSessionIdempotencyKey = ({
@@ -566,8 +531,9 @@ router.post('/vehicle-checkout-session', async (req, res) => {
   try {
     const { application_id, car_id, checkout_token } = vehicleCheckoutSessionSchema.parse(req.body);
     const lockKey = `vehicle-checkout:${application_id}`;
+    assertTransactionalPaymentProcessing();
 
-    const responsePayload = await withCheckoutSessionLock<HostedCheckoutSessionResponse>(
+    const responsePayload = await withPostgresAdvisoryLock<HostedCheckoutSessionResponse>(
       lockKey,
       async () => {
         const [application, car] = await Promise.all([
@@ -686,6 +652,12 @@ router.post('/vehicle-checkout-session', async (req, res) => {
       return res.status(409).json({ error: error.message });
     }
 
+    if (error instanceof Error && 'status' in error && error.status === 503) {
+      return res.status(503).json({
+        error: error.message,
+      });
+    }
+
     if (error instanceof Error && error.message.toLowerCase().includes('checkout token')) {
       return res.status(401).json({ error: error.message });
     }
@@ -697,6 +669,7 @@ router.post('/vehicle-checkout-session', async (req, res) => {
 
 router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
   try {
+    assertTransactionalPaymentProcessing(ADMIN_PAYMENTS_RESTRICTED_MESSAGE);
     const { application_id } = vehicleCheckoutLinkSchema.parse(req.body);
     const application = await fetchApplication(application_id);
 
@@ -783,6 +756,10 @@ router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
 
     if (error instanceof VehicleAllocationConflictError) {
       return res.status(error.status).json({ error: error.message });
+    }
+
+    if (error instanceof Error && 'status' in error && error.status === 503) {
+      return res.status(503).json({ error: error.message });
     }
 
     if (

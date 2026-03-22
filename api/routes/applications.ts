@@ -34,6 +34,10 @@ import {
 } from '../vehicleAllocations.js';
 import { handleVehicleCheckoutCompletion } from '../paymentActivation.js';
 import {
+  ADMIN_PAYMENTS_RESTRICTED_MESSAGE,
+  assertTransactionalPaymentProcessing,
+} from '../paymentProcessing.js';
+import {
   APPLICATION_IMAGE_CONTENT_TYPES,
   normalizeApplicationEmail,
   MAX_APPLICATION_UPLOAD_BYTES,
@@ -571,6 +575,11 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       ...req.body,
       application_id: req.params.id,
     });
+
+    if (payload.send_payment_link) {
+      assertTransactionalPaymentProcessing(ADMIN_PAYMENTS_RESTRICTED_MESSAGE);
+    }
+
     const selectColumns = await getApplicationSelectColumns();
     const { data: application, error: applicationError } = await db
       .from('applications')
@@ -740,6 +749,10 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       error.message.toLowerCase().includes('payment details changed')
     ) {
       return res.status(409).json({ error: error.message });
+    }
+
+    if (error instanceof Error && 'status' in error && error.status === 503) {
+      return res.status(503).json({ error: error.message });
     }
 
     console.error('Application approve-payment error:', error);

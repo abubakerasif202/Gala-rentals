@@ -1,5 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
+import { getTodayInAustralia } from '../../shared/applicationSubmission.js';
+
+const addDaysToDateOnly = (dateOnly: string, days: number) => {
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+};
+
+const getFutureDateOnly = (days: number) =>
+  addDaysToDateOnly(getTodayInAustralia(), days);
+
+const getPastDateOnly = (days: number) =>
+  addDaysToDateOnly(getTodayInAustralia(), -days);
 
 const {
   mockState,
@@ -686,12 +699,12 @@ beforeEach(() => {
       phone: '0412345678',
       email: 'jane@example.com',
       license_number: 'NSW12345',
-      license_expiry: '2027-01-01',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Active',
       experience: 'New Driver',
       address: '1 Test Street',
       weekly_budget: '$300/week',
-      intended_start_date: '2026-03-10',
+      intended_start_date: getFutureDateOnly(1),
       license_photo: 'docs/license-1.png',
       license_back_photo: 'docs/license-back-1.png',
       paid_at: null,
@@ -711,12 +724,12 @@ beforeEach(() => {
       phone: '0499999999',
       email: 'approved@example.com',
       license_number: 'NSW99999',
-      license_expiry: '2027-06-01',
+      license_expiry: getFutureDateOnly(425),
       uber_status: 'Active',
       experience: '1-3 years',
       address: '2 Test Street',
       weekly_budget: '$350/week',
-      intended_start_date: '2026-03-12',
+      intended_start_date: getFutureDateOnly(2),
       license_photo: 'https://project.supabase.co/storage/v1/object/public/applications/docs/license-2.png',
       license_back_photo: null,
       paid_at: null,
@@ -906,6 +919,7 @@ describe('Cars API', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body[0].name).toBe('Toyota Prius');
+    expect(res.body[0].bond).toBe(600);
   });
 
   it('GET /api/cars/:id should return a single car', async () => {
@@ -1219,13 +1233,15 @@ describe('Applications API', () => {
 
   it('POST /api/inquiries sends the inquiry through Resend when configured', async () => {
     process.env.RESEND_API_KEY = 'test-resend';
+    const startDate = getFutureDateOnly(7);
+    const endDate = getFutureDateOnly(14);
 
     const res = await request(app).post('/api/inquiries').send({
       name: 'Jordan Prospect',
       email: 'jordan.prospect@example.com',
       phone: '0400 000 111',
-      startDate: '2026-03-20',
-      endDate: '2026-03-27',
+      startDate,
+      endDate,
       message: 'Looking for a Camry Hybrid for airport work.',
     });
 
@@ -1236,13 +1252,15 @@ describe('Applications API', () => {
 
   it('POST /api/inquiries returns 503 when inquiry delivery is not configured', async () => {
     delete process.env.RESEND_API_KEY;
+    const startDate = getFutureDateOnly(7);
+    const endDate = getFutureDateOnly(14);
 
     const res = await request(app).post('/api/inquiries').send({
       name: 'Jordan Prospect',
       email: 'jordan.prospect@example.com',
       phone: '0400 000 111',
-      startDate: '2026-03-20',
-      endDate: '2026-03-27',
+      startDate,
+      endDate,
     });
 
     expect(res.status).toBe(503);
@@ -1274,12 +1292,12 @@ describe('Applications API', () => {
       phone: '0400111222',
       email: 'newdriver@example.com',
       license_number: 'NSW55555',
-      license_expiry: '2027-12-31',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Applying',
       experience: 'New Driver',
       address: '55 Test Street',
       weekly_budget: '$350/week',
-      intended_start_date: '2026-03-20',
+      intended_start_date: getFutureDateOnly(7),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1307,12 +1325,12 @@ describe('Applications API', () => {
       phone: '0400999888',
       email: 'large-payload@example.com',
       license_number: 'NSW88888',
-      license_expiry: '2027-12-31',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Applying',
       experience: 'New Driver',
       address: '101 Parser Street',
       weekly_budget: '$390/week',
-      intended_start_date: '2026-03-20',
+      intended_start_date: getFutureDateOnly(7),
       license_photo: largeImagePayload,
       license_back_photo: largeImagePayload,
     });
@@ -1336,12 +1354,12 @@ describe('Applications API', () => {
       phone: '0400222333',
       email: 'agreement@example.com',
       license_number: 'NSW12121',
-      license_expiry: '2027-12-31',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Applying',
       experience: 'New Driver',
       address: '44 Agreement Street',
       weekly_budget: '$360/week',
-      intended_start_date: '2026-03-20',
+      intended_start_date: getFutureDateOnly(7),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1367,12 +1385,12 @@ describe('Applications API', () => {
       phone: '0400111222',
       email: 'markup@example.com',
       license_number: 'NSW77777',
-      license_expiry: '2027-12-31',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Applying',
       experience: '<b>Experienced</b>',
       address: '<a href=\"https://evil.example\">Click me</a>',
       weekly_budget: '$350/week',
-      intended_start_date: '2026-03-20',
+      intended_start_date: getFutureDateOnly(7),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1404,12 +1422,12 @@ describe('Applications API', () => {
       phone: '0400111222',
       email: 'unsafe@example.com',
       license_number: 'NSW22222',
-      license_expiry: '2027-12-31',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Applying',
       experience: 'New Driver',
       address: '77 Test Street',
       weekly_budget: '$320/week',
-      intended_start_date: '2026-03-20',
+      intended_start_date: getFutureDateOnly(7),
       license_photo: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1426,12 +1444,12 @@ describe('Applications API', () => {
       phone: '12345',
       email: 'direct-api@example.com',
       license_number: 'NSW42424',
-      license_expiry: '2020-01-01',
+      license_expiry: getPastDateOnly(1),
       uber_status: 'Applying',
       experience: 'New Driver',
       address: '88 Test Street',
       weekly_budget: '$320/week',
-      intended_start_date: '2020-01-02',
+      intended_start_date: getPastDateOnly(1),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1458,12 +1476,12 @@ describe('Applications API', () => {
       phone: '0400 000 111',
       email: 'normalized-phone@example.com',
       license_number: 'NSW55555',
-      license_expiry: '2027-01-01',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Applying',
       experience: 'New Driver',
       address: '88 Test Street',
       weekly_budget: '$320/week',
-      intended_start_date: '2026-03-20',
+      intended_start_date: getFutureDateOnly(7),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1502,12 +1520,12 @@ describe('Applications API', () => {
       phone: '0412345678',
       email: 'jane@example.com',
       license_number: 'NSW12345',
-      license_expiry: '2027-01-01',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Active',
       experience: '3+ years',
       address: '99 Updated Street',
       weekly_budget: '$410/week',
-      intended_start_date: '2026-03-22',
+      intended_start_date: getFutureDateOnly(7),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1538,12 +1556,12 @@ describe('Applications API', () => {
       phone: '0412345678',
       email: 'jane@example.com',
       license_number: 'NSW12345',
-      license_expiry: '2027-01-01',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Active',
       experience: '1-3 years',
       address: '12 Mixed Case Street',
       weekly_budget: '$360/week',
-      intended_start_date: '2026-03-25',
+      intended_start_date: getFutureDateOnly(10),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1562,12 +1580,12 @@ describe('Applications API', () => {
       phone: '0412345678',
       email: 'Jane@Example.com',
       license_number: 'NSW12345',
-      license_expiry: '2027-01-01',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Active',
       experience: '1-3 years',
       address: '12 Mixed Case Street',
       weekly_budget: '$360/week',
-      intended_start_date: '2026-03-25',
+      intended_start_date: getFutureDateOnly(10),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1592,12 +1610,12 @@ describe('Applications API', () => {
       phone: '+61 412 345 678',
       email: 'Jane@Example.com',
       license_number: 'NSW12345',
-      license_expiry: '2027-01-01',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Active',
       experience: '1-3 years',
       address: '12 Mixed Case Street',
       weekly_budget: '$360/week',
-      intended_start_date: '2026-03-25',
+      intended_start_date: getFutureDateOnly(10),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -1632,12 +1650,12 @@ describe('Applications API', () => {
       phone: '0412345678',
       email: 'foo_bar@example.com',
       license_number: 'NSW12345',
-      license_expiry: '2027-01-01',
+      license_expiry: getFutureDateOnly(365),
       uber_status: 'Active',
       experience: '1-3 years',
       address: '12 Exact Match Street',
       weekly_budget: '$360/week',
-      intended_start_date: '2026-03-25',
+      intended_start_date: getFutureDateOnly(10),
       license_photo: 'data:image/png;base64,ZmFrZQ==',
       license_back_photo: 'data:image/png;base64,ZmFrZQ==',
     });
@@ -2579,6 +2597,58 @@ describe('Stripe API', () => {
     });
     expect(mockState.cars[0].status).toBe('Rented');
     expect(mockState.applications[1].status).toBe('Paid');
+  });
+
+  it('POST /api/stripe/webhook ignores replayed completions for an already active rental', async () => {
+    mockState.cars[0].status = 'Rented';
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-08T00:00:00.000Z';
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: 2,
+        bond_paid: 500,
+        car_id: 1,
+        status: 'Active',
+        weekly_price: 250,
+        start_date: '2026-03-01',
+        stripe_subscription_id: 'sub_replay',
+      },
+    ];
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_replayed',
+          payment_status: 'paid',
+          metadata: {
+            application_id: '2',
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+          customer: 'cus_replay',
+          subscription: 'sub_replay',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(mockState.rentals).toHaveLength(1);
+    expect(mockState.rentals[0]).toMatchObject({
+      id: 20,
+      start_date: '2026-03-01',
+      stripe_subscription_id: 'sub_replay',
+    });
+    expect(mockState.applications[1].paid_at).toBe('2026-03-08T00:00:00.000Z');
   });
 
   it('POST /api/stripe/webhook blocks duplicate vehicle activation for the same car', async () => {

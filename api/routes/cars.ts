@@ -17,6 +17,18 @@ import { calculateBondFromWeeklyRent } from '../../shared/rentalPricing.js';
 
 const router = express.Router();
 
+const toCarBond = (car: Record<string, any>) => {
+  const storedBond = Number(car.bond);
+  return Number.isFinite(storedBond)
+    ? storedBond
+    : calculateBondFromWeeklyRent(Number(car.weekly_price || 0));
+};
+
+const toCarResponse = (car: Record<string, any>) => ({
+  ...car,
+  bond: toCarBond(car),
+});
+
 const toPublicSiteOrigin = () => {
   const candidate = process.env.SITE_URL || process.env.APP_URL;
   if (!candidate) return null;
@@ -55,10 +67,7 @@ const fetchCarById = async (id: string) => {
     return null;
   }
 
-  return {
-    ...data,
-    bond: calculateBondFromWeeklyRent(Number(data.weekly_price || 0)),
-  };
+  return toCarResponse(data as Record<string, any>);
 };
 
 const countRowsForCar = async (table: string, column: string, id: string) => {
@@ -118,12 +127,7 @@ router.get('/', async (_req, res) => {
     console.error('Fetch cars error', error);
     return res.status(500).json({ error: 'Failed to fetch cars' });
   }
-  res.json(
-    (data || []).map((car) => ({
-      ...car,
-      bond: calculateBondFromWeeklyRent(Number(car.weekly_price || 0)),
-    }))
-  );
+  res.json((data || []).map((car) => toCarResponse(car as Record<string, any>)));
 });
 
 router.get('/:id', async (req, res) => {

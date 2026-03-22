@@ -6,13 +6,22 @@ import { fetchCar } from '../lib/api';
 import { Car } from '../types';
 import {
   calculateBondFromWeeklyRent,
-  calculateUpfrontDueFromWeeklyRent,
 } from '../../shared/rentalPricing';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
 };
+
+const getDisplayBond = (car: Pick<Car, 'bond' | 'weekly_price'>) => {
+  const storedBond = Number(car.bond);
+  return Number.isFinite(storedBond) && storedBond >= 0
+    ? storedBond
+    : calculateBondFromWeeklyRent(car.weekly_price);
+};
+
+const getUpfrontDue = (car: Pick<Car, 'bond' | 'weekly_price'>) =>
+  Number((getDisplayBond(car) + car.weekly_price).toFixed(2));
 
 export default function CarDetails() {
   const { id } = useParams();
@@ -117,8 +126,8 @@ export default function CarDetails() {
                 <p className="text-brand-grey uppercase tracking-widest text-xs">/ Per Week</p>
               </div>
               <p className="text-sm text-brand-grey font-light mt-4">
-                Start with ${calculateUpfrontDueFromWeeklyRent(car.weekly_price).toFixed(2)} today:
-                ${calculateBondFromWeeklyRent(car.weekly_price).toFixed(2)} bond plus your first
+                Start with ${getUpfrontDue(car).toFixed(2)} today:
+                ${getDisplayBond(car).toFixed(2)} bond plus your first
                 weekly rental payment.
               </p>
             </div>

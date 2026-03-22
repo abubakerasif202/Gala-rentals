@@ -456,14 +456,19 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
     ? String(existingRental?.[compat.rentalStripeSubscriptionColumn] || '')
     : '';
 
-  if (
-    applicationStatus === 'Paid' &&
-    existingRental &&
-    existingRentalSubscriptionId &&
-    existingRentalSubscriptionId !== subscriptionId
-  ) {
-    console.warn(
-      `Ignoring duplicate checkout completion ${session.id} because application ${applicationId} is already bound to subscription ${existingRentalSubscriptionId}.`
+  if (applicationStatus === 'Paid' && existingRental) {
+    if (
+      existingRentalSubscriptionId &&
+      existingRentalSubscriptionId !== subscriptionId
+    ) {
+      console.warn(
+        `Ignoring duplicate checkout completion ${session.id} because application ${applicationId} is already bound to subscription ${existingRentalSubscriptionId}.`
+      );
+      return;
+    }
+
+    console.info(
+      `Ignoring replayed checkout completion ${session.id} because application ${applicationId} is already active.`
     );
     return;
   }

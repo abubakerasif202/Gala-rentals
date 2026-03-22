@@ -233,14 +233,17 @@ export const toCarWritePayload = async (car: {
   image: string;
 }) => {
   const { coreMode } = await getSchemaCompat();
-  const calculatedBond = calculateBondFromWeeklyRent(car.weekly_price);
+  const normalizedBond =
+    Number.isFinite(car.bond) && car.bond >= 0
+      ? car.bond
+      : calculateBondFromWeeklyRent(car.weekly_price);
 
   return coreMode === 'camel'
     ? {
         name: car.name,
         modelYear: car.model_year,
         weeklyPrice: car.weekly_price,
-        bond: calculatedBond,
+        bond: normalizedBond,
         status: car.status,
         image: car.image,
       }
@@ -248,7 +251,7 @@ export const toCarWritePayload = async (car: {
         name: car.name,
         model_year: car.model_year,
         weekly_price: car.weekly_price,
-        bond: calculatedBond,
+        bond: normalizedBond,
         status: car.status,
         image: car.image,
       };

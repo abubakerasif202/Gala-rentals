@@ -29,10 +29,19 @@ import {
 } from '../../shared/applicationSubmission';
 import {
   calculateBondFromWeeklyRent,
-  calculateUpfrontDueFromWeeklyRent,
 } from '../../shared/rentalPricing';
 
 const ALLOWED_UPLOAD_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
+
+const getDisplayBond = (car: Pick<Car, 'bond' | 'weekly_price'>) => {
+  const storedBond = Number(car.bond);
+  return Number.isFinite(storedBond) && storedBond >= 0
+    ? storedBond
+    : calculateBondFromWeeklyRent(car.weekly_price);
+};
+
+const getUpfrontDue = (car: Pick<Car, 'bond' | 'weekly_price'>) =>
+  Number((getDisplayBond(car) + car.weekly_price).toFixed(2));
 
 const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
   z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
@@ -191,6 +200,7 @@ export default function Apply() {
   const licenseBackPhoto = watch('license_back_photo');
   const selectedCarId = watch('selected_car_id');
   const selectedCar = availableCars.find((car) => car.id === Number(selectedCarId)) || null;
+  const selectedCarBond = selectedCar ? getDisplayBond(selectedCar) : 0;
 
   const handleFileUpload = (
     event: ChangeEvent<HTMLInputElement>,
@@ -382,13 +392,13 @@ export default function Apply() {
                           <div>
                             <p className="text-brand-grey font-light">Bond</p>
                             <p className="text-white font-bold">
-                              ${calculateBondFromWeeklyRent(selectedCar.weekly_price).toFixed(2)}
+                              ${selectedCarBond.toFixed(2)}
                             </p>
                           </div>
                           <div>
                             <p className="text-brand-grey font-light">Due today</p>
                             <p className="text-white font-bold">
-                              ${calculateUpfrontDueFromWeeklyRent(selectedCar.weekly_price).toFixed(2)}
+                              ${getUpfrontDue(selectedCar).toFixed(2)}
                             </p>
                           </div>
                         </div>

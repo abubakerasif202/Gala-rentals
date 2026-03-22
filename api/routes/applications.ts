@@ -592,7 +592,7 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
     if (applicationRecord.status === 'Payment Review') {
       return res.status(409).json({
         error:
-          'This application is already paid and awaiting manual activation review. Use the retry activation flow instead of sending a new payment link.',
+          'This application has already been paid and is awaiting rental activation. Do not send a new payment link.',
       });
     }
 
@@ -765,7 +765,7 @@ router.post('/:id/retry-payment-activation', authenticateAdmin, async (req, res)
 
     if (applicationRecord.status !== 'Payment Review') {
       return res.status(409).json({
-        error: 'Only applications in Payment Review can retry activation.',
+        error: 'Only paid applications awaiting activation can be retried.',
       });
     }
 

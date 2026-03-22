@@ -40,7 +40,9 @@ export default function Pricing() {
             transition={{ duration: 0.6 }}
             className="text-slate-300 text-lg max-w-3xl mx-auto font-light leading-relaxed"
           >
-            Compare each plan&apos;s billing cadence, weekly-equivalent economics, two-week bond, and starting quote before you apply. Bond and upfront figures use the plan&apos;s weekly equivalent rate.
+            Compare each plan&apos;s billing cadence, weekly-equivalent economics, estimated bond,
+            and starting quote before you apply. Bond and upfront figures use the plan&apos;s weekly
+            equivalent rate.
           </motion.p>
         </div>
       </section>
@@ -162,12 +164,12 @@ export default function Pricing() {
             {
               icon: ShieldCheck,
               title: 'Protected payments',
-              body: 'Stripe checkout opens as soon as the selected vehicle application is submitted and the agreement is generated.',
+              body: 'Stripe checkout opens once the selected vehicle application is approved and the agreement is generated.',
             },
             {
               icon: CreditCard,
               title: 'Transparent upfront cost',
-              body: 'Every plan shows the two-week bond and starting quote using the plan&apos;s weekly equivalent rate before checkout starts.',
+              body: 'Every plan shows its estimated bond and starting quote using the plan&apos;s weekly equivalent rate before checkout starts.',
             },
             {
               icon: Check,

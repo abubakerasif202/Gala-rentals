@@ -169,7 +169,9 @@ export default function Checkout() {
                         Hosted Stripe session
                       </p>
                       <p className="text-sm text-brand-grey font-light leading-relaxed">
-                        This payment collects your two-week bond plus the first weekly rental payment and starts automatic weekly billing.
+                        This payment collects the approved security bond shown below, your first
+                        weekly rental payment, and any setup fees before automatic weekly billing
+                        starts.
                       </p>
                     </div>
                   </div>

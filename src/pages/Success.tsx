@@ -28,12 +28,15 @@ export default function Success() {
         error.response.status >= 500),
     retryDelay: (attempt) => attempt * 1500,
     refetchInterval: (query) =>
-      query.state.data?.internal_status === 'pending' ? 3000 : false,
+      query.state.data &&
+      ['pending', 'manual_review'].includes(query.state.data.internal_status)
+        ? 3000
+        : false,
     refetchOnWindowFocus: true,
   });
 
   const isFullySuccessful = data?.internal_status === 'complete';
-  const requiresManualReview = data?.internal_status === 'manual_review';
+  const requiresActivationReview = data?.internal_status === 'manual_review';
   const isAwaitingFinalization =
     data?.status === 'complete' &&
     data?.payment_status === 'paid' &&
@@ -92,7 +95,7 @@ export default function Success() {
             </>
           )}
 
-          {!isLoading && requiresManualReview && (
+          {!isLoading && requiresActivationReview && (
             <>
               <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-amber-500/10 mb-8 border border-amber-500/30">
                 <svg className="h-10 w-10 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -100,11 +103,12 @@ export default function Success() {
                 </svg>
               </div>
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
-                Payment Under Review
+                Activation Pending
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
-                Stripe marked the payment as complete, but we need to finish a manual review before
-                activating the rental. Maple Rentals will contact you shortly.
+                Stripe has already confirmed your payment. We are waiting for the rental
+                activation checks to clear, and this page will keep checking automatically while
+                that finishes. Maple Rentals will contact you if any manual action is still needed.
               </p>
               <Link
                 to="/"
@@ -115,7 +119,7 @@ export default function Success() {
             </>
           )}
 
-          {!isLoading && !isFullySuccessful && !isAwaitingFinalization && !requiresManualReview && (
+          {!isLoading && !isFullySuccessful && !isAwaitingFinalization && !requiresActivationReview && (
             <>
               <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-red-900/20 mb-8 border border-red-500/30">
                 <svg className="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

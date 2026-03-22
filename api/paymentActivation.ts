@@ -183,16 +183,17 @@ const applyVehicleCheckoutActivationWrites = async ({
   applicationId,
   carId,
   existingRentalId,
+  paidAt,
   rentalInsertPayload,
   rentalRepairPayload,
 }: {
   applicationId: number;
   carId: number;
   existingRentalId: number | null;
+  paidAt: string;
   rentalInsertPayload: Record<string, unknown>;
   rentalRepairPayload: Record<string, unknown>;
 }) => {
-  const paidAt = new Date().toISOString();
   const applicationPaymentPayload = await toApplicationPaymentWritePayload({
     paid_at: paidAt,
     pending_checkout_session_id: null,
@@ -362,11 +363,14 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
   const { compat, rentalApplicationIdColumn, rentals: existingRentals } = existingRentalsResult;
   const safeApplicantName = escapeHtml(String(application.name || ''));
   const safeCarName = escapeHtml(String(car.name || ''));
+  const recordedPaidAt = application.paid_at
+    ? String(application.paid_at)
+    : new Date().toISOString();
 
-  const moveApplicationToManualReview = async (reason: string) => {
+  const moveApplicationToPaymentReview = async (reason: string) => {
     await updateApplicationPaymentState({
       applicationId,
-      paidAt: new Date().toISOString(),
+      paidAt: recordedPaidAt,
       pendingCheckoutSessionId: session.id,
       status: 'Payment Review',
     });
@@ -382,10 +386,10 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       await resend.emails.send({
         from: 'Maple Rentals <noreply@maplerentals.com.au>',
         to: adminEmail,
-        subject: `Manual review required for vehicle checkout ${session.id}`,
+        subject: `Activation review required for vehicle checkout ${session.id}`,
         html: `
           <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
-            <h2 style="color: #D4AF37;">Manual Payment Review Required</h2>
+            <h2 style="color: #D4AF37;">Payment Received, Activation Pending</h2>
             <p><strong>Application ID:</strong> ${applicationId}</p>
             <p><strong>Applicant:</strong> ${safeApplicantName}</p>
             <p><strong>Vehicle:</strong> ${safeCarName}</p>
@@ -396,7 +400,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
         `,
       });
     } catch (emailError) {
-      console.error('Failed to send manual review alert email:', emailError);
+      console.error('Failed to send activation review alert email:', emailError);
     }
   };
 
@@ -410,7 +414,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
     sessionPaymentLinkVersion === Number(application.payment_link_version || 0);
 
   if (!sessionStillMatchesCurrentApproval) {
-    await moveApplicationToManualReview(
+    await moveApplicationToPaymentReview(
       'Paid Stripe session no longer matches the latest approved vehicle assignment or payment link version.'
     );
     return;
@@ -421,18 +425,21 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
     applicationStatus !== 'Paid' &&
     applicationStatus !== 'Payment Review'
   ) {
-    await moveApplicationToManualReview(
+    await moveApplicationToPaymentReview(
       `Paid Stripe session arrived while application ${applicationStatus || 'Unknown'} is not eligible for automatic activation.`
     );
     return;
   }
 
+  // "Payment Review" means Stripe has already confirmed payment, but activation
+  // hit a transient blocker. If the same signed checkout session replays later,
+  // allow it to complete automatically instead of forcing a brand-new payment.
   if (
     applicationStatus === 'Payment Review' &&
     pendingCheckoutSessionId &&
     pendingCheckoutSessionId !== session.id
   ) {
-    await moveApplicationToManualReview(
+    await moveApplicationToPaymentReview(
       `Stored payment review session ${pendingCheckoutSessionId} does not match checkout session ${session.id}.`
     );
     return;
@@ -474,7 +481,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
   }
 
   if (blockingRental) {
-    await moveApplicationToManualReview(
+    await moveApplicationToPaymentReview(
       `Vehicle ${carId} is already attached to another live rental.`
     );
     return;
@@ -482,7 +489,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
 
   if (!existingRental) {
     if (String(car.status) !== 'Available' && String(car.status) !== 'Rented') {
-      await moveApplicationToManualReview(
+      await moveApplicationToPaymentReview(
         `Vehicle ${carId} is not available for activation while marked ${car.status}.`
       );
       return;
@@ -505,6 +512,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
         applicationId,
         carId,
         existingRentalId: null,
+        paidAt: recordedPaidAt,
         rentalInsertPayload,
         rentalRepairPayload,
       });
@@ -550,6 +558,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       applicationId,
       carId,
       existingRentalId: Number(existingRental.id),
+      paidAt: recordedPaidAt,
       rentalInsertPayload,
       rentalRepairPayload,
     });

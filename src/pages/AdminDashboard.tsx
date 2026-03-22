@@ -1758,11 +1758,12 @@ export default function AdminDashboard() {
                 {selectedApplication.status === 'Payment Review' && (
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 space-y-3">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
-                      Manual payment review
+                      Payment received, activation pending
                     </p>
                     <p className="text-sm text-brand-grey font-light leading-relaxed">
-                      Stripe reported a completed payment, but activation could not finish automatically.
-                      Resolve the vehicle allocation or maintenance conflict before proceeding.
+                      Stripe reported a completed payment, but activation is waiting on a vehicle
+                      conflict or maintenance hold. Resolve the blocker and the next matching Stripe
+                      completion can finish automatically, or use Retry Activation now.
                     </p>
                     {selectedApplication.paid_at && (
                       <p className="text-xs text-amber-200/80 font-light">

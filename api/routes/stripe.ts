@@ -379,7 +379,7 @@ const requireApprovedPaymentContext = ({
   }
 
   if (application.status === 'Payment Review') {
-    throw new Error('This payment is currently under manual review.');
+    throw new Error('This payment has already been received and activation is pending.');
   }
 
   if (application.status !== 'Approved') {
@@ -547,7 +547,8 @@ router.get('/payment-context', async (req, res) => {
     if (
       error instanceof Error &&
       (error.message.toLowerCase().includes('payment link') ||
-        error.message.toLowerCase().includes('manual review'))
+        error.message.toLowerCase().includes('manual review') ||
+        error.message.toLowerCase().includes('activation is pending'))
     ) {
       return res.status(409).json({ error: error.message });
     }
@@ -678,6 +679,7 @@ router.post('/vehicle-checkout-session', async (req, res) => {
       error instanceof Error &&
       (error.message.toLowerCase().includes('payment link') ||
         error.message.toLowerCase().includes('manual review') ||
+        error.message.toLowerCase().includes('activation is pending') ||
         error.message.toLowerCase().includes('no longer available') ||
         error.message.toLowerCase().includes('reload the latest link'))
     ) {

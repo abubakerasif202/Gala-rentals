@@ -1867,7 +1867,7 @@ describe('Stripe API', () => {
       });
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toContain('awaiting manual activation review');
+    expect(res.body.error).toContain('awaiting rental activation');
   });
 
   it('POST /api/applications/:id/approve-payment rejects stale approvals when the payment version changed mid-request', async () => {
@@ -1940,6 +1940,7 @@ describe('Stripe API', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(mockState.applications[1].status).toBe('Paid');
+    expect(mockState.applications[1].paid_at).toBe('2026-03-06T00:00:00.000Z');
     expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
     expect(mockState.cars[0].status).toBe('Rented');
     expect(mockState.rentals[0]).toMatchObject({
@@ -2730,6 +2731,50 @@ describe('Stripe API', () => {
     expect(mockState.cars[0].status).toBe('Maintenance');
     expect(mockState.applications[1].status).toBe('Payment Review');
     expect(mockState.applications[1].pending_checkout_session_id).toBe('cs_vehicle_maintenance');
+  });
+
+  it('POST /api/stripe/webhook auto-activates a paid Payment Review case when the same session replays', async () => {
+    mockState.applications[1].status = 'Payment Review';
+    mockState.applications[1].paid_at = '2026-03-06T00:00:00.000Z';
+    mockState.applications[1].pending_checkout_session_id = 'cs_vehicle_resume';
+    mockState.cars[0].status = 'Available';
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_vehicle_resume',
+          payment_status: 'paid',
+          metadata: {
+            application_id: '2',
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+          customer: 'cus_resume',
+          subscription: 'sub_resume',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(mockState.applications[1].status).toBe('Paid');
+    expect(mockState.applications[1].paid_at).toBe('2026-03-06T00:00:00.000Z');
+    expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
+    expect(mockState.cars[0].status).toBe('Rented');
+    expect(mockState.rentals[0]).toMatchObject({
+      application_id: 2,
+      car_id: 1,
+      status: 'Active',
+      stripe_subscription_id: 'sub_resume',
+    });
   });
 
   it('POST /api/stripe/webhook keeps the car rented when another live rental still exists', async () => {

@@ -183,7 +183,7 @@ export default function Home() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {[
               { step: '01', title: 'Choose & Apply', desc: 'Select your vehicle, upload your driver details, and submit the required documents through our secure portal.' },
-              { step: '02', title: 'Checkout Securely', desc: 'Pay two weeks bond plus your first weekly rent through Stripe and start automatic weekly billing.' },
+              { step: '02', title: 'Checkout Securely', desc: 'Review the approved agreement, pay the quoted security bond and first weekly rent through Stripe, and start automatic weekly billing.' },
               { step: '03', title: 'Collect & Start Earning', desc: 'Pick up your keys, connect to the Uber app, and start earning immediately.' },
             ].map((item) => (
               <motion.div key={item.step} variants={fadeIn} className="flex flex-col items-center">

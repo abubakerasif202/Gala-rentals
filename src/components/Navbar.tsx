@@ -21,7 +21,7 @@ export default function Navbar() {
             <Link to="/" className="flex items-center group" onClick={() => setIsOpen(false)}>
               <img
                 src="/maple-logo.webp"
-                alt="Maple Rentals Logo"
+                alt="Maple Rentals Sydney car rentals logo"
                 className="h-16 md:h-20 object-contain drop-shadow-2xl"
               />
             </Link>

@@ -18,17 +18,21 @@ export default function Footer() {
             <Link to="/" className="flex items-center mb-8 group">
               <img
                 src="/maple-logo.webp"
-                alt="Maple Rentals Logo"
+                alt="Maple Rentals Sydney car rentals logo"
                 className="h-20 md:h-24 object-contain rounded-lg"
               />
             </Link>
             <p className="text-sm text-gray-500 max-w-xs leading-relaxed font-light">
-              Sydney's professional fleet company supplying Toyota Camry Hybrid vehicles exclusively for Uber drivers.
+              Weekly car rentals and Uber-ready hybrid vehicles for professional drivers in
+              Sydney, Merrylands, Parramatta, and surrounding suburbs.
+            </p>
+            <p className="mt-5 text-[11px] uppercase tracking-[0.2em] text-gray-600 font-light max-w-sm">
+              Service areas: Merrylands, Parramatta, Lidcombe, and Greater Sydney
             </p>
           </div>
 
           <div>
-            <h3 className="text-xs font-bold text-white uppercase tracking-widest mb-8">Quick Links</h3>
+            <h3 className="text-xs font-bold text-white uppercase tracking-widest mb-8">Rental Links</h3>
             <ul className="space-y-5">
               {quickLinks.map((link) => (
                 <li key={link.path}>

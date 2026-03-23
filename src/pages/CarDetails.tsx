@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Calendar, Gauge, Shield, ChevronRight, CheckCircle2, ArrowLeft, Loader2, Info } from 'lucide-react';
+import Seo from '../components/Seo';
 import { fetchCar } from '../lib/api';
 import { Car } from '../types';
 import {
@@ -44,29 +45,62 @@ export default function CarDetails() {
     loadCar();
   }, [id]);
 
+  const pageSeo = (
+    <Seo
+      title={
+        car
+          ? `${car.name} Car Rental Sydney | Maple Rentals`
+          : 'Fleet Vehicle Details Sydney | Maple Rentals'
+      }
+      description={
+        car
+          ? `Review weekly pricing, upfront costs, and included maintenance for the ${car.name} available through Maple Rentals for Uber drivers in Sydney.`
+          : 'Review Maple Rentals vehicle details, weekly pricing, and application-ready fleet information for Sydney Uber drivers.'
+      }
+      canonicalPath={id ? `/cars/${id}` : '/cars'}
+      keywords={
+        car
+          ? [
+              `${car.name.toLowerCase()} car rental sydney`,
+              `${car.name.toLowerCase()} uber rental`,
+              'weekly car rental sydney',
+            ]
+          : ['fleet vehicle details sydney', 'uber car rental sydney']
+      }
+    />
+  );
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-brand-navy flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
-      </div>
+      <>
+        {pageSeo}
+        <div className="min-h-screen bg-brand-navy flex items-center justify-center">
+          <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
+        </div>
+      </>
     );
   }
 
   if (error || !car) {
     return (
-      <div className="min-h-screen bg-brand-navy flex items-center justify-center p-6">
-        <div className="text-center">
-          <p className="text-red-500 font-bold uppercase tracking-widest mb-6">{error || 'Vehicle not found'}</p>
-          <Link to="/cars" className="text-brand-gold hover:text-white transition-colors flex items-center justify-center gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back to Fleet
-          </Link>
+      <>
+        {pageSeo}
+        <div className="min-h-screen bg-brand-navy flex items-center justify-center p-6">
+          <div className="text-center">
+            <p className="text-red-500 font-bold uppercase tracking-widest mb-6">{error || 'Vehicle not found'}</p>
+            <Link to="/cars" className="text-brand-gold hover:text-white transition-colors flex items-center justify-center gap-2">
+              <ArrowLeft className="w-4 h-4" /> Back to Fleet
+            </Link>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
+    <>
+      {pageSeo}
+      <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
       <div className="container mx-auto px-6">
         <Link 
           to="/cars" 
@@ -84,7 +118,7 @@ export default function CarDetails() {
             <div className="aspect-[16/10] rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative group">
               <img 
                 src={car.image} 
-                alt={car.name}
+                alt={`${car.name} Uber car rental in Sydney`}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -192,6 +226,7 @@ export default function CarDetails() {
           </motion.div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

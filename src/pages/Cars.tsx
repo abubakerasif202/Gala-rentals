@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Car as CarIcon, Calendar, Gauge, Shield, ChevronRight, Loader2, Filter } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import Seo from '../components/Seo';
 import { fetchCars } from '../lib/api';
 import { Car } from '../types';
 
@@ -34,16 +35,36 @@ export default function Cars() {
     ? cars 
     : cars.filter(car => car.status === activeFilter);
 
+  const pageSeo = (
+    <Seo
+      title="Car Rental Fleet Sydney | Uber-Ready Hybrid Cars | Maple Rentals"
+      description="Browse Maple Rentals vehicles for Uber drivers in Sydney, Merrylands, and Parramatta. Compare insured hybrid cars, weekly pricing, and available fleet options."
+      canonicalPath="/cars"
+      keywords={[
+        'sydney car rental fleet',
+        'uber car rentals sydney',
+        'hybrid car rental sydney',
+        'merrylands car rentals',
+        'parramatta car rentals',
+      ]}
+    />
+  );
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-brand-navy flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
-      </div>
+      <>
+        {pageSeo}
+        <div className="min-h-screen bg-brand-navy flex items-center justify-center">
+          <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
+    <>
+      {pageSeo}
+      <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
       <div className="container mx-auto px-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
           <motion.div
@@ -52,11 +73,11 @@ export default function Cars() {
             variants={fadeIn}
           >
             <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 uppercase tracking-tighter">
-              Our <span className="text-brand-gold italic">Fleet</span>
+              Sydney <span className="text-brand-gold italic">Car Rentals</span>
             </h1>
             <p className="text-brand-grey text-lg max-w-xl font-light leading-relaxed">
-              Rideshare-ready vehicles maintained to the highest standards.
-              Transparent weekly pricing, comfort, and reliability for every driver.
+              Browse Uber-ready hybrid vehicles with transparent weekly pricing for drivers in
+              Merrylands, Parramatta, and across Sydney.
             </p>
           </motion.div>
 
@@ -97,7 +118,7 @@ export default function Cars() {
                 <div className="aspect-[16/10] overflow-hidden relative">
                   <img 
                     src={car.image} 
-                    alt={car.name}
+                    alt={`${car.name} available for Uber car rental in Sydney`}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                   />
                   <div className="absolute top-4 right-4">
@@ -151,6 +172,7 @@ export default function Cars() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

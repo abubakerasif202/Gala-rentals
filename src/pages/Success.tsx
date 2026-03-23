@@ -2,6 +2,7 @@ import axios from 'axios';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle, Home, Loader2 } from 'lucide-react';
+import Seo from '../components/Seo';
 import { fetchCheckoutSessionStatus } from '../lib/api';
 
 export default function Success() {
@@ -48,6 +49,13 @@ export default function Success() {
 
   return (
     <div className="min-h-screen bg-brand-charcoal flex flex-col justify-center py-12 sm:px-6 lg:px-8 selection:bg-brand-gold selection:text-brand-charcoal">
+      <Seo
+        title="Payment Status | Maple Rentals"
+        description="Secure payment status page for Maple Rentals checkout sessions."
+        canonicalPath="/success"
+        robots="noindex,nofollow"
+      />
+
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-brand-charcoal border border-white/5 py-12 px-6 shadow-2xl rounded-2xl text-center">
           {isLoading && (

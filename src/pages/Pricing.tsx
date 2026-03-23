@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Check, CreditCard, ShieldCheck, Star, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
+import Seo from '../components/Seo';
 import { fetchRentalPlans } from '../lib/api';
 
 export default function Pricing() {
@@ -16,6 +17,19 @@ export default function Pricing() {
 
   return (
     <div className="min-h-screen bg-[#F4F6F8] text-brand-navy selection:bg-brand-gold selection:text-black">
+      <Seo
+        title="Car Rental Pricing Sydney | Weekly Uber Rental Plans | Maple Rentals"
+        description="Compare Maple Rentals weekly car rental plans for Uber drivers in Sydney, Merrylands, and Parramatta. Review billing cadence, bond estimates, and upfront pricing before you apply."
+        canonicalPath="/pricing"
+        keywords={[
+          'car rental pricing sydney',
+          'weekly car rental sydney',
+          'uber rental plans sydney',
+          'merrylands car rental pricing',
+          'parramatta car rental pricing',
+        ]}
+      />
+
       <section className="bg-brand-navy py-24 md:py-28 px-4">
         <div className="max-w-6xl mx-auto text-center">
           <motion.p
@@ -32,7 +46,7 @@ export default function Pricing() {
             transition={{ duration: 0.5 }}
             className="text-4xl md:text-6xl font-serif font-bold text-white mb-6"
           >
-            Pricing built for professional drivers.
+            Sydney car rental pricing built for professional drivers.
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 22 }}

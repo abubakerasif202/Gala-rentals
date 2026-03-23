@@ -12,7 +12,9 @@ import {
 import { motion, Variants } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import DeferredInquiryForm from '../components/DeferredInquiryForm';
+import Seo from '../components/Seo';
 import { fetchRentalPlans } from '../lib/api';
+import { buildCanonicalUrl } from '../lib/seo';
 
 const fadeIn: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -34,6 +36,35 @@ const staggerContainer: Variants = {
   },
 };
 
+const homeJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'LocalBusiness',
+  name: 'Maple Rentals',
+  url: buildCanonicalUrl('/'),
+  image: [
+    buildCanonicalUrl('/hero-camry.webp'),
+    buildCanonicalUrl('/cta-camry.webp'),
+  ],
+  description:
+    'Maple Rentals offers weekly car rentals and Uber car rentals for professional drivers across Sydney, Merrylands, and Parramatta.',
+  telephone: '+61 420 550 556',
+  email: 'admin@maplerentals.com.au',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: '13/27-33 Addlestone Rd',
+    addressLocality: 'Merrylands',
+    addressRegion: 'NSW',
+    postalCode: '2160',
+    addressCountry: 'AU',
+  },
+  areaServed: [
+    { '@type': 'City', name: 'Sydney' },
+    { '@type': 'City', name: 'Parramatta' },
+    { '@type': 'City', name: 'Merrylands' },
+    { '@type': 'City', name: 'Lidcombe' },
+  ],
+};
+
 export default function Home() {
   const {
     data: rentalPlans = [],
@@ -46,6 +77,20 @@ export default function Home() {
 
   return (
     <div className="bg-white text-brand-navy min-h-screen font-sans selection:bg-brand-gold selection:text-black">
+      <Seo
+        title="Car Rentals Sydney | Uber Car Rentals Parramatta & Merrylands | Maple Rentals"
+        description="Maple Rentals provides fully insured weekly car rentals and Uber car rentals in Sydney, with convenient service for drivers in Merrylands, Parramatta, and nearby suburbs."
+        canonicalPath="/"
+        keywords={[
+          'car rentals sydney',
+          'uber car rentals sydney',
+          'merrylands car rentals',
+          'parramatta car rentals',
+          'rideshare car rental sydney',
+        ]}
+        jsonLd={homeJsonLd}
+      />
+
       <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-32 overflow-hidden bg-[#F8F9FA]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(197,160,40,0.18),transparent_32%)]" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -58,13 +103,15 @@ export default function Home() {
               className="text-left"
             >
               <motion.p variants={fadeIn} className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">
-                Premium Hybrid Fleet
+                Sydney Car Rentals
               </motion.p>
               <motion.h1 variants={fadeIn} className="text-5xl lg:text-7xl font-serif font-bold tracking-tight mb-8 leading-[1.05] text-brand-navy">
-                Rideshare-Ready Fleet for Professional Drivers.
+                Car Rentals in Sydney for Uber Drivers.
               </motion.h1>
               <motion.p variants={fadeIn} className="text-lg text-slate-600 mb-10 max-w-lg font-light leading-relaxed">
-                Drive with confidence in meticulously maintained Camry, Corolla, and other rideshare-ready vehicles. Reliable, efficient, and Uber-compliant, designed to maximize your weekly earnings.
+                Maple Rentals provides fully insured weekly car rentals and Uber car rentals
+                for professional drivers across Sydney, including Merrylands, Parramatta, and
+                nearby suburbs. Choose reliable hybrid vehicles designed to keep you earning.
               </motion.p>
 
               <motion.div variants={fadeIn} className="flex flex-col sm:flex-row gap-4 mb-10">
@@ -85,6 +132,7 @@ export default function Home() {
               <motion.div variants={fadeIn} className="flex flex-wrap items-center gap-6 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
                 <span className="inline-flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-brand-gold" /> Fully insured</span>
                 <span className="inline-flex items-center gap-2"><Sparkles className="w-4 h-4 text-brand-gold" /> Professionally detailed</span>
+                <span className="inline-flex items-center gap-2"><Fuel className="w-4 h-4 text-brand-gold" /> Serving Merrylands & Parramatta</span>
               </motion.div>
             </motion.div>
 
@@ -98,7 +146,7 @@ export default function Home() {
               <div className="absolute -inset-6 bg-brand-gold/10 blur-3xl" />
               <img
                 src="/hero-camry.webp"
-                alt="Toyota Camry Hybrid"
+                alt="Toyota Camry hybrid Uber car rental in Sydney"
                 className="w-full h-auto object-cover relative z-10 rounded-3xl shadow-[0_30px_80px_rgba(0,35,71,0.18)]"
               />
             </motion.div>
@@ -121,7 +169,7 @@ export default function Home() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-[10px] md:text-xs font-bold text-brand-gold uppercase tracking-[0.4em]">
-            Serving Professional Uber Drivers Across Sydney
+            Uber Car Rentals Across Sydney, Parramatta, and Merrylands
           </p>
         </div>
       </motion.div>
@@ -133,14 +181,17 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={slideInLeft}>
               <h2 className="text-4xl md:text-6xl font-serif font-bold mb-10 tracking-tight leading-tight text-white">
-                Not Just a Rental.<br />A Business Tool.
+                Uber Car Rentals Built for Professional Drivers.
               </h2>
               <div className="space-y-6 text-slate-400 text-lg font-light leading-relaxed max-w-xl">
                 <p>
-                  Maple Rentals provides professionally maintained rideshare vehicles designed for long hours, lower fuel costs, and reliable performance.
+                  Maple Rentals provides weekly car rentals for rideshare drivers who need
+                  reliable hybrid vehicles, lower fuel costs, and strong uptime across Sydney.
                 </p>
                 <p>
-                  We keep your car running smoothly so you can focus on earning. Our fleet is maintained to reduce downtime and preserve your weekly income.
+                  Drivers from Parramatta, Merrylands, and surrounding suburbs choose our Uber
+                  car rentals because maintenance, compliance, and support are built into every
+                  plan.
                 </p>
               </div>
             </motion.div>
@@ -203,7 +254,7 @@ export default function Home() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeIn} className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-14">
             <div>
               <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">Flexible Plans</p>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-4">Choose the cadence that fits your driving schedule.</h2>
+              <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-4">Choose a car rental plan that fits your driving schedule.</h2>
               <p className="text-slate-600 max-w-2xl text-lg font-light leading-relaxed">
                 We merged the replica plan merchandising into the main app here so drivers can compare tiers before choosing a vehicle or starting an application.
               </p>
@@ -300,13 +351,69 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="py-28 bg-white border-t border-slate-200/70">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeIn}
+            className="max-w-3xl mb-14"
+          >
+            <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">
+              Service Areas
+            </p>
+            <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-5">
+              Car Rentals Serving Parramatta, Merrylands, and Greater Sydney.
+            </h2>
+            <p className="text-slate-600 text-lg font-light leading-relaxed">
+              We support professional drivers looking for affordable car rentals close to
+              Merrylands, Parramatta, Lidcombe, and surrounding Sydney suburbs. Apply online,
+              compare weekly pricing, and secure an Uber-ready hybrid backed by Maple Rentals.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                title: 'Merrylands Pickup',
+                body: 'Collect from our Merrylands location and start driving with a vehicle prepared for daily rideshare work.',
+              },
+              {
+                title: 'Parramatta Access',
+                body: 'A convenient option for drivers based around Parramatta who need a dependable weekly car rental plan.',
+              },
+              {
+                title: 'Greater Sydney Coverage',
+                body: 'Our fleet supports drivers working airport runs, CBD shifts, and suburban trips across Sydney.',
+              },
+            ].map((area) => (
+              <motion.div
+                key={area.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45 }}
+                className="rounded-3xl border border-slate-200 bg-[#F8F9FA] p-8 shadow-sm"
+              >
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold mb-4">
+                  Local SEO
+                </p>
+                <h3 className="text-2xl font-serif font-bold text-brand-navy mb-4">{area.title}</h3>
+                <p className="text-slate-600 font-light leading-relaxed">{area.body}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="py-32 bg-brand-navy relative overflow-hidden border-t border-white/10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(212,175,55,0.05)_0%,transparent_70%)]"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeIn} className="text-left">
-              <h2 className="text-4xl md:text-6xl font-serif font-bold mb-8 leading-tight text-white">Ready to Drive with Sydney's Most Reliable Fleet?</h2>
-              <p className="text-xl text-slate-400 mb-12 font-light">Join drivers who use Maple Rentals as a dependable business asset, not just a short-term booking.</p>
+              <h2 className="text-4xl md:text-6xl font-serif font-bold mb-8 leading-tight text-white">Ready for a reliable Sydney car rental?</h2>
+              <p className="text-xl text-slate-400 mb-12 font-light">Join drivers who use Maple Rentals for weekly car rentals and Uber car rentals across Merrylands, Parramatta, and greater Sydney.</p>
               <div className="flex flex-col sm:flex-row items-center justify-start gap-6">
                 <Link
                   to="/apply"
@@ -332,7 +439,7 @@ export default function Home() {
             >
               <img
                 src="/cta-camry.webp"
-                alt="Maple Rentals fleet"
+                alt="Maple Rentals car rentals fleet serving Sydney, Parramatta, and Merrylands"
                 className="w-full h-auto shadow-2xl rounded-3xl"
               />
             </motion.div>

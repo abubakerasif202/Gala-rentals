@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, CreditCard, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import Seo from '../components/Seo';
 import { createVehicleCheckoutSession, fetchApprovedPaymentContext } from '../lib/api';
 
 const fadeIn = {
@@ -20,6 +21,14 @@ export default function Checkout() {
   const applicationId = Number(searchParams.get('application_id') || 0);
   const checkoutToken = searchParams.get('token') || searchParams.get('checkout_token') || '';
   const carId = Number(id || 0);
+  const pageSeo = (
+    <Seo
+      title="Secure Checkout | Maple Rentals"
+      description="Secure Maple Rentals checkout for approved vehicle applications."
+      canonicalPath={id ? `/checkout/${id}` : '/checkout'}
+      robots="noindex,nofollow"
+    />
+  );
 
   const {
     data: paymentContext,
@@ -79,51 +88,60 @@ export default function Checkout() {
 
   if (!applicationId || !checkoutToken || !carId) {
     return (
-      <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white px-6">
-        <div className="max-w-lg text-center space-y-6">
-          <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">
-            Secure link required
-          </p>
-          <h1 className="text-4xl font-bold uppercase tracking-tighter">
-            This payment page needs a valid checkout link
-          </h1>
-          <p className="text-brand-grey font-light">
-            Start with a vehicle application so we can generate the agreement and secure checkout
-            link for the selected car.
-          </p>
-          <Link
-            to={id ? `/apply?carId=${id}` : '/apply'}
-            className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all"
-          >
-            Start Application
-          </Link>
+      <>
+        {pageSeo}
+        <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white px-6">
+          <div className="max-w-lg text-center space-y-6">
+            <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">
+              Secure link required
+            </p>
+            <h1 className="text-4xl font-bold uppercase tracking-tighter">
+              This payment page needs a valid checkout link
+            </h1>
+            <p className="text-brand-grey font-light">
+              Start with a vehicle application so we can generate the agreement and secure checkout
+              link for the selected car.
+            </p>
+            <Link
+              to={id ? `/apply?carId=${id}` : '/apply'}
+              className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all"
+            >
+              Start Application
+            </Link>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-brand-navy flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
-      </div>
+      <>
+        {pageSeo}
+        <div className="min-h-screen bg-brand-navy flex items-center justify-center">
+          <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
+        </div>
+      </>
     );
   }
 
   if (error || !paymentContext) {
     return (
-      <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white px-6">
-        <div className="text-center space-y-4 max-w-xl">
-          <p>Unable to load the payment details for this link.</p>
-          <p className="text-sm text-brand-grey font-light">
-            Request a fresh checkout link from Maple Rentals if this one has expired or was
-            replaced by a newer application.
-          </p>
-          <Link to="/apply" className="text-brand-gold hover:underline">
-            Submit a new application
-          </Link>
+      <>
+        {pageSeo}
+        <div className="min-h-screen bg-brand-navy flex items-center justify-center text-white px-6">
+          <div className="text-center space-y-4 max-w-xl">
+            <p>Unable to load the payment details for this link.</p>
+            <p className="text-sm text-brand-grey font-light">
+              Request a fresh checkout link from Maple Rentals if this one has expired or was
+              replaced by a newer application.
+            </p>
+            <Link to="/apply" className="text-brand-gold hover:underline">
+              Submit a new application
+            </Link>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -131,7 +149,9 @@ export default function Checkout() {
   const hasSetupFees = billing.setupFees > 0;
 
   return (
-    <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
+    <>
+      {pageSeo}
+      <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
       <div className="container mx-auto px-6">
         <div className="max-w-6xl mx-auto">
           <Link
@@ -221,7 +241,7 @@ export default function Checkout() {
               >
                 <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
                   <div className="aspect-video relative">
-                    <img src={car.image} alt={car.name} className="w-full h-full object-cover" />
+                    <img src={car.image} alt={`${car.name} secure checkout preview`} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-brand-navy to-transparent opacity-60" />
                     <div className="absolute bottom-6 left-6">
                       <h3 className="text-xl font-bold text-white uppercase tracking-tight">{car.name}</h3>
@@ -276,6 +296,7 @@ export default function Checkout() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

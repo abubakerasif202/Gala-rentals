@@ -14,6 +14,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import Seo from '../components/Seo';
 import { fetchCars, submitApplication } from '../lib/api';
 import type { Car } from '../types';
 import {
@@ -201,6 +202,20 @@ export default function Apply() {
   const selectedCarId = watch('selected_car_id');
   const selectedCar = availableCars.find((car) => car.id === Number(selectedCarId)) || null;
   const selectedCarBond = selectedCar ? getDisplayBond(selectedCar) : 0;
+  const pageSeo = (
+    <Seo
+      title="Apply for a Sydney Car Rental | Maple Rentals"
+      description="Start your Maple Rentals application for a weekly car rental or Uber car rental in Sydney. Submit driver details, choose a vehicle, and upload licence documents securely online."
+      canonicalPath="/apply"
+      keywords={[
+        'apply for car rental sydney',
+        'uber car rental application',
+        'weekly car rental application',
+        'merrylands car rental',
+        'parramatta uber car rental',
+      ]}
+    />
+  );
 
   const handleFileUpload = (
     event: ChangeEvent<HTMLInputElement>,
@@ -276,54 +291,59 @@ export default function Apply() {
 
   if (submittedApplicationId) {
     return (
-      <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
-        <div className="container mx-auto px-6">
-          <div className="max-w-3xl mx-auto">
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-10 md:p-14 text-center space-y-8">
-              <div className="w-20 h-20 rounded-full bg-brand-gold/10 border border-brand-gold/30 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-10 h-10 text-brand-gold" />
-              </div>
-              <div className="space-y-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">
-                  Application received
-                </p>
-                <h1 className="text-4xl font-bold text-white uppercase tracking-tighter">
-                  Review in progress
-                </h1>
-                <p className="text-brand-grey font-light leading-relaxed max-w-2xl mx-auto">
-                  Your application was saved successfully. Maple Rentals will review your documents
-                  and email a secure checkout link if everything is approved.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-6 py-5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
-                  Reference
-                </p>
-                <p className="text-white font-bold text-lg mt-2">Application #{submittedApplicationId}</p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link
-                  to="/cars"
-                  className="inline-flex items-center justify-center gap-3 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all"
-                >
-                  Browse Fleet
-                </Link>
-                <Link
-                  to="/"
-                  className="inline-flex items-center justify-center gap-3 border border-white/10 text-white px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-white/5 transition-all"
-                >
-                  Return Home
-                </Link>
+      <>
+        {pageSeo}
+        <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
+          <div className="container mx-auto px-6">
+            <div className="max-w-3xl mx-auto">
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-10 md:p-14 text-center space-y-8">
+                <div className="w-20 h-20 rounded-full bg-brand-gold/10 border border-brand-gold/30 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-10 h-10 text-brand-gold" />
+                </div>
+                <div className="space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">
+                    Application received
+                  </p>
+                  <h1 className="text-4xl font-bold text-white uppercase tracking-tighter">
+                    Review in progress
+                  </h1>
+                  <p className="text-brand-grey font-light leading-relaxed max-w-2xl mx-auto">
+                    Your application was saved successfully. Maple Rentals will review your documents
+                    and email a secure checkout link if everything is approved.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-6 py-5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                    Reference
+                  </p>
+                  <p className="text-white font-bold text-lg mt-2">Application #{submittedApplicationId}</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Link
+                    to="/cars"
+                    className="inline-flex items-center justify-center gap-3 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all"
+                  >
+                    Browse Fleet
+                  </Link>
+                  <Link
+                    to="/"
+                    className="inline-flex items-center justify-center gap-3 border border-white/10 text-white px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-white/5 transition-all"
+                  >
+                    Return Home
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
+    <>
+      {pageSeo}
+      <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
       <div className="container mx-auto px-6">
         <div className="max-w-5xl mx-auto">
           <StepHeader step={step} />
@@ -644,6 +664,7 @@ export default function Apply() {
           </motion.div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

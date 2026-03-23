@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Seo from '../components/Seo';
 import api from '../lib/api';
 
 export default function AdminLogin() {
@@ -26,6 +27,13 @@ export default function AdminLogin() {
 
   return (
     <div className="flex items-center justify-center min-h-[80vh] bg-brand-navy py-12 px-4 sm:px-6 lg:px-8">
+      <Seo
+        title="Admin Login | Maple Rentals"
+        description="Administrative login for Maple Rentals."
+        canonicalPath="/admin/login"
+        robots="noindex,nofollow"
+      />
+
       <div className="max-w-md w-full space-y-8 bg-brand-navy-light p-10 rounded-xl shadow-2xl border border-white/10">
         <div>
           <h2 className="text-center text-3xl font-serif font-bold text-white tracking-tight">Admin Access</h2>

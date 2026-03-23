@@ -213,8 +213,6 @@ What each command does:
   - Required for auth-scoped Supabase operations such as admin sign-in and token verification
 - `SUPABASE_SERVICE_ROLE_KEY`
   - Server-side privileged Supabase key
-- `SUPABASE_DB_URL` or `DATABASE_URL`
-  - Must be a session-capable Postgres connection on port `5432`; transaction-pooler URLs on port `6543` are not sufficient for production payment activation
 - `CHECKOUT_LINK_SECRET`
   - Secret used to sign secure payment-link tokens
 - `JWT_SECRET`
@@ -229,9 +227,9 @@ What each command does:
 - `LEASE_OWNER_CONTACT`
 - `LEASE_OWNER_EMAIL`
   - Optional overrides for the default Maple Rentals business details inserted into generated lease agreements
-
 - `SUPABASE_DB_URL`
-  - Direct or pooled Postgres connection string used for transactional Stripe activation writes
+  - Session-capable Postgres connection string used for transactional Stripe activation writes
+  - If omitted, the app still boots and serves the site, but payment links and automatic activation stay in `restricted` mode
 - `RESEND_API_KEY`
   - Transactional email delivery
 
@@ -317,7 +315,7 @@ Do not paste the Postgres connection string into `SUPABASE_URL`.
 
 ### Health endpoint reports `restricted`
 
-Add `SUPABASE_DB_URL` or `DATABASE_URL` with a session-capable Postgres connection on port `5432` to enable payment-link generation and automatic Stripe activation.
+Add `SUPABASE_DB_URL` or `DATABASE_URL` with a session-capable Postgres connection on port `5432` to enable payment-link generation and automatic Stripe activation. The web app can still boot without it, but payment workflows remain disabled.
 
 ### Admin login loops back to `/admin/login`
 

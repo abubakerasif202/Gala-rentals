@@ -41,7 +41,7 @@ import {
 } from '../paymentProcessing.js';
 
 const router = express.Router();
-const stripe = getStripeClient();
+const getStripe = () => getStripeClient();
 
 type BillingBreakdown = {
   bond: number;
@@ -183,7 +183,7 @@ const buildSubscriptionLineItems = async ({
 }: {
   billingBreakdown: BillingBreakdown;
 }) => {
-  const stripeCatalog = await ensureStripeCatalog(stripe);
+  const stripeCatalog = await ensureStripeCatalog(getStripe());
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
     {
       price_data: {
@@ -243,7 +243,7 @@ const createHostedCheckoutSession = async ({
     payment_link_version: String(Number(application.payment_link_version || 0)),
   };
 
-  return stripe.checkout.sessions.create(
+  return getStripe().checkout.sessions.create(
     {
       billing_address_collection: 'auto',
       cancel_url: buildCancelUrl({
@@ -366,7 +366,7 @@ const expirePendingCheckoutSession = async (sessionId: string | null | undefined
   }
 
   try {
-    await stripe.checkout.sessions.expire(sessionId);
+    await getStripe().checkout.sessions.expire(sessionId);
   } catch (error) {
     console.warn(`Unable to expire checkout session ${sessionId}:`, error);
   }
@@ -402,7 +402,7 @@ const resolvePendingCheckoutSession = async ({
   }
 
   try {
-    const session = await stripe.checkout.sessions.retrieve(pendingSessionId);
+    const session = await getStripe().checkout.sessions.retrieve(pendingSessionId);
     const sessionVersion = Number(session.metadata?.payment_link_version || 0);
     const sessionCarId = Number(session.metadata?.car_id || 0);
     const sessionApplicationId = Number(session.metadata?.application_id || 0);
@@ -799,7 +799,7 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
       version: Number(application.payment_link_version || 0),
     });
 
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = await getStripe().checkout.sessions.retrieve(sessionId);
     const metadataApplicationId = Number(session.metadata?.application_id || 0);
     const metadataCarId = toOptionalPositiveInt(session.metadata?.car_id);
     const metadataCheckoutKind = session.metadata?.checkout_kind || null;

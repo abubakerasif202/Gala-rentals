@@ -49,7 +49,7 @@ const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
 const ALLOWED_APPLICATION_IMAGE_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
-const stripe = getStripeClient();
+const getStripe = () => getStripeClient();
 
 const applicationSubmissionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -151,7 +151,7 @@ const recoverPaymentReviewSession = async (application: ApplicationPaymentApprov
   }
 
   try {
-    const session = await stripe.checkout.sessions.retrieve(storedSessionId);
+    const session = await getStripe().checkout.sessions.retrieve(storedSessionId);
     if (isRecoverableVehicleCheckoutSession(session, application)) {
       return session;
     }
@@ -643,7 +643,7 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
 
     if (applicationRecord.pending_checkout_session_id) {
       try {
-        await stripe.checkout.sessions.expire(applicationRecord.pending_checkout_session_id);
+        await getStripe().checkout.sessions.expire(applicationRecord.pending_checkout_session_id);
       } catch (expireError) {
         console.warn(
           `Unable to expire pending checkout session ${applicationRecord.pending_checkout_session_id}:`,

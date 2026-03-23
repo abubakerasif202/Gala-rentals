@@ -86,8 +86,8 @@ That server:
 ### Strongly recommended
 
 - `SUPABASE_DB_URL`
-  - Direct or pooled Postgres connection string used for transactional payment activation
-  - If omitted, the app stays live but `/api/health` reports `paymentActivationMode: "best_effort"`
+  - Session-capable Postgres connection string used for transactional payment activation
+  - If omitted, the app stays live but `/api/health` reports `paymentActivationMode: "restricted"`
 
 ### Optional
 
@@ -137,7 +137,7 @@ A healthy response should look like:
 }
 ```
 
-If `paymentActivationMode` is `best_effort`, the service is up but the direct Postgres connection is missing.
+If `paymentActivationMode` is `restricted`, the service is up but the direct Postgres connection is missing.
 
 ## Local production verification
 
@@ -168,7 +168,7 @@ Fix:
 - put the `https://...supabase.co` URL back into `SUPABASE_URL`
 - put the Postgres URI into `SUPABASE_DB_URL`
 
-### Health endpoint shows `best_effort`
+### Health endpoint shows `restricted`
 
 Cause:
 - `SUPABASE_DB_URL` or `DATABASE_URL` is missing

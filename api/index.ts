@@ -49,6 +49,8 @@ const shouldListen = process.env.VITEST !== 'true';
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
 const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '100kb';
+const DB_CHECK_TIMEOUT_MS = 8000;
+const DB_HEALTH_CACHE_TTL_MS = isVitest ? 0 : 5000;
 const frontendDistDir = path.resolve(process.cwd(), 'dist');
 const frontendIndexPath = path.join(frontendDistDir, 'index.html');
 const cspReportingEnabled = isProduction && process.env.CSP_REPORTING === 'true';
@@ -115,12 +117,6 @@ const validateProductionEnv = () => {
     }
   }
 
-  if (!hasDirectDatabaseConnection()) {
-    invalid.push(
-      'SUPABASE_DB_URL or DATABASE_URL must use a session-capable Postgres connection (port 5432) for transactional payment activation'
-    );
-  }
-
   if (missing.length > 0 || invalid.length > 0) {
     const details = [...missing, ...invalid].join(', ');
     throw new Error(
@@ -131,13 +127,15 @@ const validateProductionEnv = () => {
 };
 
 const logProductionConfigurationWarnings = () => {
-  if (!isProduction && !hasDirectDatabaseConnection()) {
-    console.warn(
-      'SUPABASE_DB_URL or DATABASE_URL is not configured for a session-capable Postgres connection. ' +
-        'Stripe payment activation will use the non-transactional fallback until a direct connection ' +
-        'or Supabase shared pooler session-mode URL on port 5432 is added.'
-    );
+  if (hasDirectDatabaseConnection()) {
+    return;
   }
+
+  console.warn(
+    'SUPABASE_DB_URL or DATABASE_URL is not configured for a session-capable Postgres connection. ' +
+      'Payment links and automatic Stripe activation will remain disabled until a direct connection ' +
+      'or Supabase shared pooler session-mode URL on port 5432 is added.'
+  );
 };
 
 const rateLimiter = rateLimit({
@@ -149,10 +147,95 @@ const rateLimiter = rateLimit({
 });
 
 let dbInitialized: Promise<void> | null = null;
+type DBHealthCheckResult = Awaited<ReturnType<typeof checkDBHealth>>;
+type DBHealthCheckState =
+  | { error: null; result: DBHealthCheckResult }
+  | { error: Error; result: null };
+
+let dbHealthCheckPromise: Promise<DBHealthCheckResult> | null = null;
+let dbHealthCheckState: {
+  expiresAt: number;
+  value: DBHealthCheckState;
+} | null = null;
+
+const withTimeout = async <T>(
+  operation: () => Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+) => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<T>((_resolve, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+        timeoutId.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
+const runDBHealthCheck = async () => {
+  const now = Date.now();
+  if (dbHealthCheckState && dbHealthCheckState.expiresAt > now) {
+    if (dbHealthCheckState.value.error) {
+      throw dbHealthCheckState.value.error;
+    }
+
+    return dbHealthCheckState.value.result;
+  }
+
+  if (!dbHealthCheckPromise) {
+    dbHealthCheckPromise = withTimeout(
+      () => checkDBHealth(),
+      DB_CHECK_TIMEOUT_MS,
+      `Database health check timed out after ${DB_CHECK_TIMEOUT_MS}ms`
+    )
+      .then((result) => {
+        dbHealthCheckState = {
+          expiresAt: Date.now() + DB_HEALTH_CACHE_TTL_MS,
+          value: {
+            error: null,
+            result,
+          },
+        };
+        return result;
+      })
+      .catch((error: unknown) => {
+        const resolvedError =
+          error instanceof Error ? error : new Error('Database health check failed');
+        dbHealthCheckState = {
+          expiresAt: Date.now() + DB_HEALTH_CACHE_TTL_MS,
+          value: {
+            error: resolvedError,
+            result: null,
+          },
+        };
+        throw resolvedError;
+      })
+      .finally(() => {
+        dbHealthCheckPromise = null;
+      });
+  }
+
+  return dbHealthCheckPromise;
+};
 
 const ensureDB = async () => {
   if (!dbInitialized) {
-    dbInitialized = initializeDB();
+    dbInitialized = withTimeout(
+      () => initializeDB(),
+      DB_CHECK_TIMEOUT_MS,
+      `Database initialization timed out after ${DB_CHECK_TIMEOUT_MS}ms`
+    ).catch((error) => {
+      dbInitialized = null;
+      throw error;
+    });
   }
 
   return dbInitialized;
@@ -245,7 +328,7 @@ const registerCoreRoutes = (app: express.Express) => {
 
   app.get('/api/health', async (_req, res) => {
     try {
-      const { configured } = await checkDBHealth();
+      const { configured } = await runDBHealthCheck();
 
       res.setHeader('Cache-Control', 'no-store');
       res.json({
@@ -392,7 +475,6 @@ type RunningResources = {
 export const startServer = async (): Promise<RunningResources> => {
   validateProductionEnv();
   logProductionConfigurationWarnings();
-  await ensureDB();
 
   let viteServer: ViteDevServer | null = null;
   if (isProduction) {
@@ -414,6 +496,12 @@ export const startServer = async (): Promise<RunningResources> => {
     });
 
     createdServer.on('error', reject);
+  });
+
+  // Render only needs the port to open quickly; keep DB warmup asynchronous and
+  // surface readiness through the healthcheck and API middleware instead.
+  void ensureDB().catch((error) => {
+    console.error('Database warmup failed:', error);
   });
 
   return { server, viteServer };

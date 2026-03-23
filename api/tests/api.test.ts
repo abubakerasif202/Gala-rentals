@@ -1348,6 +1348,34 @@ describe('Applications API', () => {
     });
   });
 
+  it('GET /api/health coalesces concurrent database probes', async () => {
+    let resolveHealthCheck!: (value: { configured: boolean; issues: string[] }) => void;
+    mockCheckDBHealth.mockReturnValueOnce(
+      new Promise<{ configured: boolean; issues: string[] }>((resolve) => {
+        resolveHealthCheck = resolve;
+      })
+    );
+
+    const firstRequest = request(app).get('/api/health').then((response) => response);
+    const secondRequest = request(app).get('/api/health').then((response) => response);
+
+    await vi.waitFor(() => {
+      expect(mockCheckDBHealth).toHaveBeenCalledTimes(1);
+    });
+
+    resolveHealthCheck({ configured: true, issues: [] });
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      firstRequest,
+      secondRequest,
+    ]);
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+    expect(firstResponse.body.database).toBe('ok');
+    expect(secondResponse.body.database).toBe('ok');
+  });
+
   it('POST /api/inquiries sends the inquiry through Resend when configured', async () => {
     process.env.RESEND_API_KEY = 'test-resend';
     const startDate = getFutureDateOnly(7);

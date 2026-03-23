@@ -11,7 +11,7 @@ import {
 import { getTodayInAustralia } from '../../shared/applicationSubmission.js';
 
 const router = express.Router();
-const stripe = getStripeClient();
+const getStripe = () => getStripeClient();
 
 const todayIsoDate = () => getTodayInAustralia();
 
@@ -34,7 +34,7 @@ router.post('/', async (request, response) => {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       request.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
@@ -69,7 +69,7 @@ router.post('/', async (request, response) => {
             : subscriptionReference?.id || null;
 
         if (subscriptionId) {
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
           await updateRentalsBySubscriptionIdentity(
             subscriptionId,
             subscription.metadata,

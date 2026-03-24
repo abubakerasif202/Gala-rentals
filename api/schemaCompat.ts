@@ -48,6 +48,9 @@ const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
 };
 
 let schemaCompatPromise: Promise<SchemaCompat> | null = null;
+let schemaCompatResolvedAt = 0;
+
+const SCHEMA_COMPAT_CACHE_TTL_MS = 60 * 1000;
 
 const hasProperty = (definition: OpenApiDefinition | undefined, key: string) =>
   Boolean(definition?.properties && Object.prototype.hasOwnProperty.call(definition.properties, key));
@@ -78,11 +81,22 @@ const fetchOpenApiDefinitions = async (): Promise<Record<string, OpenApiDefiniti
 };
 
 export const getSchemaCompat = async (): Promise<SchemaCompat> => {
+  const now = Date.now();
+
+  if (
+    schemaCompatPromise &&
+    process.env.NODE_ENV !== 'production' &&
+    now - schemaCompatResolvedAt > SCHEMA_COMPAT_CACHE_TTL_MS
+  ) {
+    schemaCompatPromise = null;
+  }
+
   if (!schemaCompatPromise) {
     schemaCompatPromise = (async () => {
       try {
         const definitions = await fetchOpenApiDefinitions();
         if (!definitions) {
+          schemaCompatResolvedAt = Date.now();
           return DEFAULT_SCHEMA_COMPAT;
         }
 
@@ -187,7 +201,7 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
             ? 'stripe_customer_id'
             : null;
 
-        return {
+        const resolvedCompat = {
           applicationApprovedAtColumn,
           carCreatedAtColumn,
           coreMode,
@@ -202,11 +216,22 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           rentalStripeSubscriptionColumn,
           rentalStripeCustomerColumn,
         };
+
+        schemaCompatResolvedAt = Date.now();
+        return resolvedCompat;
       } catch (error) {
+        if (process.env.NODE_ENV === 'production') {
+          throw error;
+        }
+
         console.warn('Falling back to default schema compatibility mode:', error);
+        schemaCompatResolvedAt = Date.now();
         return DEFAULT_SCHEMA_COMPAT;
       }
-    })();
+    })().catch((error) => {
+      schemaCompatPromise = null;
+      throw error;
+    });
   }
 
   return schemaCompatPromise;

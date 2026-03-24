@@ -49,4 +49,70 @@ describe('schemaCompat', () => {
       'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at'
     );
   });
+
+  it('throws in production when schema introspection fails', async () => {
+    process.env.NODE_ENV = 'production';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+      })
+    );
+
+    const { getSchemaCompat } = await import('./schemaCompat.js');
+
+    await expect(getSchemaCompat()).rejects.toThrow(
+      'Failed to inspect Supabase schema: 503 Service Unavailable'
+    );
+  });
+
+  it('retries schema introspection after cache TTL in non-production mode', async () => {
+    process.env.NODE_ENV = 'development';
+    vi.useFakeTimers();
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          definitions: {
+            applications: { properties: {} },
+            cars: {
+              properties: {
+                created_at: { type: 'string' },
+                modelYear: { type: 'number' },
+                weeklyPrice: { type: 'number' },
+              },
+            },
+            rentals: { properties: {} },
+          },
+        }),
+        status: 200,
+        statusText: 'OK',
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { getCarSelectColumns } = await import('./schemaCompat.js');
+
+    await expect(getCarSelectColumns()).resolves.toBe(
+      'id, name, model_year, weekly_price, bond, status, image, created_at'
+    );
+
+    vi.advanceTimersByTime(61_000);
+
+    await expect(getCarSelectColumns()).resolves.toBe(
+      'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at'
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
 });

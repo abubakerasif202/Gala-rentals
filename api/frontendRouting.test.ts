@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { RequestLike } from './frontendRouting.js';
+
 import { shouldServeSpaEntry } from './frontendRouting.js';
 
 const createRequest = ({
@@ -16,7 +18,7 @@ const createRequest = ({
     path,
     get: (headerName: string) =>
       headerName.toLowerCase() === 'accept' ? accept : undefined,
-  }) as any;
+  }) satisfies RequestLike;
 
 describe('shouldServeSpaEntry', () => {
   it('allows known client routes', () => {

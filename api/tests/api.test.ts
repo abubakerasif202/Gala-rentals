@@ -39,6 +39,7 @@ const {
     customers: [] as Array<Record<string, any>>,
     invoices: [] as Array<Record<string, any>>,
     bookings: [] as Array<Record<string, any>>,
+    stripe_webhook_events: [] as Array<Record<string, any>>,
   },
   mockGetUser: vi.fn(),
   mockRefreshSession: vi.fn(),
@@ -187,6 +188,10 @@ vi.mock('../db/index.js', () => {
       return mockState.bookings;
     }
 
+    if (table === 'stripe_webhook_events') {
+      return mockState.stripe_webhook_events;
+    }
+
     return [];
   };
 
@@ -223,6 +228,11 @@ vi.mock('../db/index.js', () => {
 
     if (table === 'bookings') {
       mockState.bookings = rows;
+      return;
+    }
+
+    if (table === 'stripe_webhook_events') {
+      mockState.stripe_webhook_events = rows;
     }
   };
 
@@ -565,7 +575,26 @@ vi.mock('../db/index.js', () => {
     const currentRows = getTableRows(table);
     const nextId =
       currentRows.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1;
-    const insertedRow = { ...records[0], id: nextId };
+    const insertedRow: Record<string, any> = { ...records[0], id: nextId };
+
+    if (
+      table === 'stripe_webhook_events' &&
+      typeof insertedRow.stripe_event_id === 'string' &&
+      mockState.stripe_webhook_events.some(
+        (event) => event.stripe_event_id === insertedRow.stripe_event_id
+      )
+    ) {
+      return {
+        error: {
+          code: '23505',
+          message:
+            'duplicate key value violates unique constraint "idx_stripe_webhook_events_event_id"',
+        },
+        select: vi.fn(() => ({
+          single: vi.fn(async () => ({ data: null, error: null })),
+        })),
+      };
+    }
 
     if (table === 'cars') {
       mockState.cars = [...mockState.cars, insertedRow];
@@ -593,6 +622,10 @@ vi.mock('../db/index.js', () => {
 
     if (table === 'bookings') {
       mockState.bookings = [...mockState.bookings, insertedRow];
+    }
+
+    if (table === 'stripe_webhook_events') {
+      mockState.stripe_webhook_events = [...mockState.stripe_webhook_events, insertedRow];
     }
 
     return {
@@ -847,6 +880,7 @@ beforeEach(() => {
 
   mockState.rentals = [];
   mockState.lease_agreements = [];
+  mockState.stripe_webhook_events = [];
 
   mockState.customers = [
     {
@@ -1899,6 +1933,7 @@ describe('Stripe API', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.email_delivered).toBe(false);
     expect(res.body.checkout_url).toContain('/checkout/1?');
+    expect(res.body.checkout_url).toContain('#checkout_token=');
     expect(mockStripe.checkoutSessionsExpire).toHaveBeenCalledWith('cs_old_pending');
 
     expect(mockState.applications[0]).toMatchObject({
@@ -2333,12 +2368,10 @@ describe('Stripe API', () => {
     expect(payload.cancel_url).toContain('/checkout/1?');
     expect(payload.cancel_url).toContain('application_id=2');
     expect(payload.cancel_url).toContain('resume_payment=1');
-    expect(payload.cancel_url).toContain(`token=${encodeURIComponent(token.token)}`);
+    expect(payload.cancel_url).toContain(`#checkout_token=${encodeURIComponent(token.token)}`);
     expect(payload.success_url).toContain('application_id=2');
     expect(payload.success_url).toContain('car_id=1');
-    expect(payload.success_url).toContain(
-      `checkout_token=${encodeURIComponent(token.token)}`
-    );
+    expect(payload.success_url).toContain(`#checkout_token=${encodeURIComponent(token.token)}`);
   });
 
   it('POST /api/stripe/vehicle-checkout-session derives a stable retry idempotency key from the stale session id', async () => {
@@ -2463,7 +2496,9 @@ describe('Stripe API', () => {
     expect(res.body.checkout_url).toContain('/checkout/1?');
     expect(res.body.checkout_url).toContain('application_id=2');
     expect(mockState.applications[1].payment_link_version).toBe(2);
-    expect(res.body.checkout_url).toContain(`token=${encodeURIComponent(res.body.checkout_token)}`);
+    expect(res.body.checkout_url).toContain(
+      `#checkout_token=${encodeURIComponent(res.body.checkout_token)}`
+    );
 
     const verified = verifyCheckoutToken({
       applicationId: 2,
@@ -2884,6 +2919,51 @@ describe('Stripe API', () => {
       stripe_subscription_id: 'sub_replay',
     });
     expect(mockState.applications[1].paid_at).toBe('2026-03-08T00:00:00.000Z');
+  });
+
+  it('POST /api/stripe/webhook ignores duplicate delivery for the same Stripe event id', async () => {
+    const duplicateEvent = {
+      id: 'evt_duplicate_delivery',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_live_vehicle',
+          payment_status: 'paid',
+          metadata: {
+            application_id: '2',
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+          customer: 'cus_dup',
+          subscription: 'sub_dup',
+        },
+      },
+    };
+
+    mockStripe.webhooksConstructEvent.mockReturnValue(duplicateEvent);
+
+    const first = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(first.status).toBe(200);
+    expect(mockState.stripe_webhook_events).toHaveLength(1);
+    expect(mockState.rentals).toHaveLength(1);
+
+    const second = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(second.status).toBe(200);
+    expect(mockState.stripe_webhook_events).toHaveLength(1);
+    expect(mockState.rentals).toHaveLength(1);
   });
 
   it('POST /api/stripe/webhook blocks duplicate vehicle activation for the same car', async () => {

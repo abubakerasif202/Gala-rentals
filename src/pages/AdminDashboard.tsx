@@ -36,6 +36,7 @@ import InvoicesTab from '../components/admin/tabs/InvoicesTab';
 import AgreementsTab from '../components/admin/tabs/AgreementsTab';
 
 import * as api from '../lib/api';
+import { getApiErrorMessage } from '../lib/errorHandling';
 import {
   Car as CarType,
   Application,
@@ -450,9 +451,9 @@ export default function AdminDashboard() {
           : 'Secure payment link generated. Use the prompt to copy it manually.',
         'success'
       );
-    } catch (error: any) {
+    } catch (error) {
       showNotification(
-        error?.response?.data?.error || 'Failed to generate secure payment link',
+        getApiErrorMessage(error, 'Failed to generate secure payment link'),
         'error'
       );
     }
@@ -503,9 +504,9 @@ export default function AdminDashboard() {
       }
 
       setSelectedApplication(null);
-    } catch (error: any) {
+    } catch (error) {
       showNotification(
-        error?.response?.data?.error || 'Failed to approve application for payment',
+        getApiErrorMessage(error, 'Failed to approve application for payment'),
         'error'
       );
     }
@@ -520,9 +521,9 @@ export default function AdminDashboard() {
       await retryPaymentReviewActivationMutation.mutateAsync(selectedApplication.id);
       showNotification('Payment activation completed and the rental is now live.', 'success');
       setSelectedApplication(null);
-    } catch (error: any) {
+    } catch (error) {
       showNotification(
-        error?.response?.data?.error || 'Failed to retry payment activation',
+        getApiErrorMessage(error, 'Failed to retry payment activation'),
         'error'
       );
     }

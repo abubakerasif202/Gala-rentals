@@ -29,7 +29,7 @@ export const buildDriverPaymentLink = ({
 }) => {
   const checkoutUrl = new URL(`/checkout/${carId}`, getAppBaseUrl());
   checkoutUrl.searchParams.set('application_id', String(applicationId));
-  checkoutUrl.searchParams.set('token', token);
+  checkoutUrl.hash = `checkout_token=${encodeURIComponent(token)}`;
   return checkoutUrl.toString();
 };
 

@@ -110,6 +110,27 @@ const toOptionalPositiveInt = (value: string | undefined) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+const getCheckoutTokenFromRequest = (
+  req: express.Request,
+  fallbackToken?: string | null
+) => {
+  const headerToken = req.header('x-checkout-token');
+  if (typeof headerToken === 'string' && headerToken.trim()) {
+    return headerToken.trim();
+  }
+
+  if (typeof fallbackToken === 'string' && fallbackToken.trim()) {
+    return fallbackToken.trim();
+  }
+
+  const queryToken = req.query.checkout_token;
+  if (typeof queryToken === 'string' && queryToken.trim()) {
+    return queryToken.trim();
+  }
+
+  return null;
+};
+
 const buildHostedCheckoutSessionIdempotencyKey = ({
   applicationId,
   paymentLinkVersion,
@@ -156,8 +177,8 @@ const buildCancelUrl = ({
 }) => {
   const checkoutUrl = new URL(`/checkout/${carId}`, getAppBaseUrl());
   checkoutUrl.searchParams.set('application_id', String(applicationId));
-  checkoutUrl.searchParams.set('token', token);
   checkoutUrl.searchParams.set('resume_payment', '1');
+  checkoutUrl.hash = `checkout_token=${encodeURIComponent(token)}`;
   return checkoutUrl.toString();
 };
 
@@ -173,8 +194,8 @@ const buildSuccessUrl = ({
   const url = new URL('/success', getAppBaseUrl());
   url.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}');
   url.searchParams.set('application_id', String(applicationId));
-  url.searchParams.set('checkout_token', token);
   url.searchParams.set('car_id', String(carId));
+  url.hash = `checkout_token=${encodeURIComponent(token)}`;
   return url.toString();
 };
 
@@ -451,9 +472,23 @@ router.get('/payment-context', async (req, res) => {
       .object({
         application_id: z.coerce.number().int().positive(),
         car_id: z.coerce.number().int().positive(),
-        checkout_token: z.string().min(1),
+        checkout_token: z.string().min(1).optional(),
       })
       .parse(req.query);
+    const resolvedCheckoutToken = getCheckoutTokenFromRequest(req, checkout_token);
+
+    if (!resolvedCheckoutToken) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: [
+          {
+            code: 'custom',
+            message: 'checkout_token is required',
+            path: ['checkout_token'],
+          },
+        ],
+      });
+    }
 
     const [application, car] = await Promise.all([
       fetchApplication(application_id),
@@ -472,7 +507,7 @@ router.get('/payment-context', async (req, res) => {
       applicationId: application_id,
       carId: car_id,
       purpose: 'vehicle',
-      token: checkout_token,
+      token: resolvedCheckoutToken,
       version: Number(application.payment_link_version || 0),
     });
     requireApprovedPaymentContext({ application, carId: car_id });
@@ -781,9 +816,23 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
       .object({
         application_id: z.coerce.number().int().positive(),
         car_id: z.coerce.number().int().positive(),
-        checkout_token: z.string().min(1),
+        checkout_token: z.string().min(1).optional(),
       })
       .parse(req.query);
+    const resolvedCheckoutToken = getCheckoutTokenFromRequest(req, checkout_token);
+
+    if (!resolvedCheckoutToken) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: [
+          {
+            code: 'custom',
+            message: 'checkout_token is required',
+            path: ['checkout_token'],
+          },
+        ],
+      });
+    }
 
     const application = await fetchApplication(application_id);
 
@@ -795,7 +844,7 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
       applicationId: application_id,
       carId: car_id,
       purpose: 'vehicle',
-      token: checkout_token,
+      token: resolvedCheckoutToken,
       version: Number(application.payment_link_version || 0),
     });
 

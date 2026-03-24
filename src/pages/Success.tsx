@@ -7,9 +7,18 @@ import { fetchCheckoutSessionStatus } from '../lib/api';
 
 export default function Success() {
   const [searchParams] = useSearchParams();
+  const hashParams = new URLSearchParams(
+    window.location.hash.startsWith('#')
+      ? window.location.hash.slice(1)
+      : window.location.hash
+  );
   const sessionId = searchParams.get('session_id') || '';
   const applicationId = Number(searchParams.get('application_id') || 0);
-  const checkoutToken = searchParams.get('checkout_token') || searchParams.get('token') || '';
+  const checkoutToken =
+    hashParams.get('checkout_token') ||
+    searchParams.get('checkout_token') ||
+    searchParams.get('token') ||
+    '';
   const carId = Number(searchParams.get('car_id') || 0);
   const hasVerificationContext = Boolean(sessionId && applicationId && checkoutToken && carId);
 
@@ -44,7 +53,7 @@ export default function Success() {
     data?.internal_status === 'pending';
   const retryHref =
     hasVerificationContext
-      ? `/checkout/${carId}?application_id=${applicationId}&token=${encodeURIComponent(checkoutToken)}`
+      ? `/checkout/${carId}?application_id=${applicationId}#checkout_token=${encodeURIComponent(checkoutToken)}`
       : '/apply';
 
   return (

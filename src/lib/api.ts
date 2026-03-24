@@ -215,8 +215,12 @@ export const fetchApprovedPaymentContext = async (options: {
   car_id: number;
   checkout_token: string;
 }): Promise<ApprovedPaymentContextResponse> => {
+  const { checkout_token, ...params } = options;
   const { data } = await api.get('/stripe/payment-context', {
-    params: options,
+    params,
+    headers: {
+      'X-Checkout-Token': checkout_token,
+    },
   });
   return data;
 };
@@ -229,8 +233,12 @@ export const fetchCheckoutSessionStatus = async (
     checkout_token: string;
   }
 ): Promise<CheckoutSessionStatusResponse> => {
+  const { checkout_token, ...params } = options;
   const { data } = await api.get(`/stripe/checkout-sessions/${sessionId}`, {
-    params: options,
+    params,
+    headers: {
+      'X-Checkout-Token': checkout_token,
+    },
   });
   return data;
 };

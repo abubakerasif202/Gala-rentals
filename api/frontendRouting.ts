@@ -1,4 +1,8 @@
-import type { Request } from 'express';
+export type RequestLike = {
+  method: string;
+  path: string;
+  get: (name: string) => string | undefined;
+};
 
 const SPA_ROUTE_PATTERNS = [
   /^\/$/,
@@ -12,7 +16,7 @@ const SPA_ROUTE_PATTERNS = [
   /^\/admin\/dashboard\/?$/,
 ];
 
-const acceptsHtmlNavigation = (req: Request) => {
+const acceptsHtmlNavigation = (req: RequestLike) => {
   if (req.method === 'HEAD') {
     return true;
   }
@@ -21,7 +25,7 @@ const acceptsHtmlNavigation = (req: Request) => {
   return acceptHeader.includes('text/html');
 };
 
-export const shouldServeSpaEntry = (req: Request) => {
+export const shouldServeSpaEntry = (req: RequestLike) => {
   if (!['GET', 'HEAD'].includes(req.method)) {
     return false;
   }

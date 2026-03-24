@@ -5,6 +5,7 @@ import { ArrowLeft, CreditCard, Info, Loader2, ShieldCheck } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query';
 import Seo from '../components/Seo';
 import { createVehicleCheckoutSession, fetchApprovedPaymentContext } from '../lib/api';
+import { getApiErrorMessage } from '../lib/errorHandling';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -19,7 +20,18 @@ export default function Checkout() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const applicationId = Number(searchParams.get('application_id') || 0);
-  const checkoutToken = searchParams.get('token') || searchParams.get('checkout_token') || '';
+  const hashParams = new URLSearchParams(
+    searchParams.get('checkout_token')
+      ? ''
+      : window.location.hash.startsWith('#')
+        ? window.location.hash.slice(1)
+        : window.location.hash
+  );
+  const checkoutToken =
+    hashParams.get('checkout_token') ||
+    searchParams.get('checkout_token') ||
+    searchParams.get('token') ||
+    '';
   const carId = Number(id || 0);
   const pageSeo = (
     <Seo
@@ -75,11 +87,12 @@ export default function Checkout() {
       }
 
       window.location.assign(session.checkout_url);
-    } catch (checkoutError: any) {
+    } catch (checkoutError) {
       setPageError(
-        checkoutError?.response?.data?.error ||
-          checkoutError?.message ||
+        getApiErrorMessage(
+          checkoutError,
           'Unable to start Stripe checkout. Request a fresh secure link if this keeps happening.'
+        )
       );
     } finally {
       setIsRedirecting(false);

@@ -10,7 +10,7 @@ type CheckoutTokenPayload = {
   version: number;
 };
 
-const DEFAULT_TOKEN_TTL_HOURS = 24 * 7;
+const DEFAULT_TOKEN_TTL_HOURS = 24;
 
 const getCheckoutLinkSecret = () => {
   const secret = (process.env.CHECKOUT_LINK_SECRET || '').trim();

@@ -16,6 +16,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Seo from '../components/Seo';
 import { fetchCars, submitApplication } from '../lib/api';
+import { getApiErrorMessage } from '../lib/errorHandling';
 import type { Car } from '../types';
 import {
   APPLICATION_IMAGE_CONTENT_TYPES,
@@ -269,10 +270,12 @@ export default function Apply() {
     try {
       const submission = await submitApplication(values);
       setSubmittedApplicationId(submission.application_id);
-    } catch (error: any) {
+    } catch (error) {
       setPageError(
-        error?.response?.data?.error ||
+        getApiErrorMessage(
+          error,
           'Failed to save your application. Please check your details and try again.'
+        )
       );
     } finally {
       setIsSubmitting(false);

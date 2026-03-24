@@ -1,6 +1,7 @@
 import express from 'express';
 import type Stripe from 'stripe';
 
+import { db } from '../db/index.js';
 import { getStripeClient } from '../stripeClient.js';
 import {
   getRentalStatusUpdatePayload,
@@ -13,7 +14,39 @@ import { getTodayInAustralia } from '../../shared/applicationSubmission.js';
 const router = express.Router();
 const getStripe = () => getStripeClient();
 
+const STRIPE_WEBHOOK_DUPLICATE_ERROR_CODE = '23505';
+
 const todayIsoDate = () => getTodayInAustralia();
+
+const persistWebhookEventIfNew = async (event: Stripe.Event) => {
+  const eventId = typeof event.id === 'string' ? event.id.trim() : '';
+  if (!eventId) {
+    console.warn(
+      `Stripe webhook event for ${event.type} is missing a stable id; skipping dedupe ledger persistence.`
+    );
+    return { isDuplicate: false as const, persisted: false as const };
+  }
+
+  const { error } = await db.from('stripe_webhook_events').insert([
+    {
+      stripe_event_id: eventId,
+      event_type: event.type,
+    },
+  ]);
+
+  if (!error) {
+    return { isDuplicate: false as const, persisted: true as const };
+  }
+
+  const errorCode = String((error as { code?: string }).code || '');
+  if (errorCode === STRIPE_WEBHOOK_DUPLICATE_ERROR_CODE) {
+    return { isDuplicate: true as const, persisted: false as const };
+  }
+
+  throw new Error(
+    `Failed to persist Stripe webhook event ${eventId}: ${error.message || 'Unknown error'}`
+  );
+};
 
 const shouldReleaseVehicleAfterSubscriptionDeletion = (subscription: Stripe.Subscription) =>
   subscription.cancellation_details?.reason === 'cancellation_requested';
@@ -47,6 +80,12 @@ router.post('/', async (request, response) => {
   }
 
   try {
+    const webhookEventState = await persistWebhookEventIfNew(event);
+    if (webhookEventState.isDuplicate) {
+      response.status(200).send('received');
+      return;
+    }
+
     switch (event.type) {
       case 'checkout.session.async_payment_succeeded':
       case 'checkout.session.completed': {

@@ -147,11 +147,25 @@ export const checkDBHealth = async () => {
     throw new Error(`Supabase connectivity check failed: ${error.message || 'Unknown error'}`);
   }
 
-  await verifyProductionSchemaContract();
+  const issues: string[] = [];
+
+  try {
+    await verifyProductionSchemaContract();
+  } catch (schemaContractError) {
+    if (process.env.NODE_ENV !== 'production') {
+      throw schemaContractError;
+    }
+
+    issues.push('schema_contract_validation_failed');
+    console.warn(
+      'Production schema contract validation failed during database health check; continuing with compatibility mode.',
+      schemaContractError
+    );
+  }
 
   return {
     configured: true,
-    issues: [] as string[],
+    issues,
   };
 };
 

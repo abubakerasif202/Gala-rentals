@@ -13,6 +13,7 @@
     "clean": "node scripts/clean.js",
     "clean:documents": "tsx scripts/cleanup-orphaned-documents.ts",
     "migrate:payment-workflow": "node scripts/migrate-payment-workflow-upgrade.js",
+    "migrate:legacy-snake-payment-workflow": "node scripts/migrate-legacy-snake-case-payment-workflow.js",
     "migrate:vehicle-allocation": "node scripts/migrate-active-vehicle-allocation.js",
     "migrate:operational-history": "node scripts/migrate-operational-history.js",
     "migrate:application-indexes": "node scripts/migrate-application-indexes.js",

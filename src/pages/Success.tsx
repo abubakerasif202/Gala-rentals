@@ -5,11 +5,10 @@ import { useQuery } from '@tanstack/react-query';
 import { CheckCircle, Home, Loader2 } from 'lucide-react';
 import Seo from '../components/Seo';
 import { fetchCheckoutSessionStatus } from '../lib/api';
-
-const parseHashCheckoutToken = (hashValue: string) => {
-  const params = new URLSearchParams(hashValue.startsWith('#') ? hashValue.slice(1) : hashValue);
-  return params.get('checkout_token') || params.get('token') || '';
-};
+import {
+  parseHashCheckoutToken,
+  scrubCheckoutTokenFromUrl,
+} from '../lib/checkoutTokenUrl';
 
 export default function Success() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,6 +37,15 @@ export default function Success() {
     nextParams.delete('token');
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!checkoutToken) {
+      return;
+    }
+
+    const scrubbedUrl = scrubCheckoutTokenFromUrl(new URL(window.location.href));
+    window.history.replaceState(window.history.state, '', scrubbedUrl.toString());
+  }, [checkoutToken]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['stripe-checkout-session', sessionId, applicationId, carId, checkoutToken],
@@ -70,7 +78,7 @@ export default function Success() {
     data?.internal_status === 'pending';
   const retryHref =
     hasVerificationContext
-      ? `/checkout/${carId}?application_id=${applicationId}#checkout_token=${encodeURIComponent(checkoutToken)}`
+      ? `/checkout/${carId}?application_id=${applicationId}&checkout_token=${encodeURIComponent(checkoutToken)}`
       : '/apply';
 
   return (

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { verifyProductionSchemaContract } from '../schemaContract.js';
 
 type MapleSupabaseClient = SupabaseClient;
 
@@ -145,6 +146,8 @@ export const checkDBHealth = async () => {
   if (error) {
     throw new Error(`Supabase connectivity check failed: ${error.message || 'Unknown error'}`);
   }
+
+  await verifyProductionSchemaContract();
 
   return {
     configured: true,

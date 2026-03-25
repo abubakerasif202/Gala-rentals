@@ -50,7 +50,7 @@ describe('schemaCompat', () => {
     );
   });
 
-  it('throws in production when schema introspection fails', async () => {
+  it('uses deterministic defaults in production even when introspection fails', async () => {
     process.env.NODE_ENV = 'production';
     vi.stubGlobal(
       'fetch',
@@ -63,9 +63,12 @@ describe('schemaCompat', () => {
 
     const { getSchemaCompat } = await import('./schemaCompat.js');
 
-    await expect(getSchemaCompat()).rejects.toThrow(
-      'Failed to inspect Supabase schema: 503 Service Unavailable'
-    );
+    await expect(getSchemaCompat()).resolves.toMatchObject({
+      applicationAssignedCarColumn: 'assigned_car_id',
+      carCreatedAtColumn: 'created_at',
+      coreMode: 'snake',
+      rentalStripeSubscriptionColumn: 'stripe_subscription_id',
+    });
   });
 
   it('retries schema introspection after cache TTL in non-production mode', async () => {

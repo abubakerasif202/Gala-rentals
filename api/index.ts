@@ -41,6 +41,7 @@ import webhookRoutes from './routes/webhooks.js';
 import { buildContentSecurityPolicyDirectives } from './securityPolicy.js';
 import { indexNowConfig } from './services/indexNow.js';
 import { getPaymentProcessingMode } from './paymentProcessing.js';
+import { verifyProductionSchemaContract } from './schemaContract.js';
 import { APPLICATION_SUBMISSION_JSON_LIMIT_BYTES } from '../shared/applicationSubmission.js';
 
 const isVitest = process.env.VITEST === 'true';
@@ -124,6 +125,14 @@ const validateProductionEnv = () => {
         'Populate or correct the values in Render before deploy. See README and render.yaml.'
     );
   }
+};
+
+const validateProductionSchemaContract = async () => {
+  if (!isProduction) {
+    return;
+  }
+
+  await verifyProductionSchemaContract();
 };
 
 const logProductionConfigurationWarnings = () => {
@@ -474,6 +483,7 @@ type RunningResources = {
 
 export const startServer = async (): Promise<RunningResources> => {
   validateProductionEnv();
+  await validateProductionSchemaContract();
   logProductionConfigurationWarnings();
 
   let viteServer: ViteDevServer | null = null;

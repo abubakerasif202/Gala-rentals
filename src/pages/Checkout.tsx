@@ -6,11 +6,10 @@ import { useQuery } from '@tanstack/react-query';
 import Seo from '../components/Seo';
 import { createVehicleCheckoutSession, fetchApprovedPaymentContext } from '../lib/api';
 import { getApiErrorMessage } from '../lib/errorHandling';
-
-const parseHashCheckoutToken = (hashValue: string) => {
-  const params = new URLSearchParams(hashValue.startsWith('#') ? hashValue.slice(1) : hashValue);
-  return params.get('checkout_token') || params.get('token') || '';
-};
+import {
+  parseHashCheckoutToken,
+  scrubCheckoutTokenFromUrl,
+} from '../lib/checkoutTokenUrl';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -22,13 +21,15 @@ const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
 export default function Checkout() {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [checkoutToken, setCheckoutToken] = useState(
+    () =>
+      searchParams.get('checkout_token') ||
+      searchParams.get('token') ||
+      parseHashCheckoutToken(window.location.hash)
+  );
   const [pageError, setPageError] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const applicationId = Number(searchParams.get('application_id') || 0);
-  const checkoutToken =
-    searchParams.get('checkout_token') ||
-    searchParams.get('token') ||
-    parseHashCheckoutToken(window.location.hash);
   const carId = Number(id || 0);
   const pageSeo = (
     <Seo
@@ -62,20 +63,44 @@ export default function Checkout() {
   }, [searchParams]);
 
   useEffect(() => {
+    const queryToken =
+      searchParams.get('checkout_token') ||
+      searchParams.get('token') ||
+      parseHashCheckoutToken(window.location.hash);
+
+    if (queryToken && queryToken !== checkoutToken) {
+      setCheckoutToken(queryToken);
+    }
+
     if (searchParams.get('checkout_token')) {
+      if (searchParams.get('token')) {
+        const normalizedParams = new URLSearchParams(searchParams);
+        normalizedParams.delete('token');
+        setSearchParams(normalizedParams, { replace: true });
+      }
       return;
     }
 
-    const hashToken = parseHashCheckoutToken(window.location.hash);
-    if (!hashToken) {
+    if (!queryToken) {
       return;
     }
 
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('checkout_token', hashToken);
-    nextParams.delete('token');
-    setSearchParams(nextParams, { replace: true });
-  }, [searchParams, setSearchParams]);
+    const normalizedParams = new URLSearchParams(searchParams);
+    normalizedParams.set('checkout_token', queryToken);
+    normalizedParams.delete('token');
+    setSearchParams(normalizedParams, { replace: true });
+  }, [checkoutToken, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!checkoutToken) {
+      return;
+    }
+
+    const scrubbedUrl = scrubCheckoutTokenFromUrl(new URL(window.location.href));
+    if (scrubbedUrl.toString() !== window.location.href) {
+      window.history.replaceState(window.history.state, '', scrubbedUrl.toString());
+    }
+  }, [checkoutToken]);
 
   const handleStartCheckout = async () => {
     if (!carId || !applicationId || !checkoutToken) {

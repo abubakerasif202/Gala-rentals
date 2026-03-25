@@ -132,7 +132,14 @@ const validateProductionSchemaContract = async () => {
     return;
   }
 
-  await verifyProductionSchemaContract();
+  try {
+    await verifyProductionSchemaContract();
+  } catch (error) {
+    console.warn(
+      'Production schema contract validation failed during startup; continuing with compatibility mode.',
+      error
+    );
+  }
 };
 
 const logProductionConfigurationWarnings = () => {

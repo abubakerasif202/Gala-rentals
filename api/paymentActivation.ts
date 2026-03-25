@@ -79,49 +79,35 @@ export const updateRentalsBySubscriptionIdentity = async (
 ) => {
   const compat = await getSchemaCompat();
 
-  if (compat.rentalStripeSubscriptionColumn) {
-    const { data: rentalBySubscription, error: rentalBySubscriptionError } = await db
-      .from('rentals')
-      .select('id')
-      .eq(compat.rentalStripeSubscriptionColumn, subscriptionId)
-      .maybeSingle();
-
-    if (rentalBySubscriptionError) {
-      throw new Error(
-        `Failed to inspect rental by subscription id: ${rentalBySubscriptionError.message || 'Unknown error'}`
-      );
-    }
-
-    if (rentalBySubscription?.id) {
-      const result = await db.from('rentals').update(payload).eq('id', rentalBySubscription.id);
-      assertSupabaseWrite(result, 'Failed to update rental by subscription id');
-      return;
-    }
-  }
-
-  if (!metadata.car_id || !metadata.application_id) {
-    return;
-  }
-
-  const { data: rentalByIdentity, error: rentalByIdentityError } = await db
-    .from('rentals')
-    .select('id')
-    .eq(await getRentalCarIdColumn(), Number(metadata.car_id))
-    .eq(await getRentalApplicationIdColumn(), Number(metadata.application_id))
-    .maybeSingle();
-
-  if (rentalByIdentityError) {
+  if (!compat.rentalStripeSubscriptionColumn) {
     throw new Error(
-      `Failed to inspect rental by car/application id: ${rentalByIdentityError.message || 'Unknown error'}`
+      'Rental schema is missing a Stripe subscription identity column; refusing fallback rental updates.'
     );
   }
 
-  if (!rentalByIdentity?.id) {
-    return;
+  const { data: rentalBySubscription, error: rentalBySubscriptionError } = await db
+    .from('rentals')
+    .select('id')
+    .eq(compat.rentalStripeSubscriptionColumn, subscriptionId)
+    .maybeSingle();
+
+  if (rentalBySubscriptionError) {
+    throw new Error(
+      `Failed to inspect rental by subscription id: ${rentalBySubscriptionError.message || 'Unknown error'}`
+    );
   }
 
-  const result = await db.from('rentals').update(payload).eq('id', rentalByIdentity.id);
-  assertSupabaseWrite(result, 'Failed to update rental by car/application id');
+  if (!rentalBySubscription?.id) {
+    const safeApplicationId = Number(metadata.application_id || 0) || null;
+    const safeCarId = Number(metadata.car_id || 0) || null;
+    throw new Error(
+      `No rental found for Stripe subscription ${subscriptionId}. ` +
+        `Refusing fallback update for application=${String(safeApplicationId)} car=${String(safeCarId)}.`
+    );
+  }
+
+  const result = await db.from('rentals').update(payload).eq('id', rentalBySubscription.id);
+  assertSupabaseWrite(result, 'Failed to update rental by subscription id');
 };
 
 const quoteIdentifier = (identifier: string) => `"${identifier.replace(/"/g, '""')}"`;
@@ -187,6 +173,7 @@ const applyVehicleCheckoutActivationWrites = async ({
   applicationId,
   carId,
   existingRentalId,
+  expectedPaymentLinkVersion,
   paidAt,
   rentalInsertPayload,
   rentalRepairPayload,
@@ -194,6 +181,7 @@ const applyVehicleCheckoutActivationWrites = async ({
   applicationId: number;
   carId: number;
   existingRentalId: number | null;
+  expectedPaymentLinkVersion: number;
   paidAt: string;
   rentalInsertPayload: Record<string, unknown>;
   rentalRepairPayload: Record<string, unknown>;
@@ -211,6 +199,48 @@ const applyVehicleCheckoutActivationWrites = async ({
   }
 
   await withPostgresTransaction(async (client) => {
+    const applicationRes = await client.query(
+      'SELECT status, payment_link_version, assigned_car_id FROM applications WHERE id = $1 FOR UPDATE',
+      [applicationId]
+    );
+
+    const lockedApplicationRow = applicationRes.rows[0] as
+      | {
+          assigned_car_id?: number | string | null;
+          payment_link_version?: number | string | null;
+          status?: string | null;
+        }
+      | undefined;
+
+    if (!lockedApplicationRow) {
+      throw new Error(`Application ${applicationId} disappeared while activating payment.`);
+    }
+
+    const lockedAssignedCarId = Number(lockedApplicationRow.assigned_car_id || 0);
+    if (lockedAssignedCarId !== carId) {
+      throw new Error(
+        `Application ${applicationId} is no longer assigned to car ${carId}; activation requires manual review.`
+      );
+    }
+
+    const lockedPaymentLinkVersion = Number(lockedApplicationRow.payment_link_version || 0);
+    if (lockedPaymentLinkVersion !== expectedPaymentLinkVersion) {
+      throw new Error(
+        `Application ${applicationId} payment link version changed from ${expectedPaymentLinkVersion} to ${lockedPaymentLinkVersion}.`
+      );
+    }
+
+    const lockedApplicationStatus = String(lockedApplicationRow.status || '');
+    if (
+      lockedApplicationStatus !== 'Approved' &&
+      lockedApplicationStatus !== 'Paid' &&
+      lockedApplicationStatus !== 'Payment Review'
+    ) {
+      throw new Error(
+        `Application ${applicationId} cannot be activated from status ${lockedApplicationStatus || 'Unknown'}.`
+      );
+    }
+
     // Lock the car row and re-validate availability inside the transaction
     const carRes = await client.query(
       'SELECT status FROM cars WHERE id = $1 FOR UPDATE',
@@ -450,14 +480,26 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
     return;
   }
 
+  const rentalsForApplication = existingRentals.filter(
+    (rental) => Number(rental[rentalApplicationIdColumn]) === applicationId
+  );
   let existingRental =
     (compat.rentalStripeSubscriptionColumn
       ? existingRentals.find(
           (rental) => rental[compat.rentalStripeSubscriptionColumn!] === subscriptionId
         )
-      : null) ||
-    existingRentals.find((rental) => Number(rental[rentalApplicationIdColumn]) === applicationId) ||
-    null;
+      : null) || null;
+
+  if (!existingRental && rentalsForApplication.length === 1) {
+    existingRental = rentalsForApplication[0];
+  }
+
+  if (!existingRental && rentalsForApplication.length > 1) {
+    await moveApplicationToPaymentReview(
+      `Multiple rentals match application ${applicationId} and car ${carId}; manual activation review required.`
+    );
+    return;
+  }
   const blockingRental = existingRentals.find(
     (rental) =>
       isLiveRentalStatus(rental.status) &&
@@ -517,6 +559,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
         applicationId,
         carId,
         existingRentalId: null,
+        expectedPaymentLinkVersion: sessionPaymentLinkVersion,
         paidAt: recordedPaidAt,
         rentalInsertPayload,
         rentalRepairPayload,
@@ -527,16 +570,26 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       }
 
       const refetchedRentals = await fetchExistingRentalsForCar(carId);
-      existingRental =
-        (compat.rentalStripeSubscriptionColumn
-          ? refetchedRentals.rentals.find(
-              (rental) => rental[compat.rentalStripeSubscriptionColumn!] === subscriptionId
-            )
-          : null) ||
-        refetchedRentals.rentals.find(
+        const refetchedRentalsForApplication = refetchedRentals.rentals.filter(
           (rental) => Number(rental[rentalApplicationIdColumn]) === applicationId
-        ) ||
-        null;
+        );
+
+        existingRental =
+          (compat.rentalStripeSubscriptionColumn
+            ? refetchedRentals.rentals.find(
+                (rental) => rental[compat.rentalStripeSubscriptionColumn!] === subscriptionId
+              )
+            : null) ||
+          (refetchedRentalsForApplication.length === 1
+            ? refetchedRentalsForApplication[0]
+            : null);
+
+        if (!existingRental && refetchedRentalsForApplication.length > 1) {
+          await moveApplicationToPaymentReview(
+            `Multiple rentals match application ${applicationId} and car ${carId}; manual activation review required.`
+          );
+          return;
+        }
 
       if (!existingRental) {
         throw new Error(
@@ -563,6 +616,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       applicationId,
       carId,
       existingRentalId: Number(existingRental.id),
+      expectedPaymentLinkVersion: sessionPaymentLinkVersion,
       paidAt: recordedPaidAt,
       rentalInsertPayload,
       rentalRepairPayload,

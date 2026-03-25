@@ -7,6 +7,11 @@ import Seo from '../components/Seo';
 import { createVehicleCheckoutSession, fetchApprovedPaymentContext } from '../lib/api';
 import { getApiErrorMessage } from '../lib/errorHandling';
 
+const parseHashCheckoutToken = (hashValue: string) => {
+  const params = new URLSearchParams(hashValue.startsWith('#') ? hashValue.slice(1) : hashValue);
+  return params.get('checkout_token') || params.get('token') || '';
+};
+
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
@@ -16,22 +21,14 @@ const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
 
 export default function Checkout() {
   const { id } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [pageError, setPageError] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const applicationId = Number(searchParams.get('application_id') || 0);
-  const hashParams = new URLSearchParams(
-    searchParams.get('checkout_token')
-      ? ''
-      : window.location.hash.startsWith('#')
-        ? window.location.hash.slice(1)
-        : window.location.hash
-  );
   const checkoutToken =
-    hashParams.get('checkout_token') ||
     searchParams.get('checkout_token') ||
     searchParams.get('token') ||
-    '';
+    parseHashCheckoutToken(window.location.hash);
   const carId = Number(id || 0);
   const pageSeo = (
     <Seo
@@ -63,6 +60,22 @@ export default function Checkout() {
       setPageError('Stripe checkout was canceled. You can reopen the secure payment session below.');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get('checkout_token')) {
+      return;
+    }
+
+    const hashToken = parseHashCheckoutToken(window.location.hash);
+    if (!hashToken) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('checkout_token', hashToken);
+    nextParams.delete('token');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const handleStartCheckout = async () => {
     if (!carId || !applicationId || !checkoutToken) {

@@ -178,7 +178,7 @@ const buildCancelUrl = ({
   const checkoutUrl = new URL(`/checkout/${carId}`, getAppBaseUrl());
   checkoutUrl.searchParams.set('application_id', String(applicationId));
   checkoutUrl.searchParams.set('resume_payment', '1');
-  checkoutUrl.hash = `checkout_token=${encodeURIComponent(token)}`;
+  checkoutUrl.searchParams.set('checkout_token', token);
   return checkoutUrl.toString();
 };
 
@@ -195,7 +195,7 @@ const buildSuccessUrl = ({
   url.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}');
   url.searchParams.set('application_id', String(applicationId));
   url.searchParams.set('car_id', String(carId));
-  url.hash = `checkout_token=${encodeURIComponent(token)}`;
+  url.searchParams.set('checkout_token', token);
   return url.toString();
 };
 

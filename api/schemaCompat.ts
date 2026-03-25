@@ -81,6 +81,10 @@ const fetchOpenApiDefinitions = async (): Promise<Record<string, OpenApiDefiniti
 };
 
 export const getSchemaCompat = async (): Promise<SchemaCompat> => {
+  if (process.env.NODE_ENV === 'production') {
+    return DEFAULT_SCHEMA_COMPAT;
+  }
+
   const now = Date.now();
 
   if (

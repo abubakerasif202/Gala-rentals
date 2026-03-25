@@ -48,6 +48,7 @@ import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
 const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
+const APPLICATION_LIST_DOCUMENT_SIGNING_LIMIT = 100;
 const ALLOWED_APPLICATION_IMAGE_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
 const getStripe = () => getStripeClient();
 
@@ -118,6 +119,9 @@ const createSignedDocumentUrl = async (path: string | null | undefined) => {
 
   return data.signedUrl;
 };
+
+const hasAvailableDocumentSigningCapacity = (index: number) =>
+  index < APPLICATION_LIST_DOCUMENT_SIGNING_LIMIT;
 
 type ApplicationPaymentApprovalRecord = {
   approved_bond?: number | null;
@@ -258,12 +262,20 @@ router.get('/', authenticateAdmin, async (_req, res) => {
 
   const rows = ((data || []) as Array<Record<string, any>>);
   const applications = await Promise.all(
-    rows.map(async (application) => {
+    rows.map(async (application, index) => {
       const {
         uber_screenshot: _legacyUberScreenshot,
         uberScreenshot: _legacyUberScreenshotCamel,
         ...rest
       } = application;
+
+      if (!hasAvailableDocumentSigningCapacity(index)) {
+        return {
+          ...rest,
+          license_photo: null,
+          license_back_photo: null,
+        };
+      }
 
       return {
         ...rest,

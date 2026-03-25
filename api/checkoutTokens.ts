@@ -6,6 +6,7 @@ type CheckoutTokenPayload = {
   applicationId: number;
   carId: number | null;
   expiresAt: number;
+  nonce: string;
   purpose: CheckoutTokenPurpose;
   version: number;
 };
@@ -48,6 +49,7 @@ export const createCheckoutToken = ({
     applicationId,
     carId,
     expiresAt: Date.now() + expiresInHours * 60 * 60 * 1000,
+    nonce: crypto.randomBytes(12).toString('hex'),
     purpose,
     version,
   });

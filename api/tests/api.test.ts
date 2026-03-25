@@ -238,6 +238,7 @@ vi.mock('../db/index.js', () => {
 
   type QueryFilter =
     | { type: 'eq'; column: string; value: unknown }
+    | { type: 'gte'; column: string; value: unknown }
     | { type: 'ilike'; column: string; pattern: string }
     | { type: 'in'; column: string; values: unknown[] }
     | { type: 'or'; clauses: Array<{ column: string; search: string }> };
@@ -250,6 +251,29 @@ vi.mock('../db/index.js', () => {
       filters.every((filter) => {
         if (filter.type === 'eq') {
           return String(row[filter.column]) === String(filter.value);
+        }
+
+        if (filter.type === 'gte') {
+          const left = row[filter.column];
+          const right = filter.value;
+
+          if (left == null || right == null) {
+            return false;
+          }
+
+          const leftAsNumber = Number(left);
+          const rightAsNumber = Number(right);
+          if (Number.isFinite(leftAsNumber) && Number.isFinite(rightAsNumber)) {
+            return leftAsNumber >= rightAsNumber;
+          }
+
+          const leftAsTime = Date.parse(String(left));
+          const rightAsTime = Date.parse(String(right));
+          if (Number.isFinite(leftAsTime) && Number.isFinite(rightAsTime)) {
+            return leftAsTime >= rightAsTime;
+          }
+
+          return String(left) >= String(right);
         }
 
         if (filter.type === 'ilike') {
@@ -405,6 +429,9 @@ vi.mock('../db/index.js', () => {
       eq: vi.fn((column: string, value: unknown) =>
         createSelectQuery(table, columns, options, [...filters, { type: 'eq', column, value }], order, range)
       ),
+      gte: vi.fn((column: string, value: unknown) =>
+        createSelectQuery(table, columns, options, [...filters, { type: 'gte', column, value }], order, range)
+      ),
       ilike: vi.fn((column: string, pattern: string) =>
         createSelectQuery(
           table,
@@ -542,6 +569,12 @@ vi.mock('../db/index.js', () => {
           { type: 'eq', column, value },
         ])
       ),
+      gte: vi.fn((column: string, value: unknown) =>
+        createMutationQuery(table, action, payload, [
+          ...filters,
+          { type: 'gte', column, value },
+        ])
+      ),
       select: vi.fn(() => ({
         maybeSingle: vi.fn(async () => {
           const { data, error } = await applyMutation();
@@ -594,6 +627,10 @@ vi.mock('../db/index.js', () => {
           single: vi.fn(async () => ({ data: null, error: null })),
         })),
       };
+    }
+
+    if (table === 'stripe_webhook_events' && !insertedRow.received_at) {
+      insertedRow.received_at = new Date().toISOString();
     }
 
     if (table === 'cars') {
@@ -711,6 +748,22 @@ vi.mock('../db/postgres.js', () => {
         return {
           rowCount: car ? 1 : 0,
           rows: car ? [{ status: car.status }] : [],
+        };
+      }
+
+      if (sql.startsWith('SELECT status, payment_link_version, assigned_car_id FROM applications WHERE id = $1 FOR UPDATE')) {
+        const application = mockState.applications.find((row) => Number(row.id) === Number(values[0]));
+        return {
+          rowCount: application ? 1 : 0,
+          rows: application
+            ? [
+                {
+                  assigned_car_id: application.assigned_car_id,
+                  payment_link_version: application.payment_link_version,
+                  status: application.status,
+                },
+              ]
+            : [],
         };
       }
 
@@ -1952,7 +2005,7 @@ describe('Stripe API', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.email_delivered).toBe(false);
     expect(res.body.checkout_url).toContain('/checkout/1?');
-    expect(res.body.checkout_url).toContain('#checkout_token=');
+    expect(res.body.checkout_url).toContain('checkout_token=');
     expect(mockStripe.checkoutSessionsExpire).toHaveBeenCalledWith('cs_old_pending');
 
     expect(mockState.applications[0]).toMatchObject({
@@ -2387,10 +2440,10 @@ describe('Stripe API', () => {
     expect(payload.cancel_url).toContain('/checkout/1?');
     expect(payload.cancel_url).toContain('application_id=2');
     expect(payload.cancel_url).toContain('resume_payment=1');
-    expect(payload.cancel_url).toContain(`#checkout_token=${encodeURIComponent(token.token)}`);
+    expect(payload.cancel_url).toContain(`checkout_token=${encodeURIComponent(token.token)}`);
     expect(payload.success_url).toContain('application_id=2');
     expect(payload.success_url).toContain('car_id=1');
-    expect(payload.success_url).toContain(`#checkout_token=${encodeURIComponent(token.token)}`);
+    expect(payload.success_url).toContain(`checkout_token=${encodeURIComponent(token.token)}`);
   });
 
   it('POST /api/stripe/vehicle-checkout-session derives a stable retry idempotency key from the stale session id', async () => {
@@ -2516,7 +2569,7 @@ describe('Stripe API', () => {
     expect(res.body.checkout_url).toContain('application_id=2');
     expect(mockState.applications[1].payment_link_version).toBe(2);
     expect(res.body.checkout_url).toContain(
-      `#checkout_token=${encodeURIComponent(res.body.checkout_token)}`
+      `checkout_token=${encodeURIComponent(res.body.checkout_token)}`
     );
 
     const verified = verifyCheckoutToken({
@@ -2759,7 +2812,7 @@ describe('Stripe API', () => {
     expect(mockState.rentals).toHaveLength(0);
   });
 
-  it('POST /api/stripe/webhook falls back to car/application identity when the rental has no Stripe subscription id', async () => {
+  it('POST /api/stripe/webhook skips subscription lifecycle updates when strict Stripe rental identity is missing', async () => {
     mockState.cars[0].status = 'Rented';
     mockState.rentals = [
       {
@@ -2793,7 +2846,7 @@ describe('Stripe API', () => {
       .send('{}');
 
     expect(res.status).toBe(200);
-    expect(mockState.rentals[0].status).toBe('Overdue');
+    expect(mockState.rentals[0].status).toBe('Active');
   });
 
   it('POST /api/stripe/webhook sends stale checkout sessions to manual review instead of activating the wrong car', async () => {
@@ -2983,6 +3036,50 @@ describe('Stripe API', () => {
     expect(second.status).toBe(200);
     expect(mockState.stripe_webhook_events).toHaveLength(1);
     expect(mockState.rentals).toHaveLength(1);
+  });
+
+  it('POST /api/stripe/webhook retries stale in-flight ledger events after reclaiming the claim', async () => {
+    mockState.stripe_webhook_events = [
+      {
+        id: 999,
+        stripe_event_id: 'evt_stale_processing',
+        event_type: 'checkout.session.completed',
+        status: 'processing',
+        received_at: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
+      },
+    ];
+
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_stale_processing',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_stale_reclaim',
+          payment_status: 'paid',
+          metadata: {
+            application_id: '2',
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+          customer: 'cus_stale_reclaim',
+          subscription: 'sub_stale_reclaim',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(mockState.rentals).toHaveLength(1);
+    expect(mockState.stripe_webhook_events).toHaveLength(1);
+    expect(mockState.stripe_webhook_events[0].status).toBe('processed');
   });
 
   it('POST /api/stripe/webhook blocks duplicate vehicle activation for the same car', async () => {

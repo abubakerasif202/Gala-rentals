@@ -15,15 +15,22 @@ const router = express.Router();
 const getStripe = () => getStripeClient();
 
 const STRIPE_WEBHOOK_DUPLICATE_ERROR_CODE = '23505';
+const STALE_WEBHOOK_PROCESSING_WINDOW_MS = 5 * 60 * 1000;
 
 const todayIsoDate = () => getTodayInAustralia();
 
-type WebhookLedgerStatus = 'received' | 'processed' | 'failed';
+type WebhookLedgerStatus = 'received' | 'processing' | 'processed' | 'failed';
+
+type WebhookEventClaim =
+  | { eventId: string; mode: 'owned' }
+  | { eventId: string; mode: 'already_processed' }
+  | { eventId: string; mode: 'in_flight' }
+  | { eventId: null; mode: 'no_dedupe' };
 
 const readLedgerRow = async (eventId: string) => {
   const { data, error } = await db
     .from('stripe_webhook_events')
-    .select('id, status')
+    .select('id, status, received_at')
     .eq('stripe_event_id', eventId)
     .maybeSingle();
 
@@ -33,18 +40,109 @@ const readLedgerRow = async (eventId: string) => {
     );
   }
 
-  return data as { id: number; status?: WebhookLedgerStatus | null } | null;
+  return data as {
+    id: number;
+    received_at?: string | null;
+    status?: WebhookLedgerStatus | null;
+  } | null;
+};
+
+const canReclaimStaleProcessingEvent = (receivedAt?: string | null) => {
+  if (!receivedAt) {
+    return false;
+  }
+
+  const receivedAtMs = Date.parse(receivedAt);
+  if (!Number.isFinite(receivedAtMs)) {
+    return false;
+  }
+
+  return Date.now() - receivedAtMs >= STALE_WEBHOOK_PROCESSING_WINDOW_MS;
+};
+
+const claimLedgerForProcessing = async (eventId: string) => {
+  const claimByStatus = async (status: 'received' | 'failed') => {
+    const { data, error } = await db
+      .from('stripe_webhook_events')
+      .update({
+        status: 'processing',
+        error_message: null,
+        processed_at: null,
+      })
+      .eq('stripe_event_id', eventId)
+      .eq('status', status)
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(
+        `Failed to claim Stripe webhook ledger row ${eventId} for processing: ${error.message || 'Unknown error'}`
+      );
+    }
+
+    return Boolean(data?.id);
+  };
+
+  if (await claimByStatus('received')) {
+    return true;
+  }
+
+  return claimByStatus('failed');
+};
+
+const reclaimStaleInFlightLedger = async (
+  eventId: string,
+  existingReceivedAt: string | null | undefined
+) => {
+  if (!canReclaimStaleProcessingEvent(existingReceivedAt)) {
+    return false;
+  }
+
+  const { data, error } = await db
+    .from('stripe_webhook_events')
+    .update({
+      error_message: null,
+      received_at: new Date().toISOString(),
+      status: 'processing',
+    })
+    .eq('stripe_event_id', eventId)
+    .eq('status', 'processing')
+    .eq('received_at', existingReceivedAt || '')
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to reclaim stale Stripe webhook ledger row ${eventId}: ${error.message || 'Unknown error'}`
+    );
+  }
+
+  return Boolean(data?.id);
 };
 
 const markLedgerProcessed = async (eventId: string) => {
-  const { error } = await db
+  const { data, error } = await db
     .from('stripe_webhook_events')
     .update({ status: 'processed', processed_at: new Date().toISOString(), error_message: null })
-    .eq('stripe_event_id', eventId);
+    .eq('stripe_event_id', eventId)
+    .eq('status', 'processing')
+    .select('id')
+    .maybeSingle();
 
   if (error) {
     throw new Error(
       `Failed to mark Stripe webhook ledger row ${eventId} as processed: ${error.message || 'Unknown error'}`
+    );
+  }
+
+  if (!data?.id) {
+    const existing = await readLedgerRow(eventId);
+    if (existing?.status === 'processed') {
+      return;
+    }
+
+    throw new Error(
+      `Stripe webhook ledger row ${eventId} was not in a processing state when finalizing.`
     );
   }
 };
@@ -53,7 +151,8 @@ const markLedgerFailed = async (eventId: string, errorMessage: string) => {
   const { error } = await db
     .from('stripe_webhook_events')
     .update({ status: 'failed', error_message: errorMessage })
-    .eq('stripe_event_id', eventId);
+    .eq('stripe_event_id', eventId)
+    .eq('status', 'processing');
 
   if (error) {
     console.error(
@@ -63,38 +162,61 @@ const markLedgerFailed = async (eventId: string, errorMessage: string) => {
   }
 };
 
-const persistWebhookEventIfNew = async (event: Stripe.Event) => {
+const claimWebhookEvent = async (event: Stripe.Event): Promise<WebhookEventClaim> => {
   const eventId = typeof event.id === 'string' ? event.id.trim() : '';
   if (!eventId) {
     console.warn(
       `Stripe webhook event for ${event.type} is missing a stable id; skipping dedupe ledger persistence.`
     );
-    return { isDuplicate: false as const, persisted: false as const };
+    return { eventId: null, mode: 'no_dedupe' };
   }
 
   const { error } = await db.from('stripe_webhook_events').insert([
     {
       stripe_event_id: eventId,
       event_type: event.type,
-      status: 'received',
+      status: 'processing',
     },
   ]);
 
   if (!error) {
-    return { isDuplicate: false as const, persisted: true as const };
+    return { eventId, mode: 'owned' };
   }
 
   const errorCode = String((error as { code?: string }).code || '');
   if (errorCode === STRIPE_WEBHOOK_DUPLICATE_ERROR_CODE) {
     const existing = await readLedgerRow(eventId);
     const existingStatus = existing?.status || null;
-    return {
-      // Only short-circuit if we've successfully processed this event before.
-      // If the last attempt failed (or never finished), allow Stripe retries.
-      isDuplicate: existingStatus === 'processed',
-      persisted: false as const,
-      eventId,
-    };
+
+    if (existingStatus === 'processed') {
+      return { eventId, mode: 'already_processed' };
+    }
+
+    if (existingStatus === 'processing') {
+      if (await reclaimStaleInFlightLedger(eventId, existing?.received_at)) {
+        return { eventId, mode: 'owned' };
+      }
+
+      return { eventId, mode: 'in_flight' };
+    }
+
+    const claimed = await claimLedgerForProcessing(eventId);
+    if (claimed) {
+      return { eventId, mode: 'owned' };
+    }
+
+    const refreshed = await readLedgerRow(eventId);
+    if (refreshed?.status === 'processed') {
+      return { eventId, mode: 'already_processed' };
+    }
+
+    if (refreshed?.status === 'processing') {
+      return { eventId, mode: 'in_flight' };
+    }
+
+    throw new Error(
+      `Unable to claim Stripe webhook event ${eventId}; current ledger status is ${String(refreshed?.status || 'unknown')}.`
+    );
   }
 
   throw new Error(
@@ -104,6 +226,30 @@ const persistWebhookEventIfNew = async (event: Stripe.Event) => {
 
 const shouldReleaseVehicleAfterSubscriptionDeletion = (subscription: Stripe.Subscription) =>
   subscription.cancellation_details?.reason === 'cancellation_requested';
+
+const isMissingSubscriptionRentalIdentityError = (error: unknown) =>
+  error instanceof Error &&
+  (error.message.includes('No rental found for Stripe subscription') ||
+    error.message.includes('missing a Stripe subscription identity column'));
+
+const updateRentalBySubscriptionIdentityOrSkip = async (
+  subscriptionId: string,
+  metadata: Record<string, string | undefined>,
+  payload: Record<string, unknown>
+) => {
+  try {
+    await updateRentalsBySubscriptionIdentity(subscriptionId, metadata, payload);
+  } catch (error) {
+    if (isMissingSubscriptionRentalIdentityError(error)) {
+      console.warn(
+        `Ignoring subscription lifecycle webhook for ${subscriptionId} because no strict Stripe rental identity could be resolved.`
+      );
+      return;
+    }
+
+    throw error;
+  }
+};
 
 router.post('/', async (request, response) => {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
@@ -133,12 +279,19 @@ router.post('/', async (request, response) => {
     return;
   }
 
-  let processedWebhookBusinessLogic = false;
+  let webhookClaim: WebhookEventClaim = { eventId: null, mode: 'no_dedupe' };
 
   try {
-    const webhookEventState = await persistWebhookEventIfNew(event);
-    if (webhookEventState.isDuplicate) {
+    webhookClaim = await claimWebhookEvent(event);
+
+    if (webhookClaim.mode === 'already_processed') {
       response.status(200).send('received');
+      return;
+    }
+
+    if (webhookClaim.mode === 'in_flight') {
+      // Return non-2xx so Stripe retries after the in-flight worker settles.
+      response.status(409).send('Webhook event is currently processing');
       return;
     }
 
@@ -165,7 +318,7 @@ router.post('/', async (request, response) => {
 
         if (subscriptionId) {
           const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
-          await updateRentalsBySubscriptionIdentity(
+          await updateRentalBySubscriptionIdentityOrSkip(
             subscriptionId,
             subscription.metadata,
             await getRentalStatusUpdatePayload('Overdue')
@@ -180,7 +333,7 @@ router.post('/', async (request, response) => {
         const shouldReleaseVehicle = shouldReleaseVehicleAfterSubscriptionDeletion(subscription);
         const nextRentalStatus = shouldReleaseVehicle ? 'Completed' : 'Cancelled';
 
-        await updateRentalsBySubscriptionIdentity(
+        await updateRentalBySubscriptionIdentityOrSkip(
           subscriptionId,
           subscription.metadata,
           await getRentalStatusUpdatePayload(nextRentalStatus, todayIsoDate())
@@ -197,13 +350,13 @@ router.post('/', async (request, response) => {
         const status = subscription.status;
 
         if (status === 'past_due' || status === 'unpaid') {
-          await updateRentalsBySubscriptionIdentity(
+          await updateRentalBySubscriptionIdentityOrSkip(
             subscriptionId,
             subscription.metadata,
             await getRentalStatusUpdatePayload('Overdue')
           );
         } else if (status === 'active') {
-          await updateRentalsBySubscriptionIdentity(
+          await updateRentalBySubscriptionIdentityOrSkip(
             subscriptionId,
             subscription.metadata,
             await getRentalStatusUpdatePayload('Active')
@@ -214,19 +367,18 @@ router.post('/', async (request, response) => {
       default:
         console.log(`Stripe Webhook: unhandled event type ${event.type}`);
     }
-    processedWebhookBusinessLogic = true;
   } catch (err) {
-    if (!processedWebhookBusinessLogic && event?.id) {
+    if (webhookClaim.mode === 'owned' && webhookClaim.eventId) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      await markLedgerFailed(event.id, message);
+      await markLedgerFailed(webhookClaim.eventId, message);
     }
     console.error(`Error processing webhook event ${event.type}:`, err);
     return response.status(500).send('Webhook processing failed');
   }
 
-  if (event.id) {
+  if (webhookClaim.mode === 'owned' && webhookClaim.eventId) {
     try {
-      await markLedgerProcessed(event.id);
+      await markLedgerProcessed(webhookClaim.eventId);
     } catch (err) {
       // The event processing itself already succeeded. Do not downgrade the
       // ledger state to failed here; return 500 so Stripe retries and we can

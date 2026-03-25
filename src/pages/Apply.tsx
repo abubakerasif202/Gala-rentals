@@ -34,6 +34,7 @@ import {
 } from '../../shared/rentalPricing';
 
 const ALLOWED_UPLOAD_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
+const MAX_UPLOAD_SIZE_MB = Math.floor(MAX_APPLICATION_UPLOAD_BYTES / (1024 * 1024));
 
 const getDisplayBond = (car: Pick<Car, 'bond' | 'weekly_price'>) => {
   const storedBond = Number(car.bond);
@@ -105,6 +106,17 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{message}</p>;
 }
 
+const estimateBase64Bytes = (dataUrl: string) => {
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex < 0) {
+    return 0;
+  }
+
+  const base64Data = dataUrl.slice(commaIndex + 1);
+  const strippedLength = base64Data.replace(/=+$/, '').length;
+  return Math.floor((strippedLength * 3) / 4);
+};
+
 function StepHeader({ step }: { step: number }) {
   const items = [
     { step: 1, label: 'Driver Details', icon: User },
@@ -148,6 +160,9 @@ export default function Apply() {
   const [availableCars, setAvailableCars] = useState<Car[]>([]);
   const [carsError, setCarsError] = useState<string | null>(null);
   const [submittedApplicationId, setSubmittedApplicationId] = useState<string | null>(null);
+  const [isEncodingDocument, setIsEncodingDocument] = useState<
+    'license_photo' | 'license_back_photo' | null
+  >(null);
   const {
     register,
     handleSubmit,
@@ -227,20 +242,40 @@ export default function Apply() {
     if (!ALLOWED_UPLOAD_TYPES.has(file.type)) {
       event.target.value = '';
       setValue(field, '', { shouldValidate: true });
-      setPageError('Please upload a JPG or PNG smaller than 7 MB.');
+      setPageError(`Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`);
       return;
     }
     if (file.size > MAX_APPLICATION_UPLOAD_BYTES) {
       event.target.value = '';
       setValue(field, '', { shouldValidate: true });
-      setPageError('Please upload a JPG or PNG smaller than 7 MB.');
+      setPageError(`Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`);
       return;
     }
 
+    setIsEncodingDocument(field);
     const reader = new FileReader();
     reader.onloadend = () => {
-      setValue(field, String(reader.result || ''), { shouldValidate: true });
+      const encodedValue = String(reader.result || '');
+
+      if (estimateBase64Bytes(encodedValue) > MAX_APPLICATION_UPLOAD_BYTES) {
+        event.target.value = '';
+        setValue(field, '', { shouldValidate: true });
+        setPageError(
+          `The encoded image exceeded ${MAX_UPLOAD_SIZE_MB} MB. Please upload a smaller file.`
+        );
+        setIsEncodingDocument(null);
+        return;
+      }
+
+      setValue(field, encodedValue, { shouldValidate: true });
       setPageError(null);
+      setIsEncodingDocument(null);
+    };
+    reader.onerror = () => {
+      event.target.value = '';
+      setValue(field, '', { shouldValidate: true });
+      setPageError('We could not read this file. Please try a different JPG or PNG image.');
+      setIsEncodingDocument(null);
     };
     reader.readAsDataURL(file);
   };
@@ -264,6 +299,11 @@ export default function Apply() {
   };
 
   const onSubmit = async (values: ApplyValues) => {
+    if (isEncodingDocument) {
+      setPageError('Please wait for document processing to finish before submitting.');
+      return;
+    }
+
     setIsSubmitting(true);
     setPageError(null);
 
@@ -590,7 +630,7 @@ export default function Apply() {
                           Driver licence front photo
                         </p>
                         <p className="text-sm text-brand-grey font-light mt-2">
-                          Upload a clear JPG or PNG. Maximum file size is 7 MB.
+                          Upload a clear JPG or PNG. Maximum file size is {MAX_UPLOAD_SIZE_MB} MB.
                         </p>
                       </div>
                       <label className="rounded-2xl border border-dashed border-white/15 bg-white/5 px-5 py-8 flex flex-col items-center gap-3 text-center cursor-pointer hover:border-brand-gold/40 transition-all">
@@ -599,7 +639,11 @@ export default function Apply() {
                           Upload front photo
                         </span>
                         <span className="text-xs text-brand-grey font-light">
-                          {licensePhoto ? 'File attached' : 'Choose an image file'}
+                           {isEncodingDocument === 'license_photo'
+                             ? 'Processing image...'
+                             : licensePhoto
+                               ? 'File attached'
+                               : 'Choose an image file'}
                         </span>
                         <input
                           type="file"
@@ -617,7 +661,7 @@ export default function Apply() {
                         </p>
                         <p className="text-sm text-brand-grey font-light mt-2">
                           Upload the back of your licence as a clear JPG or PNG. Maximum file size is
-                          7 MB.
+                           {MAX_UPLOAD_SIZE_MB} MB.
                         </p>
                       </div>
                       <label className="rounded-2xl border border-dashed border-white/15 bg-white/5 px-5 py-8 flex flex-col items-center gap-3 text-center cursor-pointer hover:border-brand-gold/40 transition-all">
@@ -626,7 +670,11 @@ export default function Apply() {
                           Upload back photo
                         </span>
                         <span className="text-xs text-brand-grey font-light">
-                          {licenseBackPhoto ? 'File attached' : 'Choose an image file'}
+                           {isEncodingDocument === 'license_back_photo'
+                             ? 'Processing image...'
+                             : licenseBackPhoto
+                               ? 'File attached'
+                               : 'Choose an image file'}
                         </span>
                         <input
                           type="file"
@@ -649,7 +697,7 @@ export default function Apply() {
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmitting}
+                       disabled={isSubmitting || isEncodingDocument !== null}
                       className="inline-flex items-center justify-center gap-3 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all disabled:opacity-50"
                     >
                       {isSubmitting ? (

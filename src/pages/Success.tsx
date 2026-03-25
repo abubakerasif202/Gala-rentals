@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import axios from 'axios';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -5,22 +6,38 @@ import { CheckCircle, Home, Loader2 } from 'lucide-react';
 import Seo from '../components/Seo';
 import { fetchCheckoutSessionStatus } from '../lib/api';
 
+const parseHashCheckoutToken = (hashValue: string) => {
+  const params = new URLSearchParams(hashValue.startsWith('#') ? hashValue.slice(1) : hashValue);
+  return params.get('checkout_token') || params.get('token') || '';
+};
+
 export default function Success() {
-  const [searchParams] = useSearchParams();
-  const hashParams = new URLSearchParams(
-    window.location.hash.startsWith('#')
-      ? window.location.hash.slice(1)
-      : window.location.hash
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
   const applicationId = Number(searchParams.get('application_id') || 0);
   const checkoutToken =
-    hashParams.get('checkout_token') ||
     searchParams.get('checkout_token') ||
     searchParams.get('token') ||
+    parseHashCheckoutToken(window.location.hash) ||
     '';
   const carId = Number(searchParams.get('car_id') || 0);
   const hasVerificationContext = Boolean(sessionId && applicationId && checkoutToken && carId);
+
+  useEffect(() => {
+    if (searchParams.get('checkout_token')) {
+      return;
+    }
+
+    const hashToken = parseHashCheckoutToken(window.location.hash);
+    if (!hashToken) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('checkout_token', hashToken);
+    nextParams.delete('token');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['stripe-checkout-session', sessionId, applicationId, carId, checkoutToken],

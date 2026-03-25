@@ -8,6 +8,7 @@ describe('schemaCompat', () => {
     vi.restoreAllMocks();
     process.env = {
       ...ORIGINAL_ENV,
+      NODE_ENV: 'development',
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
       VITEST: 'false',

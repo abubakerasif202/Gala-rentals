@@ -277,7 +277,6 @@ const createHostedCheckoutSession = async ({
       line_items: await buildSubscriptionLineItems({ billingBreakdown }),
       metadata,
       mode: 'subscription',
-      payment_method_types: ['card'],
       subscription_data: {
         metadata,
       },

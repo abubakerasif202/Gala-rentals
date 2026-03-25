@@ -315,8 +315,6 @@ export const maybeMarkCarAvailable = async (carId: number) => {
 export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.Session) => {
   const applicationId = Number(session.metadata?.application_id || 0);
   const carId = Number(session.metadata?.car_id || 0);
-  const approvedWeeklyPrice = Number(session.metadata?.approved_weekly_price || 0);
-  const approvedBond = Number(session.metadata?.approved_bond || 0);
   const sessionPaymentLinkVersion = Number(session.metadata?.payment_link_version || 0);
   const subscriptionId =
     typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null;
@@ -347,6 +345,20 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
   const application = applicationResult.data as unknown as Record<string, unknown>;
   const car = carResult.data as Record<string, unknown>;
   const { compat, rentalApplicationIdColumn, rentals: existingRentals } = existingRentalsResult;
+  const approvedWeeklyPrice =
+    Number(
+      application.approved_weekly_price ??
+        application.approvedWeeklyPrice ??
+        session.metadata?.approved_weekly_price ??
+        0
+    ) || 0;
+  const approvedBond =
+    Number(
+      application.approved_bond ??
+        application.approvedBond ??
+        session.metadata?.approved_bond ??
+        0
+    ) || 0;
   const safeApplicantName = escapeHtml(String(application.name || ''));
   const safeCarName = escapeHtml(String(car.name || ''));
   const recordedPaidAt = application.paid_at

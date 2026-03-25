@@ -18,6 +18,51 @@ const STRIPE_WEBHOOK_DUPLICATE_ERROR_CODE = '23505';
 
 const todayIsoDate = () => getTodayInAustralia();
 
+type WebhookLedgerStatus = 'received' | 'processed' | 'failed';
+
+const readLedgerRow = async (eventId: string) => {
+  const { data, error } = await db
+    .from('stripe_webhook_events')
+    .select('id, status')
+    .eq('stripe_event_id', eventId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to read Stripe webhook ledger row ${eventId}: ${error.message || 'Unknown error'}`
+    );
+  }
+
+  return data as { id: number; status?: WebhookLedgerStatus | null } | null;
+};
+
+const markLedgerProcessed = async (eventId: string) => {
+  const { error } = await db
+    .from('stripe_webhook_events')
+    .update({ status: 'processed', processed_at: new Date().toISOString(), error_message: null })
+    .eq('stripe_event_id', eventId);
+
+  if (error) {
+    throw new Error(
+      `Failed to mark Stripe webhook ledger row ${eventId} as processed: ${error.message || 'Unknown error'}`
+    );
+  }
+};
+
+const markLedgerFailed = async (eventId: string, errorMessage: string) => {
+  const { error } = await db
+    .from('stripe_webhook_events')
+    .update({ status: 'failed', error_message: errorMessage })
+    .eq('stripe_event_id', eventId);
+
+  if (error) {
+    console.error(
+      `Failed to mark Stripe webhook ledger row ${eventId} as failed:`,
+      error
+    );
+  }
+};
+
 const persistWebhookEventIfNew = async (event: Stripe.Event) => {
   const eventId = typeof event.id === 'string' ? event.id.trim() : '';
   if (!eventId) {
@@ -31,6 +76,7 @@ const persistWebhookEventIfNew = async (event: Stripe.Event) => {
     {
       stripe_event_id: eventId,
       event_type: event.type,
+      status: 'received',
     },
   ]);
 
@@ -40,7 +86,15 @@ const persistWebhookEventIfNew = async (event: Stripe.Event) => {
 
   const errorCode = String((error as { code?: string }).code || '');
   if (errorCode === STRIPE_WEBHOOK_DUPLICATE_ERROR_CODE) {
-    return { isDuplicate: true as const, persisted: false as const };
+    const existing = await readLedgerRow(eventId);
+    const existingStatus = existing?.status || null;
+    return {
+      // Only short-circuit if we've successfully processed this event before.
+      // If the last attempt failed (or never finished), allow Stripe retries.
+      isDuplicate: existingStatus === 'processed',
+      persisted: false as const,
+      eventId,
+    };
   }
 
   throw new Error(
@@ -158,7 +212,15 @@ router.post('/', async (request, response) => {
       default:
         console.log(`Stripe Webhook: unhandled event type ${event.type}`);
     }
+
+    if (event.id) {
+      await markLedgerProcessed(event.id);
+    }
   } catch (err) {
+    if (event?.id) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      await markLedgerFailed(event.id, message);
+    }
     console.error(`Error processing webhook event ${event.type}:`, err);
     return response.status(500).send('Webhook processing failed');
   }

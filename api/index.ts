@@ -42,7 +42,6 @@ import { buildContentSecurityPolicyDirectives } from './securityPolicy.js';
 import { indexNowConfig } from './services/indexNow.js';
 import { getPaymentProcessingMode } from './paymentProcessing.js';
 import { verifyProductionSchemaContract } from './schemaContract.js';
-import { APPLICATION_SUBMISSION_JSON_LIMIT_BYTES } from '../shared/applicationSubmission.js';
 
 const isVitest = process.env.VITEST === 'true';
 const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
@@ -379,13 +378,6 @@ const registerCoreRoutes = (app: express.Express) => {
       );
     }
   });
-
-  // Applications include two base64-encoded licence images and need a much larger
-  // parser budget than the rest of the API. Mount this before the global parser.
-  app.use(
-    '/api/applications',
-    express.json({ limit: APPLICATION_SUBMISSION_JSON_LIMIT_BYTES })
-  );
 
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
   app.use(express.urlencoded({ extended: false, limit: JSON_BODY_LIMIT }));

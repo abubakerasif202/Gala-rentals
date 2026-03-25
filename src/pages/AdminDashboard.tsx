@@ -299,7 +299,7 @@ export default function AdminDashboard() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number, status: string }) => api.updateApplicationStatus(id, status),
+    mutationFn: ({ id, status }: { id: string, status: string }) => api.updateApplicationStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
       showNotification('Application status updated', 'success');
@@ -308,7 +308,7 @@ export default function AdminDashboard() {
   });
 
   const saveAgreementMutation = useMutation({
-    mutationFn: (payload: { application_id: number; car_id: number; content: string }) => api.saveLeaseAgreement(payload),
+    mutationFn: (payload: { application_id: string; car_id: number; content: string }) => api.saveLeaseAgreement(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agreements'] });
       setIsAgreementModalOpen(false);
@@ -323,7 +323,7 @@ export default function AdminDashboard() {
       id,
       payload,
     }: {
-      id: number;
+      id: string;
       payload: {
         approved_bond: number;
         approved_weekly_price: number;
@@ -338,12 +338,12 @@ export default function AdminDashboard() {
   });
 
   const generateCheckoutLinkMutation = useMutation({
-    mutationFn: (payload: { application_id: number }) =>
+    mutationFn: (payload: { application_id: string }) =>
       api.createVehicleCheckoutLink(payload),
   });
 
   const retryPaymentReviewActivationMutation = useMutation({
-    mutationFn: (id: number) => api.retryApplicationPaymentActivation(id),
+    mutationFn: (id: string) => api.retryApplicationPaymentActivation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
       queryClient.invalidateQueries({ queryKey: ['cars'] });
@@ -372,8 +372,8 @@ export default function AdminDashboard() {
   };
 
   const handleGenerateAgreement = async () => {
-    const application_id = Number(selected_agreement_application_id);
-    const selectedApplication = applications.find(a => a.id === application_id);
+    const application_id = selected_agreement_application_id;
+    const selectedApplication = applications.find((a) => a.id === application_id);
     const assignedCarId = Number(selectedApplication?.assigned_car_id || 0);
     const car_id = assignedCarId || Number(selected_agreement_car_id);
     
@@ -428,7 +428,7 @@ export default function AdminDashboard() {
   };
 
   const handleCopyVehicleCheckoutLink = async () => {
-    const application_id = Number(selected_agreement_application_id);
+    const application_id = selected_agreement_application_id;
 
     if (!application_id) {
       showNotification('Please select an approved application', 'error');
@@ -584,7 +584,7 @@ export default function AdminDashboard() {
     ])
   );
   const selectedAgreementApplication = applications.find(
-    (app) => app.id === Number(selected_agreement_application_id)
+    (app) => app.id === selected_agreement_application_id
   );
   const selectedApplicationAssignedCar = cars.find(
     (car) =>
@@ -1263,7 +1263,7 @@ export default function AdminDashboard() {
                 {agreementModalMode === 'draft' && (
                   <button 
                     onClick={() => {
-                      const application_id = Number(selected_agreement_application_id);
+                      const application_id = selected_agreement_application_id;
                       const car_id = Number(selected_agreement_car_id);
                       if (application_id && car_id) {
                         saveAgreementMutation.mutate({

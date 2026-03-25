@@ -593,7 +593,7 @@ export const getRentalSelectColumns = async ({
 
 export const toRentalWritePayload = async (rental: {
   car_id: number;
-  application_id: number;
+  application_id: string;
   start_date: string;
   end_date?: string | null;
   weekly_price: number;

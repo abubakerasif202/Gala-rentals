@@ -16,6 +16,7 @@ import { authenticateAdmin } from '../middleware/auth.js';
 import { createCheckoutToken, verifyCheckoutToken } from '../checkoutTokens.js';
 import { LEASE_SETTINGS, RENTAL_PLAN_SETUP_FEES_AUD } from '../constants.js';
 import {
+  uuidSchema,
   vehicleCheckoutLinkSchema,
   vehicleCheckoutSessionSchema,
 } from '../validation.js';
@@ -39,6 +40,7 @@ import {
   ADMIN_PAYMENTS_RESTRICTED_MESSAGE,
   assertTransactionalPaymentProcessing,
 } from '../paymentProcessing.js';
+import { normalizeUuid } from '../../shared/uuid.js';
 
 const router = express.Router();
 const getStripe = () => getStripeClient();
@@ -71,7 +73,7 @@ type StripeApplication = {
   approved_weekly_price?: number | string | null;
   assigned_car_id?: number | null;
   email: string;
-  id: number;
+  id: string;
   name: string;
   payment_link_version?: number | null;
   pending_checkout_session_id?: string | null;
@@ -136,7 +138,7 @@ const buildHostedCheckoutSessionIdempotencyKey = ({
   paymentLinkVersion,
   retryKeySeed,
 }: {
-  applicationId: number;
+  applicationId: string;
   paymentLinkVersion: number;
   retryKeySeed?: string | null;
 }) => {
@@ -171,7 +173,7 @@ const buildCancelUrl = ({
   carId,
   token,
 }: {
-  applicationId: number;
+  applicationId: string;
   carId: number;
   token: string;
 }) => {
@@ -187,7 +189,7 @@ const buildSuccessUrl = ({
   carId,
   token,
 }: {
-  applicationId: number;
+  applicationId: string;
   carId: number;
   token: string;
 }) => {
@@ -292,7 +294,7 @@ const createHostedCheckoutSession = async ({
   );
 };
 
-const fetchApplication = async (applicationId: number) => {
+const fetchApplication = async (applicationId: string) => {
   const selectColumns = await getApplicationSelectColumns();
   const { data: application, error } = await db
     .from('applications')
@@ -393,7 +395,7 @@ const expirePendingCheckoutSession = async (sessionId: string | null | undefined
 };
 
 const persistPendingCheckoutSessionId = async (
-  applicationId: number,
+  applicationId: string,
   paymentLinkVersion: number,
   sessionId: string | null
 ) => {
@@ -425,10 +427,10 @@ const resolvePendingCheckoutSession = async ({
     const session = await getStripe().checkout.sessions.retrieve(pendingSessionId);
     const sessionVersion = Number(session.metadata?.payment_link_version || 0);
     const sessionCarId = Number(session.metadata?.car_id || 0);
-    const sessionApplicationId = Number(session.metadata?.application_id || 0);
+    const sessionApplicationId = normalizeUuid(session.metadata?.application_id || '');
 
     const isSameContext =
-      sessionApplicationId === application.id &&
+      sessionApplicationId === normalizeUuid(application.id) &&
       sessionCarId === carId &&
       sessionVersion === Number(application.payment_link_version || 0);
 
@@ -469,7 +471,7 @@ router.get('/payment-context', async (req, res) => {
   try {
     const { application_id, car_id, checkout_token } = z
       .object({
-        application_id: z.coerce.number().int().positive(),
+        application_id: uuidSchema,
         car_id: z.coerce.number().int().positive(),
         checkout_token: z.string().min(1).optional(),
       })
@@ -813,7 +815,7 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
     const { sessionId } = z.object({ sessionId: z.string().min(1) }).parse(req.params);
     const { application_id, car_id, checkout_token } = z
       .object({
-        application_id: z.coerce.number().int().positive(),
+        application_id: uuidSchema,
         car_id: z.coerce.number().int().positive(),
         checkout_token: z.string().min(1).optional(),
       })
@@ -848,12 +850,12 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
     });
 
     const session = await getStripe().checkout.sessions.retrieve(sessionId);
-    const metadataApplicationId = Number(session.metadata?.application_id || 0);
+    const metadataApplicationId = normalizeUuid(session.metadata?.application_id || '');
     const metadataCarId = toOptionalPositiveInt(session.metadata?.car_id);
     const metadataCheckoutKind = session.metadata?.checkout_kind || null;
     const metadataVersion = Number(session.metadata?.payment_link_version || 0);
 
-    if (metadataApplicationId !== application_id) {
+    if (metadataApplicationId !== normalizeUuid(application_id)) {
       return res.status(403).json({ error: 'Checkout session does not match this application.' });
     }
 

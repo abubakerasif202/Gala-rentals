@@ -14,6 +14,123 @@ const getFutureDateOnly = (days: number) =>
 const getPastDateOnly = (days: number) =>
   addDaysToDateOnly(getTodayInAustralia(), -days);
 
+const PENDING_APPLICATION_ID = '11111111-1111-4111-8111-111111111111';
+const APPROVED_APPLICATION_ID = '22222222-2222-4222-8222-222222222222';
+const UNDERSCORE_APPLICATION_ID = '33333333-3333-4333-8333-333333333333';
+const UNDERSCORE_REJECTED_APPLICATION_ID = '44444444-4444-4444-8444-444444444444';
+const BLOCKING_APPLICATION_ID = '99999999-9999-4999-8999-999999999999';
+const UNKNOWN_APPLICATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+type ApplicationSubmissionFields = {
+  selected_car_id: string | number;
+  name: string;
+  phone: string;
+  email: string;
+  license_number: string;
+  license_expiry: string;
+  uber_status: string;
+  experience: string;
+  address: string;
+  weekly_budget: string;
+  intended_start_date: string;
+};
+
+type ApplicationUploadFixture = {
+  buffer: Buffer;
+  contentType: string;
+  filename: string;
+};
+
+type ApplicationSubmissionOverrides = Partial<
+  ApplicationSubmissionFields & {
+    license_photo: string | ApplicationUploadFixture;
+    license_back_photo: string | ApplicationUploadFixture;
+  }
+>;
+
+const DEFAULT_APPLICATION_UPLOAD: ApplicationUploadFixture = {
+  buffer: Buffer.from('fake-image'),
+  contentType: 'image/png',
+  filename: 'license.png',
+};
+
+const buildApplicationUploadFixture = (
+  value: string | ApplicationUploadFixture | undefined,
+  basename: string
+): ApplicationUploadFixture => {
+  if (!value) {
+    return {
+      ...DEFAULT_APPLICATION_UPLOAD,
+      filename: `${basename}.png`,
+    };
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const dataUrlMatch = value.match(/^data:(.+);base64,(.+)$/);
+  if (!dataUrlMatch) {
+    throw new Error(`Unsupported test upload fixture for ${basename}`);
+  }
+
+  const [, contentType, encoded] = dataUrlMatch;
+  const extension =
+    contentType === 'image/jpeg'
+      ? 'jpg'
+      : contentType === 'image/png'
+        ? 'png'
+        : contentType.split('/').at(-1) || 'bin';
+
+  return {
+    buffer: Buffer.from(encoded, 'base64'),
+    contentType,
+    filename: `${basename}.${extension}`,
+  };
+};
+
+const createApplicationSubmissionRequest = (
+  overrides: ApplicationSubmissionOverrides = {}
+) => {
+  const { license_photo, license_back_photo, ...fieldOverrides } = overrides;
+  const payload: ApplicationSubmissionFields = {
+    selected_car_id: '1',
+    name: 'Jane Driver',
+    phone: '0412345678',
+    email: 'jane@example.com',
+    license_number: 'NSW12345',
+    license_expiry: getFutureDateOnly(365),
+    uber_status: 'Active',
+    experience: 'New Driver',
+    address: '1 Test Street',
+    weekly_budget: '$300/week',
+    intended_start_date: getFutureDateOnly(7),
+    ...fieldOverrides,
+  };
+
+  let req = request(app).post('/api/applications');
+  Object.entries(payload).forEach(([key, value]) => {
+    req = req.field(key, String(value));
+  });
+
+  const frontUpload = buildApplicationUploadFixture(license_photo, 'license');
+  const backUpload = buildApplicationUploadFixture(
+    license_back_photo,
+    'license-back'
+  );
+
+  req = req.attach('license_photo', frontUpload.buffer, {
+    contentType: frontUpload.contentType,
+    filename: frontUpload.filename,
+  });
+  req = req.attach('license_back_photo', backUpload.buffer, {
+    contentType: backUpload.contentType,
+    filename: backUpload.filename,
+  });
+
+  return req;
+};
+
 const {
   mockState,
   mockGetUser,
@@ -339,6 +456,12 @@ vi.mock('../db/index.js', () => {
     return rows.slice(range.from, range.to + 1);
   };
 
+  const buildUuidFromSequence = (sequence: number) => {
+    const prefix = String(sequence).padStart(8, '0');
+    const suffix = String(sequence).padStart(12, '0');
+    return `${prefix}-0000-4000-8000-${suffix}`;
+  };
+
   const parseOrClauses = (expression: string) =>
     expression
       .split(',')
@@ -606,8 +729,14 @@ vi.mock('../db/index.js', () => {
 
   const createInsertQuery = (table: string, records: Array<Record<string, any>>) => {
     const currentRows = getTableRows(table);
+    const nextSequence =
+      table === 'applications' || table === 'invoices'
+        ? currentRows.length + 1
+        : currentRows.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1;
     const nextId =
-      currentRows.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1;
+      table === 'applications' || table === 'invoices'
+        ? buildUuidFromSequence(nextSequence)
+        : nextSequence;
     const insertedRow: Record<string, any> = { ...records[0], id: nextId };
 
     if (
@@ -744,7 +873,7 @@ vi.mock('../db/postgres.js', () => {
   const createTransactionalQuery = () =>
     vi.fn(async (sql: string, values: unknown[] = []) => {
       if (sql.startsWith('SELECT status FROM cars WHERE id = $1 FOR UPDATE')) {
-        const car = mockState.cars.find((row) => Number(row.id) === Number(values[0]));
+        const car = mockState.cars.find((row) => String(row.id) === String(values[0]));
         return {
           rowCount: car ? 1 : 0,
           rows: car ? [{ status: car.status }] : [],
@@ -752,7 +881,9 @@ vi.mock('../db/postgres.js', () => {
       }
 
       if (sql.startsWith('SELECT status, payment_link_version, assigned_car_id FROM applications WHERE id = $1 FOR UPDATE')) {
-        const application = mockState.applications.find((row) => Number(row.id) === Number(values[0]));
+        const application = mockState.applications.find(
+          (row) => String(row.id) === String(values[0])
+        );
         return {
           rowCount: application ? 1 : 0,
           rows: application
@@ -790,11 +921,11 @@ vi.mock('../db/postgres.js', () => {
       if (updateMatch) {
         const [, table, setClause] = updateMatch;
         const columns = parseQuotedIdentifiers(setClause);
-        const rowId = Number(values[values.length - 1]);
+        const rowId = String(values[values.length - 1]);
         const rows = getTableRows(table);
         let updated = false;
         const nextRows = rows.map((row) => {
-          if (Number(row.id) !== rowId) {
+          if (String(row.id) !== rowId) {
             return row;
           }
 
@@ -880,7 +1011,7 @@ beforeEach(() => {
 
   mockState.applications = [
     {
-      id: 1,
+      id: PENDING_APPLICATION_ID,
       approved_at: null,
       approved_bond: null,
       approved_weekly_price: null,
@@ -905,7 +1036,7 @@ beforeEach(() => {
       created_at: '2026-03-03T00:00:00.000Z',
     },
     {
-      id: 2,
+      id: APPROVED_APPLICATION_ID,
       approved_at: '2026-03-05T00:00:00.000Z',
       approved_bond: 500,
       approved_weekly_price: 250,
@@ -1085,7 +1216,7 @@ beforeEach(() => {
     status: 'complete',
     payment_status: 'paid',
     metadata: {
-      application_id: '2',
+      application_id: APPROVED_APPLICATION_ID,
       approved_bond: '500.00',
       approved_weekly_price: '250.00',
       car_id: '1',
@@ -1097,7 +1228,7 @@ beforeEach(() => {
   });
   mockStripe.subscriptionsRetrieve.mockResolvedValue({
     id: 'sub_test_123',
-    metadata: { application_id: '2', car_id: '1' },
+    metadata: { application_id: APPROVED_APPLICATION_ID, car_id: '1' },
   });
   mockStripe.webhooksConstructEvent.mockReset();
 
@@ -1140,7 +1271,7 @@ describe('Cars API', () => {
     mockState.rentals = [
       {
         id: 20,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         bond_paid: 500,
         car_id: 1,
         status: 'Active',
@@ -1151,7 +1282,7 @@ describe('Cars API', () => {
     mockState.lease_agreements = [
       {
         id: 30,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         car_id: 1,
         content: 'Agreement',
         status: 'generated',
@@ -1277,7 +1408,7 @@ describe('Agreements API', () => {
       .post('/api/agreements')
       .set('Authorization', 'Bearer fake-token')
       .send({
-        application_id: 1,
+        application_id: PENDING_APPLICATION_ID,
         car_id: 1,
         content: '# Draft agreement',
       });
@@ -1294,7 +1425,7 @@ describe('Agreements API', () => {
       .post('/api/agreements')
       .set('Authorization', 'Bearer fake-token')
       .send({
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         car_id: 2,
         content: '# Draft agreement',
       });
@@ -1311,7 +1442,7 @@ describe('Agreements API', () => {
       .post('/api/agreements')
       .set('Authorization', 'Bearer fake-token')
       .send({
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         car_id: 1,
         content: '# Final agreement',
       });
@@ -1319,7 +1450,7 @@ describe('Agreements API', () => {
     expect(res.status).toBe(201);
     expect(mockState.lease_agreements).toHaveLength(1);
     expect(mockState.lease_agreements[0]).toMatchObject({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       content: '# Final agreement',
     });
@@ -1329,7 +1460,7 @@ describe('Agreements API', () => {
     mockState.lease_agreements = [
       {
         id: 31,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         car_id: 1,
         content: '# Agreement',
         status: 'generated',
@@ -1354,7 +1485,7 @@ describe('Agreements API', () => {
     mockState.lease_agreements = [
       {
         id: 31,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         car_id: 1,
         content: '# Agreement',
         status: 'generated',
@@ -1514,9 +1645,9 @@ describe('Applications API', () => {
     );
   });
 
-  it('GET /api/applications/:id/documents/:document rejects non-numeric ids', async () => {
+  it('GET /api/applications/:id/documents/:document rejects non-UUID ids', async () => {
     const res = await request(app)
-      .get('/api/applications/not-a-number/documents/license_photo')
+      .get('/api/applications/not-a-uuid/documents/license_photo')
       .set('Authorization', 'Bearer fake-token');
 
     expect(res.status).toBe(400);
@@ -1527,7 +1658,7 @@ describe('Applications API', () => {
     mockState.applications[1].status = 'Paid';
     mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'New Driver',
       phone: '0400111222',
@@ -1560,7 +1691,7 @@ describe('Applications API', () => {
     mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
     const largeImagePayload = `data:image/png;base64,${'A'.repeat(140 * 1024)}`;
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Large Payload Driver',
       phone: '0400999888',
@@ -1589,7 +1720,7 @@ describe('Applications API', () => {
     mockState.applications[1].status = 'Paid';
     mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Agreement Driver',
       phone: '0400222333',
@@ -1620,7 +1751,7 @@ describe('Applications API', () => {
     mockState.applications[1].status = 'Paid';
     mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: '<img src=x onerror=alert(1)>',
       phone: '0400111222',
@@ -1657,7 +1788,7 @@ describe('Applications API', () => {
     mockState.applications[1].status = 'Paid';
     mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Unsafe Driver',
       phone: '0400111222',
@@ -1679,7 +1810,7 @@ describe('Applications API', () => {
   });
 
   it('POST /api/applications validates phone and date fields on the server', async () => {
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Direct API Driver',
       phone: '12345',
@@ -1711,7 +1842,7 @@ describe('Applications API', () => {
     mockState.applications[1].status = 'Paid';
     mockState.applications[1].paid_at = '2026-03-07T00:00:00.000Z';
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Normalized Phone Driver',
       phone: '0400 000 111',
@@ -1733,7 +1864,7 @@ describe('Applications API', () => {
 
   it('PUT /api/applications/:id/status returns 404 when the application does not exist', async () => {
     const res = await request(app)
-      .put('/api/applications/999/status')
+      .put(`/api/applications/${UNKNOWN_APPLICATION_ID}/status`)
       .set('Authorization', 'Bearer fake-token')
       .send({ status: 'Rejected' });
 
@@ -1741,9 +1872,9 @@ describe('Applications API', () => {
     expect(res.body.error).toBe('Application not found');
   });
 
-  it('PUT /api/applications/:id/status rejects non-numeric ids', async () => {
+  it('PUT /api/applications/:id/status rejects non-UUID ids', async () => {
     const res = await request(app)
-      .put('/api/applications/not-a-number/status')
+      .put('/api/applications/not-a-uuid/status')
       .set('Authorization', 'Bearer fake-token')
       .send({ status: 'Rejected' });
 
@@ -1765,7 +1896,7 @@ describe('Applications API', () => {
       status: 'Rejected',
     };
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Jane Driver',
       phone: '0412345678',
@@ -1785,7 +1916,7 @@ describe('Applications API', () => {
     expect(res.body.error).toContain('already been reviewed');
     expect(mockState.applications).toHaveLength(2);
     expect(mockState.applications[0]).toMatchObject({
-      id: 1,
+      id: PENDING_APPLICATION_ID,
       status: 'Rejected',
       assigned_car_id: 2,
       approved_at: '2026-03-06T00:00:00.000Z',
@@ -1801,7 +1932,7 @@ describe('Applications API', () => {
   });
 
   it('POST /api/applications blocks public overwrites for pending applications', async () => {
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Jane Driver',
       phone: '0412345678',
@@ -1825,7 +1956,7 @@ describe('Applications API', () => {
   it('POST /api/applications treats rejected email lookups case-insensitively', async () => {
     mockState.applications[0].status = 'Rejected';
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Jane Driver',
       phone: '0412345678',
@@ -1845,7 +1976,7 @@ describe('Applications API', () => {
     expect(res.body.error).toContain('already been reviewed');
     expect(mockState.applications).toHaveLength(2);
     expect(mockState.applications[0]).toMatchObject({
-      id: 1,
+      id: PENDING_APPLICATION_ID,
       email: 'jane@example.com',
       address: '1 Test Street',
       experience: 'New Driver',
@@ -1855,7 +1986,7 @@ describe('Applications API', () => {
   it('POST /api/applications normalizes Australian mobile formats before duplicate checks', async () => {
     mockState.applications[0].status = 'Rejected';
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Jane Driver',
       phone: '+61 412 345 678',
@@ -1880,14 +2011,14 @@ describe('Applications API', () => {
     mockState.applications = [
       {
         ...mockState.applications[0],
-        id: 3,
+        id: UNDERSCORE_APPLICATION_ID,
         email: 'fooxbar@example.com',
         phone: '0400000000',
         license_number: 'NSW00000',
       },
       {
         ...mockState.applications[0],
-        id: 4,
+        id: UNDERSCORE_REJECTED_APPLICATION_ID,
         email: 'foo_bar@example.com',
         phone: '0412345678',
         license_number: 'NSW12345',
@@ -1895,7 +2026,7 @@ describe('Applications API', () => {
       },
     ];
 
-    const res = await request(app).post('/api/applications').send({
+    const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
       name: 'Jane Driver',
       phone: '0412345678',
@@ -1913,12 +2044,16 @@ describe('Applications API', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toContain('already been reviewed');
-    expect(mockState.applications.find((application) => application.id === 3)?.address).toBe(
-      '1 Test Street'
-    );
-    expect(mockState.applications.find((application) => application.id === 4)?.address).toBe(
-      '1 Test Street'
-    );
+    expect(
+      mockState.applications.find(
+        (application) => application.id === UNDERSCORE_APPLICATION_ID
+      )?.address
+    ).toBe('1 Test Street');
+    expect(
+      mockState.applications.find(
+        (application) => application.id === UNDERSCORE_REJECTED_APPLICATION_ID
+      )?.address
+    ).toBe('1 Test Street');
   });
 });
 
@@ -1978,7 +2113,7 @@ describe('Operational history API', () => {
 
 describe('Stripe API', () => {
   it('POST /api/applications/:id/approve-payment requires admin auth', async () => {
-    const res = await request(app).post('/api/applications/1/approve-payment').send({
+    const res = await request(app).post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`).send({
       assigned_car_id: 1,
       approved_bond: 650,
       approved_weekly_price: 285,
@@ -1993,7 +2128,7 @@ describe('Stripe API', () => {
     mockState.applications[1].assigned_car_id = 2;
 
     const res = await request(app)
-      .post('/api/applications/1/approve-payment')
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
       .set('Authorization', 'Bearer fake-token')
       .send({
         assigned_car_id: 1,
@@ -2019,14 +2154,14 @@ describe('Stripe API', () => {
 
     expect(mockState.lease_agreements).toHaveLength(1);
     expect(mockState.lease_agreements[0]).toMatchObject({
-      application_id: 1,
+      application_id: PENDING_APPLICATION_ID,
       car_id: 1,
       status: 'generated',
     });
     expect(res.body.lease_agreement_saved).toBe(true);
 
     const verified = verifyCheckoutToken({
-      applicationId: 1,
+      applicationId: PENDING_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       token: res.body.checkout_token,
@@ -2039,7 +2174,7 @@ describe('Stripe API', () => {
     mockHasDirectDatabaseConnection.mockReturnValue(false);
 
     const res = await request(app)
-      .post('/api/applications/1/approve-payment')
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
       .set('Authorization', 'Bearer fake-token')
       .send({
         assigned_car_id: 1,
@@ -2062,7 +2197,7 @@ describe('Stripe API', () => {
     mockState.cars[0].name = '<a href="https://evil.example">Camry</a>';
 
     const res = await request(app)
-      .post('/api/applications/1/approve-payment')
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
       .set('Authorization', 'Bearer fake-token')
       .send({
         assigned_car_id: 1,
@@ -2095,7 +2230,7 @@ describe('Stripe API', () => {
     };
 
     const res = await request(app)
-      .post('/api/applications/1/approve-payment')
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
       .set('Authorization', 'Bearer fake-token')
       .send({
         assigned_car_id: 1,
@@ -2112,7 +2247,7 @@ describe('Stripe API', () => {
     mockState.applications[1].status = 'Approved';
 
     const res = await request(app)
-      .post('/api/applications/1/approve-payment')
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
       .set('Authorization', 'Bearer fake-token')
       .send({
         assigned_car_id: 1,
@@ -2129,7 +2264,7 @@ describe('Stripe API', () => {
     mockState.applications[0].status = 'Payment Review';
 
     const res = await request(app)
-      .post('/api/applications/1/approve-payment')
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
       .set('Authorization', 'Bearer fake-token')
       .send({
         assigned_car_id: 1,
@@ -2151,7 +2286,7 @@ describe('Stripe API', () => {
     });
 
     const res = await request(app)
-      .post('/api/applications/1/approve-payment')
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
       .set('Authorization', 'Bearer fake-token')
       .send({
         assigned_car_id: 1,
@@ -2169,7 +2304,7 @@ describe('Stripe API', () => {
     mockState.cars[0].status = 'Available';
 
     const res = await request(app)
-      .post('/api/applications/1/approve-payment')
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
       .set('Authorization', 'Bearer fake-token')
       .send({
         assigned_car_id: 1,
@@ -2193,9 +2328,9 @@ describe('Stripe API', () => {
       payment_status: 'paid',
       customer: 'cus_review',
       subscription: 'sub_review',
-      client_reference_id: '2',
+      client_reference_id: APPROVED_APPLICATION_ID,
       metadata: {
-        application_id: '2',
+        application_id: APPROVED_APPLICATION_ID,
         approved_bond: '500.00',
         approved_weekly_price: '250.00',
         car_id: '1',
@@ -2205,7 +2340,7 @@ describe('Stripe API', () => {
     });
 
     const res = await request(app)
-      .post('/api/applications/2/retry-payment-activation')
+      .post(`/api/applications/${APPROVED_APPLICATION_ID}/retry-payment-activation`)
       .set('Authorization', 'Bearer fake-token');
 
     expect(res.status).toBe(200);
@@ -2215,7 +2350,7 @@ describe('Stripe API', () => {
     expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
     expect(mockState.cars[0].status).toBe('Rented');
     expect(mockState.rentals[0]).toMatchObject({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       status: 'Active',
       stripe_subscription_id: 'sub_review',
@@ -2229,7 +2364,7 @@ describe('Stripe API', () => {
     mockState.applications[1].pending_checkout_session_id = null;
 
     const res = await request(app)
-      .post('/api/applications/2/retry-payment-activation')
+      .post(`/api/applications/${APPROVED_APPLICATION_ID}/retry-payment-activation`)
       .set('Authorization', 'Bearer fake-token');
 
     expect(res.status).toBe(409);
@@ -2240,14 +2375,14 @@ describe('Stripe API', () => {
   });
   it('GET /api/stripe/payment-context returns the approved quote for a valid payment link', async () => {
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
 
     const res = await request(app).get('/api/stripe/payment-context').query({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2268,14 +2403,14 @@ describe('Stripe API', () => {
     mockState.applications[1].assigned_car_id = 1;
 
     const token = createCheckoutToken({
-      applicationId: 1,
+      applicationId: PENDING_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
 
     const res = await request(app).get('/api/stripe/payment-context').query({
-      application_id: 1,
+      application_id: PENDING_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2285,10 +2420,10 @@ describe('Stripe API', () => {
   });
 
   it('POST /api/stripe/vehicle-checkout-session rejects unapproved applications', async () => {
-    const token = createCheckoutToken({ applicationId: 1, carId: 1, purpose: 'vehicle' });
+    const token = createCheckoutToken({ applicationId: PENDING_APPLICATION_ID, carId: 1, purpose: 'vehicle' });
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 1,
+      application_id: PENDING_APPLICATION_ID,
       checkout_token: token.token,
       car_id: 1,
     });
@@ -2300,14 +2435,14 @@ describe('Stripe API', () => {
   it('POST /api/stripe/vehicle-checkout-session requires direct DB access', async () => {
     mockHasDirectDatabaseConnection.mockReturnValue(false);
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2320,14 +2455,14 @@ describe('Stripe API', () => {
 
   it('POST /api/stripe/vehicle-checkout-session rejects outdated payment-link versions', async () => {
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 0,
     });
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2338,7 +2473,7 @@ describe('Stripe API', () => {
 
   it('POST /api/stripe/vehicle-checkout-session rejects unavailable cars', async () => {
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
@@ -2346,7 +2481,7 @@ describe('Stripe API', () => {
     mockState.cars[0].status = 'Rented';
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2357,14 +2492,14 @@ describe('Stripe API', () => {
 
   it('POST /api/stripe/vehicle-checkout-session rejects mismatched tokens', async () => {
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 2,
       purpose: 'vehicle',
       version: 1,
     });
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2381,7 +2516,7 @@ describe('Stripe API', () => {
       url: 'https://checkout.stripe.com/c/pay/cs_open_approved',
       payment_status: 'unpaid',
       metadata: {
-        application_id: '2',
+        application_id: APPROVED_APPLICATION_ID,
         approved_bond: '500.00',
         approved_weekly_price: '250.00',
         car_id: '1',
@@ -2390,14 +2525,14 @@ describe('Stripe API', () => {
       },
     });
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2410,14 +2545,14 @@ describe('Stripe API', () => {
 
   it('POST /api/stripe/vehicle-checkout-session creates a hosted session from the approved quote', async () => {
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2429,7 +2564,7 @@ describe('Stripe API', () => {
     const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
     expect(payload.line_items).toHaveLength(2);
     expect(payload.metadata.checkout_kind).toBe('vehicle');
-    expect(payload.metadata.application_id).toBe('2');
+    expect(payload.metadata.application_id).toBe(APPROVED_APPLICATION_ID);
     expect(payload.metadata.approved_bond).toBe('500.00');
     expect(payload.metadata.approved_weekly_price).toBe('250.00');
     expect(payload.metadata.car_id).toBe('1');
@@ -2438,10 +2573,10 @@ describe('Stripe API', () => {
     expect(recurringItem.price_data.unit_amount).toBe(25000);
     expect(recurringItem.price_data.product).toBe('prod_weekly_rental');
     expect(payload.cancel_url).toContain('/checkout/1?');
-    expect(payload.cancel_url).toContain('application_id=2');
+    expect(payload.cancel_url).toContain(`application_id=${APPROVED_APPLICATION_ID}`);
     expect(payload.cancel_url).toContain('resume_payment=1');
     expect(payload.cancel_url).toContain(`checkout_token=${encodeURIComponent(token.token)}`);
-    expect(payload.success_url).toContain('application_id=2');
+    expect(payload.success_url).toContain(`application_id=${APPROVED_APPLICATION_ID}`);
     expect(payload.success_url).toContain('car_id=1');
     expect(payload.success_url).toContain(`checkout_token=${encodeURIComponent(token.token)}`);
   });
@@ -2454,7 +2589,7 @@ describe('Stripe API', () => {
       url: null,
       payment_status: 'unpaid',
       metadata: {
-        application_id: '2',
+        application_id: APPROVED_APPLICATION_ID,
         approved_bond: '500.00',
         approved_weekly_price: '250.00',
         car_id: '1',
@@ -2464,14 +2599,14 @@ describe('Stripe API', () => {
     });
 
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2479,7 +2614,7 @@ describe('Stripe API', () => {
     expect(res.status).toBe(200);
     expect(mockState.applications[1].pending_checkout_session_id).toBe('cs_test_123');
     expect(mockStripe.checkoutSessionsCreate.mock.calls[0][1].idempotencyKey).toBe(
-      'vehicle-checkout:2:v1:retry:cs_closed_attempt'
+      `vehicle-checkout:${APPROVED_APPLICATION_ID}:v1:retry:cs_closed_attempt`
     );
   });
 
@@ -2487,21 +2622,21 @@ describe('Stripe API', () => {
     mockHasDirectDatabaseConnection.mockReturnValue(true);
 
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
 
     expect(res.status).toBe(200);
     expect(mockWithPostgresAdvisoryLock).toHaveBeenCalledWith(
-      'vehicle-checkout:2',
+      `vehicle-checkout:${APPROVED_APPLICATION_ID}`,
       expect.any(Function)
     );
   });
@@ -2516,14 +2651,14 @@ describe('Stripe API', () => {
     });
 
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
 
     const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2536,7 +2671,7 @@ describe('Stripe API', () => {
 
   it('POST /api/stripe/vehicle-checkout-link requires admin auth', async () => {
     const res = await request(app).post('/api/stripe/vehicle-checkout-link').send({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
     });
 
     expect(res.status).toBe(401);
@@ -2549,7 +2684,7 @@ describe('Stripe API', () => {
       .post('/api/stripe/vehicle-checkout-link')
       .set('Authorization', 'Bearer fake-token')
       .send({
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
       });
 
     expect(res.status).toBe(503);
@@ -2561,25 +2696,25 @@ describe('Stripe API', () => {
       .post('/api/stripe/vehicle-checkout-link')
       .set('Authorization', 'Bearer fake-token')
       .send({
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
       });
 
     expect(res.status).toBe(200);
     expect(res.body.checkout_url).toContain('/checkout/1?');
-    expect(res.body.checkout_url).toContain('application_id=2');
+    expect(res.body.checkout_url).toContain(`application_id=${APPROVED_APPLICATION_ID}`);
     expect(mockState.applications[1].payment_link_version).toBe(2);
     expect(res.body.checkout_url).toContain(
       `checkout_token=${encodeURIComponent(res.body.checkout_token)}`
     );
 
     const verified = verifyCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       token: res.body.checkout_token,
       version: 2,
     });
-    expect(verified.applicationId).toBe(2);
+    expect(verified.applicationId).toBe(APPROVED_APPLICATION_ID);
     expect(verified.carId).toBe(1);
   });
 
@@ -2590,7 +2725,7 @@ describe('Stripe API', () => {
       .post('/api/stripe/vehicle-checkout-link')
       .set('Authorization', 'Bearer fake-token')
       .send({
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
       });
 
     expect(res.status).toBe(409);
@@ -2606,13 +2741,13 @@ describe('Stripe API', () => {
 
   it('GET /api/stripe/checkout-sessions/:id returns the Stripe session status', async () => {
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
     const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123').query({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2634,7 +2769,7 @@ describe('Stripe API', () => {
     mockState.rentals = [
       {
         id: 20,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         car_id: 1,
         status: 'Active',
         weekly_price: 250,
@@ -2643,13 +2778,13 @@ describe('Stripe API', () => {
       },
     ];
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
     const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123').query({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2664,13 +2799,13 @@ describe('Stripe API', () => {
     mockState.applications[1].status = 'Payment Review';
 
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
     const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123').query({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2686,20 +2821,20 @@ describe('Stripe API', () => {
       status: 'complete',
       payment_status: 'paid',
       metadata: {
-        application_id: '2',
+        application_id: APPROVED_APPLICATION_ID,
         car_id: '',
         checkout_kind: 'application',
         payment_link_version: '1',
       },
     });
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
     const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123').query({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2714,20 +2849,20 @@ describe('Stripe API', () => {
       status: 'complete',
       payment_status: 'paid',
       metadata: {
-        application_id: '2',
+        application_id: APPROVED_APPLICATION_ID,
         car_id: '2',
         checkout_kind: 'vehicle',
         payment_link_version: '1',
       },
     });
     const token = createCheckoutToken({
-      applicationId: 2,
+      applicationId: APPROVED_APPLICATION_ID,
       carId: 1,
       purpose: 'vehicle',
       version: 1,
     });
     const res = await request(app).get('/api/stripe/checkout-sessions/cs_test_123').query({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       checkout_token: token.token,
     });
@@ -2738,13 +2873,14 @@ describe('Stripe API', () => {
 
   it('POST /api/stripe/webhook activates the rental and records paid bond on success', async () => {
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_1',
       type: 'checkout.session.completed',
       data: {
         object: {
           id: 'cs_live_vehicle',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -2768,7 +2904,7 @@ describe('Stripe API', () => {
     expect(mockState.applications[1].status).toBe('Paid');
     expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
     expect(mockState.rentals[0]).toMatchObject({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       bond_paid: 500,
       weekly_price: 250,
@@ -2780,13 +2916,14 @@ describe('Stripe API', () => {
   it('POST /api/stripe/webhook moves paid checkouts to Payment Review when direct DB access is unavailable', async () => {
     mockHasDirectDatabaseConnection.mockReturnValue(false);
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_2',
       type: 'checkout.session.completed',
       data: {
         object: {
           id: 'cs_live_vehicle',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -2817,7 +2954,7 @@ describe('Stripe API', () => {
     mockState.rentals = [
       {
         id: 20,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         bond_paid: 500,
         car_id: 1,
         status: 'Active',
@@ -2827,9 +2964,10 @@ describe('Stripe API', () => {
     ];
     mockStripe.subscriptionsRetrieve.mockResolvedValueOnce({
       id: 'sub_missing_link',
-      metadata: { application_id: '2', car_id: '1' },
+      metadata: { application_id: APPROVED_APPLICATION_ID, car_id: '1' },
     });
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_3',
       type: 'invoice.payment_failed',
       data: {
         object: {
@@ -2857,13 +2995,14 @@ describe('Stripe API', () => {
     mockState.applications[1].payment_link_version = 2;
     mockState.applications[1].status = 'Approved';
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_4',
       type: 'checkout.session.completed',
       data: {
         object: {
           id: 'cs_stale_vehicle',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -2896,7 +3035,7 @@ describe('Stripe API', () => {
     mockState.rentals = [
       {
         id: 20,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         car_id: 1,
         status: 'Pending',
         weekly_price: 0,
@@ -2905,13 +3044,14 @@ describe('Stripe API', () => {
       },
     ];
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_5',
       type: 'checkout.session.completed',
       data: {
         object: {
           id: 'cs_retry_vehicle',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -2948,7 +3088,7 @@ describe('Stripe API', () => {
     mockState.rentals = [
       {
         id: 20,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         bond_paid: 500,
         car_id: 1,
         status: 'Active',
@@ -2958,13 +3098,14 @@ describe('Stripe API', () => {
       },
     ];
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_6',
       type: 'checkout.session.completed',
       data: {
         object: {
           id: 'cs_replayed',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -3002,7 +3143,7 @@ describe('Stripe API', () => {
           id: 'cs_live_vehicle',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -3057,7 +3198,7 @@ describe('Stripe API', () => {
           id: 'cs_stale_reclaim',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -3086,7 +3227,7 @@ describe('Stripe API', () => {
     mockState.rentals = [
       {
         id: 20,
-        application_id: 9,
+        application_id: BLOCKING_APPLICATION_ID,
         bond_paid: 500,
         car_id: 1,
         status: 'Active',
@@ -3095,13 +3236,14 @@ describe('Stripe API', () => {
       },
     ];
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_7',
       type: 'checkout.session.completed',
       data: {
         object: {
           id: 'cs_live_vehicle',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -3122,7 +3264,7 @@ describe('Stripe API', () => {
 
     expect(res.status).toBe(200);
     expect(mockState.rentals).toHaveLength(1);
-    expect(mockState.rentals[0].application_id).toBe(9);
+    expect(mockState.rentals[0].application_id).toBe(BLOCKING_APPLICATION_ID);
     expect(mockState.applications[1].status).toBe('Payment Review');
     expect(mockState.applications[1].paid_at).toBeTruthy();
     expect(mockState.applications[1].pending_checkout_session_id).toBe('cs_live_vehicle');
@@ -3131,13 +3273,14 @@ describe('Stripe API', () => {
   it('POST /api/stripe/webhook blocks vehicle activation when the car is under maintenance', async () => {
     mockState.cars[0].status = 'Maintenance';
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_8',
       type: 'checkout.session.completed',
       data: {
         object: {
           id: 'cs_vehicle_maintenance',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -3169,13 +3312,14 @@ describe('Stripe API', () => {
     mockState.applications[1].pending_checkout_session_id = 'cs_vehicle_resume';
     mockState.cars[0].status = 'Available';
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_9',
       type: 'checkout.session.completed',
       data: {
         object: {
           id: 'cs_vehicle_resume',
           payment_status: 'paid',
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             approved_bond: '500.00',
             approved_weekly_price: '250.00',
             car_id: '1',
@@ -3200,7 +3344,7 @@ describe('Stripe API', () => {
     expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
     expect(mockState.cars[0].status).toBe('Rented');
     expect(mockState.rentals[0]).toMatchObject({
-      application_id: 2,
+      application_id: APPROVED_APPLICATION_ID,
       car_id: 1,
       status: 'Active',
       stripe_subscription_id: 'sub_resume',
@@ -3212,7 +3356,7 @@ describe('Stripe API', () => {
     mockState.rentals = [
       {
         id: 20,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         bond_paid: 500,
         car_id: 1,
         status: 'Active',
@@ -3222,7 +3366,7 @@ describe('Stripe API', () => {
       },
       {
         id: 21,
-        application_id: 9,
+        application_id: BLOCKING_APPLICATION_ID,
         bond_paid: 500,
         car_id: 1,
         status: 'Active',
@@ -3232,6 +3376,7 @@ describe('Stripe API', () => {
       },
     ];
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_10',
       type: 'customer.subscription.deleted',
       data: {
         object: {
@@ -3242,7 +3387,7 @@ describe('Stripe API', () => {
             reason: 'cancellation_requested',
           },
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             car_id: '1',
           },
         },
@@ -3266,7 +3411,7 @@ describe('Stripe API', () => {
     mockState.rentals = [
       {
         id: 20,
-        application_id: 2,
+        application_id: APPROVED_APPLICATION_ID,
         bond_paid: 500,
         car_id: 1,
         status: 'Active',
@@ -3276,6 +3421,7 @@ describe('Stripe API', () => {
       },
     ];
     mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_11',
       type: 'customer.subscription.deleted',
       data: {
         object: {
@@ -3286,7 +3432,7 @@ describe('Stripe API', () => {
             reason: 'payment_failed',
           },
           metadata: {
-            application_id: '2',
+            application_id: APPROVED_APPLICATION_ID,
             car_id: '1',
           },
         },

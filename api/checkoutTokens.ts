@@ -1,9 +1,11 @@
 import crypto from 'node:crypto';
 
+import { normalizeUuid } from '../shared/uuid.js';
+
 export type CheckoutTokenPurpose = 'application' | 'vehicle';
 
 type CheckoutTokenPayload = {
-  applicationId: number;
+  applicationId: string | number;
   carId: number | null;
   expiresAt: number;
   nonce: string;
@@ -39,14 +41,16 @@ export const createCheckoutToken = ({
   purpose,
   version = 0,
 }: {
-  applicationId: number;
+  applicationId: string | number;
   carId?: number | null;
   expiresInHours?: number;
   purpose: CheckoutTokenPurpose;
   version?: number;
 }) => {
+  const normalizedApplicationId =
+    typeof applicationId === 'string' ? normalizeUuid(applicationId) : applicationId;
   const payload = toTokenPayload({
-    applicationId,
+    applicationId: normalizedApplicationId,
     carId,
     expiresAt: Date.now() + expiresInHours * 60 * 60 * 1000,
     nonce: crypto.randomBytes(12).toString('hex'),
@@ -68,12 +72,14 @@ export const verifyCheckoutToken = ({
   token,
   version,
 }: {
-  applicationId: number;
+  applicationId: string | number;
   carId?: number | null;
   purpose: CheckoutTokenPurpose;
   token: string;
   version?: number | null;
 }) => {
+  const normalizedApplicationId =
+    typeof applicationId === 'string' ? normalizeUuid(applicationId) : applicationId;
   const [encodedPayload, providedSignature] = token.split('.');
 
   if (!encodedPayload || !providedSignature) {
@@ -97,7 +103,7 @@ export const verifyCheckoutToken = ({
     throw new Error('Checkout token purpose mismatch.');
   }
 
-  if (payload.applicationId !== applicationId) {
+  if (payload.applicationId !== normalizedApplicationId) {
     throw new Error('Checkout token application mismatch.');
   }
 

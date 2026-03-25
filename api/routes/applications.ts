@@ -1,5 +1,6 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
+import multer, { MulterError } from 'multer';
 import type Stripe from 'stripe';
 
 import { updateApplicationPaymentStateIfCurrentVersion } from '../applicationPaymentState.js';
@@ -10,6 +11,7 @@ import {
   applicationApprovalSchema,
   applicationSchema,
   applicationStatusEnum,
+  uuidSchema,
 } from '../validation.js';
 import { z } from 'zod';
 import crypto from 'crypto';
@@ -44,13 +46,30 @@ import {
 } from '../../shared/applicationSubmission.js';
 import { escapeHtml, getResend, sanitizeEmailHeaderValue } from '../email.js';
 import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
+import { normalizeUuid } from '../../shared/uuid.js';
 
 const router = express.Router();
 const APPLICATIONS_BUCKET = 'applications';
 const DOCUMENT_URL_TTL_SECONDS = 60 * 15;
 const APPLICATION_LIST_DOCUMENT_SIGNING_LIMIT = 100;
 const ALLOWED_APPLICATION_IMAGE_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
+const APPLICATION_FILE_EXTENSION_BY_CONTENT_TYPE: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+};
 const getStripe = () => getStripeClient();
+
+type ApplicationUploadField = 'license_photo' | 'license_back_photo';
+type UploadedApplicationFiles = Partial<Record<ApplicationUploadField, Express.Multer.File[]>>;
+
+const applicationUpload = multer({
+  limits: {
+    fileSize: MAX_APPLICATION_UPLOAD_BYTES,
+    files: 2,
+  },
+  storage: multer.memoryStorage(),
+});
 
 const applicationSubmissionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -60,6 +79,31 @@ const applicationSubmissionLimiter = rateLimit({
   message: { error: 'Too many applications submitted. Please try again later.' },
   skip: () => process.env.VITEST === 'true',
 });
+
+const applicationUploadMiddleware: express.RequestHandler = (req, res, next) => {
+  applicationUpload.fields([
+    { name: 'license_photo', maxCount: 1 },
+    { name: 'license_back_photo', maxCount: 1 },
+  ])(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error instanceof MulterError) {
+      const message =
+        error.code === 'LIMIT_FILE_SIZE'
+          ? `Application documents must be smaller than ${Math.floor(
+              MAX_APPLICATION_UPLOAD_BYTES / (1024 * 1024)
+            )} MB.`
+          : 'Invalid multipart upload.';
+      res.status(400).json({ error: message });
+      return;
+    }
+
+    next(error);
+  });
+};
 
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
 const SUPABASE_STORAGE_PATH_PREFIXES = [
@@ -128,7 +172,7 @@ type ApplicationPaymentApprovalRecord = {
   approved_weekly_price?: number | null;
   assigned_car_id?: number | null;
   email: string;
-  id: number;
+  id: string;
   name: string;
   payment_link_version?: number | null;
   pending_checkout_session_id?: string | null;
@@ -142,7 +186,7 @@ const isRecoverableVehicleCheckoutSession = (
   session.status === 'complete' &&
   session.payment_status === 'paid' &&
   session.metadata?.checkout_kind === 'vehicle' &&
-  Number(session.metadata?.application_id || 0) === application.id &&
+  normalizeUuid(session.metadata?.application_id || '') === normalizeUuid(application.id) &&
   Number(session.metadata?.car_id || 0) === Number(application.assigned_car_id || 0) &&
   Number(session.metadata?.payment_link_version || 0) ===
     Number(application.payment_link_version || 0);
@@ -231,7 +275,7 @@ const saveLeaseAgreement = async ({
   carId,
   content,
 }: {
-  applicationId: number;
+  applicationId: string;
   carId: number;
   content: string;
 }) => {
@@ -247,6 +291,65 @@ const saveLeaseAgreement = async ({
   if (error) {
     throw error;
   }
+};
+
+const getUploadedApplicationFile = (
+  files: UploadedApplicationFiles,
+  field: ApplicationUploadField,
+  fieldLabel: string
+) => {
+  const file = files[field]?.[0];
+
+  if (!file) {
+    throw createRequestError(400, `${fieldLabel} is required.`);
+  }
+
+  if (!ALLOWED_APPLICATION_IMAGE_TYPES.has(file.mimetype.toLowerCase())) {
+    throw createRequestError(400, `${fieldLabel} must be a JPG or PNG image.`);
+  }
+
+  if (!file.buffer || file.buffer.length === 0) {
+    throw createRequestError(400, `${fieldLabel} could not be read.`);
+  }
+
+  if (file.size > MAX_APPLICATION_UPLOAD_BYTES) {
+    throw createRequestError(400, `${fieldLabel} must be smaller than 7 MB.`);
+  }
+
+  return file;
+};
+
+const uploadApplicationFile = async ({
+  file,
+  filePrefix,
+  fieldLabel,
+  uploadedPaths,
+}: {
+  file: Express.Multer.File;
+  filePrefix: string;
+  fieldLabel: string;
+  uploadedPaths: string[];
+}) => {
+  const normalizedContentType = file.mimetype.toLowerCase();
+  const extension =
+    APPLICATION_FILE_EXTENSION_BY_CONTENT_TYPE[normalizedContentType] || 'bin';
+  const filename = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${filePrefix}.${extension}`;
+
+  const { data: uploadData, error: uploadError } = await db.storage
+    .from(APPLICATIONS_BUCKET)
+    .upload(filename, file.buffer, {
+      contentType: normalizedContentType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    console.error(`Error uploading ${filePrefix}:`, uploadError);
+    throw createRequestError(500, `Failed to upload ${fieldLabel.toLowerCase()}.`);
+  }
+
+  const uploadedPath = uploadData.path || filename;
+  uploadedPaths.push(uploadedPath);
+  return uploadedPath;
 };
 
 router.get('/', authenticateAdmin, async (_req, res) => {
@@ -291,7 +394,7 @@ router.get('/', authenticateAdmin, async (_req, res) => {
 router.get('/:id/documents/:document', authenticateAdmin, async (req, res) => {
   try {
     const { id, document } = z.object({
-      id: z.coerce.number().int().positive(),
+      id: uuidSchema,
       document: z.enum(['license_photo', 'license_back_photo']),
     }).parse(req.params);
 
@@ -330,262 +433,236 @@ router.get('/:id/documents/:document', authenticateAdmin, async (req, res) => {
 router.post(
   '/',
   applicationSubmissionLimiter,
+  applicationUploadMiddleware,
   async (req, res) => {
     const uploadedPaths: string[] = [];
 
-  try {
-    const data = applicationSchema.parse(req.body);
-    const email = data.email;
-    const phone = data.phone;
+    try {
+      const data = applicationSchema.parse(req.body);
+      const email = data.email;
+      const phone = data.phone;
 
-    if (!email) {
-      throw createRequestError(400, 'Email is required.');
-    }
-
-    if (!phone) {
-      throw createRequestError(400, 'Phone is required.');
-    }
-
-    const normalizedApplicationData = {
-      ...data,
-      email,
-      phone,
-    };
-    let licensePhotoUrl = null;
-    let licenseBackPhotoUrl = null;
-    const existingApplicationSelectColumns = await getApplicationDuplicateCheckColumns();
-    const { data: existingApplications, error: existingApplicationError } = await db
-      .from('applications')
-      .select(existingApplicationSelectColumns)
-      .ilike('email', normalizedApplicationData.email);
-
-    if (existingApplicationError) {
-      throw existingApplicationError;
-    }
-
-    const matchingApplications = ((existingApplications ?? []) as Array<Record<string, any>>).filter(
-      (application) =>
-        normalizeApplicationEmail(String(application.email ?? '')) ===
-        normalizedApplicationData.email
-    );
-
-    const existingRow = matchingApplications[0] ?? null;
-
-    if (existingRow) {
-      if (
-        existingRow.phone !== normalizedApplicationData.phone ||
-        existingRow.license_number !== normalizedApplicationData.license_number
-      ) {
-        return res.status(409).json({
-          error: 'An application already exists for this email. Contact support to continue.',
-        });
+      if (!email) {
+        throw createRequestError(400, 'Email is required.');
       }
 
-      if (existingRow.status === 'Pending') {
-        return res.status(409).json({
-          error: 'This application is already under review. Contact support if you need to update it.',
-        });
+      if (!phone) {
+        throw createRequestError(400, 'Phone is required.');
       }
 
-      if (existingRow.status === 'Rejected') {
-        return res.status(409).json({
-          error: 'This application has already been reviewed. Contact support to reopen it securely.',
-        });
-      }
-
-      if (['Approved', 'Paid', 'Payment Review'].includes(String(existingRow.status))) {
-        return res.status(409).json({
-          error: 'This application has already been submitted and is being processed.',
-        });
-      }
-    }
-
-    const selectedCarId = Number(normalizedApplicationData.selected_car_id);
-    const selectedCar = await fetchCarById(selectedCarId);
-
-    if (!selectedCar) {
-      return res.status(404).json({ error: 'Selected vehicle was not found.' });
-    }
-
-    if (String(selectedCar.status) !== 'Available') {
-      return res.status(409).json({
-        error: 'Selected vehicle is no longer available. Please choose another vehicle.',
-      });
-    }
-
-    const uploadImage = async (
-      base64Str: string,
-      filePrefix: string,
-      fieldLabel: string
-    ) => {
-      const match = base64Str.match(/^data:([a-zA-Z0-9-+/=.]+);base64,(.+)$/);
-      if (!match) {
-        throw createRequestError(400, `${fieldLabel} must be a valid image data URL.`);
-      }
-
-      const [, contentType, base64Data] = match;
-      const normalizedContentType = contentType.toLowerCase();
-
-      if (!ALLOWED_APPLICATION_IMAGE_TYPES.has(normalizedContentType)) {
-        throw createRequestError(400, `${fieldLabel} must be a JPG or PNG image.`);
-      }
-
-      const buffer = Buffer.from(base64Data, 'base64');
-
-      if (buffer.length === 0) {
-        throw createRequestError(400, `${fieldLabel} could not be read.`);
-      }
-
-      if (buffer.length > MAX_APPLICATION_UPLOAD_BYTES) {
-        throw createRequestError(400, `${fieldLabel} must be smaller than 7 MB.`);
-      }
-
-      const filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${filePrefix}`;
-
-      const { data: uploadData, error: uploadError } = await db.storage
-        .from(APPLICATIONS_BUCKET)
-        .upload(filename, buffer, { contentType: normalizedContentType });
-
-      if (uploadError) {
-        console.error(`Error uploading ${filePrefix}:`, uploadError);
-        throw createRequestError(500, `Failed to upload ${fieldLabel.toLowerCase()}.`);
-      }
-
-      const uploadedPath = uploadData.path || filename;
-      uploadedPaths.push(uploadedPath);
-      return uploadedPath;
-    };
-
-    if (data.license_photo) {
-      licensePhotoUrl = await uploadImage(
-        data.license_photo,
-        'license',
+      const files = (req.files || {}) as UploadedApplicationFiles;
+      const licensePhotoFile = getUploadedApplicationFile(
+        files,
+        'license_photo',
         'Driver licence front photo'
       );
-    }
-
-    if (data.license_back_photo) {
-      licenseBackPhotoUrl = await uploadImage(
-        data.license_back_photo,
-        'license-back',
+      const licenseBackPhotoFile = getUploadedApplicationFile(
+        files,
+        'license_back_photo',
         'Driver licence back photo'
       );
-    }
 
-    const basePayload = await toApplicationWritePayload({
-      ...normalizedApplicationData,
-      weekly_budget: normalizedApplicationData.weekly_budget?.trim() || null,
-      license_photo: licensePhotoUrl,
-      license_back_photo: licenseBackPhotoUrl,
-      status: 'Pending',
-    });
-    const selectionPayload = await toApplicationPaymentWritePayload({
-      assigned_car_id: selectedCarId,
-    });
-    const { data: inserted, error } = await db
-      .from('applications')
-      .insert([{ ...basePayload, ...selectionPayload }])
-      .select('id')
-      .single();
+      const normalizedApplicationData = {
+        ...data,
+        email,
+        phone,
+      };
+      let licensePhotoUrl = null;
+      let licenseBackPhotoUrl = null;
+      const existingApplicationSelectColumns = await getApplicationDuplicateCheckColumns();
+      const { data: existingApplications, error: existingApplicationError } = await db
+        .from('applications')
+        .select(existingApplicationSelectColumns)
+        .ilike('email', normalizedApplicationData.email);
 
-    if (error) {
-      throw error;
-    }
-
-    const applicationId = Number(inserted.id);
-
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const resend = await getResend();
-        const adminEmail = process.env.ADMIN_EMAIL || FALLBACK_ADMIN_EMAIL;
-        const safeApplicantName = escapeHtml(normalizedApplicationData.name);
-        const safeApplicantEmail = escapeHtml(normalizedApplicationData.email);
-        const safeApplicantPhone = escapeHtml(normalizedApplicationData.phone);
-        const safeApplicantAddress = escapeHtml(normalizedApplicationData.address);
-        const safeUberStatus = escapeHtml(normalizedApplicationData.uber_status);
-        const safeExperience = escapeHtml(normalizedApplicationData.experience);
-        const safeIntendedStart = escapeHtml(normalizedApplicationData.intended_start_date);
-        const safeCarName = escapeHtml(String(selectedCar.name || 'Vehicle'));
-        const applicantNameForSubject = sanitizeEmailHeaderValue(normalizedApplicationData.name);
-        const emailResults = await Promise.allSettled([
-          resend.emails.send({
-            from: 'Maple Rentals Notifications <noreply@maplerentals.com.au>',
-            to: adminEmail,
-            subject: `New Driver Application: ${applicantNameForSubject}`,
-            html: `
-              <div style="font-family: sans-serif; color: #1a202c;">
-                <h2>New Driver Application</h2>
-                <p>A new driver application has been submitted and is waiting for review.</p>
-                <ul>
-                  <li><strong>Name:</strong> ${safeApplicantName}</li>
-                  <li><strong>Phone:</strong> ${safeApplicantPhone}</li>
-                  <li><strong>Email:</strong> ${safeApplicantEmail}</li>
-                  <li><strong>Address:</strong> ${safeApplicantAddress}</li>
-                  <li><strong>Uber Status:</strong> ${safeUberStatus}</li>
-                  <li><strong>Experience:</strong> ${safeExperience}</li>
-                  <li><strong>Intended Start:</strong> ${safeIntendedStart}</li>
-                  <li><strong>Requested Vehicle:</strong> ${safeCarName}</li>
-                </ul>
-                <p>Review the application in the admin dashboard before issuing any payment link.</p>
-              </div>
-            `,
-          }),
-          resend.emails.send({
-            from: 'Maple Rentals <noreply@maplerentals.com.au>',
-            to: normalizedApplicationData.email,
-            subject: 'We received your Maple Rentals application',
-            html: `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
-                <h2 style="color: #D4AF37;">Application Received</h2>
-                <p>Hi ${safeApplicantName},</p>
-                <p>Thanks for applying to rent the ${safeCarName}.</p>
-                <p>Our team is reviewing your documents now. If your application is approved, we will email you a secure checkout link with the final pricing and agreement.</p>
-                <p><strong>Application reference:</strong> #${applicationId}</p>
-                <p>Best regards,<br /><strong>The Maple Rentals Team</strong></p>
-              </div>
-            `,
-          }),
-        ]);
-        for (const result of emailResults) {
-          if (result.status === 'rejected') {
-            console.error('Failed to send application review email:', result.reason);
-          }
-        }
-      } catch (emailError) {
-        // Catches errors from getResend() initialization (e.g. missing API key at call time).
-        // Individual send() failures are handled above via Promise.allSettled.
-        console.error('Failed to initialise email client for application review:', emailError);
+      if (existingApplicationError) {
+        throw existingApplicationError;
       }
-    }
 
-    res.json({
-      success: true,
-      application_id: String(applicationId),
-    });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Validation failed', details: err.issues });
-    }
+      const matchingApplications = (
+        (existingApplications ?? []) as Array<Record<string, any>>
+      ).filter(
+        (application) =>
+          normalizeApplicationEmail(String(application.email ?? '')) ===
+          normalizedApplicationData.email
+      );
 
-    await removeUploadedApplicationDocuments(uploadedPaths);
+      const existingRow = matchingApplications[0] ?? null;
 
-    if (err instanceof Error && 'status' in err && typeof err.status === 'number') {
-      return res.status(err.status).json({ error: err.message });
-    }
+      if (existingRow) {
+        if (
+          existingRow.phone !== normalizedApplicationData.phone ||
+          existingRow.license_number !== normalizedApplicationData.license_number
+        ) {
+          return res.status(409).json({
+            error: 'An application already exists for this email. Contact support to continue.',
+          });
+        }
 
-    if (err instanceof VehicleAllocationConflictError) {
-      return res.status(err.status).json({ error: err.message });
-    }
+        if (existingRow.status === 'Pending') {
+          return res.status(409).json({
+            error:
+              'This application is already under review. Contact support if you need to update it.',
+          });
+        }
 
-    if (isVehicleAllocationUniqueConstraintError(err)) {
-      return res.status(409).json({
-        error: 'Selected vehicle is no longer available. Please choose another vehicle.',
+        if (existingRow.status === 'Rejected') {
+          return res.status(409).json({
+            error:
+              'This application has already been reviewed. Contact support to reopen it securely.',
+          });
+        }
+
+        if (['Approved', 'Paid', 'Payment Review'].includes(String(existingRow.status))) {
+          return res.status(409).json({
+            error: 'This application has already been submitted and is being processed.',
+          });
+        }
+      }
+
+      const selectedCarId = Number(normalizedApplicationData.selected_car_id);
+      const selectedCar = await fetchCarById(selectedCarId);
+
+      if (!selectedCar) {
+        return res.status(404).json({ error: 'Selected vehicle was not found.' });
+      }
+
+      if (String(selectedCar.status) !== 'Available') {
+        return res.status(409).json({
+          error: 'Selected vehicle is no longer available. Please choose another vehicle.',
+        });
+      }
+
+      licensePhotoUrl = await uploadApplicationFile({
+        file: licensePhotoFile,
+        filePrefix: 'license-front',
+        fieldLabel: 'Driver licence front photo',
+        uploadedPaths,
       });
-    }
+      licenseBackPhotoUrl = await uploadApplicationFile({
+        file: licenseBackPhotoFile,
+        filePrefix: 'license-back',
+        fieldLabel: 'Driver licence back photo',
+        uploadedPaths,
+      });
 
-    console.error('Application submission error:', err);
-    res.status(500).json({ error: 'Application submission failed' });
-  }
+      const basePayload = await toApplicationWritePayload({
+        ...normalizedApplicationData,
+        weekly_budget: normalizedApplicationData.weekly_budget?.trim() || null,
+        license_photo: licensePhotoUrl,
+        license_back_photo: licenseBackPhotoUrl,
+        status: 'Pending',
+      });
+      const selectionPayload = await toApplicationPaymentWritePayload({
+        assigned_car_id: selectedCarId,
+      });
+      const { data: inserted, error } = await db
+        .from('applications')
+        .insert([{ ...basePayload, ...selectionPayload }])
+        .select('id')
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const applicationId = String(inserted.id);
+
+      if (process.env.RESEND_API_KEY) {
+        try {
+          const resend = await getResend();
+          const adminEmail = process.env.ADMIN_EMAIL || FALLBACK_ADMIN_EMAIL;
+          const safeApplicantName = escapeHtml(normalizedApplicationData.name);
+          const safeApplicantEmail = escapeHtml(normalizedApplicationData.email);
+          const safeApplicantPhone = escapeHtml(normalizedApplicationData.phone);
+          const safeApplicantAddress = escapeHtml(normalizedApplicationData.address);
+          const safeUberStatus = escapeHtml(normalizedApplicationData.uber_status);
+          const safeExperience = escapeHtml(normalizedApplicationData.experience);
+          const safeIntendedStart = escapeHtml(normalizedApplicationData.intended_start_date);
+          const safeCarName = escapeHtml(String(selectedCar.name || 'Vehicle'));
+          const applicantNameForSubject = sanitizeEmailHeaderValue(
+            normalizedApplicationData.name
+          );
+          const emailResults = await Promise.allSettled([
+            resend.emails.send({
+              from: 'Maple Rentals Notifications <noreply@maplerentals.com.au>',
+              to: adminEmail,
+              subject: `New Driver Application: ${applicantNameForSubject}`,
+              html: `
+                <div style="font-family: sans-serif; color: #1a202c;">
+                  <h2>New Driver Application</h2>
+                  <p>A new driver application has been submitted and is waiting for review.</p>
+                  <ul>
+                    <li><strong>Name:</strong> ${safeApplicantName}</li>
+                    <li><strong>Phone:</strong> ${safeApplicantPhone}</li>
+                    <li><strong>Email:</strong> ${safeApplicantEmail}</li>
+                    <li><strong>Address:</strong> ${safeApplicantAddress}</li>
+                    <li><strong>Uber Status:</strong> ${safeUberStatus}</li>
+                    <li><strong>Experience:</strong> ${safeExperience}</li>
+                    <li><strong>Intended Start:</strong> ${safeIntendedStart}</li>
+                    <li><strong>Requested Vehicle:</strong> ${safeCarName}</li>
+                  </ul>
+                  <p>Review the application in the admin dashboard before issuing any payment link.</p>
+                </div>
+              `,
+            }),
+            resend.emails.send({
+              from: 'Maple Rentals <noreply@maplerentals.com.au>',
+              to: normalizedApplicationData.email,
+              subject: 'We received your Maple Rentals application',
+              html: `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
+                  <h2 style="color: #D4AF37;">Application Received</h2>
+                  <p>Hi ${safeApplicantName},</p>
+                  <p>Thanks for applying to rent the ${safeCarName}.</p>
+                  <p>Our team is reviewing your documents now. If your application is approved, we will email you a secure checkout link with the final pricing and agreement.</p>
+                  <p><strong>Application reference:</strong> ${applicationId}</p>
+                  <p>Best regards,<br /><strong>The Maple Rentals Team</strong></p>
+                </div>
+              `,
+            }),
+          ]);
+          for (const result of emailResults) {
+            if (result.status === 'rejected') {
+              console.error('Failed to send application review email:', result.reason);
+            }
+          }
+        } catch (emailError) {
+          // Catches errors from getResend() initialization (e.g. missing API key at call time).
+          // Individual send() failures are handled above via Promise.allSettled.
+          console.error('Failed to initialise email client for application review:', emailError);
+        }
+      }
+      
+
+      res.json({
+        success: true,
+        application_id: applicationId,
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation failed', details: err.issues });
+      }
+
+      await removeUploadedApplicationDocuments(uploadedPaths);
+
+      if (err instanceof Error && 'status' in err && typeof err.status === 'number') {
+        return res.status(err.status).json({ error: err.message });
+      }
+
+      if (err instanceof VehicleAllocationConflictError) {
+        return res.status(err.status).json({ error: err.message });
+      }
+
+      if (isVehicleAllocationUniqueConstraintError(err)) {
+        return res.status(409).json({
+          error: 'Selected vehicle is no longer available. Please choose another vehicle.',
+        });
+      }
+
+      console.error('Application submission error:', err);
+      res.status(500).json({ error: 'Application submission failed' });
+    }
   }
 );
 
@@ -782,7 +859,7 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
 
 router.post('/:id/retry-payment-activation', authenticateAdmin, async (req, res) => {
   try {
-    const applicationId = z.coerce.number().int().positive().parse(req.params.id);
+    const applicationId = uuidSchema.parse(req.params.id);
     const selectColumns = await getApplicationSelectColumns();
     const { data: application, error: applicationError } = await db
       .from('applications')
@@ -853,7 +930,7 @@ router.post('/:id/retry-payment-activation', authenticateAdmin, async (req, res)
 
 router.put('/:id/status', authenticateAdmin, async (req, res) => {
   try {
-    const { id } = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
+    const { id } = z.object({ id: uuidSchema }).parse(req.params);
     const { data: existingApplication, error: applicationLookupError } = await db
       .from('applications')
       .select('id')

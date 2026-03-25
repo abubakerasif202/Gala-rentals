@@ -23,7 +23,7 @@ export const buildDriverPaymentLink = ({
   carId,
   token,
 }: {
-  applicationId: number;
+  applicationId: string;
   carId: number;
   token: string;
 }) => {

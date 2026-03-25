@@ -18,6 +18,7 @@ import {
   AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON,
   hasTransactionalPaymentProcessing,
 } from './paymentProcessing.js';
+import { normalizeUuid } from '../shared/uuid.js';
 
 const assertSupabaseWrite = (
   result: { error: { code?: string; message?: string } | null } | null | undefined,
@@ -58,7 +59,7 @@ const updateApplicationPaymentState = async ({
   pendingCheckoutSessionId,
   status,
 }: {
-  applicationId: number;
+  applicationId: string;
   paidAt?: string | null;
   pendingCheckoutSessionId?: string | null;
   status?: string;
@@ -98,7 +99,9 @@ export const updateRentalsBySubscriptionIdentity = async (
   }
 
   if (!rentalBySubscription?.id) {
-    const safeApplicationId = Number(metadata.application_id || 0) || null;
+    const safeApplicationId = typeof metadata.application_id === 'string'
+      ? normalizeUuid(metadata.application_id)
+      : null;
     const safeCarId = Number(metadata.car_id || 0) || null;
     throw new Error(
       `No rental found for Stripe subscription ${subscriptionId}. ` +
@@ -149,7 +152,7 @@ const insertRowInTransaction = async (
 const updateRowByIdInTransaction = async (
   client: import('pg').PoolClient,
   table: string,
-  id: number,
+  id: number | string,
   payload: Record<string, unknown>,
   context: string
 ) => {
@@ -178,7 +181,7 @@ const applyVehicleCheckoutActivationWrites = async ({
   rentalInsertPayload,
   rentalRepairPayload,
 }: {
-  applicationId: number;
+  applicationId: string;
   carId: number;
   existingRentalId: number | null;
   expectedPaymentLinkVersion: number;
@@ -343,7 +346,7 @@ export const maybeMarkCarAvailable = async (carId: number) => {
 };
 
 export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.Session) => {
-  const applicationId = Number(session.metadata?.application_id || 0);
+  const applicationId = normalizeUuid(session.metadata?.application_id || '');
   const carId = Number(session.metadata?.car_id || 0);
   const sessionPaymentLinkVersion = Number(session.metadata?.payment_link_version || 0);
   const subscriptionId =
@@ -481,7 +484,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
   }
 
   const rentalsForApplication = existingRentals.filter(
-    (rental) => Number(rental[rentalApplicationIdColumn]) === applicationId
+    (rental) => String(rental[rentalApplicationIdColumn]) === applicationId
   );
   let existingRental =
     (compat.rentalStripeSubscriptionColumn
@@ -503,7 +506,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
   const blockingRental = existingRentals.find(
     (rental) =>
       isLiveRentalStatus(rental.status) &&
-      Number(rental[rentalApplicationIdColumn]) !== applicationId
+      String(rental[rentalApplicationIdColumn]) !== applicationId
   );
 
   const existingRentalSubscriptionId = compat.rentalStripeSubscriptionColumn
@@ -571,7 +574,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
 
       const refetchedRentals = await fetchExistingRentalsForCar(carId);
         const refetchedRentalsForApplication = refetchedRentals.rentals.filter(
-          (rental) => Number(rental[rentalApplicationIdColumn]) === applicationId
+          (rental) => String(rental[rentalApplicationIdColumn]) === applicationId
         );
 
         existingRental =

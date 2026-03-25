@@ -20,7 +20,7 @@ export const findConflictingVehicleApplication = async ({
   excludeApplicationId,
 }: {
   carId: number;
-  excludeApplicationId: number;
+  excludeApplicationId: string;
 }) => {
   const compat = await getSchemaCompat();
   const selectColumns = await getApplicationSelectColumns();
@@ -36,7 +36,7 @@ export const findConflictingVehicleApplication = async ({
   }
 
   const rows = (data || []) as unknown as Array<Record<string, unknown>>;
-  return rows.find((row) => Number(row.id) !== excludeApplicationId) || null;
+  return rows.find((row) => String(row.id) !== excludeApplicationId) || null;
 };
 
 export const assertVehicleAllocationAvailable = async ({
@@ -44,7 +44,7 @@ export const assertVehicleAllocationAvailable = async ({
   carId,
   message,
 }: {
-  applicationId: number;
+  applicationId: string;
   carId: number;
   message: string;
 }) => {

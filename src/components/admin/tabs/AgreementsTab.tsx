@@ -16,7 +16,7 @@ interface AgreementsTabProps {
   isGeneratingAgreement: boolean;
   handleGenerateAgreement: () => void;
   canCopyVehicleCheckoutLink: boolean;
-  generateCheckoutLinkMutation: UseMutationResult<any, Error, { application_id: number; }, unknown>;
+  generateCheckoutLinkMutation: UseMutationResult<any, Error, { application_id: string; }, unknown>;
   handleCopyVehicleCheckoutLink: () => void;
   savedAgreements: any[];
   setAgreementModalMode: (mode: 'draft' | 'saved') => void;
@@ -75,7 +75,7 @@ export default function AgreementsTab({
               onChange={(e) => {
                 const applicationId = e.target.value;
                 const nextApplication = applications.find(
-                  (app) => app.id === Number(applicationId)
+                  (app) => app.id === applicationId
                 );
                 set_selected_agreement_application_id(applicationId);
                 set_selected_agreement_car_id(

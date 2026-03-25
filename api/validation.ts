@@ -39,6 +39,8 @@ export const adminLoginSchema = z.object({
 const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
   z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
 
+export const uuidSchema = z.string().trim().uuid('Expected a UUID identifier');
+
 export const carSchema = z.object({
   name: z.string().min(1),
   model_year: modelYearSchema,
@@ -72,8 +74,6 @@ export const applicationSchema = z.object({
     (value) => isTodayOrFutureAustraliaDate(value, getTodayInAustralia()),
     'Start date must be today or later'
   ),
-  license_photo: z.string().min(1),
-  license_back_photo: z.string().min(1),
 });
 
 export const applicationStatusEnum = z.enum([
@@ -85,7 +85,7 @@ export const applicationStatusEnum = z.enum([
 ]);
 
 export const vehicleCheckoutSessionSchema = z.object({
-  application_id: z.coerce.number().int().positive(),
+  application_id: uuidSchema,
   car_id: z.coerce.number().int().positive(),
   checkout_token: z.string().min(1),
 });
@@ -93,13 +93,13 @@ export const vehicleCheckoutSessionSchema = z.object({
 export const applicationApprovalSchema = z.object({
   approved_bond: z.coerce.number().nonnegative(),
   approved_weekly_price: z.coerce.number().positive(),
-  application_id: z.coerce.number().int().positive(),
+  application_id: uuidSchema,
   assigned_car_id: z.coerce.number().int().positive(),
   send_payment_link: z.boolean().optional().default(true),
 });
 
 export const vehicleCheckoutLinkSchema = z.object({
-  application_id: z.coerce.number().int().positive(),
+  application_id: uuidSchema,
 });
 
 export const leaseFeeSchema = z.object({
@@ -137,7 +137,7 @@ export const leaseAgreementSchema = z.object({
 });
 
 export const createLeaseAgreementSchema = z.object({
-  application_id: z.coerce.number().int().positive(),
+  application_id: uuidSchema,
   car_id: z.coerce.number().int().positive(),
   content: z.string().min(1),
   status: z.string().optional().default('generated'),

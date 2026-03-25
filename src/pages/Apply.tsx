@@ -49,6 +49,21 @@ const getUpfrontDue = (car: Pick<Car, 'bond' | 'weekly_price'>) =>
 const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
   z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
 
+const applicationFileSchema = (label: string) =>
+  z
+    .custom<File>(
+      (value) => value instanceof File,
+      { message: `${label} is required` }
+    )
+    .refine(
+      (file) => ALLOWED_UPLOAD_TYPES.has(file.type),
+      `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`
+    )
+    .refine(
+      (file) => file.size <= MAX_APPLICATION_UPLOAD_BYTES,
+      `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`
+    );
+
 const applySchema = z.object({
   selected_car_id: z.number().int().positive('Select a vehicle to continue'),
   name: z.string().trim().min(2, 'Full name is required'),
@@ -79,11 +94,12 @@ const applySchema = z.object({
     (value) => isTodayOrFutureAustraliaDate(value, getTodayInAustralia()),
     'Start date must be today or later'
   ),
-  license_photo: z.string().min(1, 'Driver licence front photo is required'),
-  license_back_photo: z.string().min(1, 'Driver licence back photo is required'),
+  license_photo: applicationFileSchema('Driver licence front photo'),
+  license_back_photo: applicationFileSchema('Driver licence back photo'),
 });
 
-type ApplyValues = z.infer<typeof applySchema>;
+type ApplyValues = z.input<typeof applySchema>;
+type ApplySubmissionValues = z.output<typeof applySchema>;
 
 const defaultValues: ApplyValues = {
   selected_car_id: 0,
@@ -97,25 +113,14 @@ const defaultValues: ApplyValues = {
   experience: 'New Driver',
   weekly_budget: '',
   intended_start_date: '',
-  license_photo: '',
-  license_back_photo: '',
+  license_photo: null,
+  license_back_photo: null,
 };
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{message}</p>;
 }
-
-const estimateBase64Bytes = (dataUrl: string) => {
-  const commaIndex = dataUrl.indexOf(',');
-  if (commaIndex < 0) {
-    return 0;
-  }
-
-  const base64Data = dataUrl.slice(commaIndex + 1);
-  const strippedLength = base64Data.replace(/=+$/, '').length;
-  return Math.floor((strippedLength * 3) / 4);
-};
 
 function StepHeader({ step }: { step: number }) {
   const items = [
@@ -160,9 +165,6 @@ export default function Apply() {
   const [availableCars, setAvailableCars] = useState<Car[]>([]);
   const [carsError, setCarsError] = useState<string | null>(null);
   const [submittedApplicationId, setSubmittedApplicationId] = useState<string | null>(null);
-  const [isEncodingDocument, setIsEncodingDocument] = useState<
-    'license_photo' | 'license_back_photo' | null
-  >(null);
   const {
     register,
     handleSubmit,
@@ -170,7 +172,7 @@ export default function Apply() {
     trigger,
     watch,
     formState: { errors },
-  } = useForm<ApplyValues>({
+  } = useForm<ApplyValues, unknown, ApplySubmissionValues>({
     resolver: zodResolver(applySchema),
     mode: 'onChange',
     defaultValues: {
@@ -213,6 +215,11 @@ export default function Apply() {
     };
   }, []);
 
+  useEffect(() => {
+    register('license_photo');
+    register('license_back_photo');
+  }, [register]);
+
   const licensePhoto = watch('license_photo');
   const licenseBackPhoto = watch('license_back_photo');
   const selectedCarId = watch('selected_car_id');
@@ -238,46 +245,25 @@ export default function Apply() {
     field: 'license_photo' | 'license_back_photo'
   ) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      setValue(field, null, { shouldValidate: true });
+      return;
+    }
     if (!ALLOWED_UPLOAD_TYPES.has(file.type)) {
       event.target.value = '';
-      setValue(field, '', { shouldValidate: true });
+      setValue(field, null, { shouldValidate: true });
       setPageError(`Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`);
       return;
     }
     if (file.size > MAX_APPLICATION_UPLOAD_BYTES) {
       event.target.value = '';
-      setValue(field, '', { shouldValidate: true });
+      setValue(field, null, { shouldValidate: true });
       setPageError(`Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`);
       return;
     }
 
-    setIsEncodingDocument(field);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const encodedValue = String(reader.result || '');
-
-      if (estimateBase64Bytes(encodedValue) > MAX_APPLICATION_UPLOAD_BYTES) {
-        event.target.value = '';
-        setValue(field, '', { shouldValidate: true });
-        setPageError(
-          `The encoded image exceeded ${MAX_UPLOAD_SIZE_MB} MB. Please upload a smaller file.`
-        );
-        setIsEncodingDocument(null);
-        return;
-      }
-
-      setValue(field, encodedValue, { shouldValidate: true });
-      setPageError(null);
-      setIsEncodingDocument(null);
-    };
-    reader.onerror = () => {
-      event.target.value = '';
-      setValue(field, '', { shouldValidate: true });
-      setPageError('We could not read this file. Please try a different JPG or PNG image.');
-      setIsEncodingDocument(null);
-    };
-    reader.readAsDataURL(file);
+    setValue(field, file, { shouldValidate: true });
+    setPageError(null);
   };
 
   const goToDocumentsStep = async () => {
@@ -298,17 +284,36 @@ export default function Apply() {
     }
   };
 
-  const onSubmit = async (values: ApplyValues) => {
-    if (isEncodingDocument) {
-      setPageError('Please wait for document processing to finish before submitting.');
-      return;
-    }
-
+  const onSubmit = async (values: ApplySubmissionValues) => {
     setIsSubmitting(true);
     setPageError(null);
 
     try {
-      const submission = await submitApplication(values);
+      if (!values.license_photo || !values.license_back_photo) {
+        setPageError('Please attach both licence images before submitting.');
+        return;
+      }
+
+      const payload = new FormData();
+      payload.set('selected_car_id', String(values.selected_car_id));
+      payload.set('name', values.name);
+      payload.set('phone', values.phone);
+      payload.set('email', values.email);
+      payload.set('address', values.address);
+      payload.set('license_number', values.license_number);
+      payload.set('license_expiry', values.license_expiry);
+      payload.set('uber_status', values.uber_status);
+      payload.set('experience', values.experience);
+      payload.set('intended_start_date', values.intended_start_date);
+
+      if (values.weekly_budget?.trim()) {
+        payload.set('weekly_budget', values.weekly_budget.trim());
+      }
+
+      payload.set('license_photo', values.license_photo);
+      payload.set('license_back_photo', values.license_back_photo);
+
+      const submission = await submitApplication(payload);
       setSubmittedApplicationId(submission.application_id);
     } catch (error) {
       setPageError(
@@ -639,11 +644,7 @@ export default function Apply() {
                           Upload front photo
                         </span>
                         <span className="text-xs text-brand-grey font-light">
-                           {isEncodingDocument === 'license_photo'
-                             ? 'Processing image...'
-                             : licensePhoto
-                               ? 'File attached'
-                               : 'Choose an image file'}
+                          {licensePhoto ? licensePhoto.name : 'Choose an image file'}
                         </span>
                         <input
                           type="file"
@@ -670,11 +671,7 @@ export default function Apply() {
                           Upload back photo
                         </span>
                         <span className="text-xs text-brand-grey font-light">
-                           {isEncodingDocument === 'license_back_photo'
-                             ? 'Processing image...'
-                             : licenseBackPhoto
-                               ? 'File attached'
-                               : 'Choose an image file'}
+                          {licenseBackPhoto ? licenseBackPhoto.name : 'Choose an image file'}
                         </span>
                         <input
                           type="file"
@@ -697,7 +694,7 @@ export default function Apply() {
                     </button>
                     <button
                       type="submit"
-                       disabled={isSubmitting || isEncodingDocument !== null}
+                      disabled={isSubmitting}
                       className="inline-flex items-center justify-center gap-3 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all disabled:opacity-50"
                     >
                       {isSubmitting ? (

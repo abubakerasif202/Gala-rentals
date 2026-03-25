@@ -78,7 +78,7 @@ export const fetchApplications = async (): Promise<Application[]> => {
   return data;
 };
 
-export const updateApplicationStatus = async (id: number, status: string): Promise<{ success: boolean }> => {
+export const updateApplicationStatus = async (id: string, status: string): Promise<{ success: boolean }> => {
   const { data } = await api.put(`/applications/${id}/status`, { status });
   return data;
 };
@@ -166,7 +166,7 @@ export interface ApplicationActivationRetryResponse {
 export interface ApprovedPaymentContextResponse {
   agreement: string;
   applicant_name: string;
-  application_id: number;
+  application_id: string;
   billing: {
     bond: number;
     currency: string;
@@ -182,14 +182,14 @@ export interface ApprovedPaymentContextResponse {
 }
 
 export const fetchApplicationDocumentUrl = async (
-  applicationId: number,
+  applicationId: string,
   document: 'license_photo' | 'license_back_photo'
 ): Promise<{ url: string }> => {
   const { data } = await api.get(`/applications/${applicationId}/documents/${document}`);
   return data;
 };
 
-export const submitApplication = async (payload: Record<string, unknown>): Promise<ApplicationSubmissionResponse> => {
+export const submitApplication = async (payload: FormData): Promise<ApplicationSubmissionResponse> => {
   const { data } = await api.post('/applications', payload);
   return data;
 };
@@ -202,7 +202,7 @@ export const submitInquiry = async (
 };
 
 export const createVehicleCheckoutSession = async (payload: {
-  application_id: number;
+  application_id: string;
   car_id: number;
   checkout_token: string;
 }): Promise<HostedCheckoutSessionResponse> => {
@@ -211,7 +211,7 @@ export const createVehicleCheckoutSession = async (payload: {
 };
 
 export const fetchApprovedPaymentContext = async (options: {
-  application_id: number;
+  application_id: string;
   car_id: number;
   checkout_token: string;
 }): Promise<ApprovedPaymentContextResponse> => {
@@ -228,7 +228,7 @@ export const fetchApprovedPaymentContext = async (options: {
 export const fetchCheckoutSessionStatus = async (
   sessionId: string,
   options: {
-    application_id: number;
+    application_id: string;
     car_id?: number;
     checkout_token: string;
   }
@@ -290,14 +290,14 @@ export interface LeaseAgreementPayload {
 }
 
 export const createVehicleCheckoutLink = async (payload: {
-  application_id: number;
+  application_id: string;
 }): Promise<VehicleCheckoutLinkResponse> => {
   const { data } = await api.post('/stripe/vehicle-checkout-link', payload);
   return data;
 };
 
 export const approveApplicationForPayment = async (
-  id: number,
+  id: string,
   payload: {
     approved_bond: number;
     approved_weekly_price: number;
@@ -310,7 +310,7 @@ export const approveApplicationForPayment = async (
 };
 
 export const retryApplicationPaymentActivation = async (
-  id: number
+  id: string
 ): Promise<ApplicationActivationRetryResponse> => {
   const { data } = await api.post(`/applications/${id}/retry-payment-activation`);
   return data;
@@ -337,7 +337,7 @@ export const fetchStripeLeaseSettings = async (): Promise<StripeLeaseSettings> =
 
 export interface SavedLeaseAgreement {
   id: number;
-  application_id: number;
+  application_id: string;
   car_id: number;
   content: string;
   status: string;
@@ -347,7 +347,7 @@ export interface SavedLeaseAgreement {
 }
 
 export const saveLeaseAgreement = async (payload: {
-  application_id: number;
+  application_id: string;
   car_id: number;
   content: string;
   status?: string;

@@ -10,6 +10,7 @@ import {
   parseHashCheckoutToken,
   scrubCheckoutTokenFromUrl,
 } from '../lib/checkoutTokenUrl';
+import { isUuid } from '../../shared/uuid';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -29,7 +30,8 @@ export default function Checkout() {
   );
   const [pageError, setPageError] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const applicationId = Number(searchParams.get('application_id') || 0);
+  const applicationIdParam = searchParams.get('application_id') || '';
+  const applicationId = isUuid(applicationIdParam) ? applicationIdParam : '';
   const carId = Number(id || 0);
   const pageSeo = (
     <Seo

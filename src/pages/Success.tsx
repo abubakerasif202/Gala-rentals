@@ -9,11 +9,13 @@ import {
   parseHashCheckoutToken,
   scrubCheckoutTokenFromUrl,
 } from '../lib/checkoutTokenUrl';
+import { isUuid } from '../../shared/uuid';
 
 export default function Success() {
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
-  const applicationId = Number(searchParams.get('application_id') || 0);
+  const applicationIdParam = searchParams.get('application_id') || '';
+  const applicationId = isUuid(applicationIdParam) ? applicationIdParam : '';
   const checkoutToken =
     searchParams.get('checkout_token') ||
     searchParams.get('token') ||

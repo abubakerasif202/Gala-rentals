@@ -9,7 +9,7 @@ import { getApplicationSelectColumns, getCarSelectColumns } from '../schemaCompa
 const router = express.Router();
 
 type LeaseAgreementRecord = {
-  application_id: number;
+  application_id: string;
   car_id: number;
   content: string;
   created_at: string;
@@ -23,8 +23,8 @@ const enrichLeaseAgreements = async (
   const applicationIds = Array.from(
     new Set(
       agreements
-        .map((agreement) => Number(agreement.application_id))
-        .filter((id) => Number.isInteger(id) && id > 0)
+        .map((agreement) => agreement.application_id)
+        .filter((id) => id.length > 0)
     )
   );
   const carIds = Array.from(
@@ -52,9 +52,9 @@ const enrichLeaseAgreements = async (
     throw carsResult.error;
   }
 
-  const applicationNames = new Map<number, string>();
+  const applicationNames = new Map<string, string>();
   for (const application of applicationsResult.data || []) {
-    applicationNames.set(Number(application.id), String(application.name || ''));
+    applicationNames.set(String(application.id), String(application.name || ''));
   }
 
   const carNames = new Map<number, string>();
@@ -64,8 +64,7 @@ const enrichLeaseAgreements = async (
 
   return agreements.map((agreement) => ({
     ...agreement,
-    applicant_name:
-      applicationNames.get(Number(agreement.application_id)) || undefined,
+    applicant_name: applicationNames.get(agreement.application_id) || undefined,
     car_name: carNames.get(Number(agreement.car_id)) || undefined,
   }));
 };

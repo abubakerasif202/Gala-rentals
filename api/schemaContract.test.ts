@@ -47,6 +47,13 @@ describe('schemaContract', () => {
                 stripe_subscription_id: { type: 'string' },
               },
             },
+            stripe_webhook_events: {
+              properties: {
+                stripe_event_id: { type: 'string' },
+                status: { type: 'string' },
+                received_at: { type: 'string' },
+              },
+            },
           },
         }),
       })
@@ -90,6 +97,13 @@ describe('schemaContract', () => {
                 stripeSubscriptionId: { type: 'string' },
               },
             },
+            stripe_webhook_events: {
+              properties: {
+                stripe_event_id: { type: 'string' },
+                status: { type: 'string' },
+                received_at: { type: 'string' },
+              },
+            },
           },
         }),
       })
@@ -120,6 +134,7 @@ describe('schemaContract', () => {
             },
             cars: { properties: { created_at: { type: 'string' } } },
             rentals: { properties: {} },
+            stripe_webhook_events: { properties: {} },
           },
         }),
       })

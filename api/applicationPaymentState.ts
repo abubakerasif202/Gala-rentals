@@ -22,7 +22,7 @@ export const updateApplicationPaymentStateIfCurrentVersion = async ({
   expectedPaymentLinkVersion,
   payload,
 }: {
-  applicationId: number;
+  applicationId: string;
   expectedPaymentLinkVersion: number;
   payload: ApplicationPaymentWritePayload;
 }) => {
@@ -53,7 +53,7 @@ export const persistPendingCheckoutSessionIdIfCurrentVersion = async ({
   expectedPaymentLinkVersion,
   sessionId,
 }: {
-  applicationId: number;
+  applicationId: string;
   expectedPaymentLinkVersion: number;
   sessionId: string | null;
 }) => {

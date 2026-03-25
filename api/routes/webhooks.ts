@@ -24,8 +24,7 @@ type WebhookLedgerStatus = 'received' | 'processing' | 'processed' | 'failed';
 type WebhookEventClaim =
   | { eventId: string; mode: 'owned' }
   | { eventId: string; mode: 'already_processed' }
-  | { eventId: string; mode: 'in_flight' }
-  | { eventId: null; mode: 'no_dedupe' };
+  | { eventId: string; mode: 'in_flight' };
 
 const readLedgerRow = async (eventId: string) => {
   const { data, error } = await db
@@ -165,10 +164,7 @@ const markLedgerFailed = async (eventId: string, errorMessage: string) => {
 const claimWebhookEvent = async (event: Stripe.Event): Promise<WebhookEventClaim> => {
   const eventId = typeof event.id === 'string' ? event.id.trim() : '';
   if (!eventId) {
-    console.warn(
-      `Stripe webhook event for ${event.type} is missing a stable id; skipping dedupe ledger persistence.`
-    );
-    return { eventId: null, mode: 'no_dedupe' };
+    throw new Error(`Stripe webhook event ${event.type} is missing a stable id.`);
   }
 
   const { error } = await db.from('stripe_webhook_events').insert([
@@ -279,7 +275,7 @@ router.post('/', async (request, response) => {
     return;
   }
 
-  let webhookClaim: WebhookEventClaim = { eventId: null, mode: 'no_dedupe' };
+  let webhookClaim: WebhookEventClaim | null = null;
 
   try {
     webhookClaim = await claimWebhookEvent(event);
@@ -368,7 +364,7 @@ router.post('/', async (request, response) => {
         console.log(`Stripe Webhook: unhandled event type ${event.type}`);
     }
   } catch (err) {
-    if (webhookClaim.mode === 'owned' && webhookClaim.eventId) {
+    if (webhookClaim?.mode === 'owned' && webhookClaim.eventId) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       await markLedgerFailed(webhookClaim.eventId, message);
     }
@@ -376,7 +372,7 @@ router.post('/', async (request, response) => {
     return response.status(500).send('Webhook processing failed');
   }
 
-  if (webhookClaim.mode === 'owned' && webhookClaim.eventId) {
+  if (webhookClaim?.mode === 'owned' && webhookClaim.eventId) {
     try {
       await markLedgerProcessed(webhookClaim.eventId);
     } catch (err) {

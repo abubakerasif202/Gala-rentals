@@ -13,7 +13,7 @@ export interface Application {
   approved_bond?: number | null;
   approved_weekly_price?: number | null;
   assigned_car_id?: number | null;
-  id: number;
+  id: string;
   name: string;
   phone: string;
   email: string;
@@ -36,7 +36,7 @@ export interface Application {
 
 export interface Rental {
   id: number;
-  application_id: number;
+  application_id: string;
   bond_paid?: number;
   car_id: number;
   applicant_name?: string;
@@ -87,7 +87,7 @@ export interface OperationalCustomer {
 }
 
 export interface OperationalInvoice {
-  id: number;
+  id: string;
   external_invoice_number: string;
   customer_id?: number | null;
   customer_name: string;

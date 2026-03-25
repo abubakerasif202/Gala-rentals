@@ -39,6 +39,11 @@ const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
       acceptable: ['stripe_subscription_id', 'stripeSubscriptionId'],
     },
   ],
+  stripe_webhook_events: [
+    { label: 'stripe_event_id', acceptable: ['stripe_event_id'] },
+    { label: 'status', acceptable: ['status'] },
+    { label: 'received_at', acceptable: ['received_at'] },
+  ],
 } as const;
 
 let schemaContractValidationPromise: Promise<void> | null = null;

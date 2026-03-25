@@ -26,6 +26,7 @@ Use these from the repository root:
 - Apply active vehicle allocation migration: `npm run migrate:vehicle-allocation`
 - Apply operational history migration: `npm run migrate:operational-history`
 - Apply application index migration: `npm run migrate:application-indexes`
+- Verify the production schema contract: `npm run verify:schema-contract`
 - Seed the database destructively: `node scripts/pg-seed.js`
 
 ### Supabase and admin setup
@@ -47,6 +48,7 @@ Use these from the repository root:
 ## Safety Notes
 
 - `scripts/check-status.js` and `scripts/pg-seed.js` require `SUPABASE_DB_URL` (or `DATABASE_URL`).
+- `npm run verify:schema-contract` requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 - `scripts/pg-seed.js` is destructive and requires `ALLOW_SCHEMA_RESET=true`.
 - `scripts/seed-admin.js` and `scripts/reset-admin.js` require explicit admin credentials via args or env.
 - `npm run stripe:reset` is destructive and should only be used when resetting test data.

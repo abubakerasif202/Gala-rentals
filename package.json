@@ -17,6 +17,7 @@
     "migrate:vehicle-allocation": "node scripts/migrate-active-vehicle-allocation.js",
     "migrate:operational-history": "node scripts/migrate-operational-history.js",
     "migrate:application-indexes": "node scripts/migrate-application-indexes.js",
+    "verify:schema-contract": "node scripts/verify-production-schema-contract.js",
     "sync:realtime-fleet": "node scripts/sync-realtime-fleet.js",
     "stripe:setup": "tsx scripts/stripe-setup.ts",
     "stripe:reset": "tsx scripts/stripe-reset.ts",

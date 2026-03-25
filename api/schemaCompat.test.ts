@@ -72,6 +72,66 @@ describe('schemaCompat', () => {
     });
   });
 
+  it('uses the inspected production schema when the live database is still camelCase', async () => {
+    process.env.NODE_ENV = 'production';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          definitions: {
+            applications: {
+              properties: {
+                approvedAt: { type: 'string' },
+                approvedBond: { type: 'number' },
+                approvedWeeklyPrice: { type: 'number' },
+                assignedCarId: { type: 'number' },
+                licenseBackPhoto: { type: 'string' },
+                paidAt: { type: 'string' },
+                paymentLinkSentAt: { type: 'string' },
+                paymentLinkVersion: { type: 'number' },
+                pendingCheckoutSessionId: { type: 'string' },
+              },
+            },
+            cars: {
+              properties: {
+                created_at: { type: 'string' },
+                modelYear: { type: 'number' },
+                weeklyPrice: { type: 'number' },
+              },
+            },
+            rentals: {
+              properties: {
+                stripeCustomerId: { type: 'string' },
+                stripeSubscriptionId: { type: 'string' },
+              },
+            },
+          },
+        }),
+        status: 200,
+        statusText: 'OK',
+      })
+    );
+
+    const { getSchemaCompat } = await import('./schemaCompat.js');
+
+    await expect(getSchemaCompat()).resolves.toMatchObject({
+      applicationAssignedCarColumn: 'assignedCarId',
+      applicationApprovedAtColumn: 'approvedAt',
+      applicationApprovedBondColumn: 'approvedBond',
+      applicationApprovedWeeklyPriceColumn: 'approvedWeeklyPrice',
+      applicationBackPhotoColumn: 'licenseBackPhoto',
+      applicationPaidAtColumn: 'paidAt',
+      applicationPaymentLinkSentAtColumn: 'paymentLinkSentAt',
+      applicationPaymentLinkVersionColumn: 'paymentLinkVersion',
+      applicationPendingCheckoutSessionColumn: 'pendingCheckoutSessionId',
+      carCreatedAtColumn: 'created_at',
+      coreMode: 'camel',
+      rentalStripeCustomerColumn: 'stripeCustomerId',
+      rentalStripeSubscriptionColumn: 'stripeSubscriptionId',
+    });
+  });
+
   it('retries schema introspection after cache TTL in non-production mode', async () => {
     process.env.NODE_ENV = 'development';
     vi.useFakeTimers();

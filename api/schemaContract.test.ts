@@ -10,7 +10,7 @@ describe('schemaContract', () => {
       NODE_ENV: 'production',
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
-      VITEST: 'true',
+      VITEST: 'false',
     };
   });
 
@@ -45,6 +45,49 @@ describe('schemaContract', () => {
               properties: {
                 stripe_customer_id: { type: 'string' },
                 stripe_subscription_id: { type: 'string' },
+              },
+            },
+          },
+        }),
+      })
+    );
+
+    const {
+      resetSchemaContractValidationForTests,
+      verifyProductionSchemaContract,
+    } = await import('./schemaContract.js');
+
+    resetSchemaContractValidationForTests();
+    await expect(verifyProductionSchemaContract()).resolves.toBeUndefined();
+  });
+
+  it('passes when the live schema still exposes legacy camelCase payment columns', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+          definitions: {
+            applications: {
+              properties: {
+                approvedAt: { type: 'string' },
+                approvedBond: { type: 'number' },
+                approvedWeeklyPrice: { type: 'number' },
+                assignedCarId: { type: 'number' },
+                licenseBackPhoto: { type: 'string' },
+                paidAt: { type: 'string' },
+                paymentLinkSentAt: { type: 'string' },
+                paymentLinkVersion: { type: 'number' },
+                pendingCheckoutSessionId: { type: 'string' },
+              },
+            },
+            cars: { properties: { created_at: { type: 'string' }, modelYear: { type: 'number' } } },
+            rentals: {
+              properties: {
+                stripeCustomerId: { type: 'string' },
+                stripeSubscriptionId: { type: 'string' },
               },
             },
           },

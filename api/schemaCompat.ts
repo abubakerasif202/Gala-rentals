@@ -81,17 +81,9 @@ const fetchOpenApiDefinitions = async (): Promise<Record<string, OpenApiDefiniti
 };
 
 export const getSchemaCompat = async (): Promise<SchemaCompat> => {
-  if (process.env.NODE_ENV === 'production') {
-    return DEFAULT_SCHEMA_COMPAT;
-  }
-
   const now = Date.now();
 
-  if (
-    schemaCompatPromise &&
-    process.env.NODE_ENV !== 'production' &&
-    now - schemaCompatResolvedAt > SCHEMA_COMPAT_CACHE_TTL_MS
-  ) {
+  if (schemaCompatPromise && now - schemaCompatResolvedAt > SCHEMA_COMPAT_CACHE_TTL_MS) {
     schemaCompatPromise = null;
   }
 
@@ -224,10 +216,6 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
         schemaCompatResolvedAt = Date.now();
         return resolvedCompat;
       } catch (error) {
-        if (process.env.NODE_ENV === 'production') {
-          throw error;
-        }
-
         console.warn('Falling back to default schema compatibility mode:', error);
         schemaCompatResolvedAt = Date.now();
         return DEFAULT_SCHEMA_COMPAT;

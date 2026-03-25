@@ -1,18 +1,44 @@
 import { getSchemaCompat } from './schemaCompat.js';
 
+type RequiredColumnContract = {
+  acceptable: readonly string[];
+  label: string;
+};
+
 const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
   applications: [
-    'approved_at',
-    'approved_bond',
-    'approved_weekly_price',
-    'assigned_car_id',
-    'paid_at',
-    'payment_link_sent_at',
-    'payment_link_version',
-    'pending_checkout_session_id',
+    { label: 'approved_at', acceptable: ['approved_at', 'approvedAt'] },
+    { label: 'approved_bond', acceptable: ['approved_bond', 'approvedBond'] },
+    {
+      label: 'approved_weekly_price',
+      acceptable: ['approved_weekly_price', 'approvedWeeklyPrice'],
+    },
+    { label: 'assigned_car_id', acceptable: ['assigned_car_id', 'assignedCarId'] },
+    { label: 'paid_at', acceptable: ['paid_at', 'paidAt'] },
+    {
+      label: 'payment_link_sent_at',
+      acceptable: ['payment_link_sent_at', 'paymentLinkSentAt'],
+    },
+    {
+      label: 'payment_link_version',
+      acceptable: ['payment_link_version', 'paymentLinkVersion'],
+    },
+    {
+      label: 'pending_checkout_session_id',
+      acceptable: ['pending_checkout_session_id', 'pendingCheckoutSessionId'],
+    },
   ],
-  cars: ['created_at'],
-  rentals: ['stripe_customer_id', 'stripe_subscription_id'],
+  cars: [{ label: 'created_at', acceptable: ['created_at', 'createdAt'] }],
+  rentals: [
+    {
+      label: 'stripe_customer_id',
+      acceptable: ['stripe_customer_id', 'stripeCustomerId'],
+    },
+    {
+      label: 'stripe_subscription_id',
+      acceptable: ['stripe_subscription_id', 'stripeSubscriptionId'],
+    },
+  ],
 } as const;
 
 let schemaContractValidationPromise: Promise<void> | null = null;
@@ -61,8 +87,11 @@ const fetchOpenApiDefinitions = async () => {
 
 const findMissingColumns = (
   availableColumns: Set<string>,
-  requiredColumns: readonly string[]
-) => requiredColumns.filter((column) => !availableColumns.has(column));
+  requiredColumns: readonly RequiredColumnContract[]
+) =>
+  requiredColumns
+    .filter((column) => !column.acceptable.some((candidate) => availableColumns.has(candidate)))
+    .map((column) => column.label);
 
 export const verifyProductionSchemaContract = async () => {
   if (process.env.NODE_ENV !== 'production') {
@@ -89,30 +118,26 @@ export const verifyProductionSchemaContract = async () => {
         .filter((entry): entry is string => Boolean(entry));
 
       const compatMappedColumns = [
-        compat.applicationApprovedAtColumn,
-        compat.applicationAssignedCarColumn,
-        compat.applicationApprovedBondColumn,
-        compat.applicationApprovedWeeklyPriceColumn,
-        compat.applicationPaidAtColumn,
-        compat.applicationPaymentLinkSentAtColumn,
-        compat.applicationPaymentLinkVersionColumn,
-        compat.applicationPendingCheckoutSessionColumn,
-        compat.carCreatedAtColumn,
-        compat.rentalStripeCustomerColumn,
-        compat.rentalStripeSubscriptionColumn,
-      ].filter((value): value is string => Boolean(value));
+        { table: 'applications', column: compat.applicationApprovedAtColumn },
+        { table: 'applications', column: compat.applicationAssignedCarColumn },
+        { table: 'applications', column: compat.applicationApprovedBondColumn },
+        { table: 'applications', column: compat.applicationApprovedWeeklyPriceColumn },
+        { table: 'applications', column: compat.applicationPaidAtColumn },
+        { table: 'applications', column: compat.applicationPaymentLinkSentAtColumn },
+        { table: 'applications', column: compat.applicationPaymentLinkVersionColumn },
+        { table: 'applications', column: compat.applicationPendingCheckoutSessionColumn },
+        { table: 'cars', column: compat.carCreatedAtColumn },
+        { table: 'rentals', column: compat.rentalStripeCustomerColumn },
+        { table: 'rentals', column: compat.rentalStripeSubscriptionColumn },
+      ].filter(
+        (value): value is { table: string; column: string } => Boolean(value.column)
+      );
 
-      const missingCompatColumns = compatMappedColumns.filter((column) => {
-        if (column.startsWith('stripe_')) {
-          return !(columnsByTable.get('rentals') || new Set<string>()).has(column);
-        }
-
-        if (column === 'created_at') {
-          return !(columnsByTable.get('cars') || new Set<string>()).has(column);
-        }
-
-        return !(columnsByTable.get('applications') || new Set<string>()).has(column);
-      });
+      const missingCompatColumns = compatMappedColumns
+        .filter(
+          ({ column, table }) => !(columnsByTable.get(table) || new Set<string>()).has(column)
+        )
+        .map(({ column }) => column);
 
       if (missingContracts.length > 0 || missingCompatColumns.length > 0) {
         const details = [

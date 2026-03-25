@@ -133,6 +133,8 @@ router.post('/', async (request, response) => {
     return;
   }
 
+  let processedWebhookBusinessLogic = false;
+
   try {
     const webhookEventState = await persistWebhookEventIfNew(event);
     if (webhookEventState.isDuplicate) {
@@ -212,17 +214,26 @@ router.post('/', async (request, response) => {
       default:
         console.log(`Stripe Webhook: unhandled event type ${event.type}`);
     }
-
-    if (event.id) {
-      await markLedgerProcessed(event.id);
-    }
+    processedWebhookBusinessLogic = true;
   } catch (err) {
-    if (event?.id) {
+    if (!processedWebhookBusinessLogic && event?.id) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       await markLedgerFailed(event.id, message);
     }
     console.error(`Error processing webhook event ${event.type}:`, err);
     return response.status(500).send('Webhook processing failed');
+  }
+
+  if (event.id) {
+    try {
+      await markLedgerProcessed(event.id);
+    } catch (err) {
+      // The event processing itself already succeeded. Do not downgrade the
+      // ledger state to failed here; return 500 so Stripe retries and we can
+      // reconcile the ledger on a subsequent delivery.
+      console.error(`Error finalizing webhook ledger event ${event.type}:`, err);
+      return response.status(500).send('Webhook processing failed');
+    }
   }
 
   response.status(200).send('received');

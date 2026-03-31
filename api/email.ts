@@ -18,3 +18,16 @@ export const getResend = async () => {
 
   return resendInstance;
 };
+
+export const sendResendEmail = async (
+  resend: import('resend').Resend,
+  payload: Parameters<import('resend').Resend['emails']['send']>[0]
+) => {
+  const result = await resend.emails.send(payload);
+
+  if (result.error) {
+    throw new Error(`Resend email delivery failed: ${result.error.message}`);
+  }
+
+  return result.data;
+};

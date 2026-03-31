@@ -44,7 +44,12 @@ import {
   normalizeApplicationEmail,
   MAX_APPLICATION_UPLOAD_BYTES,
 } from '../../shared/applicationSubmission.js';
-import { escapeHtml, getResend, sanitizeEmailHeaderValue } from '../email.js';
+import {
+  escapeHtml,
+  getResend,
+  sanitizeEmailHeaderValue,
+  sendResendEmail,
+} from '../email.js';
 import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
 import { normalizeUuid } from '../../shared/uuid.js';
 
@@ -584,7 +589,7 @@ router.post(
             normalizedApplicationData.name
           );
           const emailResults = await Promise.allSettled([
-            resend.emails.send({
+            sendResendEmail(resend, {
               from: 'Maple Rentals Notifications <noreply@maplerentals.com.au>',
               to: adminEmail,
               subject: `New Driver Application: ${applicantNameForSubject}`,
@@ -606,7 +611,7 @@ router.post(
                 </div>
               `,
             }),
-            resend.emails.send({
+            sendResendEmail(resend, {
               from: 'Maple Rentals <noreply@maplerentals.com.au>',
               to: normalizedApplicationData.email,
               subject: 'We received your Maple Rentals application',

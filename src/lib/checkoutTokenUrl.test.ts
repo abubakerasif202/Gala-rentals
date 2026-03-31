@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildCheckoutTokenHash,
   parseHashCheckoutToken,
   scrubCheckoutTokenFromUrl,
 } from './checkoutTokenUrl';
 
 describe('checkoutTokenUrl', () => {
+  it('builds checkout token hashes without putting the token in the query string', () => {
+    expect(buildCheckoutTokenHash('abc123')).toBe('#checkout_token=abc123');
+  });
+
   it('parses checkout token from hash payload', () => {
     expect(parseHashCheckoutToken('#checkout_token=abc123')).toBe('abc123');
     expect(parseHashCheckoutToken('#token=legacy123')).toBe('legacy123');

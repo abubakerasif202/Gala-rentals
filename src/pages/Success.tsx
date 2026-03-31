@@ -6,13 +6,14 @@ import { CheckCircle, Home, Loader2 } from 'lucide-react';
 import Seo from '../components/Seo';
 import { fetchCheckoutSessionStatus } from '../lib/api';
 import {
+  buildCheckoutTokenHash,
   parseHashCheckoutToken,
   scrubCheckoutTokenFromUrl,
 } from '../lib/checkoutTokenUrl';
 import { isUuid } from '../../shared/uuid';
 
 export default function Success() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
   const applicationIdParam = searchParams.get('application_id') || '';
   const applicationId = isUuid(applicationIdParam) ? applicationIdParam : '';
@@ -23,22 +24,6 @@ export default function Success() {
     '';
   const carId = Number(searchParams.get('car_id') || 0);
   const hasVerificationContext = Boolean(sessionId && applicationId && checkoutToken && carId);
-
-  useEffect(() => {
-    if (searchParams.get('checkout_token')) {
-      return;
-    }
-
-    const hashToken = parseHashCheckoutToken(window.location.hash);
-    if (!hashToken) {
-      return;
-    }
-
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('checkout_token', hashToken);
-    nextParams.delete('token');
-    setSearchParams(nextParams, { replace: true });
-  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!checkoutToken) {
@@ -80,7 +65,7 @@ export default function Success() {
     data?.internal_status === 'pending';
   const retryHref =
     hasVerificationContext
-      ? `/checkout/${carId}?application_id=${applicationId}&checkout_token=${encodeURIComponent(checkoutToken)}`
+      ? `/checkout/${carId}?application_id=${applicationId}${buildCheckoutTokenHash(checkoutToken)}`
       : '/apply';
 
   return (

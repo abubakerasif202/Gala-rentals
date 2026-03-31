@@ -21,7 +21,7 @@ const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
 
 export default function Checkout() {
   const { id } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [checkoutToken, setCheckoutToken] = useState(
     () =>
       searchParams.get('checkout_token') ||
@@ -65,33 +65,25 @@ export default function Checkout() {
   }, [searchParams]);
 
   useEffect(() => {
-    const queryToken =
-      searchParams.get('checkout_token') ||
-      searchParams.get('token') ||
-      parseHashCheckoutToken(window.location.hash);
+    const syncCheckoutToken = () => {
+      const nextToken =
+        searchParams.get('checkout_token') ||
+        searchParams.get('token') ||
+        parseHashCheckoutToken(window.location.hash) ||
+        '';
 
-    if (queryToken && queryToken !== checkoutToken) {
-      setCheckoutToken(queryToken);
-    }
+      setCheckoutToken((currentToken) =>
+        currentToken === nextToken ? currentToken : nextToken
+      );
+    };
 
-    if (searchParams.get('checkout_token')) {
-      if (searchParams.get('token')) {
-        const normalizedParams = new URLSearchParams(searchParams);
-        normalizedParams.delete('token');
-        setSearchParams(normalizedParams, { replace: true });
-      }
-      return;
-    }
+    syncCheckoutToken();
+    window.addEventListener('hashchange', syncCheckoutToken);
 
-    if (!queryToken) {
-      return;
-    }
-
-    const normalizedParams = new URLSearchParams(searchParams);
-    normalizedParams.set('checkout_token', queryToken);
-    normalizedParams.delete('token');
-    setSearchParams(normalizedParams, { replace: true });
-  }, [checkoutToken, searchParams, setSearchParams]);
+    return () => {
+      window.removeEventListener('hashchange', syncCheckoutToken);
+    };
+  }, [searchParams]);
 
   useEffect(() => {
     if (!checkoutToken) {

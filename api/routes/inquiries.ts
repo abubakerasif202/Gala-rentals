@@ -2,7 +2,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { inquirySchema } from '../../shared/inquiry.js';
-import { escapeHtml, sanitizeEmailHeaderValue } from '../email.js';
+import { escapeHtml, getResend, sanitizeEmailHeaderValue, sendResendEmail } from '../email.js';
 
 const router = express.Router();
 const SUPPORT_FALLBACK_MESSAGE =
@@ -25,8 +25,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
     }
 
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@maplerentals.com.au';
-    const { Resend } = await import('resend');
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    const resend = await getResend();
     const safeName = escapeHtml(inquiry.name);
     const safeEmail = escapeHtml(inquiry.email);
     const safePhone = escapeHtml(inquiry.phone);
@@ -36,7 +35,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
     const inquiryNameForSubject = sanitizeEmailHeaderValue(inquiry.name);
 
     await Promise.all([
-      resend.emails.send({
+      sendResendEmail(resend, {
         from: 'Maple Rentals <noreply@maplerentals.com.au>',
         to: adminEmail,
         subject: `New availability inquiry from ${inquiryNameForSubject}`,
@@ -52,7 +51,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
           </div>
         `,
       }),
-      resend.emails.send({
+      sendResendEmail(resend, {
         from: 'Maple Rentals <noreply@maplerentals.com.au>',
         to: inquiry.email,
         subject: 'We received your Maple Rentals inquiry',

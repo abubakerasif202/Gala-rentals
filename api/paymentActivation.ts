@@ -13,7 +13,7 @@ import {
   toRentalWritePayload,
 } from './schemaCompat.js';
 import { getTodayInAustralia } from '../shared/applicationSubmission.js';
-import { escapeHtml, getResend } from './email.js';
+import { escapeHtml, getResend, sendResendEmail } from './email.js';
 import {
   AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON,
   hasTransactionalPaymentProcessing,
@@ -414,7 +414,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
       const resend = await getResend();
       const adminEmail = process.env.ADMIN_EMAIL || FALLBACK_ADMIN_EMAIL;
 
-      await resend.emails.send({
+      await sendResendEmail(resend, {
         from: 'Maple Rentals <noreply@maplerentals.com.au>',
         to: adminEmail,
         subject: `Activation review required for vehicle checkout ${session.id}`,
@@ -632,7 +632,7 @@ export const handleVehicleCheckoutCompletion = async (session: Stripe.Checkout.S
 
   try {
     const resend = await getResend();
-    await resend.emails.send({
+    await sendResendEmail(resend, {
       from: 'Maple Rentals <noreply@maplerentals.com.au>',
       to: String(application.email),
       subject: 'Rental Confirmed - Maple Rentals',

@@ -1,5 +1,11 @@
 const TOKEN_KEYS = ['checkout_token', 'token'] as const;
 
+export const buildCheckoutTokenHash = (token: string) => {
+  const params = new URLSearchParams();
+  params.set('checkout_token', token);
+  return `#${params.toString()}`;
+};
+
 export const parseHashCheckoutToken = (hashValue: string) => {
   const params = new URLSearchParams(hashValue.startsWith('#') ? hashValue.slice(1) : hashValue);
   return TOKEN_KEYS.map((key) => params.get(key)).find((value) => value) || '';

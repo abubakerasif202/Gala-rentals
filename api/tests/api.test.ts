@@ -1198,7 +1198,11 @@ beforeEach(() => {
     })),
     remove: vi.fn(async () => ({ data: null, error: null })),
   }));
-  mockResendEmailsSend.mockResolvedValue({ id: 'email_123' });
+  mockResendEmailsSend.mockResolvedValue({
+    data: { id: 'email_123' },
+    error: null,
+    headers: null,
+  });
   mockMutationErrors.applicationsUpdate = null;
 
   mockStripe.checkoutSessionsCreate.mockResolvedValue({
@@ -1611,6 +1615,29 @@ describe('Applications API', () => {
     expect(res.status).toBe(202);
     expect(res.body.success).toBe(true);
     expect(mockResendEmailsSend).toHaveBeenCalledTimes(2);
+  });
+
+  it('POST /api/inquiries returns 500 when Resend resolves with a provider error', async () => {
+    process.env.RESEND_API_KEY = 'test-resend';
+    mockResendEmailsSend.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Provider rejected request' },
+      headers: null,
+    });
+    const startDate = getFutureDateOnly(7);
+    const endDate = getFutureDateOnly(14);
+
+    const res = await request(app).post('/api/inquiries').send({
+      name: 'Jordan Prospect',
+      email: 'jordan.prospect@example.com',
+      phone: '0400 000 111',
+      startDate,
+      endDate,
+      message: 'Looking for a Camry Hybrid for airport work.',
+    });
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to submit availability inquiry');
   });
 
   it('POST /api/inquiries returns 503 when inquiry delivery is not configured', async () => {
@@ -2140,7 +2167,7 @@ describe('Stripe API', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.email_delivered).toBe(false);
     expect(res.body.checkout_url).toContain('/checkout/1?');
-    expect(res.body.checkout_url).toContain('checkout_token=');
+    expect(res.body.checkout_url).toContain('#checkout_token=');
     expect(mockStripe.checkoutSessionsExpire).toHaveBeenCalledWith('cs_old_pending');
 
     expect(mockState.applications[0]).toMatchObject({
@@ -2219,6 +2246,29 @@ describe('Stripe API', () => {
     expect(mockResendEmailsSend.mock.calls[0]?.[0]?.html).not.toContain(
       '<a href="https://evil.example">Camry</a>'
     );
+  });
+
+  it('POST /api/applications/:id/approve-payment reports delivery failure when Resend returns an error payload', async () => {
+    process.env.RESEND_API_KEY = 'test-resend';
+    mockState.applications[1].assigned_car_id = 2;
+    mockResendEmailsSend.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Provider rejected request' },
+      headers: null,
+    });
+
+    const res = await request(app)
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
+      .set('Authorization', 'Bearer fake-token')
+      .send({
+        assigned_car_id: 1,
+        approved_bond: 650,
+        approved_weekly_price: 285,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.email_delivered).toBe(false);
+    expect(res.body.email_reason).toContain('Provider rejected request');
   });
 
   it('POST /api/applications/:id/approve-payment maps allocation unique-index races to 409', async () => {
@@ -2575,10 +2625,10 @@ describe('Stripe API', () => {
     expect(payload.cancel_url).toContain('/checkout/1?');
     expect(payload.cancel_url).toContain(`application_id=${APPROVED_APPLICATION_ID}`);
     expect(payload.cancel_url).toContain('resume_payment=1');
-    expect(payload.cancel_url).toContain(`checkout_token=${encodeURIComponent(token.token)}`);
+    expect(payload.cancel_url).toContain(`#checkout_token=${encodeURIComponent(token.token)}`);
     expect(payload.success_url).toContain(`application_id=${APPROVED_APPLICATION_ID}`);
     expect(payload.success_url).toContain('car_id=1');
-    expect(payload.success_url).toContain(`checkout_token=${encodeURIComponent(token.token)}`);
+    expect(payload.success_url).toContain(`#checkout_token=${encodeURIComponent(token.token)}`);
   });
 
   it('POST /api/stripe/vehicle-checkout-session derives a stable retry idempotency key from the stale session id', async () => {
@@ -2704,7 +2754,7 @@ describe('Stripe API', () => {
     expect(res.body.checkout_url).toContain(`application_id=${APPROVED_APPLICATION_ID}`);
     expect(mockState.applications[1].payment_link_version).toBe(2);
     expect(res.body.checkout_url).toContain(
-      `checkout_token=${encodeURIComponent(res.body.checkout_token)}`
+      `#checkout_token=${encodeURIComponent(res.body.checkout_token)}`
     );
 
     const verified = verifyCheckoutToken({

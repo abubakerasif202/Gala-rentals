@@ -30,7 +30,11 @@ import {
   getRentalApplicationIdColumn,
   getRentalCarIdColumn,
 } from '../schemaCompat.js';
-import { buildDriverPaymentLink, getAppBaseUrl } from '../paymentLinks.js';
+import {
+  appendCheckoutTokenHash,
+  buildDriverPaymentLink,
+  getAppBaseUrl,
+} from '../paymentLinks.js';
 import {
   assertVehicleAllocationAvailable,
   VehicleAllocationConflictError,
@@ -180,8 +184,7 @@ const buildCancelUrl = ({
   const checkoutUrl = new URL(`/checkout/${carId}`, getAppBaseUrl());
   checkoutUrl.searchParams.set('application_id', String(applicationId));
   checkoutUrl.searchParams.set('resume_payment', '1');
-  checkoutUrl.searchParams.set('checkout_token', token);
-  return checkoutUrl.toString();
+  return appendCheckoutTokenHash(checkoutUrl, token).toString();
 };
 
 const buildSuccessUrl = ({
@@ -197,8 +200,7 @@ const buildSuccessUrl = ({
   url.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}');
   url.searchParams.set('application_id', String(applicationId));
   url.searchParams.set('car_id', String(carId));
-  url.searchParams.set('checkout_token', token);
-  return url.toString();
+  return appendCheckoutTokenHash(url, token).toString();
 };
 
 const buildSubscriptionLineItems = async ({

@@ -1,5 +1,9 @@
 # Stripe API — Capability Brief
 
+> Deprecated operationally. This file is a historical sandbox snapshot and is not the source of truth for client handoff, live account identity, webhook configuration, or production readiness.
+>
+> Use [docs/STRIPE_HANDOFF_CHECKLIST.md](./STRIPE_HANDOFF_CHECKLIST.md), [docs/STRIPE_SETUP.md](./STRIPE_SETUP.md), and `npm run stripe:handoff` instead.
+
 **Project:** Maple Rental  
 **Account:** Maple rentals sandbox (`acct_1T8kakDaPc7L3S6e`)  
 **Mode:** Test (sandbox — no real charges)  

@@ -9,13 +9,43 @@ CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (
 );
 
 ALTER TABLE public.stripe_webhook_events
+  ADD COLUMN IF NOT EXISTS status TEXT;
+
+ALTER TABLE public.stripe_webhook_events
+  ADD COLUMN IF NOT EXISTS error_message TEXT;
+
+ALTER TABLE public.stripe_webhook_events
+  ADD COLUMN IF NOT EXISTS received_at TIMESTAMPTZ;
+
+ALTER TABLE public.stripe_webhook_events
+  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+
+UPDATE public.stripe_webhook_events
+SET
+  status = CASE
+    WHEN processed_at IS NOT NULL THEN 'processed'
+    ELSE 'received'
+  END
+WHERE status IS NULL;
+
+UPDATE public.stripe_webhook_events
+SET received_at = COALESCE(received_at, processed_at, CURRENT_TIMESTAMP)
+WHERE received_at IS NULL;
+
+ALTER TABLE public.stripe_webhook_events
   ALTER COLUMN stripe_event_id SET NOT NULL;
 
 ALTER TABLE public.stripe_webhook_events
   ALTER COLUMN event_type SET NOT NULL;
 
 ALTER TABLE public.stripe_webhook_events
+  ALTER COLUMN status SET NOT NULL;
+
+ALTER TABLE public.stripe_webhook_events
   ALTER COLUMN status SET DEFAULT 'received';
+
+ALTER TABLE public.stripe_webhook_events
+  ALTER COLUMN received_at SET NOT NULL;
 
 ALTER TABLE public.stripe_webhook_events
   ALTER COLUMN received_at SET DEFAULT CURRENT_TIMESTAMP;

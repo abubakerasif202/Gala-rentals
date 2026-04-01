@@ -23,6 +23,7 @@ Use these from the repository root:
 - Print the base schema SQL: `node scripts/seed-schema.js`
 - Apply payment workflow migration: `npm run migrate:payment-workflow`
 - Apply legacy snake_case payment workflow repair: `npm run migrate:legacy-snake-payment-workflow`
+- Apply the Stripe webhook ledger migration: `npm run migrate:stripe-webhook-ledger`
 - Apply active vehicle allocation migration: `npm run migrate:vehicle-allocation`
 - Apply operational history migration: `npm run migrate:operational-history`
 - Apply application index migration: `npm run migrate:application-indexes`
@@ -38,6 +39,7 @@ Use these from the repository root:
 ### Stripe operations
 
 - Verify Stripe configuration and reusable catalog: `npm run stripe:setup`
+- Run the strict pre-client Stripe readiness gate: `npm run stripe:handoff`
 - Preview a destructive Stripe test-data reset: `npm run stripe:reset`
 
 ### Fleet and document maintenance

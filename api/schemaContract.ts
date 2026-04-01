@@ -39,12 +39,26 @@ const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
       acceptable: ['stripe_subscription_id', 'stripeSubscriptionId'],
     },
   ],
-  stripe_webhook_events: [
-    { label: 'stripe_event_id', acceptable: ['stripe_event_id'] },
-    { label: 'status', acceptable: ['status'] },
-    { label: 'received_at', acceptable: ['received_at'] },
-  ],
 } as const;
+
+const STRIPE_WEBHOOK_LEDGER_CONTRACTS = [
+  {
+    label: 'modern',
+    required: [
+      { label: 'stripe_event_id', acceptable: ['stripe_event_id'] },
+      { label: 'status', acceptable: ['status'] },
+      { label: 'received_at', acceptable: ['received_at'] },
+    ],
+  },
+  {
+    label: 'legacy',
+    required: [
+      { label: 'stripe_event_id', acceptable: ['stripe_event_id'] },
+      { label: 'event_type', acceptable: ['event_type'] },
+      { label: 'processed_at', acceptable: ['processed_at'] },
+    ],
+  },
+] as const;
 
 let schemaContractValidationPromise: Promise<void> | null = null;
 
@@ -98,6 +112,23 @@ const findMissingColumns = (
     .filter((column) => !column.acceptable.some((candidate) => availableColumns.has(candidate)))
     .map((column) => column.label);
 
+const describeStripeWebhookLedgerContract = (availableColumns: Set<string>) => {
+  const satisfiedContract = STRIPE_WEBHOOK_LEDGER_CONTRACTS.find(
+    ({ required }) => findMissingColumns(availableColumns, required).length === 0
+  );
+
+  if (satisfiedContract) {
+    return null;
+  }
+
+  const supportedShapes = STRIPE_WEBHOOK_LEDGER_CONTRACTS.map(
+    ({ label, required }) =>
+      `${label} (${required.map((column) => column.label).join(', ')})`
+  ).join(' or ');
+
+  return `stripe_webhook_events: expected ${supportedShapes}`;
+};
+
 export const verifyProductionSchemaContract = async () => {
   if (process.env.NODE_ENV !== 'production') {
     return;
@@ -121,6 +152,13 @@ export const verifyProductionSchemaContract = async () => {
           return missing.length > 0 ? `${tableName}: ${missing.join(', ')}` : null;
         })
         .filter((entry): entry is string => Boolean(entry));
+
+      const stripeWebhookLedgerContract = describeStripeWebhookLedgerContract(
+        columnsByTable.get('stripe_webhook_events') || new Set<string>()
+      );
+      if (stripeWebhookLedgerContract) {
+        missingContracts.push(stripeWebhookLedgerContract);
+      }
 
       const compatMappedColumns = [
         { table: 'applications', column: compat.applicationApprovedAtColumn },

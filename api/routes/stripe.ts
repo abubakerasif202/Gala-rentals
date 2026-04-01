@@ -10,6 +10,7 @@ import { ensureStripeCatalog } from '../stripeCatalog.js';
 import { getStripeClient } from '../stripeClient.js';
 import { db } from '../db/index.js';
 import {
+  hasDirectDatabaseConnection,
   withPostgresAdvisoryLock,
 } from '../db/postgres.js';
 import { authenticateAdmin } from '../middleware/auth.js';
@@ -40,10 +41,6 @@ import {
   VehicleAllocationConflictError,
 } from '../vehicleAllocations.js';
 import { renderApplicationLeaseAgreement } from '../agreementGeneration.js';
-import {
-  ADMIN_PAYMENTS_RESTRICTED_MESSAGE,
-  assertTransactionalPaymentProcessing,
-} from '../paymentProcessing.js';
 import { normalizeUuid } from '../../shared/uuid.js';
 
 const router = express.Router();
@@ -410,6 +407,17 @@ const persistPendingCheckoutSessionId = async (
   return didPersist;
 };
 
+const withOptionalCheckoutSessionLock = async <T>(
+  applicationId: string,
+  callback: () => Promise<T>
+) => {
+  if (!hasDirectDatabaseConnection()) {
+    return callback();
+  }
+
+  return withPostgresAdvisoryLock(`vehicle-checkout:${applicationId}`, callback);
+};
+
 const resolvePendingCheckoutSession = async ({
   application,
   carId,
@@ -568,11 +576,9 @@ router.get('/payment-context', async (req, res) => {
 router.post('/vehicle-checkout-session', async (req, res) => {
   try {
     const { application_id, car_id, checkout_token } = vehicleCheckoutSessionSchema.parse(req.body);
-    const lockKey = `vehicle-checkout:${application_id}`;
-    assertTransactionalPaymentProcessing();
 
-    const responsePayload = await withPostgresAdvisoryLock<HostedCheckoutSessionResponse>(
-      lockKey,
+    const responsePayload = await withOptionalCheckoutSessionLock<HostedCheckoutSessionResponse>(
+      application_id,
       async () => {
         const [application, car] = await Promise.all([
           fetchApplication(application_id),
@@ -707,7 +713,6 @@ router.post('/vehicle-checkout-session', async (req, res) => {
 
 router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
   try {
-    assertTransactionalPaymentProcessing(ADMIN_PAYMENTS_RESTRICTED_MESSAGE);
     const { application_id } = vehicleCheckoutLinkSchema.parse(req.body);
     const application = await fetchApplication(application_id);
 

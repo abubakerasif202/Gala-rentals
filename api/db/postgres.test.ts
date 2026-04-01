@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   getPostgresConnectionMode,
   hasDirectDatabaseConnection,
+  shouldUseRelaxedPostgresSsl,
 } from './postgres.js';
 
 const originalSupabaseDbUrl = process.env.SUPABASE_DB_URL;
@@ -45,5 +46,21 @@ describe('postgres connection mode detection', () => {
 
     expect(getPostgresConnectionMode()).toBe('none');
     expect(hasDirectDatabaseConnection()).toBe(false);
+  });
+
+  it('uses relaxed SSL settings for Supabase pooler hosts', () => {
+    expect(
+      shouldUseRelaxedPostgresSsl(
+        'postgresql://postgres.example:secret@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres'
+      )
+    ).toBe(true);
+  });
+
+  it('does not force relaxed SSL for non-Supabase hosts', () => {
+    expect(
+      shouldUseRelaxedPostgresSsl(
+        'postgresql://postgres:secret@db.internal.example.com:5432/app'
+      )
+    ).toBe(false);
   });
 });

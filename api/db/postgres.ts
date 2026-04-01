@@ -11,6 +11,23 @@ let postgresPool: InstanceType<typeof Pool> | null = null;
 export const getDirectDatabaseConnectionString = () =>
   (process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '').trim();
 
+export const shouldUseRelaxedPostgresSsl = (connectionString: string) => {
+  if (!connectionString) {
+    return false;
+  }
+
+  try {
+    return new URL(connectionString).hostname.endsWith('.pooler.supabase.com');
+  } catch {
+    return connectionString.includes('.pooler.supabase.com');
+  }
+};
+
+const getPostgresSslConfig = (connectionString: string) =>
+  shouldUseRelaxedPostgresSsl(connectionString)
+    ? { rejectUnauthorized: false as const }
+    : undefined;
+
 const inferPostgresConnectionMode = (
   connectionString: string
 ): PostgresConnectionMode => {
@@ -46,11 +63,13 @@ const getPostgresPool = () => {
   if (!postgresPool) {
     // When using Supabase Transaction Pooler (port 6543), we optimize for high concurrency.
     // Note: Session-based features like pg_advisory_lock() are not reliable in transaction mode.
+    const ssl = getPostgresSslConfig(connectionString);
     postgresPool = new Pool({
       connectionString,
       max: connectionMode === 'transaction' ? 20 : 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
+      ...(ssl ? { ssl } : {}),
     });
   }
 

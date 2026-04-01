@@ -116,7 +116,7 @@ SUPABASE_DB_URL=postgresql://...
 RESEND_API_KEY=re_...
 ```
 
-Stripe payment links, hosted checkout session creation, and automatic rental activation are gated until `SUPABASE_DB_URL` or `DATABASE_URL` points to a session-capable Postgres connection on port `5432`.
+Stripe payment links and hosted checkout session creation work with the standard Supabase HTTP credentials. Automatic rental activation still requires `SUPABASE_DB_URL` or `DATABASE_URL` to point to a session-capable Postgres connection on port `5432`; otherwise paid checkouts fall back to `Payment Review`.
 
 Optional local-only admin shortcut:
 
@@ -169,6 +169,8 @@ Stripe setup helpers:
 
 ```bash
 npm run stripe:setup
+npm run stripe:handoff
+npm run migrate:stripe-webhook-ledger
 npm run stripe:reset
 ```
 
@@ -190,7 +192,9 @@ npm start
 What each command does:
 
 - `npm run dev`: full-stack local development server
-- `npm run stripe:setup`: verify the configured Stripe account and ensure the reusable Stripe catalog exists
+- `npm run stripe:setup`: verify the configured Stripe account, check the expected webhook endpoint, and ensure the reusable Stripe catalog exists
+- `npm run stripe:handoff`: strict Stripe readiness gate for client handoff; requires a live key, valid webhook setup, and reports whether payment activation is automatic or manual-review
+- `npm run migrate:stripe-webhook-ledger`: apply the Stripe webhook event ledger migration when the production schema is missing the webhook processing columns
 - `npm run stripe:reset`: preview a destructive Stripe test-data reset
 - `npm run lint`: TypeScript type-check
 - `npm run test`: Vitest suite
@@ -229,7 +233,7 @@ What each command does:
   - Optional overrides for the default Maple Rentals business details inserted into generated lease agreements
 - `SUPABASE_DB_URL`
   - Session-capable Postgres connection string used for transactional Stripe activation writes
-  - If omitted, the app still boots and serves the site, but payment links and automatic activation stay in `restricted` mode
+  - If omitted, the app still boots and serves the site, payment links still work, and successful payments remain in `Payment Review` until manual follow-up
 - `RESEND_API_KEY`
   - Transactional email delivery
 
@@ -262,7 +266,7 @@ What each command does:
 `paymentActivationMode` will be:
 
 - `transactional` when `SUPABASE_DB_URL` or `DATABASE_URL` is configured
-- `restricted` when the app is running without a session-capable Postgres connection; payment links and automatic activation stay disabled
+- `restricted` when the app is running without a session-capable Postgres connection; payment links still work but automatic activation falls back to manual review
 
 ## Security and Operational Notes
 
@@ -315,7 +319,17 @@ Do not paste the Postgres connection string into `SUPABASE_URL`.
 
 ### Health endpoint reports `restricted`
 
-Add `SUPABASE_DB_URL` or `DATABASE_URL` with a session-capable Postgres connection on port `5432` to enable payment-link generation and automatic Stripe activation. The web app can still boot without it, but payment workflows remain disabled.
+Add `SUPABASE_DB_URL` or `DATABASE_URL` with a session-capable Postgres connection on port `5432` to enable automatic Stripe activation. The web app can still boot and create payment links without it, but paid checkouts remain in manual review.
+
+### `npm run stripe:handoff` fails
+
+Check:
+
+- `STRIPE_SECRET_KEY` is a current live key
+- `STRIPE_WEBHOOK_SECRET` is populated from the live webhook endpoint
+- `APP_URL` matches the final public domain
+- `/api/stripe/webhook` exists as a live Stripe webhook endpoint
+- the database schema includes the latest `stripe_webhook_events` columns
 
 ### Admin login loops back to `/admin/login`
 

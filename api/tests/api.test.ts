@@ -2510,7 +2510,7 @@ describe('Stripe API', () => {
     expect(res.body.error).toContain('not ready for payment');
   });
 
-  it('POST /api/stripe/vehicle-checkout-session requires direct DB access', async () => {
+  it('POST /api/stripe/vehicle-checkout-session still creates a hosted session without direct DB access', async () => {
     mockHasDirectDatabaseConnection.mockReturnValue(false);
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
@@ -2525,10 +2525,10 @@ describe('Stripe API', () => {
       checkout_token: token.token,
     });
 
-    expect(res.status).toBe(503);
-    expect(res.body.error).toContain('temporarily unavailable');
+    expect(res.status).toBe(200);
+    expect(res.body.session_id).toBe('cs_test_123');
     expect(mockWithPostgresAdvisoryLock).not.toHaveBeenCalled();
-    expect(mockStripe.checkoutSessionsCreate).not.toHaveBeenCalled();
+    expect(mockStripe.checkoutSessionsCreate).toHaveBeenCalledTimes(1);
   });
 
   it('POST /api/stripe/vehicle-checkout-session rejects outdated payment-link versions', async () => {
@@ -2755,7 +2755,7 @@ describe('Stripe API', () => {
     expect(res.status).toBe(401);
   });
 
-  it('POST /api/stripe/vehicle-checkout-link requires direct DB access', async () => {
+  it('POST /api/stripe/vehicle-checkout-link still issues a signed link without direct DB access', async () => {
     mockHasDirectDatabaseConnection.mockReturnValue(false);
 
     const res = await request(app)
@@ -2765,8 +2765,9 @@ describe('Stripe API', () => {
         application_id: APPROVED_APPLICATION_ID,
       });
 
-    expect(res.status).toBe(503);
-    expect(res.body.error).toContain('session-capable Postgres connection');
+    expect(res.status).toBe(200);
+    expect(res.body.checkout_url).toContain('/checkout/1?');
+    expect(mockState.applications[1].payment_link_version).toBe(2);
   });
 
   it('POST /api/stripe/vehicle-checkout-link returns a fresh signed payment link', async () => {

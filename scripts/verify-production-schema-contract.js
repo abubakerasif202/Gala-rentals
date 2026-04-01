@@ -1,9 +1,13 @@
-import './load-env.js';
+import path from 'node:path';
 
-import { verifyProductionSchemaContract } from '../api/schemaContract.js';
+import { config as loadDotenv } from 'dotenv';
 
 process.env.NODE_ENV = 'production';
 process.env.VITEST = 'false';
+
+loadDotenv({ path: path.resolve(process.cwd(), '.env'), quiet: true });
+
+const { verifyProductionSchemaContract } = await import('../api/schemaContract.js');
 
 async function runVerification() {
   try {

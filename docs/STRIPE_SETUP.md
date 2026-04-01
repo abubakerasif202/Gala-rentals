@@ -22,7 +22,22 @@ Verify the current Stripe account and ensure the reusable catalog exists:
 npm run stripe:setup
 ```
 
-The JSON summary includes the resolved Stripe account mode and configured API version.
+The JSON summary includes the resolved Stripe account mode, the configured API version, webhook-endpoint checks, and runtime readiness checks.
+
+Run the strict client-handoff gate:
+
+```bash
+npm run stripe:handoff
+```
+
+This command fails unless all production-critical Stripe checks pass, including:
+
+- live Stripe key mode
+- `APP_URL` validity
+- expected `/api/stripe/webhook` endpoint registration
+- required webhook events
+- payment activation mode (`transactional` or manual-review fallback)
+- production schema contract readiness
 
 Preview a destructive Stripe test-data reset without making changes:
 

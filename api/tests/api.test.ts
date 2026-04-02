@@ -1339,6 +1339,33 @@ describe('Auth API', () => {
     expect(res.headers['set-cookie']?.[0]).toContain('Secure');
   });
 
+  it('POST /api/auth/login allows a configured CORS origin with a trailing slash', async () => {
+    const previousCorsOrigin = process.env.CORS_ORIGIN;
+    process.env.CORS_ORIGIN = 'https://admin.maplerentals.com.au/';
+
+    try {
+      const { createApp } = await import('../index.js');
+      const scopedApp = createApp();
+
+      const res = await request(scopedApp)
+        .post('/api/auth/login')
+        .set('Origin', 'https://admin.maplerentals.com.au')
+        .send({ username: 'admin@maplerentals.com.au', password: 'password' });
+
+      expect(res.status).toBe(200);
+      expect(res.headers['access-control-allow-origin']).toBe(
+        'https://admin.maplerentals.com.au'
+      );
+      expect(res.headers['access-control-allow-credentials']).toBe('true');
+    } finally {
+      if (previousCorsOrigin === undefined) {
+        delete process.env.CORS_ORIGIN;
+      } else {
+        process.env.CORS_ORIGIN = previousCorsOrigin;
+      }
+    }
+  });
+
   it('GET /api/auth/verify refreshes an expired Supabase access token stored in the admin cookie', async () => {
     const agent = request.agent(app);
     const loginRes = await agent

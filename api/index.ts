@@ -260,7 +260,7 @@ const buildCorsOrigins = () =>
   [
     toOrigin(process.env.APP_URL),
     toOrigin(process.env.FRONTEND_URL),
-    process.env.CORS_ORIGIN || null,
+    toOrigin(process.env.CORS_ORIGIN),
     ...(!isProduction
       ? [
           'http://localhost:3000',

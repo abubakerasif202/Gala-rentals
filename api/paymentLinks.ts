@@ -1,6 +1,6 @@
 import { escapeHtml, sendResendEmail } from './email.js';
 
-const DEFAULT_APP_URL = 'http://localhost:5173';
+const DEFAULT_APP_URL = 'http://localhost:3000';
 
 const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
 

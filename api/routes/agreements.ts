@@ -159,10 +159,18 @@ router.get('/', authenticateAdmin, async (_req, res) => {
 
 router.get('/:id', authenticateAdmin, async (req, res) => {
   try {
+    const parsedParams = z
+      .object({ id: z.coerce.number().int().positive() })
+      .safeParse(req.params);
+
+    if (!parsedParams.success) {
+      return res.status(400).json({ error: 'Validation failed', details: parsedParams.error.issues });
+    }
+
     const { data, error } = await db
       .from('lease_agreements')
       .select('id, application_id, car_id, content, status, created_at')
-      .eq('id', req.params.id)
+      .eq('id', parsedParams.data.id)
       .single();
 
     if (error || !data) {
@@ -181,7 +189,15 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 
 router.delete('/:id', authenticateAdmin, async (req, res) => {
   try {
-    const { error } = await db.from('lease_agreements').delete().eq('id', req.params.id);
+    const parsedParams = z
+      .object({ id: z.coerce.number().int().positive() })
+      .safeParse(req.params);
+
+    if (!parsedParams.success) {
+      return res.status(400).json({ error: 'Validation failed', details: parsedParams.error.issues });
+    }
+
+    const { error } = await db.from('lease_agreements').delete().eq('id', parsedParams.data.id);
     if (error) throw error;
     res.json({ success: true });
   } catch (error) {

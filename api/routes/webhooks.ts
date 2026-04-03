@@ -560,7 +560,7 @@ router.post('/', async (request, response) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error(`Stripe Webhook Error: ${message}`);
-    response.status(400).send(`Webhook Error: ${message}`);
+    response.status(400).send('400 Bad Request: Invalid Signature');
     return;
   }
 

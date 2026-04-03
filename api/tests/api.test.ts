@@ -1523,6 +1523,29 @@ describe('Auth API', () => {
 
     expect(allowedRes.status).toBe(200);
     expect(allowedRes.body.message).toBe('Logged out');
+    const setCookieHeaders = allowedRes.headers['set-cookie'];
+    const clearedCookies = Array.isArray(setCookieHeaders) ? setCookieHeaders : [];
+    expect(clearedCookies).toHaveLength(2);
+    expect(
+      clearedCookies.some(
+        (cookie) =>
+          cookie.includes('admin_token=;') &&
+          cookie.includes('Path=/') &&
+          cookie.includes('HttpOnly') &&
+          cookie.includes('SameSite=None') &&
+          cookie.includes('Secure')
+      )
+    ).toBe(true);
+    expect(
+      clearedCookies.some(
+        (cookie) =>
+          cookie.includes('admin_token=;') &&
+          cookie.includes('Path=/') &&
+          cookie.includes('HttpOnly') &&
+          cookie.includes('SameSite=Strict') &&
+          !cookie.includes('Secure')
+      )
+    ).toBe(true);
   });
 
   it('POST /api/auth/login should deny non-admin email', async () => {
@@ -1531,6 +1554,15 @@ describe('Auth API', () => {
       .send({ username: 'notadmin@example.com', password: 'password' });
 
     expect(res.status).toBe(403);
+  });
+
+  it('POST /api/auth/login returns validation errors for malformed usernames instead of crashing in rate limiting', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ username: { nested: 'value' }, password: 'password' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Validation failed');
   });
 });
 
@@ -1650,6 +1682,24 @@ describe('Agreements API', () => {
       applicant_name: 'Approved Driver',
       car_name: 'Toyota Camry',
     });
+  });
+
+  it('GET /api/agreements/:id rejects malformed agreement ids', async () => {
+    const res = await request(app)
+      .get('/api/agreements/not-a-number')
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Validation failed');
+  });
+
+  it('DELETE /api/agreements/:id rejects malformed agreement ids', async () => {
+    const res = await request(app)
+      .delete('/api/agreements/not-a-number')
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Validation failed');
   });
 });
 
@@ -2728,6 +2778,26 @@ describe('Stripe API', () => {
     expect(res.body.error).toContain('allocated elsewhere');
   });
 
+  it('GET /api/stripe/payment-context returns 409 when payment was already received', async () => {
+    mockState.applications[1].status = 'Paid';
+
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+
+    const res = await request(app).get('/api/stripe/payment-context').query({
+      application_id: APPROVED_APPLICATION_ID,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('Payment link has already been used.');
+  });
+
   it('POST /api/stripe/vehicle-checkout-session rejects unapproved applications', async () => {
     const token = createCheckoutToken({ applicationId: PENDING_APPLICATION_ID, carId: 1, purpose: 'vehicle' });
 
@@ -2849,6 +2919,40 @@ describe('Stripe API', () => {
     expect(res.status).toBe(200);
     expect(res.body.session_id).toBe('cs_open_approved');
     expect(res.body.checkout_url).toBe('https://checkout.stripe.com/c/pay/cs_open_approved');
+    expect(mockStripe.checkoutSessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it('POST /api/stripe/vehicle-checkout-session returns 409 for a completed pending session', async () => {
+    mockState.applications[1].pending_checkout_session_id = 'cs_complete_approved';
+    mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+      id: 'cs_complete_approved',
+      status: 'complete',
+      url: null,
+      payment_status: 'paid',
+      metadata: {
+        application_id: APPROVED_APPLICATION_ID,
+        approved_bond: '500.00',
+        approved_weekly_price: '250.00',
+        car_id: '1',
+        checkout_kind: 'vehicle',
+        payment_link_version: '1',
+      },
+    });
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+
+    const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
+      application_id: APPROVED_APPLICATION_ID,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('already been received');
     expect(mockStripe.checkoutSessionsCreate).not.toHaveBeenCalled();
   });
 
@@ -3181,6 +3285,53 @@ describe('Stripe API', () => {
     expect(res.body.error).toBe('Checkout session does not match this vehicle link.');
   });
 
+  it('GET /api/stripe/checkout-sessions/:id returns 404 when Stripe no longer has the session', async () => {
+    const stripeMissingSessionError = Object.assign(new Error('No such checkout.session'), {
+      code: 'resource_missing',
+      statusCode: 404,
+      type: 'StripeInvalidRequestError',
+    });
+    mockStripe.checkoutSessionsRetrieve.mockRejectedValueOnce(stripeMissingSessionError);
+
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+    const res = await request(app).get('/api/stripe/checkout-sessions/cs_missing').query({
+      application_id: APPROVED_APPLICATION_ID,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Checkout session not found.');
+  });
+
+  it('GET /api/stripe/checkout-sessions/:id returns Stripe errors without falling through to 500', async () => {
+    const stripeCardError = Object.assign(new Error('Card declined'), {
+      statusCode: 402,
+      type: 'StripeCardError',
+    });
+    mockStripe.checkoutSessionsRetrieve.mockRejectedValueOnce(stripeCardError);
+
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+    const res = await request(app).get('/api/stripe/checkout-sessions/cs_card_declined').query({
+      application_id: APPROVED_APPLICATION_ID,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(402);
+    expect(res.body.error).toBe('Card declined');
+  });
+
   it('POST /api/stripe/webhook activates the rental and records paid bond on success', async () => {
     mockStripe.webhooksConstructEvent.mockReturnValue({
       id: 'evt_test_1',
@@ -3221,6 +3372,21 @@ describe('Stripe API', () => {
       status: 'Active',
       stripe_subscription_id: 'sub_123',
     });
+  });
+
+  it('POST /api/stripe/webhook returns a generic signature failure message', async () => {
+    mockStripe.webhooksConstructEvent.mockImplementationOnce(() => {
+      throw new Error('No signatures found matching the expected signature for payload');
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(400);
+    expect(res.text).toBe('400 Bad Request: Invalid Signature');
   });
 
   it('POST /api/stripe/webhook moves paid checkouts to Payment Review when direct DB access is unavailable', async () => {

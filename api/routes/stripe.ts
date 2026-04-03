@@ -1,5 +1,5 @@
 import express from 'express';
-import type Stripe from 'stripe';
+import Stripe from 'stripe';
 import { z } from 'zod';
 
 import {
@@ -103,6 +103,50 @@ const isStripeConfigurationError = (
             String((error as { code?: string }).code || '')
           )))
   );
+
+const isStripeResourceMissingError = (
+  error: unknown
+): error is { code?: string; statusCode?: number; type?: string } =>
+  Boolean(
+    error &&
+      typeof error === 'object' &&
+      String((error as { code?: string }).code || '') === 'resource_missing' &&
+      Number((error as { statusCode?: number }).statusCode || 0) === 404
+  );
+
+const isStripeSdkError = (
+  error: unknown
+): error is { message: string; statusCode?: number; type?: string } => {
+  const stripeErrorCtor = (
+    Stripe as typeof Stripe & {
+      errors?: { StripeError?: new (...args: never[]) => Error };
+    }
+  ).errors?.StripeError;
+
+  if (typeof stripeErrorCtor === 'function' && error instanceof stripeErrorCtor) {
+    return true;
+  }
+
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      typeof (error as { type?: unknown }).type === 'string' &&
+      String((error as { type?: string }).type || '').startsWith('Stripe')
+  );
+};
+
+const isVehicleCheckoutConflictMessage = (message: string) => {
+  const normalizedMessage = message.toLowerCase();
+
+  return (
+    normalizedMessage.includes('payment link') ||
+    normalizedMessage.includes('manual review') ||
+    normalizedMessage.includes('activation is pending') ||
+    normalizedMessage.includes('no longer available') ||
+    normalizedMessage.includes('reload the latest link') ||
+    normalizedMessage.includes('already been received')
+  );
+};
 
 const toFloat = (value: number | string | null | undefined) =>
   Number(Number(value || 0).toFixed(2));
@@ -685,14 +729,7 @@ router.post('/vehicle-checkout-session', async (req, res) => {
       return res.status(404).json({ error: error.message });
     }
 
-    if (
-      error instanceof Error &&
-      (error.message.toLowerCase().includes('payment link') ||
-        error.message.toLowerCase().includes('manual review') ||
-        error.message.toLowerCase().includes('activation is pending') ||
-        error.message.toLowerCase().includes('no longer available') ||
-        error.message.toLowerCase().includes('reload the latest link'))
-    ) {
+    if (error instanceof Error && isVehicleCheckoutConflictMessage(error.message)) {
       return res.status(409).json({ error: error.message });
     }
 
@@ -914,6 +951,16 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
 
     if (error instanceof Error && error.message.toLowerCase().includes('checkout token')) {
       return res.status(401).json({ error: error.message });
+    }
+
+    if (isStripeResourceMissingError(error)) {
+      return res.status(404).json({ error: 'Checkout session not found.' });
+    }
+
+    if (isStripeSdkError(error)) {
+      return res
+        .status((error.statusCode || 400) as number)
+        .json({ error: error.message });
     }
 
     console.error('Checkout session fetch error:', error);

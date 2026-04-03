@@ -232,9 +232,18 @@ const verifySupabaseAdminSessionToken = (token: string) => {
 };
 
 export const clearAdminSessionCookie = (req: express.Request, res: express.Response) => {
-  const { maxAge, ...cookieOptions } = createCookieOptions(req);
-  void maxAge;
-  res.clearCookie('admin_token', cookieOptions);
+  res.clearCookie('admin_token', {
+    httpOnly: true,
+    path: '/',
+    sameSite: 'none',
+    secure: true,
+  });
+  res.clearCookie('admin_token', {
+    httpOnly: true,
+    path: '/',
+    sameSite: 'strict',
+    secure: isProduction,
+  });
 };
 
 export const getSupabaseSessionExpiry = (

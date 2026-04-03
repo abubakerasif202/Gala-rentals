@@ -40,6 +40,30 @@ describe('postgres connection mode detection', () => {
     expect(hasDirectDatabaseConnection()).toBe(false);
   });
 
+  it('treats non-Supabase hosts on port 6543 as session-capable', () => {
+    process.env.SUPABASE_DB_URL =
+      'postgresql://postgres:secret@db.internal.example.com:6543/app';
+
+    expect(getPostgresConnectionMode()).toBe('session');
+    expect(hasDirectDatabaseConnection()).toBe(true);
+  });
+
+  it('treats malformed strings that only mention Supabase pooler tokens as session-capable', () => {
+    process.env.SUPABASE_DB_URL =
+      'invalid connection text .pooler.supabase.com:6543';
+
+    expect(getPostgresConnectionMode()).toBe('session');
+    expect(hasDirectDatabaseConnection()).toBe(true);
+  });
+
+  it('still detects transaction mode for malformed Supabase DSNs on 6543', () => {
+    process.env.SUPABASE_DB_URL =
+      'postgresql://postgres:bad%zz@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres';
+
+    expect(getPostgresConnectionMode()).toBe('transaction');
+    expect(hasDirectDatabaseConnection()).toBe(false);
+  });
+
   it('returns none when no connection string is configured', () => {
     delete process.env.SUPABASE_DB_URL;
     delete process.env.DATABASE_URL;

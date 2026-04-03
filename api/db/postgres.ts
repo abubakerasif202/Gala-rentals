@@ -37,10 +37,18 @@ const inferPostgresConnectionMode = (
 
   try {
     const url = new URL(connectionString);
-    // Supabase standard ports: 5432 (Session) or 6543 (Transaction Pooler)
-    return url.port === '6543' ? 'transaction' : 'session';
+    // Only treat Supabase pooler hosts as transaction-mode on 6543.
+    // Non-Supabase hosts may legitimately expose session-capable connections on that port.
+    const isSupabasePoolerHost = url.hostname.endsWith('.pooler.supabase.com');
+    return isSupabasePoolerHost && url.port === '6543' ? 'transaction' : 'session';
   } catch {
-    return connectionString.includes(':6543') ? 'transaction' : 'session';
+    const normalized = connectionString.trim();
+    const isSupabaseTransactionPoolerDsn =
+      /^postgres(?:ql)?:\/\/(?:[^@\s/]+@)?[^:\s/]+\.pooler\.supabase\.com:6543(?:\/|$)/i.test(
+        normalized
+      );
+
+    return isSupabaseTransactionPoolerDsn ? 'transaction' : 'session';
   }
 };
 

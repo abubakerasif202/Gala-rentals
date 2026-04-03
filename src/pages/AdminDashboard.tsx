@@ -93,6 +93,21 @@ const promptForManualCopy = (value: string) => {
   window.prompt('Copy secure payment link', value);
 };
 
+const copyCheckoutLink = async (checkoutUrl: string) => {
+  const copied = await copyTextToClipboard(checkoutUrl);
+
+  if (!copied) {
+    promptForManualCopy(checkoutUrl);
+  }
+
+  return copied;
+};
+
+const isRestrictedPaymentLinkError = (error: unknown) =>
+  getApiErrorMessage(error, '')
+    .toLowerCase()
+    .includes('session-capable postgres connection');
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -340,6 +355,10 @@ export default function AdminDashboard() {
   const generateCheckoutLinkMutation = useMutation({
     mutationFn: (payload: { application_id: string }) =>
       api.createVehicleCheckoutLink(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['cars'] });
+    },
   });
 
   const retryPaymentReviewActivationMutation = useMutation({
@@ -464,6 +483,7 @@ export default function AdminDashboard() {
       return;
     }
 
+    const applicationId = selectedApplication.id;
     const assignedCarId = Number(applicationApprovalForm.assigned_car_id);
     const approvedBond = Number(applicationApprovalForm.approved_bond);
     const approvedWeeklyPrice = Number(applicationApprovalForm.approved_weekly_price);
@@ -475,7 +495,7 @@ export default function AdminDashboard() {
 
     try {
       const response = await approveApplicationPaymentMutation.mutateAsync({
-        id: selectedApplication.id,
+        id: applicationId,
         payload: {
           approved_bond: approvedBond,
           approved_weekly_price: approvedWeeklyPrice,
@@ -485,10 +505,7 @@ export default function AdminDashboard() {
       });
 
       if (!response.email_delivered) {
-        const copied = await copyTextToClipboard(response.checkout_url);
-        if (!copied) {
-          promptForManualCopy(response.checkout_url);
-        }
+        const copied = await copyCheckoutLink(response.checkout_url);
         showNotification(
           response.email_reason
             ? copied
@@ -505,6 +522,53 @@ export default function AdminDashboard() {
 
       setSelectedApplication(null);
     } catch (error) {
+      if (isRestrictedPaymentLinkError(error)) {
+        try {
+          const restrictedApproval = await approveApplicationPaymentMutation.mutateAsync({
+            id: applicationId,
+            payload: {
+              approved_bond: approvedBond,
+              approved_weekly_price: approvedWeeklyPrice,
+              assigned_car_id: assignedCarId,
+              send_payment_link: false,
+            },
+          });
+
+          let checkoutUrl = restrictedApproval.checkout_url;
+
+          try {
+            const generatedLink = await generateCheckoutLinkMutation.mutateAsync({
+              application_id: applicationId,
+            });
+            checkoutUrl = generatedLink.checkout_url;
+          } catch (generateLinkError) {
+            console.warn(
+              'Failed to generate a dedicated checkout link after restricted-mode approval:',
+              generateLinkError
+            );
+          }
+
+          const copied = await copyCheckoutLink(checkoutUrl);
+          showNotification(
+            copied
+              ? 'Pricing saved. Email is unavailable in restricted mode, so the payment link was copied instead.'
+              : 'Pricing saved. Email is unavailable in restricted mode; use the prompt to copy the payment link.',
+            'success'
+          );
+          setSelectedApplication(null);
+          return;
+        } catch (fallbackError) {
+          showNotification(
+            getApiErrorMessage(
+              fallbackError,
+              'Failed to approve application and generate a manual payment link'
+            ),
+            'error'
+          );
+          return;
+        }
+      }
+
       showNotification(
         getApiErrorMessage(error, 'Failed to approve application for payment'),
         'error'

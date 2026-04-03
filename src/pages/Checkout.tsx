@@ -7,7 +7,7 @@ import Seo from '../components/Seo';
 import { createVehicleCheckoutSession, fetchApprovedPaymentContext } from '../lib/api';
 import { getApiErrorMessage } from '../lib/errorHandling';
 import {
-  parseHashCheckoutToken,
+  resolveCheckoutToken,
   scrubCheckoutTokenFromUrl,
 } from '../lib/checkoutTokenUrl';
 import { isUuid } from '../../shared/uuid';
@@ -23,10 +23,7 @@ export default function Checkout() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const [checkoutToken, setCheckoutToken] = useState(
-    () =>
-      searchParams.get('checkout_token') ||
-      searchParams.get('token') ||
-      parseHashCheckoutToken(window.location.hash)
+    () => resolveCheckoutToken(searchParams, window.location.hash)
   );
   const [pageError, setPageError] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -66,11 +63,7 @@ export default function Checkout() {
 
   useEffect(() => {
     const syncCheckoutToken = () => {
-      const nextToken =
-        searchParams.get('checkout_token') ||
-        searchParams.get('token') ||
-        parseHashCheckoutToken(window.location.hash) ||
-        '';
+      const nextToken = resolveCheckoutToken(searchParams, window.location.hash);
 
       setCheckoutToken((currentToken) =>
         currentToken === nextToken ? currentToken : nextToken

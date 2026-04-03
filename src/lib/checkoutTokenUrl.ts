@@ -6,6 +6,13 @@ export const buildCheckoutTokenHash = (token: string) => {
   return `#${params.toString()}`;
 };
 
+export const resolveCheckoutToken = (
+  searchParams: Pick<URLSearchParams, 'get'>,
+  hashValue: string
+) =>
+  TOKEN_KEYS.map((key) => searchParams.get(key))
+    .find((value) => value) || parseHashCheckoutToken(hashValue);
+
 export const parseHashCheckoutToken = (hashValue: string) => {
   const params = new URLSearchParams(hashValue.startsWith('#') ? hashValue.slice(1) : hashValue);
   return TOKEN_KEYS.map((key) => params.get(key)).find((value) => value) || '';

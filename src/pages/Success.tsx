@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -7,7 +7,7 @@ import Seo from '../components/Seo';
 import { fetchCheckoutSessionStatus } from '../lib/api';
 import {
   buildCheckoutTokenHash,
-  parseHashCheckoutToken,
+  resolveCheckoutToken,
   scrubCheckoutTokenFromUrl,
 } from '../lib/checkoutTokenUrl';
 import { isUuid } from '../../shared/uuid';
@@ -17,13 +17,28 @@ export default function Success() {
   const sessionId = searchParams.get('session_id') || '';
   const applicationIdParam = searchParams.get('application_id') || '';
   const applicationId = isUuid(applicationIdParam) ? applicationIdParam : '';
-  const checkoutToken =
-    searchParams.get('checkout_token') ||
-    searchParams.get('token') ||
-    parseHashCheckoutToken(window.location.hash) ||
-    '';
+  const [checkoutToken, setCheckoutToken] = useState(
+    () => resolveCheckoutToken(searchParams, window.location.hash)
+  );
   const carId = Number(searchParams.get('car_id') || 0);
   const hasVerificationContext = Boolean(sessionId && applicationId && checkoutToken && carId);
+
+  useEffect(() => {
+    const syncCheckoutToken = () => {
+      const nextToken = resolveCheckoutToken(searchParams, window.location.hash);
+
+      setCheckoutToken((currentToken) =>
+        currentToken === nextToken ? currentToken : nextToken
+      );
+    };
+
+    syncCheckoutToken();
+    window.addEventListener('hashchange', syncCheckoutToken);
+
+    return () => {
+      window.removeEventListener('hashchange', syncCheckoutToken);
+    };
+  }, [searchParams]);
 
   useEffect(() => {
     if (!checkoutToken) {

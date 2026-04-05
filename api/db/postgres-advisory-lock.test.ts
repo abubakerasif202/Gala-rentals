@@ -47,6 +47,20 @@ afterEach(() => {
 });
 
 describe('withPostgresAdvisoryLock', () => {
+  it('releases the pool client without a destroy reason when unlocking succeeds', async () => {
+    mockClient.query.mockResolvedValue(undefined);
+
+    const { closePostgresPool, withPostgresAdvisoryLock } = await import('./postgres.js');
+    const result = await withPostgresAdvisoryLock('vehicle-checkout:test', async () => 'ok');
+
+    expect(result).toBe('ok');
+    expect(mockPool.connect).toHaveBeenCalledTimes(1);
+    expect(mockClient.query).toHaveBeenCalledTimes(2);
+    expect(mockClient.release).toHaveBeenCalledWith();
+
+    await closePostgresPool();
+  });
+
   it('releases the pool client with a truthy reason when unlocking fails', async () => {
     const unlockError = new Error('unlock failed');
     mockClient.query.mockImplementation(async (sql: string) => {

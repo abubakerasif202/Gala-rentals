@@ -135,6 +135,42 @@ const isStripeSdkError = (
   );
 };
 
+const getStripeSdkErrorStatus = (error: { statusCode?: number; type?: string }) => {
+  if (
+    typeof error.statusCode === 'number' &&
+    Number.isInteger(error.statusCode) &&
+    error.statusCode >= 400 &&
+    error.statusCode < 600
+  ) {
+    return error.statusCode;
+  }
+
+  switch (error.type) {
+    case 'StripeAuthenticationError':
+    case 'StripeInvalidGrantError':
+      return 401;
+    case 'StripeCardError':
+      return 402;
+    case 'StripePermissionError':
+      return 403;
+    case 'StripeIdempotencyError':
+      return 409;
+    case 'StripeRateLimitError':
+      return 429;
+    case 'StripeConnectionError':
+      return 503;
+    case 'StripeAPIError':
+    case 'StripeUnknownError':
+      return 502;
+    case 'StripeInvalidRequestError':
+    case 'StripeSignatureVerificationError':
+    case 'TemporarySessionExpiredError':
+      return 400;
+    default:
+      return 502;
+  }
+};
+
 const isVehicleCheckoutConflictMessage = (message: string) => {
   const normalizedMessage = message.toLowerCase();
 
@@ -959,7 +995,7 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
 
     if (isStripeSdkError(error)) {
       return res
-        .status((error.statusCode || 400) as number)
+        .status(getStripeSdkErrorStatus(error))
         .json({ error: error.message });
     }
 

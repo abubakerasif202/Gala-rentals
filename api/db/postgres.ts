@@ -129,7 +129,7 @@ export const withPostgresAdvisoryLock = async <T>(
 
   const client = await pool.connect();
   const [keyPartOne, keyPartTwo] = toAdvisoryLockKeyParts(lockKey);
-  let releaseReason: unknown = true;
+  let releaseReason: unknown;
 
   try {
     await client.query('SELECT pg_advisory_lock($1, $2)', [
@@ -149,7 +149,11 @@ export const withPostgresAdvisoryLock = async <T>(
       console.error('Failed to release PostgreSQL advisory lock:', unlockError);
     }
 
-    client.release(releaseReason);
+    if (releaseReason) {
+      client.release(releaseReason);
+    } else {
+      client.release();
+    }
   }
 };
 

@@ -3332,6 +3332,31 @@ describe('Stripe API', () => {
     expect(res.body.error).toBe('Card declined');
   });
 
+  it('GET /api/stripe/checkout-sessions/:id returns 503 for Stripe connection failures without a status code', async () => {
+    const stripeConnectionError = Object.assign(
+      new Error('An error occurred with our connection to Stripe.'),
+      {
+        type: 'StripeConnectionError',
+      }
+    );
+    mockStripe.checkoutSessionsRetrieve.mockRejectedValueOnce(stripeConnectionError);
+
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+    const res = await request(app).get('/api/stripe/checkout-sessions/cs_connection_issue').query({
+      application_id: APPROVED_APPLICATION_ID,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe('An error occurred with our connection to Stripe.');
+  });
+
   it('POST /api/stripe/webhook activates the rental and records paid bond on success', async () => {
     mockStripe.webhooksConstructEvent.mockReturnValue({
       id: 'evt_test_1',

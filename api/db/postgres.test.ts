@@ -35,6 +35,7 @@ describe('postgres connection mode detection', () => {
   });
 
   it('treats a Supabase shared pooler session-mode URL on port 5432 as session-capable', () => {
+    delete process.env.DATABASE_URL;
     process.env.SUPABASE_DB_URL =
       'postgresql://postgres.example:secret@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres';
 
@@ -43,6 +44,7 @@ describe('postgres connection mode detection', () => {
   });
 
   it('treats a Supabase transaction-pooler URL on port 6543 as non-session', () => {
+    delete process.env.DATABASE_URL;
     process.env.SUPABASE_DB_URL =
       'postgresql://postgres.example:secret@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres';
 
@@ -51,6 +53,7 @@ describe('postgres connection mode detection', () => {
   });
 
   it('treats non-Supabase hosts on port 6543 as session-capable', () => {
+    delete process.env.DATABASE_URL;
     process.env.SUPABASE_DB_URL =
       'postgresql://postgres:secret@db.internal.example.com:6543/app';
 
@@ -59,6 +62,7 @@ describe('postgres connection mode detection', () => {
   });
 
   it('treats malformed strings that only mention Supabase pooler tokens as session-capable', () => {
+    delete process.env.DATABASE_URL;
     process.env.SUPABASE_DB_URL =
       'invalid connection text .pooler.supabase.com:6543';
 
@@ -67,6 +71,7 @@ describe('postgres connection mode detection', () => {
   });
 
   it('still detects transaction mode for malformed Supabase DSNs on 6543', () => {
+    delete process.env.DATABASE_URL;
     process.env.SUPABASE_DB_URL =
       'postgresql://postgres:bad%zz@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres';
 

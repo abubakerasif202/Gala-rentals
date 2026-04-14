@@ -17,6 +17,10 @@ data/
 .omx/
 
 skills/
+skills-lock.json
+
+# Car images are stored in Supabase Storage; keep local copies off git
+car images/cars/
 
 /net-commander
 supabase/.temp/

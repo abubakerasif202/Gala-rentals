@@ -156,7 +156,10 @@ async function syncRealtimeFleet() {
     );
 
     if (existingCar) {
-      const { error } = await supabase.from('cars').update(carPayload).eq('id', existingCar.id);
+      // Exclude `image` from updates — images are managed via Supabase Storage and
+      // must not be overwritten with the local-path placeholder used for new-car inserts.
+      const { image: _image, ...carUpdatePayload } = carPayload;
+      const { error } = await supabase.from('cars').update(carUpdatePayload).eq('id', existingCar.id);
 
       if (error) {
         throw error;

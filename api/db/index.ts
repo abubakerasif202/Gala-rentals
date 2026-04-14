@@ -176,7 +176,7 @@ export const initializeDB = async () => {
     return;
   }
 
-  console.log('Database connection initialized with Supabase.');
+  console.log('Supabase admin data plane initialized for storage and auth-backed operations.');
 };
 
 export default db;

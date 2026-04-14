@@ -24,6 +24,16 @@ afterEach(() => {
 });
 
 describe('postgres connection mode detection', () => {
+  it('prefers DATABASE_URL over SUPABASE_DB_URL when both are configured', () => {
+    process.env.DATABASE_URL =
+      'postgresql://postgres:secret@render-postgres.internal:5432/render_app';
+    process.env.SUPABASE_DB_URL =
+      'postgresql://postgres.example:secret@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres';
+
+    expect(getPostgresConnectionMode()).toBe('session');
+    expect(hasDirectDatabaseConnection()).toBe(true);
+  });
+
   it('treats a Supabase shared pooler session-mode URL on port 5432 as session-capable', () => {
     process.env.SUPABASE_DB_URL =
       'postgresql://postgres.example:secret@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres';

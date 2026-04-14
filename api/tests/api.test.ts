@@ -138,6 +138,7 @@ const {
   mockSignInWithPassword,
   mockStorageFrom,
   mockCheckDBHealth,
+  mockCheckDirectDatabaseHealth,
   mockCreateAuthClient,
   mockClosePostgresPool,
   mockGetSupabaseAuthConfigurationIssues,
@@ -163,6 +164,7 @@ const {
   mockSignInWithPassword: vi.fn(),
   mockStorageFrom: vi.fn(),
   mockCheckDBHealth: vi.fn(),
+  mockCheckDirectDatabaseHealth: vi.fn(),
   mockCreateAuthClient: vi.fn(),
   mockClosePostgresPool: vi.fn(async () => undefined),
   mockGetSupabaseAuthConfigurationIssues: vi.fn(() => []),
@@ -951,6 +953,7 @@ vi.mock('../db/postgres.js', () => {
     });
 
   return {
+    checkDirectDatabaseHealth: mockCheckDirectDatabaseHealth,
     closePostgresPool: mockClosePostgresPool,
     getDirectDatabaseConnectionString: vi.fn(() => ''),
     hasDirectDatabaseConnection: mockHasDirectDatabaseConnection,
@@ -1183,6 +1186,12 @@ beforeEach(() => {
     },
   });
   mockCheckDBHealth.mockResolvedValue({ configured: true });
+  mockCheckDirectDatabaseHealth.mockResolvedValue({
+    configured: true,
+    issues: [],
+    mode: 'session',
+    source: 'DATABASE_URL',
+  });
   mockClosePostgresPool.mockResolvedValue(undefined);
   mockGetSupabaseAuthConfigurationIssues.mockReturnValue([]);
   mockGetSupabaseConfigurationIssues.mockReturnValue([]);
@@ -1733,6 +1742,23 @@ describe('Applications API', () => {
     expect(res.body).toMatchObject({
       status: 'ok',
       database: 'ok',
+      directDatabase: 'ok',
+      paymentActivationMode: 'transactional',
+    });
+  });
+
+  it('GET /api/health returns 503 when the configured direct database health check fails', async () => {
+    mockCheckDirectDatabaseHealth.mockRejectedValueOnce(
+      new Error('direct database unavailable')
+    );
+
+    const res = await request(app).get('/api/health');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      status: 'error',
+      database: 'ok',
+      directDatabase: 'unavailable',
       paymentActivationMode: 'transactional',
     });
   });
@@ -1752,6 +1778,12 @@ describe('Applications API', () => {
 
   it('GET /api/health reports restricted payment handling without direct DB access', async () => {
     mockHasDirectDatabaseConnection.mockReturnValue(false);
+    mockCheckDirectDatabaseHealth.mockResolvedValueOnce({
+      configured: false,
+      issues: [],
+      mode: 'none',
+      source: null,
+    });
 
     const res = await request(app).get('/api/health');
 
@@ -1759,6 +1791,7 @@ describe('Applications API', () => {
     expect(res.body).toMatchObject({
       status: 'ok',
       database: 'ok',
+      directDatabase: 'not_configured',
       paymentActivationMode: 'restricted',
     });
   });
@@ -2992,6 +3025,31 @@ describe('Stripe API', () => {
     expect(payload.success_url).toContain(`application_id=${APPROVED_APPLICATION_ID}`);
     expect(payload.success_url).toContain('car_id=1');
     expect(payload.success_url).toContain(`#checkout_token=${encodeURIComponent(token.token)}`);
+  });
+
+  it('POST /api/stripe/vehicle-checkout-session returns a retryable Stripe outage message', async () => {
+    mockStripe.checkoutSessionsCreate.mockRejectedValueOnce({
+      message: 'Stripe upstream unavailable',
+      type: 'StripeAPIError',
+    });
+
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: 'vehicle',
+      version: 1,
+    });
+
+    const res = await request(app).post('/api/stripe/vehicle-checkout-session').send({
+      application_id: APPROVED_APPLICATION_ID,
+      car_id: 1,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe(
+      'Stripe is temporarily unavailable. Please try again shortly.'
+    );
   });
 
   it('POST /api/stripe/vehicle-checkout-session derives a stable retry idempotency key from the stale session id', async () => {

@@ -52,9 +52,9 @@ if (!stripeSecretKey.startsWith('sk_test_') && !forceProduction) {
   );
 }
 
-const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '';
+const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || '';
 if (!connectionString) {
-  throw new Error('SUPABASE_DB_URL or DATABASE_URL is required.');
+  throw new Error('DATABASE_URL or SUPABASE_DB_URL is required.');
 }
 
 const stripe = createStripeClient(stripeSecretKey);

@@ -9,14 +9,15 @@ Stripe operational setup and reset steps are documented in [docs/STRIPE_SETUP.md
 
 - Public users can browse vehicles, submit applications, upload driver documents, and receive a payment link after admin review.
 - Admin users can review applications, manage cars, activate rentals, inspect customer and invoice history, and work with lease agreements.
-- Supabase provides Postgres data storage, auth, and private document storage.
+- Supabase provides auth and private document storage.
+- Transactional app data and Stripe/payment state use a direct PostgreSQL connection, with Render Postgres preferred through `DATABASE_URL`.
 - Render deploys the app as one Node web service.
 
 ## Stack
 
 - Frontend: React 19, Vite, React Router, TanStack Query, Tailwind CSS
 - Backend: Express, TypeScript
-- Data: Supabase Postgres and Supabase Storage
+- Data: Direct PostgreSQL for transactional state, Supabase Auth, Supabase Storage
 - Payments: Stripe
 - Email: Resend
 - Deployment: Render
@@ -37,6 +38,24 @@ Stripe operational setup and reset steps are documented in [docs/STRIPE_SETUP.md
 - Express serves built static assets from `dist/`.
 - Non-API SPA routes fall back to `dist/index.html`.
 - Health checks are exposed at `/api/health`.
+
+## Direct Database And Payments
+
+- Stripe checkout activation requires `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CHECKOUT_LINK_SECRET`, `APP_URL`, `ADMIN_EMAIL`, and `JWT_SECRET`.
+- Supabase storage and auth require `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
+- Direct Postgres uses `DATABASE_URL` as the primary connection string and falls back to `SUPABASE_DB_URL` only when `DATABASE_URL` is not set.
+- `paymentActivationMode` is `transactional` only when the selected direct Postgres connection is session-capable. Transaction-pooler or missing direct DB config leaves the app in `restricted` mode.
+- Checkout and subscription links are generated through the existing routes:
+  - `POST /api/applications/:id/approve-payment`
+  - `POST /api/stripe/vehicle-checkout-link`
+  - `POST /api/stripe/vehicle-checkout-session`
+- The hosted checkout session remains Stripe Checkout in `subscription` mode with:
+  - one-time line items for bond and setup fees when approved
+  - a recurring rental line item for the ongoing weekly charge
+- Stripe checkout recovery and state resolution use:
+  - `GET /api/stripe/payment-context`
+  - `GET /api/stripe/checkout-sessions/:sessionId`
+  - `POST /api/stripe/webhook`
 
 ## Routes
 
@@ -112,11 +131,13 @@ VITE_API_BASE_URL=/api
 Recommended for full local parity:
 
 ```env
-SUPABASE_DB_URL=postgresql://...
+DATABASE_URL=postgresql://...
 RESEND_API_KEY=re_...
 ```
 
-Stripe payment links and hosted checkout session creation work with the standard Supabase HTTP credentials. Automatic rental activation still requires `SUPABASE_DB_URL` or `DATABASE_URL` to point to a session-capable Postgres connection on port `5432`; otherwise paid checkouts fall back to `Payment Review`.
+`SUPABASE_DB_URL=postgresql://...` remains supported as a fallback for legacy environments, but `DATABASE_URL` is preferred for local parity and Render deployments.
+
+Stripe payment links and hosted checkout session creation work with the standard Supabase HTTP credentials. Automatic rental activation still requires `DATABASE_URL` or `SUPABASE_DB_URL` to point to a session-capable Postgres connection; otherwise paid checkouts fall back to `Payment Review`.
 
 Optional local-only admin shortcut:
 
@@ -224,6 +245,15 @@ What each command does:
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 
+### Required for direct transactional checkout activation
+
+- `DATABASE_URL`
+  - Preferred direct PostgreSQL connection string for Render Postgres and all new deployments
+- `SUPABASE_DB_URL`
+  - Optional fallback only when `DATABASE_URL` is not set
+  - Useful for legacy environments that still use a direct Supabase Postgres connection
+  - If both are set, the app uses `DATABASE_URL`
+
 ### Recommended in production
 
 - `LEASE_OWNER_NAME`
@@ -231,9 +261,6 @@ What each command does:
 - `LEASE_OWNER_CONTACT`
 - `LEASE_OWNER_EMAIL`
   - Optional overrides for the default Maple Rentals business details inserted into generated lease agreements
-- `SUPABASE_DB_URL`
-  - Session-capable Postgres connection string used for transactional Stripe activation writes
-  - If omitted, the app still boots and serves the site, payment links still work, and successful payments remain in `Payment Review` until manual follow-up
 - `RESEND_API_KEY`
   - Transactional email delivery
 
@@ -261,12 +288,13 @@ What each command does:
 - `status`
 - `environment`
 - `database`
+- `directDatabase`
 - `paymentActivationMode`
 
 `paymentActivationMode` will be:
 
-- `transactional` when `SUPABASE_DB_URL` or `DATABASE_URL` is configured
-- `restricted` when the app is running without a session-capable Postgres connection; payment links still work but automatic activation falls back to manual review
+- `transactional` when the selected direct database (`DATABASE_URL` first, then `SUPABASE_DB_URL`) is session-capable
+- `restricted` when the app is running without a session-capable direct Postgres connection; payment links still work but automatic activation falls back to manual review
 
 ## Security and Operational Notes
 
@@ -278,7 +306,7 @@ What each command does:
 - Driver licence documents are stored in a private Supabase Storage bucket and served through short-lived signed URLs.
 - The server fails fast in production on invalid or missing core config instead of constructing unsafe fallback clients.
 
-## Render Deployment
+## Render + Supabase Storage + Stripe
 
 This repo includes [`render.yaml`](./render.yaml) for a single web-service deployment.
 
@@ -292,6 +320,7 @@ Recommended Render environment variables:
 
 - `APP_URL`
 - `ADMIN_EMAIL`
+- `DATABASE_URL`
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -304,6 +333,27 @@ Recommended Render environment variables:
 
 `render.yaml` pre-populates the `LEASE_OWNER_*` values with the current Maple Rentals business details.
 Override them in Render only if those agreement details need to change.
+
+### Render deployment steps
+
+1. Create a Render Postgres instance and copy its internal `DATABASE_URL`.
+2. Deploy the web service from `render.yaml`, then set `DATABASE_URL` on the service.
+3. Keep the Supabase variables in place for storage and auth: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
+4. Set the Stripe secrets: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `CHECKOUT_LINK_SECRET`.
+5. Set the app and security variables: `APP_URL`, `ADMIN_EMAIL`, and `JWT_SECRET`.
+6. Run the production migrations against the direct database:
+
+```powershell
+$env:DATABASE_URL='postgresql://...'
+npm run migrate:payment-workflow
+npm run migrate:legacy-snake-payment-workflow
+npm run migrate:stripe-webhook-ledger
+npm run migrate:vehicle-allocation
+npm run migrate:operational-history
+npm run migrate:application-indexes
+```
+
+7. Configure the Stripe webhook endpoint to `https://<your-domain>/api/stripe/webhook`, then run `npm run stripe:handoff` against the deployed environment to verify readiness.
 
 ## Troubleshooting
 
@@ -319,7 +369,7 @@ Do not paste the Postgres connection string into `SUPABASE_URL`.
 
 ### Health endpoint reports `restricted`
 
-Add `SUPABASE_DB_URL` or `DATABASE_URL` with a session-capable Postgres connection on port `5432` to enable automatic Stripe activation. The web app can still boot and create payment links without it, but paid checkouts remain in manual review.
+Add `DATABASE_URL` with a session-capable direct Postgres connection to enable automatic Stripe activation. `SUPABASE_DB_URL` remains available as a fallback, but `DATABASE_URL` is the preferred Render configuration. The web app can still boot and create payment links without a session-capable direct database, but paid checkouts remain in manual review.
 
 ### `npm run stripe:handoff` fails
 
@@ -329,6 +379,7 @@ Check:
 - `STRIPE_WEBHOOK_SECRET` is populated from the live webhook endpoint
 - `APP_URL` matches the final public domain
 - `/api/stripe/webhook` exists as a live Stripe webhook endpoint
+- `DATABASE_URL` points at the Render Postgres instance used for transactional payment state
 - the database schema includes the latest `stripe_webhook_events` columns
 
 ### Admin login loops back to `/admin/login`

@@ -2,14 +2,41 @@ import crypto from 'node:crypto';
 import pg from 'pg';
 
 type PoolClient = import('pg').PoolClient;
-type PostgresConnectionMode = 'none' | 'session' | 'transaction';
+export type PostgresConnectionMode = 'none' | 'session' | 'transaction';
+export type DirectDatabaseConfigSource = 'DATABASE_URL' | 'SUPABASE_DB_URL' | null;
+export type DirectDatabaseConfig = {
+  connectionString: string;
+  mode: PostgresConnectionMode;
+  source: DirectDatabaseConfigSource;
+};
 
 const { Pool } = pg;
 
 let postgresPool: InstanceType<typeof Pool> | null = null;
+let postgresPoolConnectionString: string | null = null;
+
+const readConfiguredConnectionString = (key: 'DATABASE_URL' | 'SUPABASE_DB_URL') =>
+  (process.env[key] || '').trim();
+
+export const getDirectDatabaseConfig = (): DirectDatabaseConfig => {
+  const databaseUrl = readConfiguredConnectionString('DATABASE_URL');
+  const supabaseDbUrl = readConfiguredConnectionString('SUPABASE_DB_URL');
+  const connectionString = databaseUrl || supabaseDbUrl;
+  const source: DirectDatabaseConfigSource = databaseUrl
+    ? 'DATABASE_URL'
+    : supabaseDbUrl
+      ? 'SUPABASE_DB_URL'
+      : null;
+
+  return {
+    connectionString,
+    mode: inferPostgresConnectionMode(connectionString),
+    source,
+  };
+};
 
 export const getDirectDatabaseConnectionString = () =>
-  (process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '').trim();
+  getDirectDatabaseConfig().connectionString;
 
 export const shouldUseRelaxedPostgresSsl = (connectionString: string) => {
   if (!connectionString) {
@@ -52,20 +79,26 @@ const inferPostgresConnectionMode = (
   }
 };
 
-export const getPostgresConnectionMode = () =>
-  inferPostgresConnectionMode(getDirectDatabaseConnectionString());
+export const getPostgresConnectionMode = () => getDirectDatabaseConfig().mode;
 
 export const hasDirectDatabaseConnection = () =>
   getPostgresConnectionMode() === 'session';
 
 const getPostgresPool = () => {
-  const connectionString = getDirectDatabaseConnectionString();
-  const connectionMode = inferPostgresConnectionMode(connectionString);
+  const { connectionString, mode: connectionMode } = getDirectDatabaseConfig();
 
   if (connectionMode === 'none') {
     throw new Error(
-      'SUPABASE_DB_URL or DATABASE_URL is required for transactional data operations.'
+      'DATABASE_URL (preferred) or SUPABASE_DB_URL is required for transactional data operations.'
     );
+  }
+
+  if (postgresPool && postgresPoolConnectionString !== connectionString) {
+    void postgresPool.end().catch((error) => {
+      console.error('Failed to recycle PostgreSQL pool after configuration change:', error);
+    });
+    postgresPool = null;
+    postgresPoolConnectionString = null;
   }
 
   if (!postgresPool) {
@@ -79,9 +112,43 @@ const getPostgresPool = () => {
       connectionTimeoutMillis: 2000,
       ...(ssl ? { ssl } : {}),
     });
+    postgresPoolConnectionString = connectionString;
   }
 
   return postgresPool;
+};
+
+export const checkDirectDatabaseHealth = async () => {
+  const config = getDirectDatabaseConfig();
+  if (!config.source) {
+    return {
+      configured: false,
+      mode: config.mode,
+      source: config.source,
+    };
+  }
+
+  if (config.mode !== 'session') {
+    return {
+      configured: true,
+      mode: config.mode,
+      source: config.source,
+    };
+  }
+
+  const client = await getPostgresPool().connect();
+
+  try {
+    await client.query('SELECT 1');
+
+    return {
+      configured: true,
+      mode: config.mode,
+      source: config.source,
+    };
+  } finally {
+    client.release();
+  }
 };
 
 export const withPostgresTransaction = async <T>(
@@ -117,8 +184,7 @@ export const withPostgresAdvisoryLock = async <T>(
   callback: () => Promise<T>
 ) => {
   const pool = getPostgresPool();
-  const connectionString = getDirectDatabaseConnectionString();
-  const connectionMode = inferPostgresConnectionMode(connectionString);
+  const { mode: connectionMode } = getDirectDatabaseConfig();
 
   if (connectionMode === 'transaction') {
     throw new Error(
@@ -164,5 +230,6 @@ export const closePostgresPool = async () => {
 
   const pool = postgresPool;
   postgresPool = null;
+  postgresPoolConnectionString = null;
   await pool.end();
 };

@@ -20,3 +20,5 @@ skills/
 
 /net-commander
 supabase/.temp/
+
+.claude/settings.local.json

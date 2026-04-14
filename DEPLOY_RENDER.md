@@ -60,10 +60,13 @@ That server:
   - Supabase project URL in `https://...supabase.co` format
 
 - `SUPABASE_SERVICE_ROLE_KEY`
-  - Backend service-role key used for privileged database access
+  - Backend service-role key used for privileged storage and auth-backed operations
 
 - `SUPABASE_ANON_KEY`
   - Frontend/browser public anon key used by the client app
+
+- `DATABASE_URL`
+  - Preferred direct PostgreSQL connection string for Render Postgres and transactional Stripe/payment state
 
 - `STRIPE_SECRET_KEY`
   - Stripe server SDK key
@@ -83,11 +86,11 @@ That server:
 - `LEASE_OWNER_EMAIL`
   - Registered-owner details inserted into generated lease agreements
 
-### Strongly recommended
+### Fallback only
 
 - `SUPABASE_DB_URL`
-  - Session-capable Postgres connection string used for transactional payment activation
-  - If omitted, the app stays live but `/api/health` reports `paymentActivationMode: "restricted"`
+  - Legacy fallback direct Postgres connection string when `DATABASE_URL` is not set
+  - If both are present, the app uses `DATABASE_URL`
 
 ### Optional
 
@@ -112,6 +115,7 @@ That server:
 ## Important env rules
 
 - `SUPABASE_URL` must be the HTTPS project URL, not the Postgres connection string.
+- `DATABASE_URL` should point to Render Postgres in new deployments.
 - `SUPABASE_DB_URL` must be the Postgres connection string, not the HTTPS project URL.
 - Do not expose `SUPABASE_SERVICE_ROLE_KEY` to the frontend.
 - Do not set `PORT` manually on Render.
@@ -121,9 +125,12 @@ That server:
 1. Connect the GitHub repo in Render.
 2. Use the Blueprint flow so `render.yaml` is applied.
 3. Fill every required environment variable.
-4. Add `SUPABASE_DB_URL` if you want transactional payment activation.
-5. Deploy.
-6. Verify [https://www.maplerentals.com.au/api/health](https://www.maplerentals.com.au/api/health) or your Render URL equivalent.
+4. Create Render Postgres and set its connection string as `DATABASE_URL`.
+5. Keep the Supabase storage/auth variables in place.
+6. Run the payment workflow migrations against `DATABASE_URL`.
+7. Configure Stripe to deliver webhooks to `https://<your-domain>/api/stripe/webhook`.
+8. Deploy.
+9. Verify [https://www.maplerentals.com.au/api/health](https://www.maplerentals.com.au/api/health) or your Render URL equivalent.
 
 ## Health check expectations
 
@@ -133,11 +140,12 @@ A healthy response should look like:
 {
   "status": "ok",
   "database": "ok",
+  "directDatabase": "ok",
   "paymentActivationMode": "transactional"
 }
 ```
 
-If `paymentActivationMode` is `restricted`, the service is up but the direct Postgres connection is missing.
+If `paymentActivationMode` is `restricted`, the service is up but the selected direct Postgres connection is missing or not session-capable.
 
 ## Local production verification
 
@@ -166,15 +174,15 @@ Cause:
 
 Fix:
 - put the `https://...supabase.co` URL back into `SUPABASE_URL`
-- put the Postgres URI into `SUPABASE_DB_URL`
+- put the Postgres URI into `DATABASE_URL` (preferred) or `SUPABASE_DB_URL`
 
 ### Health endpoint shows `restricted`
 
 Cause:
-- `SUPABASE_DB_URL` or `DATABASE_URL` is missing
+- `DATABASE_URL` is missing or points at a non-session-capable pooler
 
 Fix:
-- add a valid Postgres connection string and redeploy
+- add a valid session-capable `DATABASE_URL` and redeploy
 
 ### Rate-limit proxy warning on Render
 

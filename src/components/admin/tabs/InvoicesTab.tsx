@@ -45,7 +45,8 @@ const renderOperationalUnavailable = (title: string, operationalHistoryMessage: 
     </div>
     <div className="bg-brand-navy/60 border border-white/10 rounded-2xl px-5 py-4 text-[11px] text-brand-grey font-light">
       Run <span className="font-mono text-white">npm run migrate:operational-history</span>{' '}
-      with <span className="font-mono text-white">SUPABASE_DB_URL</span>, then run{' '}
+      with <span className="font-mono text-white">DATABASE_URL</span> (preferred, or{' '}
+      <span className="font-mono text-white">SUPABASE_DB_URL</span>), then run{' '}
       <span className="font-mono text-white">
         powershell -ExecutionPolicy Bypass -File scripts/import-operational-history-from-workbooks.ps1 -Apply
       </span>

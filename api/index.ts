@@ -19,8 +19,9 @@ import {
   initializeDB,
 } from './db/index.js';
 import {
+  checkDirectDatabaseHealth,
   closePostgresPool,
-  hasDirectDatabaseConnection,
+  getDirectDatabaseConfig,
 } from './db/postgres.js';
 import { shouldServeSpaEntry } from './frontendRouting.js';
 import { apiNotFoundHandler, errorHandler } from './middleware/errors.js';
@@ -141,15 +142,41 @@ const validateProductionSchemaContract = async () => {
   }
 };
 
-const logProductionConfigurationWarnings = () => {
-  if (hasDirectDatabaseConnection()) {
+const logRuntimeConfigurationSummary = () => {
+  const { mode, source } = getDirectDatabaseConfig();
+  const paymentMode = getPaymentProcessingMode();
+  const hasSupabaseDbUrl = Boolean(process.env.SUPABASE_DB_URL?.trim());
+
+  if (source === 'DATABASE_URL') {
+    console.info(
+      `Direct PostgreSQL connection configured via DATABASE_URL (${mode} mode). Payment processing mode: ${paymentMode}.`
+    );
+
+    if (hasSupabaseDbUrl) {
+      console.info(
+        'DATABASE_URL is taking precedence over SUPABASE_DB_URL for direct transactional database access.'
+      );
+    }
+
+    return;
+  }
+
+  if (source === 'SUPABASE_DB_URL') {
+    if (mode === 'session') {
+      console.warn(
+        'SUPABASE_DB_URL is providing the current direct PostgreSQL session connection. Prefer DATABASE_URL for Render Postgres deployments.'
+      );
+      return;
+    }
+
+    console.warn(
+      'SUPABASE_DB_URL is configured with a transaction-mode pooler. Payment links and automatic Stripe activation remain restricted until a session-capable DATABASE_URL or SUPABASE_DB_URL is provided.'
+    );
     return;
   }
 
   console.warn(
-    'SUPABASE_DB_URL or DATABASE_URL is not configured for a session-capable Postgres connection. ' +
-      'Payment links and automatic Stripe activation will remain disabled until a direct connection ' +
-      'or Supabase shared pooler session-mode URL on port 5432 is added.'
+    'DATABASE_URL is not configured. Payment links and automatic Stripe activation remain restricted until a session-capable DATABASE_URL (preferred) or SUPABASE_DB_URL is configured.'
   );
 };
 
@@ -163,14 +190,30 @@ const rateLimiter = rateLimit({
 
 let dbInitialized: Promise<void> | null = null;
 type DBHealthCheckResult = Awaited<ReturnType<typeof checkDBHealth>>;
+type DirectDBHealthCheckResult = Awaited<
+  ReturnType<typeof checkDirectDatabaseHealth>
+>;
 type DBHealthCheckState =
   | { error: null; result: DBHealthCheckResult }
   | { error: Error; result: null };
+type DirectDBHealthCheckState =
+  | { error: null; result: DirectDBHealthCheckResult }
+  | { error: Error; result: null };
+type DirectDatabaseHealthStatus =
+  | 'ok'
+  | 'not_configured'
+  | 'restricted'
+  | 'unavailable';
 
 let dbHealthCheckPromise: Promise<DBHealthCheckResult> | null = null;
 let dbHealthCheckState: {
   expiresAt: number;
   value: DBHealthCheckState;
+} | null = null;
+let directDbHealthCheckPromise: Promise<DirectDBHealthCheckResult> | null = null;
+let directDbHealthCheckState: {
+  expiresAt: number;
+  value: DirectDBHealthCheckState;
 } | null = null;
 
 const withTimeout = async <T>(
@@ -239,6 +282,64 @@ const runDBHealthCheck = async () => {
   }
 
   return dbHealthCheckPromise;
+};
+
+const runDirectDBHealthCheck = async () => {
+  const now = Date.now();
+  if (directDbHealthCheckState && directDbHealthCheckState.expiresAt > now) {
+    if (directDbHealthCheckState.value.error) {
+      throw directDbHealthCheckState.value.error;
+    }
+
+    return directDbHealthCheckState.value.result;
+  }
+
+  if (!directDbHealthCheckPromise) {
+    directDbHealthCheckPromise = withTimeout(
+      () => checkDirectDatabaseHealth(),
+      DB_CHECK_TIMEOUT_MS,
+      `Direct database health check timed out after ${DB_CHECK_TIMEOUT_MS}ms`
+    )
+      .then((result) => {
+        directDbHealthCheckState = {
+          expiresAt: Date.now() + DB_HEALTH_CACHE_TTL_MS,
+          value: {
+            error: null,
+            result,
+          },
+        };
+        return result;
+      })
+      .catch((error: unknown) => {
+        const resolvedError =
+          error instanceof Error
+            ? error
+            : new Error('Direct database health check failed');
+        directDbHealthCheckState = {
+          expiresAt: Date.now() + DB_HEALTH_CACHE_TTL_MS,
+          value: {
+            error: resolvedError,
+            result: null,
+          },
+        };
+        throw resolvedError;
+      })
+      .finally(() => {
+        directDbHealthCheckPromise = null;
+      });
+  }
+
+  return directDbHealthCheckPromise;
+};
+
+const resolveDirectDatabaseHealthStatus = (
+  result: DirectDBHealthCheckResult
+): DirectDatabaseHealthStatus => {
+  if (!result.configured) {
+    return 'not_configured';
+  }
+
+  return result.mode === 'session' ? 'ok' : 'restricted';
 };
 
 const ensureDB = async () => {
@@ -342,26 +443,47 @@ const registerCoreRoutes = (app: express.Express) => {
   }
 
   app.get('/api/health', async (_req, res) => {
+    let database: 'ok' | 'not_configured' | 'unavailable' = 'ok';
+    let directDatabase: DirectDatabaseHealthStatus = 'not_configured';
+
     try {
       const { configured } = await runDBHealthCheck();
-
-      res.setHeader('Cache-Control', 'no-store');
-      res.json({
-        status: 'ok',
-        environment: process.env.NODE_ENV || 'development',
-        database: configured ? 'ok' : 'not_configured',
-        paymentActivationMode: getPaymentProcessingMode(),
-      });
+      database = configured ? 'ok' : 'not_configured';
     } catch (error) {
-      console.error('Healthcheck error:', error);
-      res.setHeader('Cache-Control', 'no-store');
+      database = 'unavailable';
+      console.error('Healthcheck database error:', error);
+    }
+
+    try {
+      const directHealth = await runDirectDBHealthCheck();
+      directDatabase = resolveDirectDatabaseHealthStatus(directHealth);
+    } catch (error) {
+      directDatabase = 'unavailable';
+      console.error('Healthcheck direct database error:', error);
+    }
+
+    const hasFailure =
+      database === 'unavailable' || directDatabase === 'unavailable';
+
+    res.setHeader('Cache-Control', 'no-store');
+    if (hasFailure) {
       res.status(503).json({
         status: 'error',
         environment: process.env.NODE_ENV || 'development',
-        database: 'unavailable',
+        database,
+        directDatabase,
         paymentActivationMode: getPaymentProcessingMode(),
       });
+      return;
     }
+
+    res.json({
+      status: 'ok',
+      environment: process.env.NODE_ENV || 'development',
+      database,
+      directDatabase,
+      paymentActivationMode: getPaymentProcessingMode(),
+    });
   });
 
   app.use('/api', rateLimiter);
@@ -483,7 +605,7 @@ type RunningResources = {
 export const startServer = async (): Promise<RunningResources> => {
   validateProductionEnv();
   await validateProductionSchemaContract();
-  logProductionConfigurationWarnings();
+  logRuntimeConfigurationSummary();
 
   let viteServer: ViteDevServer | null = null;
   if (isProduction) {
@@ -511,6 +633,9 @@ export const startServer = async (): Promise<RunningResources> => {
   // surface readiness through the healthcheck and API middleware instead.
   void ensureDB().catch((error) => {
     console.error('Database warmup failed:', error);
+  });
+  void runDirectDBHealthCheck().catch((error) => {
+    console.error('Direct database warmup failed:', error);
   });
 
   return { server, viteServer };

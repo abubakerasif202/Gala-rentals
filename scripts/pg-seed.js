@@ -6,9 +6,9 @@ import dotenv from 'dotenv';
 const { Client } = pg;
 dotenv.config();
 
-const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '';
+const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || '';
 if (!connectionString) {
-    console.error("Missing SUPABASE_DB_URL or DATABASE_URL environment variable.");
+    console.error("Missing DATABASE_URL or SUPABASE_DB_URL environment variable.");
     process.exit(1);
 }
 

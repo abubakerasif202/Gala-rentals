@@ -2,9 +2,9 @@ import './load-env.js';
 import pg from 'pg';
 
 const { Client } = pg;
-const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '';
+const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || '';
 if (!connectionString) {
-    console.error("Missing SUPABASE_DB_URL or DATABASE_URL environment variable.");
+    console.error("Missing DATABASE_URL or SUPABASE_DB_URL environment variable.");
     process.exit(1);
 }
 
@@ -14,10 +14,10 @@ async function checkStatus() {
     try {
         await client.connect();
         const res = await client.query('SELECT version();');
-        console.log("Supabase Database Status: UP AND RESPONDING!");
+        console.log("Direct PostgreSQL Status: UP AND RESPONDING!");
         console.log("Version Details:", res.rows[0].version);
     } catch (e) {
-        console.error("Supabase Database Status: CONNECTION FAILED!");
+        console.error("Direct PostgreSQL Status: CONNECTION FAILED!");
         console.error(e.message);
     } finally {
         await client.end();

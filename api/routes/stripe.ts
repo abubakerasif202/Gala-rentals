@@ -171,6 +171,30 @@ const getStripeSdkErrorStatus = (error: { statusCode?: number; type?: string }) 
   }
 };
 
+const getCheckoutSessionStripeErrorResponse = (error: {
+  message: string;
+  statusCode?: number;
+  type?: string;
+}) => {
+  const retryableTypes = new Set([
+    'StripeAPIError',
+    'StripeConnectionError',
+    'StripeUnknownError',
+  ]);
+
+  if (retryableTypes.has(String(error.type || ''))) {
+    return {
+      error: 'Stripe is temporarily unavailable. Please try again shortly.',
+      status: 503,
+    };
+  }
+
+  return {
+    error: error.message,
+    status: getStripeSdkErrorStatus(error),
+  };
+};
+
 const isVehicleCheckoutConflictMessage = (message: string) => {
   const normalizedMessage = message.toLowerCase();
 
@@ -755,6 +779,14 @@ router.post('/vehicle-checkout-session', async (req, res) => {
       console.error('Stripe configuration error during vehicle checkout session:', error);
       return res.status(503).json({
         error: 'Payments are temporarily unavailable. Please contact support.',
+      });
+    }
+
+    if (isStripeSdkError(error)) {
+      const stripeFailure = getCheckoutSessionStripeErrorResponse(error);
+      console.error('Stripe checkout session creation failed:', error);
+      return res.status(stripeFailure.status).json({
+        error: stripeFailure.error,
       });
     }
 

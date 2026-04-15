@@ -48,8 +48,26 @@ type ApplicationSubmissionOverrides = Partial<
   }
 >;
 
+const PNG_FIXTURE_MAGIC = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+const JPEG_FIXTURE_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+
+const buildValidImageBuffer = (contentType: string, payload: Buffer) => {
+  const normalized = contentType.toLowerCase();
+  if (normalized === 'image/png') {
+    return Buffer.concat([PNG_FIXTURE_MAGIC, payload]);
+  }
+
+  if (normalized === 'image/jpeg' || normalized === 'image/jpg') {
+    return Buffer.concat([JPEG_FIXTURE_MAGIC, payload]);
+  }
+
+  return payload;
+};
+
 const DEFAULT_APPLICATION_UPLOAD: ApplicationUploadFixture = {
-  buffer: Buffer.from('fake-image'),
+  buffer: buildValidImageBuffer('image/png', Buffer.from('fake-image')),
   contentType: 'image/png',
   filename: 'license.png',
 };
@@ -83,7 +101,7 @@ const buildApplicationUploadFixture = (
         : contentType.split('/').at(-1) || 'bin';
 
   return {
-    buffer: Buffer.from(encoded, 'base64'),
+    buffer: buildValidImageBuffer(contentType, Buffer.from(encoded, 'base64')),
     contentType,
     filename: `${basename}.${extension}`,
   };

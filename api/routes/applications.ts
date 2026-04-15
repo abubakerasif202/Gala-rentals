@@ -63,6 +63,31 @@ const APPLICATION_FILE_EXTENSION_BY_CONTENT_TYPE: Record<string, string> = {
   'image/jpg': 'jpg',
   'image/png': 'png',
 };
+
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+
+const detectImageMagicType = (
+  buffer: Buffer
+): 'image/png' | 'image/jpeg' | null => {
+  if (buffer.length >= PNG_MAGIC.length && buffer.subarray(0, PNG_MAGIC.length).equals(PNG_MAGIC)) {
+    return 'image/png';
+  }
+
+  if (
+    buffer.length >= JPEG_MAGIC.length &&
+    buffer.subarray(0, JPEG_MAGIC.length).equals(JPEG_MAGIC)
+  ) {
+    return 'image/jpeg';
+  }
+
+  return null;
+};
+
+const normalizeDeclaredImageType = (value: string) => {
+  const normalized = value.toLowerCase();
+  return normalized === 'image/jpg' ? 'image/jpeg' : normalized;
+};
 const getStripe = () => getStripeClient();
 
 type ApplicationUploadField = 'license_photo' | 'license_back_photo';
@@ -319,6 +344,18 @@ const getUploadedApplicationFile = (
 
   if (file.size > MAX_APPLICATION_UPLOAD_BYTES) {
     throw createRequestError(400, `${fieldLabel} must be smaller than 7 MB.`);
+  }
+
+  // Header-only MIME checks are trivially spoofable. Require the file's magic
+  // bytes to match the declared content type so an .exe renamed to .jpg can't
+  // land in the applications bucket.
+  const detectedType = detectImageMagicType(file.buffer);
+  const declaredType = normalizeDeclaredImageType(file.mimetype);
+  if (!detectedType || detectedType !== declaredType) {
+    throw createRequestError(
+      400,
+      `${fieldLabel} file contents do not match a JPG or PNG image.`
+    );
   }
 
   return file;

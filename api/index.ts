@@ -132,14 +132,10 @@ const validateProductionSchemaContract = async () => {
     return;
   }
 
-  try {
-    await verifyProductionSchemaContract();
-  } catch (error) {
-    console.warn(
-      'Production schema contract validation failed during startup; continuing with compatibility mode.',
-      error
-    );
-  }
+  // In production, a schema-contract failure is a hard stop. Booting against a
+  // stale schema hides the problem behind silent compat-mode fallbacks and
+  // surfaces later as payment-flow failures with no operator signal.
+  await verifyProductionSchemaContract();
 };
 
 const logRuntimeConfigurationSummary = () => {
@@ -465,8 +461,16 @@ const registerCoreRoutes = (app: express.Express) => {
     const hasFailure =
       database === 'unavailable' || directDatabase === 'unavailable';
 
+    // In production, a degraded (restricted/not_configured) direct-DB state is
+    // not acceptable: payment activation falls back to manual review silently.
+    // Return 503 so Render surfaces the misconfiguration instead of serving
+    // traffic that will fail at payment time.
+    const hasProductionDegradation =
+      isProduction &&
+      (directDatabase === 'restricted' || directDatabase === 'not_configured');
+
     res.setHeader('Cache-Control', 'no-store');
-    if (hasFailure) {
+    if (hasFailure || hasProductionDegradation) {
       res.status(503).json({
         status: 'error',
         environment: process.env.NODE_ENV || 'development',

@@ -26,5 +26,6 @@ car images/cars/
 supabase/.temp/
 
 .claude/settings.local.json
+metadata.json
 
 .mcp.json

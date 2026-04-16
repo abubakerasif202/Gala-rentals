@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 
 import { db } from '../db/index.js';
 import { getStripeClient } from '../stripeClient.js';
+import { persistPendingCheckoutSessionIdIfCurrentVersion } from '../applicationPaymentState.js';
 import {
   getRentalStatusUpdatePayload,
   handleVehicleCheckoutCompletion,
@@ -509,6 +510,45 @@ const markLedgerFailed = async (
   await markModernLedgerFailed(claim.eventId, errorMessage);
 };
 
+const clearPendingCheckoutSessionForTerminatedSession = async (
+  session: Stripe.Checkout.Session,
+  reason: 'expired' | 'async_payment_failed'
+) => {
+  const applicationId =
+    typeof session.metadata?.application_id === 'string'
+      ? session.metadata.application_id
+      : null;
+  const rawVersion = session.metadata?.payment_link_version;
+  const expectedPaymentLinkVersion = Number(rawVersion);
+  const sessionId = typeof session.id === 'string' ? session.id : null;
+
+  if (
+    !applicationId ||
+    !sessionId ||
+    !Number.isFinite(expectedPaymentLinkVersion) ||
+    expectedPaymentLinkVersion <= 0
+  ) {
+    return;
+  }
+
+  const cleared = await persistPendingCheckoutSessionIdIfCurrentVersion({
+    applicationId,
+    expectedPaymentLinkVersion,
+    sessionId: null,
+  });
+
+  if (!cleared) {
+    console.log(
+      `Stripe Webhook: ignored ${reason} for session ${sessionId}; payment link version has advanced for application ${applicationId}.`
+    );
+    return;
+  }
+
+  console.log(
+    `Stripe Webhook: cleared pending checkout session ${sessionId} for application ${applicationId} after ${reason}.`
+  );
+};
+
 const shouldReleaseVehicleAfterSubscriptionDeletion = (subscription: Stripe.Subscription) =>
   subscription.cancellation_details?.reason === 'cancellation_requested';
 
@@ -586,6 +626,20 @@ router.post('/', async (request, response) => {
         const session = event.data.object as Stripe.Checkout.Session;
         if (session.payment_status === 'paid' && session.metadata?.checkout_kind === 'vehicle') {
           await handleVehicleCheckoutCompletion(session);
+        }
+        break;
+      }
+      case 'checkout.session.async_payment_failed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.checkout_kind === 'vehicle') {
+          await clearPendingCheckoutSessionForTerminatedSession(session, 'async_payment_failed');
+        }
+        break;
+      }
+      case 'checkout.session.expired': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.checkout_kind === 'vehicle') {
+          await clearPendingCheckoutSessionForTerminatedSession(session, 'expired');
         }
         break;
       }

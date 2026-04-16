@@ -298,10 +298,12 @@ const buildSuccessUrl = ({
   token: string;
 }) => {
   const url = new URL('/success', getAppBaseUrl());
-  url.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}');
+  url.searchParams.set('session_id', '__STRIPE_CHECKOUT_SESSION_ID__');
   url.searchParams.set('application_id', String(applicationId));
   url.searchParams.set('car_id', String(carId));
-  return appendCheckoutTokenHash(url, token).toString();
+  return appendCheckoutTokenHash(url, token)
+    .toString()
+    .replace('__STRIPE_CHECKOUT_SESSION_ID__', '{CHECKOUT_SESSION_ID}');
 };
 
 const buildSubscriptionLineItems = async ({

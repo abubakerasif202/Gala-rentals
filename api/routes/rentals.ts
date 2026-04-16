@@ -7,7 +7,10 @@ const router = express.Router();
 
 router.get('/', authenticateAdmin, async (_req, res) => {
   try {
-    const selectColumns = await getRentalSelectColumns({ includeRelations: true });
+    const selectColumns = await getRentalSelectColumns({
+      includeRelations: true,
+      includeStripeFields: true,
+    });
     const orderColumn = await getRentalCreatedAtColumn();
     const { data, error } = await db
       .from('rentals')

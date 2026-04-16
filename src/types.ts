@@ -44,6 +44,8 @@ export interface Rental {
   start_date: string;
   weekly_price: number;
   status: 'Active' | 'Completed' | 'Cancelled' | 'Overdue';
+  stripe_subscription_id?: string | null;
+  stripe_customer_id?: string | null;
   created_at: string;
 }
 

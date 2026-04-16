@@ -30,6 +30,8 @@ if (!requireLiveKey && process.env.NODE_ENV !== 'production') {
 const EXPECTED_WEBHOOK_EVENTS = [
   'checkout.session.completed',
   'checkout.session.async_payment_succeeded',
+  'checkout.session.async_payment_failed',
+  'checkout.session.expired',
   'invoice.payment_failed',
   'customer.subscription.updated',
   'customer.subscription.deleted',

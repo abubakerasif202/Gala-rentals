@@ -69,6 +69,39 @@ stripe listen --forward-to http://localhost:3000/api/stripe/webhook
 
 Set the returned signing secret as `STRIPE_WEBHOOK_SECRET`.
 
+## Webhook events consumed
+
+The server handler at `POST /api/stripe/webhook` reacts to:
+
+- `checkout.session.completed` and `checkout.session.async_payment_succeeded` — activate a paid vehicle rental (with idempotent ledger).
+- `checkout.session.async_payment_failed` and `checkout.session.expired` — clear the application's `pending_checkout_session_id` when the terminated session still matches the current `payment_link_version`.
+- `invoice.payment_failed` — move rentals to `Overdue`.
+- `customer.subscription.updated` — reconcile rental status to `Active` or `Overdue`.
+- `customer.subscription.deleted` — move rentals to `Completed` or `Cancelled` and release the vehicle when the cancellation was explicit.
+
+Unsubscribed or unrecognised events are logged and acknowledged without side effects.
+
+## QA checklist
+
+Run the following end-to-end before each production release or after any change to checkout, webhook, or activation code:
+
+1. Approve a pending application from the admin dashboard and confirm the applicant email contains a signed `/checkout/:carId?token=...` link.
+2. Open the checkout link in an incognito window, complete payment with `4242 4242 4242 4242`, and confirm the redirect lands on `/success?session_id=cs_...&application_id=...` (no `{CHECKOUT_SESSION_ID}` literal in the URL).
+3. Confirm the admin applications modal shows the `pending_checkout_session_id` before payment, and the rentals tab exposes `stripe_subscription_id` and `stripe_customer_id` after activation.
+4. Replay the completion webhook from the Stripe dashboard and confirm the rental is not duplicated and the ledger row stays `processed`.
+5. Start a checkout, close the Stripe page without paying, wait for `checkout.session.expired`, and confirm `pending_checkout_session_id` is cleared for that application.
+6. Trigger an `async_payment_failed` (delayed-payment method) and confirm the same clearing behaviour.
+7. In Stripe, cancel the test subscription and confirm the rental transitions to `Completed` or `Cancelled` as expected.
+8. Confirm `/api/health` returns `paymentActivationMode: "transactional"` in production.
+
+## Deployment notes
+
+- Update the Stripe dashboard webhook endpoint's subscribed events to match the list above whenever `api/routes/webhooks.ts` gains or drops an event handler.
+- The webhook endpoint must be mounted with `express.raw({ type: 'application/json' })` — do not move it behind JSON body parsing or signature verification will fail.
+- `CHECKOUT_LINK_SECRET`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET` must stay in sync across all app instances; rotating any of them without updating every instance will break live checkouts or webhook verification.
+- When rotating secrets, drain in-flight checkouts first: pause approvals, wait for pending sessions to expire, rotate, and re-enable approvals.
+- After any schema change that touches `applications.payment_link_version` or `stripe_webhook_events`, re-run `npm run verify:schema-contract` and `npm run stripe:handoff`.
+
 ## Notes
 
 - `scripts/stripe_demo.py` is a legacy API demo that intentionally creates test objects. It is not part of the Maple Rental checkout setup.

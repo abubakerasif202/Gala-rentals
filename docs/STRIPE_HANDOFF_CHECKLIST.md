@@ -55,6 +55,8 @@ npm run migrate:stripe-webhook-ledger
 - Confirm the webhook endpoint is subscribed to:
   - `checkout.session.completed`
   - `checkout.session.async_payment_succeeded`
+  - `checkout.session.async_payment_failed`
+  - `checkout.session.expired`
   - `invoice.payment_failed`
   - `customer.subscription.updated`
   - `customer.subscription.deleted`

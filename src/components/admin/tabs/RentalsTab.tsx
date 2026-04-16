@@ -77,6 +77,20 @@ export default function RentalsTab({
                       <p className="text-[10px] text-brand-grey uppercase tracking-widest">
                         {rental.car_name}
                       </p>
+                      {(rental.stripe_subscription_id || rental.stripe_customer_id) && (
+                        <div className="mt-1 space-y-0.5">
+                          {rental.stripe_subscription_id && (
+                            <p className="text-[9px] text-brand-grey/80 font-mono break-all">
+                              sub: {rental.stripe_subscription_id}
+                            </p>
+                          )}
+                          {rental.stripe_customer_id && (
+                            <p className="text-[9px] text-brand-grey/80 font-mono break-all">
+                              cus: {rental.stripe_customer_id}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </td>

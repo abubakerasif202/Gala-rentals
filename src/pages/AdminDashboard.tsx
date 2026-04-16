@@ -1010,6 +1010,11 @@ export default function AdminDashboard() {
                         Payment recorded {new Date(selectedApplication.paid_at).toLocaleString()}.
                       </p>
                     )}
+                    {selectedApplication.pending_checkout_session_id && (
+                      <p className="text-[10px] text-amber-200/80 font-mono break-all">
+                        Session: {selectedApplication.pending_checkout_session_id}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1027,13 +1032,18 @@ export default function AdminDashboard() {
                         </p>
                       </div>
                       {selectedApplication.payment_link_sent_at && (
-                        <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-4 py-3">
+                        <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-4 py-3 space-y-2">
                           <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
                             Last payment link sent
                           </p>
-                          <p className="text-xs text-white mt-2">
+                          <p className="text-xs text-white">
                             {new Date(selectedApplication.payment_link_sent_at).toLocaleString()}
                           </p>
+                          {selectedApplication.pending_checkout_session_id && (
+                            <p className="text-[10px] text-brand-grey font-mono break-all">
+                              Session: {selectedApplication.pending_checkout_session_id}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

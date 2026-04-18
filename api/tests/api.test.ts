@@ -712,6 +712,12 @@ vi.mock('../db/index.js', () => {
           { type: 'eq', column, value },
         ])
       ),
+      in: vi.fn((column: string, values: unknown[]) =>
+        createMutationQuery(table, action, payload, [
+          ...filters,
+          { type: 'in', column, values },
+        ])
+      ),
       gte: vi.fn((column: string, value: unknown) =>
         createMutationQuery(table, action, payload, [
           ...filters,
@@ -865,6 +871,10 @@ vi.mock('../db/postgres.js', () => {
       return mockState.rentals;
     }
 
+    if (table === 'stripe_webhook_events') {
+      return mockState.stripe_webhook_events;
+    }
+
     return [];
   };
 
@@ -881,6 +891,11 @@ vi.mock('../db/postgres.js', () => {
 
     if (table === 'rentals') {
       mockState.rentals = rows;
+      return;
+    }
+
+    if (table === 'stripe_webhook_events') {
+      mockState.stripe_webhook_events = rows;
     }
   };
 
@@ -953,6 +968,44 @@ vi.mock('../db/postgres.js', () => {
         );
         mockState.rentals = [...mockState.rentals, insertedRow];
         return { rowCount: 1, rows: [] };
+      }
+
+      if (sql.startsWith('INSERT INTO "stripe_webhook_events"')) {
+        const columnsMatch = sql.match(/^INSERT INTO "stripe_webhook_events" \((.+)\) VALUES \(/);
+        const columns = columnsMatch ? parseQuotedIdentifiers(columnsMatch[1]) : [];
+        const nextId =
+          mockState.stripe_webhook_events.reduce(
+            (max, row) => Math.max(max, Number(row.id) || 0),
+            0
+          ) + 1;
+        const insertedRow = columns.reduce<Record<string, unknown>>(
+          (accumulator, column, index) => {
+            accumulator[column] = values[index];
+            return accumulator;
+          },
+          { id: nextId }
+        );
+        mockState.stripe_webhook_events = [
+          ...mockState.stripe_webhook_events,
+          insertedRow,
+        ];
+        return { rowCount: 1, rows: [] };
+      }
+
+      if (
+        sql.startsWith(
+          'SELECT id, event_type FROM stripe_webhook_events WHERE stripe_event_id = $1 FOR UPDATE'
+        )
+      ) {
+        const ledgerRow = mockState.stripe_webhook_events.find(
+          (row) => String(row.stripe_event_id) === String(values[0])
+        );
+        return {
+          rowCount: ledgerRow ? 1 : 0,
+          rows: ledgerRow
+            ? [{ id: ledgerRow.id, event_type: ledgerRow.event_type ?? null }]
+            : [],
+        };
       }
 
       const updateMatch = sql.match(/^UPDATE "([^"]+)" SET (.+) WHERE id = \$\d+$/);
@@ -3760,7 +3813,12 @@ describe('Stripe API', () => {
       .send('{}');
 
     expect(first.status).toBe(200);
-    expect(mockState.stripe_webhook_events).toHaveLength(1);
+    expect(mockState.stripe_webhook_events).toHaveLength(2);
+    expect(
+      mockState.stripe_webhook_events.some(
+        (event) => event.stripe_event_id === 'fulfill:vehicle-checkout:cs_live_vehicle'
+      )
+    ).toBe(true);
     expect(mockState.rentals).toHaveLength(1);
 
     const second = await request(app)
@@ -3770,8 +3828,76 @@ describe('Stripe API', () => {
       .send('{}');
 
     expect(second.status).toBe(200);
-    expect(mockState.stripe_webhook_events).toHaveLength(1);
+    expect(mockState.stripe_webhook_events).toHaveLength(2);
     expect(mockState.rentals).toHaveLength(1);
+  });
+
+  it('POST /api/stripe/webhook skips replayed fulfillment when the side effects were already committed before ledger finalization failed', async () => {
+    mockState.cars[0].status = 'Rented';
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-08T00:00:00.000Z';
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: APPROVED_APPLICATION_ID,
+        bond_paid: 500,
+        car_id: 1,
+        status: 'Active',
+        weekly_price: 250,
+        start_date: '2026-03-01',
+        stripe_subscription_id: 'sub_finalization_gap',
+      },
+    ];
+    mockState.stripe_webhook_events = [
+      {
+        id: 900,
+        stripe_event_id: 'evt_finalization_gap',
+        event_type: 'checkout.session.completed',
+        status: 'failed',
+        error_message: 'transient:Failed to finalize Stripe webhook ledger row',
+      },
+      {
+        id: 901,
+        stripe_event_id: 'fulfill:vehicle-checkout:cs_finalization_gap',
+        event_type: 'vehicle_checkout.fulfillment.processed',
+        processed_at: '2026-03-08T00:00:00.000Z',
+      },
+    ];
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_finalization_gap',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_finalization_gap',
+          payment_status: 'paid',
+          metadata: {
+            application_id: APPROVED_APPLICATION_ID,
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+          customer: 'cus_finalization_gap',
+          subscription: 'sub_finalization_gap',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(mockState.rentals).toHaveLength(1);
+    expect(mockState.rentals[0].stripe_subscription_id).toBe('sub_finalization_gap');
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === 'evt_finalization_gap'
+      )?.status
+    ).toBe('processed');
   });
 
   it('POST /api/stripe/webhook retries stale in-flight ledger events after reclaiming the claim', async () => {
@@ -3814,8 +3940,89 @@ describe('Stripe API', () => {
 
     expect(res.status).toBe(200);
     expect(mockState.rentals).toHaveLength(1);
-    expect(mockState.stripe_webhook_events).toHaveLength(1);
-    expect(mockState.stripe_webhook_events[0].status).toBe('processed');
+    expect(mockState.stripe_webhook_events).toHaveLength(2);
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === 'evt_stale_processing'
+      )?.status
+    ).toBe('processed');
+  });
+
+  it('POST /api/stripe/webhook records permanent failures without asking Stripe to retry forever', async () => {
+    mockStripe.subscriptionsRetrieve.mockRejectedValueOnce(
+      Object.assign(new Error('No such subscription: sub_missing_forever'), {
+        statusCode: 404,
+        type: 'StripeInvalidRequestError',
+      })
+    );
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_permanent_failure',
+      type: 'invoice.payment_failed',
+      data: {
+        object: {
+          id: 'in_missing_forever',
+          subscription: 'sub_missing_forever',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === 'evt_permanent_failure'
+      )
+    ).toMatchObject({
+      status: 'processed',
+    });
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === 'evt_permanent_failure'
+      )?.error_message
+    ).toContain('permanent:No such subscription: sub_missing_forever');
+  });
+
+  it('POST /api/stripe/webhook keeps transient failures retryable', async () => {
+    mockStripe.subscriptionsRetrieve.mockRejectedValueOnce(
+      Object.assign(new Error('Connection to Stripe dropped mid-request'), {
+        type: 'StripeConnectionError',
+      })
+    );
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_transient_failure',
+      type: 'invoice.payment_failed',
+      data: {
+        object: {
+          id: 'in_transient_failure',
+          subscription: 'sub_transient_failure',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(500);
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === 'evt_transient_failure'
+      )
+    ).toMatchObject({
+      status: 'failed',
+    });
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === 'evt_transient_failure'
+      )?.error_message
+    ).toContain('transient:Connection to Stripe dropped mid-request');
   });
 
   it('POST /api/stripe/webhook blocks duplicate vehicle activation for the same car', async () => {

@@ -17,6 +17,39 @@ type ApplicationPaymentWritePayload = {
   status?: string;
 };
 
+const PAYMENT_REVIEW_SOURCE_STATUSES = ['Approved', 'Payment Review'] as const;
+
+export const updateApplicationPaymentStateIfCurrentVersionAndStatus = async ({
+  applicationId,
+  expectedPaymentLinkVersion,
+  expectedStatuses,
+  payload,
+}: {
+  applicationId: string;
+  expectedPaymentLinkVersion: number;
+  expectedStatuses: readonly string[];
+  payload: ApplicationPaymentWritePayload;
+}) => {
+  const compat = await getSchemaCompat();
+  const selectColumns = await getApplicationSelectColumns();
+  const mappedPayload = await toApplicationPaymentWritePayload(payload);
+
+  const { data, error } = await db
+    .from('applications')
+    .update(mappedPayload)
+    .eq('id', applicationId)
+    .eq(compat.applicationPaymentLinkVersionColumn, expectedPaymentLinkVersion)
+    .in('status', [...expectedStatuses])
+    .select(selectColumns)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as unknown as Record<string, unknown> | null) ?? null;
+};
+
 export const updateApplicationPaymentStateIfCurrentVersion = async ({
   applicationId,
   expectedPaymentLinkVersion,
@@ -38,6 +71,37 @@ export const updateApplicationPaymentStateIfCurrentVersion = async ({
       compat.applicationPaymentLinkVersionColumn,
       expectedPaymentLinkVersion
     )
+    .select(selectColumns)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as unknown as Record<string, unknown> | null) ?? null;
+};
+
+export const transitionApplicationToPaymentReviewIfCurrentVersion = async ({
+  applicationId,
+  paidAt,
+  pendingCheckoutSessionId,
+}: {
+  applicationId: string;
+  paidAt?: string | null;
+  pendingCheckoutSessionId?: string | null;
+}) => {
+  const selectColumns = await getApplicationSelectColumns();
+  const mappedPayload = await toApplicationPaymentWritePayload({
+    paid_at: paidAt,
+    pending_checkout_session_id: pendingCheckoutSessionId,
+    status: 'Payment Review',
+  });
+
+  const { data, error } = await db
+    .from('applications')
+    .update(mappedPayload)
+    .eq('id', applicationId)
+    .in('status', [...PAYMENT_REVIEW_SOURCE_STATUSES])
     .select(selectColumns)
     .maybeSingle();
 

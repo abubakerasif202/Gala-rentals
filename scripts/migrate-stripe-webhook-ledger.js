@@ -39,19 +39,20 @@ async function runMigration() {
     await client.connect();
     console.log('Connected to PostgreSQL using the provided connection string.');
 
-    const sqlPath = path.join(
-      process.cwd(),
-      'supabase',
-      'migrations',
-      '20260326111500_ensure_stripe_webhook_event_ledger.sql'
-    );
-    const sql = fs.readFileSync(sqlPath, 'utf8');
+    const migrationFiles = [
+      '20260326111500_ensure_stripe_webhook_event_ledger.sql',
+      '20260419090000_add_stripe_webhook_v3_columns.sql',
+    ];
 
-    console.log(
-      'Executing supabase/migrations/20260326111500_ensure_stripe_webhook_event_ledger.sql...'
-    );
-    await client.query(sql);
-    console.log('Stripe webhook ledger migration applied successfully.');
+    for (const migrationFile of migrationFiles) {
+      const sqlPath = path.join(process.cwd(), 'supabase', 'migrations', migrationFile);
+      const sql = fs.readFileSync(sqlPath, 'utf8');
+
+      console.log(`Executing supabase/migrations/${migrationFile}...`);
+      await client.query(sql);
+    }
+
+    console.log('Stripe webhook ledger migrations applied successfully.');
   } catch (error) {
     console.error('Error applying Stripe webhook ledger migration:', error);
     process.exitCode = 1;

@@ -115,6 +115,20 @@ export const updateRentalsBySubscriptionIdentity = async (
 
 const quoteIdentifier = (identifier: string) => `"${identifier.replace(/"/g, '""')}"`;
 
+export const buildLockedApplicationSelectSql = async () => {
+  const {
+    applicationAssignedCarColumn,
+    applicationPaymentLinkVersionColumn,
+  } = await getSchemaCompat();
+
+  return (
+    `SELECT status, ` +
+    `${quoteIdentifier(applicationPaymentLinkVersionColumn)} AS payment_link_version, ` +
+    `${quoteIdentifier(applicationAssignedCarColumn)} AS assigned_car_id ` +
+    `FROM ${quoteIdentifier('applications')} WHERE id = $1 FOR UPDATE`
+  );
+};
+
 const stripRentalIdentityFields = (payload: Record<string, unknown>) => {
   const {
     startDate: _unusedCamelStartDate,
@@ -203,7 +217,7 @@ const applyVehicleCheckoutActivationWrites = async ({
 
   await withPostgresTransaction(async (client) => {
     const applicationRes = await client.query(
-      'SELECT status, payment_link_version, assigned_car_id FROM applications WHERE id = $1 FOR UPDATE',
+      await buildLockedApplicationSelectSql(),
       [applicationId]
     );
 

@@ -229,7 +229,7 @@ export const fetchCheckoutSessionStatus = async (
   sessionId: string,
   options: {
     application_id: string;
-    car_id?: number;
+    car_id: number;
     checkout_token: string;
   }
 ): Promise<CheckoutSessionStatusResponse> => {

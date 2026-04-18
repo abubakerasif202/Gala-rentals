@@ -1,15 +1,15 @@
-import axios from 'axios';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Suspense, useEffect, useState, lazy } from 'react';
 import { Navigate } from 'react-router-dom';
 import { verifyAdminSession } from '../lib/api';
+import { classifyAdminSessionFailure } from '../lib/adminSession';
 
 const AdminDashboard = lazy(() => import('./AdminDashboard'));
 
 export default function AdminDashboardRoute() {
-  const [sessionState, setSessionState] = useState<'checking' | 'ready' | 'unauthorized' | 'error'>(
-    'checking'
-  );
+  const [sessionState, setSessionState] = useState<
+    'checking' | 'ready' | 'unauthorized' | 'forbidden' | 'error'
+  >('checking');
 
   useEffect(() => {
     let isActive = true;
@@ -25,11 +25,14 @@ export default function AdminDashboardRoute() {
           return;
         }
 
-        if (
-          axios.isAxiosError(error) &&
-          (error.response?.status === 401 || error.response?.status === 403)
-        ) {
+        const failureState = classifyAdminSessionFailure(error);
+        if (failureState === 'unauthorized') {
           setSessionState('unauthorized');
+          return;
+        }
+
+        if (failureState === 'forbidden') {
+          setSessionState('forbidden');
           return;
         }
 
@@ -63,6 +66,19 @@ export default function AdminDashboardRoute() {
           <AlertCircle className="mx-auto mb-4 h-8 w-8 text-red-400" />
           <p className="text-sm font-light text-brand-grey">
             We could not verify the admin session right now. Refresh and try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionState === 'forbidden') {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center bg-brand-navy px-6 text-white">
+        <div className="max-w-lg rounded-3xl border border-amber-500/20 bg-white/5 p-8 text-center">
+          <AlertCircle className="mx-auto mb-4 h-8 w-8 text-amber-300" />
+          <p className="text-sm font-light text-brand-grey">
+            This signed-in account does not have Maple Rentals admin access.
           </p>
         </div>
       </div>

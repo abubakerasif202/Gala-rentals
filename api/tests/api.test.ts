@@ -890,6 +890,18 @@ vi.mock('../db/postgres.js', () => {
       .map((segment) => segment.trim().match(/^"((?:[^"]|"")+)"/)?.[1]?.replace(/""/g, '"') || null)
       .filter((value): value is string => Boolean(value));
 
+  const parseSelectExpression = (expression: string) => {
+    const trimmed = expression.trim();
+    const aliasMatch = trimmed.match(/^(.*?)(?:\s+AS\s+([a-zA-Z_][\w]*))?$/i);
+    const rawSource = aliasMatch?.[1]?.trim() || trimmed;
+    const alias = aliasMatch?.[2] || rawSource.replace(/^"|"$/g, '');
+    const source = rawSource.startsWith('"') && rawSource.endsWith('"')
+      ? rawSource.slice(1, -1).replace(/""/g, '"')
+      : rawSource;
+
+    return { alias, source };
+  };
+
   const createTransactionalQuery = () =>
     vi.fn(async (sql: string, values: unknown[] = []) => {
       if (sql.startsWith('SELECT status FROM cars WHERE id = $1 FOR UPDATE')) {
@@ -900,21 +912,27 @@ vi.mock('../db/postgres.js', () => {
         };
       }
 
-      if (sql.startsWith('SELECT status, payment_link_version, assigned_car_id FROM applications WHERE id = $1 FOR UPDATE')) {
+      const applicationSelectMatch = sql.match(
+        /^SELECT (.+) FROM "?applications"? WHERE id = \$1 FOR UPDATE$/
+      );
+      if (applicationSelectMatch) {
         const application = mockState.applications.find(
           (row) => String(row.id) === String(values[0])
         );
+        const selectedRow = application
+          ? applicationSelectMatch[1]
+              .split(',')
+              .map(parseSelectExpression)
+              .reduce<Record<string, unknown>>((accumulator, column) => {
+                accumulator[column.alias] =
+                  application[column.source] ?? application[column.alias];
+                return accumulator;
+              }, {})
+          : null;
+
         return {
           rowCount: application ? 1 : 0,
-          rows: application
-            ? [
-                {
-                  assigned_car_id: application.assigned_car_id,
-                  payment_link_version: application.payment_link_version,
-                  status: application.status,
-                },
-              ]
-            : [],
+          rows: selectedRow ? [selectedRow] : [],
         };
       }
 

@@ -387,6 +387,10 @@ vi.mock('../db/index.js', () => {
     rows.filter((row) =>
       filters.every((filter) => {
         if (filter.type === 'eq') {
+          if (filter.value == null) {
+            return row[filter.column] == null;
+          }
+
           return String(row[filter.column]) === String(filter.value);
         }
 
@@ -1081,6 +1085,7 @@ beforeEach(() => {
   mockState.cars = [
     {
       id: 1,
+      archived_at: null,
       name: 'Toyota Camry',
       model_year: 2024,
       weekly_price: 250,
@@ -1091,6 +1096,7 @@ beforeEach(() => {
     },
     {
       id: 2,
+      archived_at: null,
       name: 'Toyota Prius',
       model_year: 2023,
       weekly_price: 275,
@@ -1346,6 +1352,30 @@ describe('Cars API', () => {
     expect(res.body[0].bond).toBe(600);
   });
 
+  it('GET /api/cars hides archived vehicles from the public fleet list', async () => {
+    mockState.cars[0].archived_at = '2026-04-20T00:00:00.000Z';
+
+    const res = await request(app).get('/api/cars');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].id).toBe(2);
+  });
+
+  it('GET /api/cars/admin/all returns archived vehicles for admins', async () => {
+    mockState.cars[0].archived_at = '2026-04-20T00:00:00.000Z';
+
+    const res = await request(app)
+      .get('/api/cars/admin/all')
+      .set('Authorization', 'Bearer fake-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body.find((car: { id: number }) => car.id === 1)?.archived_at).toBe(
+      '2026-04-20T00:00:00.000Z'
+    );
+  });
+
   it('GET /api/cars/:id should return a single car', async () => {
     const res = await request(app).get('/api/cars/1');
     expect(res.status).toBe(200);
@@ -1484,6 +1514,28 @@ describe('Cars API', () => {
     const updated = mockState.cars.find((c) => c.id === 1);
     expect(updated?.name).toBe('Toyota Camry Updated');
     expect(updated?.status).toBe('Maintenance');
+  });
+
+  it('PATCH /api/cars/:id/archive archives a non-rented vehicle', async () => {
+    const res = await request(app)
+      .patch('/api/cars/1/archive')
+      .set('Authorization', 'Bearer fake-token')
+      .send({ archived: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockState.cars.find((c) => c.id === 1)?.archived_at).toBeTruthy();
+    expect(mockState.cars.find((c) => c.id === 1)?.status).toBe('Maintenance');
+  });
+
+  it('PATCH /api/cars/:id/archive blocks archiving a rented vehicle', async () => {
+    const res = await request(app)
+      .patch('/api/cars/2/archive')
+      .set('Authorization', 'Bearer fake-token')
+      .send({ archived: true });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('currently rented');
   });
 
   it('PUT /api/cars/:id returns 400 for invalid update data', async () => {

@@ -5,6 +5,7 @@ import { carSchema } from '../validation.js';
 import { z } from 'zod';
 import {
   getApplicationAssignedCarColumn,
+  getCarArchivedAtColumn,
   getBookingCarIdColumn,
   getCarCreatedAtColumn,
   getCarSelectColumns,
@@ -16,6 +17,22 @@ import { enqueueIndexNowUrl } from '../services/indexNow.js';
 import { calculateBondFromWeeklyRent } from '../../shared/rentalPricing.js';
 
 const router = express.Router();
+const VEHICLE_IMAGES_BUCKET = (process.env.SUPABASE_VEHICLE_IMAGES_BUCKET || 'vehicle-images').trim();
+type CarRecord = {
+  archived_at?: string | null;
+  bond: number;
+  created_at?: string;
+  id: number | string;
+  image: string;
+  model_year: number;
+  name: string;
+  status: string;
+  weekly_price: number;
+};
+
+const archiveCarSchema = z.object({
+  archived: z.boolean(),
+});
 
 const toCarBond = (car: Record<string, any>) => {
   const storedBond = Number(car.bond);
@@ -24,10 +41,64 @@ const toCarBond = (car: Record<string, any>) => {
     : calculateBondFromWeeklyRent(Number(car.weekly_price || 0));
 };
 
-const toCarResponse = (car: Record<string, any>) => ({
-  ...car,
-  bond: toCarBond(car),
-});
+const toCarResponse = (car: Record<string, any>): CarRecord =>
+  ({
+    ...car,
+    archived_at: car.archived_at ?? null,
+    bond: toCarBond(car),
+  }) as CarRecord;
+
+const toStorageOrigin = () => {
+  const candidate = process.env.SUPABASE_URL;
+  if (!candidate) {
+    return null;
+  }
+
+  try {
+    return new URL(candidate).origin;
+  } catch {
+    return null;
+  }
+};
+
+const extractManagedVehicleImagePath = (imageUrl: string | null | undefined) => {
+  if (!imageUrl) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(imageUrl);
+    const storageOrigin = toStorageOrigin();
+
+    if (!storageOrigin || parsed.origin !== storageOrigin) {
+      return null;
+    }
+
+    const publicPrefix = `/storage/v1/object/public/${VEHICLE_IMAGES_BUCKET}/`;
+    if (!parsed.pathname.startsWith(publicPrefix)) {
+      return null;
+    }
+
+    const remainder = parsed.pathname.slice(publicPrefix.length);
+    return remainder ? decodeURIComponent(remainder) : null;
+  } catch {
+    return null;
+  }
+};
+
+const removeUploadedVehicleImage = async (imageUrl: string | null | undefined) => {
+  const storagePath = extractManagedVehicleImagePath(imageUrl);
+
+  if (!storagePath) {
+    return;
+  }
+
+  const { error } = await db.storage.from(VEHICLE_IMAGES_BUCKET).remove([storagePath]);
+
+  if (error) {
+    console.warn(`Failed to clean up vehicle image ${storagePath}:`, error);
+  }
+};
 
 const toPublicSiteOrigin = () => {
   const candidate = process.env.SITE_URL || process.env.APP_URL;
@@ -59,7 +130,7 @@ const notifyIndexNowForCarChange = (id: string, reason: 'created' | 'updated' | 
   enqueueIndexNowUrl(publicUrl);
 };
 
-const fetchCarById = async (id: string) => {
+const fetchCarById = async (id: string): Promise<CarRecord | null> => {
   const selectColumns = await getCarSelectColumns();
   const { data, error } = await db.from('cars').select(selectColumns).eq('id', id).single();
 
@@ -83,23 +154,29 @@ const countRowsForCar = async (table: string, column: string, id: string) => {
   return count || 0;
 };
 
-const fetchCarsWithFallback = async () => {
+const fetchCarsWithFallback = async ({ includeArchived = false }: { includeArchived?: boolean } = {}) => {
   const selectColumns = await getCarSelectColumns();
   const orderColumn = await getCarCreatedAtColumn();
-  let { data, error } = await db
-    .from('cars')
-    .select(selectColumns)
-    .order(orderColumn, { ascending: false });
+  const archivedAtColumn = await getCarArchivedAtColumn();
+  let query = db.from('cars').select(selectColumns).order(orderColumn, { ascending: false });
+
+  if (!includeArchived) {
+    query = query.eq(archivedAtColumn, null);
+  }
+
+  let { data, error } = await query;
 
   if (!error) {
     return { data: data || [], error: null as typeof error };
   }
 
   console.warn('Fetch cars ordered query failed, retrying with id hydration:', error);
-  const { data: idRows, error: idError } = await db
-    .from('cars')
-    .select('id')
-    .order('id', { ascending: false });
+  let idQuery = db.from('cars').select('id').order('id', { ascending: false });
+  if (!includeArchived) {
+    idQuery = idQuery.eq(archivedAtColumn, null);
+  }
+
+  const { data: idRows, error: idError } = await idQuery;
 
   if (idError) {
     return {
@@ -130,10 +207,21 @@ router.get('/', async (_req, res) => {
   res.json((data || []).map((car) => toCarResponse(car as Record<string, any>)));
 });
 
+router.get('/admin/all', authenticateAdmin, async (_req, res) => {
+  const { data, error } = await fetchCarsWithFallback({ includeArchived: true });
+
+  if (error) {
+    console.error('Fetch admin cars error', error);
+    return res.status(500).json({ error: 'Failed to fetch cars' });
+  }
+
+  res.json((data || []).map((car) => toCarResponse(car as Record<string, any>)));
+});
+
 router.get('/:id', async (req, res) => {
   const data = await fetchCarById(req.params.id);
 
-  if (!data) {
+  if (!data || data.archived_at) {
     return res.status(404).json({ error: 'Car not found' });
   }
   res.json(data);
@@ -169,6 +257,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     const { error } = await db.from('cars').update(payload).eq('id', req.params.id);
 
     if (error) throw error;
+    if (existingCar.image && existingCar.image !== data.image) {
+      await removeUploadedVehicleImage(existingCar.image);
+    }
     notifyIndexNowForCarChange(req.params.id, 'updated');
     res.json({ success: true });
   } catch (err) {
@@ -177,6 +268,44 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     }
     console.error('Car update error:', err);
     res.status(500).json({ error: 'Failed to update car' });
+  }
+});
+
+router.patch('/:id/archive', authenticateAdmin, async (req, res) => {
+  try {
+    const existingCar = await fetchCarById(req.params.id);
+    if (!existingCar) {
+      return res.status(404).json({ error: 'Car not found' });
+    }
+
+    const { archived } = archiveCarSchema.parse(req.body ?? {});
+    const archivedAtColumn = await getCarArchivedAtColumn();
+
+    if (archived && existingCar.status === 'Rented') {
+      return res.status(409).json({
+        error: 'This vehicle is currently rented. Complete the rental before archiving it.',
+      });
+    }
+
+    const payload: Record<string, unknown> = {
+      status: archived ? 'Maintenance' : 'Available',
+    };
+    payload[archivedAtColumn] = archived ? new Date().toISOString() : null;
+
+    const { error } = await db.from('cars').update(payload).eq('id', req.params.id);
+    if (error) {
+      throw error;
+    }
+
+    notifyIndexNowForCarChange(req.params.id, 'updated');
+    res.json({ success: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    console.error('Car archive error:', error);
+    res.status(500).json({ error: 'Failed to update vehicle archive status' });
   }
 });
 
@@ -223,6 +352,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 
     const { error } = await db.from('cars').delete().eq('id', req.params.id);
     if (error) throw error;
+    await removeUploadedVehicleImage(existingCar.image);
     notifyIndexNowForCarChange(req.params.id, 'deleted');
     res.json({ success: true });
   } catch (error) {

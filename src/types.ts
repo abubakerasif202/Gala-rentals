@@ -1,5 +1,6 @@
 export interface Car {
   id: number;
+  archived_at?: string | null;
   name: string;
   model_year: number;
   weekly_price: number;

@@ -14,6 +14,7 @@ type ApplicationBackPhotoColumn =
 
 type SchemaCompat = {
   applicationApprovedAtColumn: string;
+  carArchivedAtColumn: string;
   carCreatedAtColumn: string;
   coreMode: SchemaMode;
   applicationBackPhotoColumn: ApplicationBackPhotoColumn;
@@ -30,6 +31,7 @@ type SchemaCompat = {
 
 const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationApprovedAtColumn: 'approved_at',
+  carArchivedAtColumn: 'archived_at',
   carCreatedAtColumn: 'created_at',
   coreMode: 'snake',
   // Default to the modern column name so environments without schema
@@ -101,6 +103,13 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
         const rentalsDefinition = definitions.rentals;
 
         const coreMode: SchemaMode = hasProperty(carsDefinition, 'modelYear') ? 'camel' : 'snake';
+        const carArchivedAtColumn = hasProperty(carsDefinition, 'archivedAt')
+          ? 'archivedAt'
+          : hasProperty(carsDefinition, 'archived_at')
+            ? 'archived_at'
+            : coreMode === 'camel'
+              ? 'archivedAt'
+              : 'archived_at';
         const carCreatedAtColumn = hasProperty(carsDefinition, 'createdAt')
           ? 'createdAt'
           : 'created_at';
@@ -199,6 +208,7 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
 
         const resolvedCompat = {
           applicationApprovedAtColumn,
+          carArchivedAtColumn,
           carCreatedAtColumn,
           coreMode,
           applicationBackPhotoColumn,
@@ -230,15 +240,20 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
 };
 
 export const getCarSelectColumns = async () => {
-  const { carCreatedAtColumn, coreMode } = await getSchemaCompat();
+  const { carArchivedAtColumn, carCreatedAtColumn, coreMode } = await getSchemaCompat();
 
   if (coreMode !== 'camel') {
-    return 'id, name, model_year, weekly_price, bond, status, image, created_at';
+    const archivedAtSelect =
+      carArchivedAtColumn === 'archived_at' ? 'archived_at' : `archived_at:${carArchivedAtColumn}`;
+    return ['id', 'name', 'model_year', 'weekly_price', 'bond', 'status', 'image', archivedAtSelect, 'created_at'].join(', ');
   }
 
+  const archivedAtSelect =
+    carArchivedAtColumn === 'archivedAt' ? 'archived_at:archivedAt' : `archived_at:${carArchivedAtColumn}`;
+
   return carCreatedAtColumn === 'createdAt'
-    ? 'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at:createdAt'
-    : 'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at';
+    ? ['id', 'name', 'model_year:modelYear', 'weekly_price:weeklyPrice', 'bond', 'status', 'image', archivedAtSelect, 'created_at:createdAt'].join(', ')
+    : ['id', 'name', 'model_year:modelYear', 'weekly_price:weeklyPrice', 'bond', 'status', 'image', archivedAtSelect, 'created_at'].join(', ');
 };
 
 export const toCarWritePayload = async (car: {
@@ -282,6 +297,11 @@ export const getCarWeeklyPriceColumn = async () => {
 export const getCarCreatedAtColumn = async () => {
   const { carCreatedAtColumn } = await getSchemaCompat();
   return carCreatedAtColumn;
+};
+
+export const getCarArchivedAtColumn = async () => {
+  const { carArchivedAtColumn } = await getSchemaCompat();
+  return carArchivedAtColumn;
 };
 
 export const getApplicationSelectColumns = async () => {

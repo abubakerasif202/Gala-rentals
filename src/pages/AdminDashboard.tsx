@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus,
   Search,
-  CheckCircle2, 
-  XCircle, 
+  CheckCircle2,
+  XCircle,
   Clock,
   TrendingUp,
   DollarSign,
@@ -23,7 +23,12 @@ import {
   Phone,
   MapPin,
   BadgeCheck,
-  Menu
+  Menu,
+  Archive,
+  RotateCcw,
+  Upload,
+  ImagePlus,
+  ImageOff
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import OverviewTab from '../components/admin/tabs/OverviewTab';
@@ -37,6 +42,7 @@ import AgreementsTab from '../components/admin/tabs/AgreementsTab';
 
 import * as api from '../lib/api';
 import { getApiErrorMessage } from '../lib/errorHandling';
+import { uploadVehicleImage } from '../lib/vehicleImageStorage';
 import {
   Car as CarType,
   Application,
@@ -51,6 +57,32 @@ import Sidebar from '../components/admin/Sidebar';
 import { getTodayInAustralia } from '../../shared/applicationSubmission';
 
 const OPERATIONAL_PAGE_SIZE = 25;
+const DEFAULT_VEHICLE_IMAGE = '/hero-camry.webp';
+
+type VehicleFormState = {
+  bond: number;
+  image: string;
+  model_year: number;
+  name: string;
+  status: CarType['status'];
+  weekly_price: number;
+};
+
+type CarActionState =
+  | {
+      car: CarType;
+      mode: 'archive' | 'delete' | 'restore';
+    }
+  | null;
+
+const createEmptyVehicleForm = (): VehicleFormState => ({
+  name: '',
+  model_year: new Date().getFullYear(),
+  weekly_price: 0,
+  bond: 500,
+  status: 'Available',
+  image: DEFAULT_VEHICLE_IMAGE,
+});
 const adminTabLabels: Record<string, string> = {
   agreements: 'Agreements',
   applications: 'Applications',
@@ -116,14 +148,12 @@ export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAddingCar, setIsAddingCar] = useState(false);
   const [editingCar, setEditingCar] = useState<CarType | null>(null);
-  const [newCar, setNewCar] = useState<Partial<CarType>>({
-    name: '',
-    model_year: new Date().getFullYear(),
-    weekly_price: 0,
-    bond: 500,
-    status: 'Available',
-    image: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?q=80&w=1600&auto=format&fit=crop'
-  });
+  const [vehicleForm, setVehicleForm] = useState<VehicleFormState>(createEmptyVehicleForm);
+  const [vehicleFormErrors, setVehicleFormErrors] = useState<Partial<Record<keyof VehicleFormState, string>>>({});
+  const [vehicleImageFile, setVehicleImageFile] = useState<File | null>(null);
+  const [vehicleImagePreview, setVehicleImagePreview] = useState(DEFAULT_VEHICLE_IMAGE);
+  const [isUploadingVehicleImage, setIsUploadingVehicleImage] = useState(false);
+  const [carActionState, setCarActionState] = useState<CarActionState>(null);
 
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
@@ -192,6 +222,13 @@ export default function AdminDashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (vehicleImagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(vehicleImagePreview);
+      }
+    };
+  }, [vehicleImagePreview]);
   const showNotification = (message: string, type: 'success' | 'error') => {
     if (notificationTimeoutRef.current !== null) {
       window.clearTimeout(notificationTimeoutRef.current);
@@ -202,6 +239,133 @@ export default function AdminDashboard() {
       setNotification(null);
       notificationTimeoutRef.current = null;
     }, 3000);
+  };
+
+  function resetVehicleModal() {
+    setIsAddingCar(false);
+    setEditingCar(null);
+    setVehicleForm(createEmptyVehicleForm());
+    setVehicleFormErrors({});
+    setVehicleImageFile(null);
+    setVehicleImagePreview(DEFAULT_VEHICLE_IMAGE);
+    setIsUploadingVehicleImage(false);
+  }
+
+  function openAddVehicleModal() {
+    setEditingCar(null);
+    setIsAddingCar(true);
+    setVehicleForm(createEmptyVehicleForm());
+    setVehicleFormErrors({});
+    setVehicleImageFile(null);
+    setVehicleImagePreview(DEFAULT_VEHICLE_IMAGE);
+  }
+
+  function openEditVehicleModal(car: CarType) {
+    setEditingCar(car);
+    setIsAddingCar(false);
+    setVehicleForm({
+      bond: Number(car.bond || 0),
+      image: car.image || DEFAULT_VEHICLE_IMAGE,
+      model_year: Number(car.model_year || new Date().getFullYear()),
+      name: car.name || '',
+      status: car.status,
+      weekly_price: Number(car.weekly_price || 0),
+    });
+    setVehicleFormErrors({});
+    setVehicleImageFile(null);
+    setVehicleImagePreview(car.image || DEFAULT_VEHICLE_IMAGE);
+  }
+
+  const validateVehicleForm = () => {
+    const nextErrors: Partial<Record<keyof VehicleFormState, string>> = {};
+
+    if (!vehicleForm.name.trim()) {
+      nextErrors.name = 'Vehicle name is required.';
+    }
+
+    if (!Number.isFinite(vehicleForm.model_year) || vehicleForm.model_year < 1900) {
+      nextErrors.model_year = 'Enter a valid model year.';
+    }
+
+    if (!Number.isFinite(vehicleForm.weekly_price) || vehicleForm.weekly_price <= 0) {
+      nextErrors.weekly_price = 'Enter a weekly rental amount above $0.';
+    }
+
+    if (!Number.isFinite(vehicleForm.bond) || vehicleForm.bond < 0) {
+      nextErrors.bond = 'Enter a valid bond amount.';
+    }
+
+    setVehicleFormErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleVehicleImageSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      showNotification('Please choose an image file.', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setVehicleImageFile(file);
+    setVehicleImagePreview(previewUrl);
+    setVehicleForm((current) => ({ ...current, image: previewUrl }));
+    event.target.value = '';
+  };
+
+  const handleRemoveVehicleImage = () => {
+    setVehicleImageFile(null);
+    setVehicleImagePreview(DEFAULT_VEHICLE_IMAGE);
+    setVehicleForm((current) => ({ ...current, image: DEFAULT_VEHICLE_IMAGE }));
+  };
+
+  const handleSaveVehicle = async () => {
+    if (!validateVehicleForm()) {
+      showNotification('Please complete the required vehicle fields.', 'error');
+      return;
+    }
+
+    let imageUrl = vehicleForm.image || DEFAULT_VEHICLE_IMAGE;
+
+    try {
+      if (vehicleImageFile) {
+        setIsUploadingVehicleImage(true);
+        const uploadedImage = await uploadVehicleImage(vehicleImageFile);
+        imageUrl = uploadedImage.publicUrl;
+      }
+
+      const payload: CarType = {
+        id: editingCar?.id ?? 0,
+        archived_at: editingCar?.archived_at ?? null,
+        bond: Number(vehicleForm.bond),
+        image: imageUrl,
+        model_year: Number(vehicleForm.model_year),
+        name: vehicleForm.name.trim(),
+        status: vehicleForm.status,
+        weekly_price: Number(vehicleForm.weekly_price),
+      };
+
+      if (editingCar) {
+        await updateCarMutation.mutateAsync(payload);
+      } else {
+        await addCarMutation.mutateAsync(payload);
+      }
+    } catch (error) {
+      showNotification(
+        getApiErrorMessage(
+          error,
+          editingCar ? 'Failed to update vehicle image' : 'Failed to upload vehicle image'
+        ),
+        'error'
+      );
+    } finally {
+      setIsUploadingVehicleImage(false);
+    }
   };
 
   const shouldLoadStats = activeTab === 'dashboard' || activeTab === 'financials';
@@ -223,7 +387,7 @@ export default function AdminDashboard() {
 
   const carsQuery = useQuery<CarType[]>({
     queryKey: ['cars'],
-    queryFn: () => api.fetchCars(),
+    queryFn: () => api.fetchCars({ includeArchived: true }),
     enabled: shouldLoadCars,
   });
 
@@ -280,37 +444,52 @@ export default function AdminDashboard() {
     mutationFn: (car: Partial<CarType>) => api.createCar(car),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cars'] });
-      setIsAddingCar(false);
-      setNewCar({
-        name: '',
-        model_year: new Date().getFullYear(),
-        weekly_price: 0,
-        bond: 500,
-        status: 'Available',
-        image: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?q=80&w=1600&auto=format&fit=crop'
-      });
+      resetVehicleModal();
       showNotification('Vehicle added successfully', 'success');
     },
-    onError: () => showNotification('Failed to add vehicle', 'error'),
+    onError: (error) =>
+      showNotification(getApiErrorMessage(error, 'Failed to add vehicle'), 'error'),
   });
-
   const updateCarMutation = useMutation({
     mutationFn: (car: CarType) => api.updateCar(car.id, car),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cars'] });
-      setEditingCar(null);
+      resetVehicleModal();
       showNotification('Vehicle updated successfully', 'success');
     },
-    onError: () => showNotification('Failed to update vehicle', 'error'),
+    onError: (error) =>
+      showNotification(getApiErrorMessage(error, 'Failed to update vehicle'), 'error'),
   });
 
   const deleteCarMutation = useMutation({
     mutationFn: (id: number) => api.deleteCar(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cars'] });
+      setCarActionState(null);
       showNotification('Vehicle deleted successfully', 'success');
     },
-    onError: () => showNotification('Failed to delete vehicle', 'error'),
+    onError: (error) =>
+      showNotification(getApiErrorMessage(error, 'Failed to delete vehicle'), 'error'),
+  });
+
+  const archiveCarMutation = useMutation({
+    mutationFn: ({ id, archived }: { id: number; archived: boolean }) => api.archiveCar(id, archived),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['cars'] });
+      setCarActionState(null);
+      showNotification(
+        variables.archived ? 'Vehicle archived successfully' : 'Vehicle restored successfully',
+        'success'
+      );
+    },
+    onError: (error, variables) =>
+      showNotification(
+        getApiErrorMessage(
+          error,
+          variables.archived ? 'Failed to archive vehicle' : 'Failed to restore vehicle'
+        ),
+        'error'
+      ),
   });
 
   const updateStatusMutation = useMutation({
@@ -614,6 +793,7 @@ export default function AdminDashboard() {
 
   const stats = statsQuery.data;
   const cars = carsQuery.data || [];
+  const activeCars = cars.filter((car) => !car.archived_at);
   const applications = applicationsQuery.data || [];
   const rentals = rentalsQuery.data || [];
   const customerDataset = customerDatasetQuery.data;
@@ -698,6 +878,11 @@ export default function AdminDashboard() {
   const invoiceCurrentPage = invoiceDataset?.page || 1;
   const invoiceTotalPages = invoiceDataset?.totalPages || 1;
   const invoiceTotalItems = invoiceDataset?.totalItems || 0;
+  const isVehicleModalOpen = isAddingCar || Boolean(editingCar);
+  const isVehicleSubmitting =
+    isUploadingVehicleImage || addCarMutation.isPending || updateCarMutation.isPending;
+  const isVehicleActionPending =
+    archiveCarMutation.isPending || deleteCarMutation.isPending;
   const renderLoadingPanel = (message: string) => (
     <div className="bg-white/5 border border-white/10 rounded-3xl p-10 flex items-center gap-4 text-sm text-brand-grey">
       <Loader2 className="w-5 h-5 animate-spin text-brand-gold" />
@@ -759,7 +944,7 @@ export default function AdminDashboard() {
             <OverviewTab
               stats={stats}
               applications={applications}
-              cars={cars}
+              cars={activeCars}
               setActiveTab={setActiveTab}
             />
           )}
@@ -776,9 +961,11 @@ export default function AdminDashboard() {
           {activeTab === 'cars' && (
             <FleetTab
               cars={cars}
-              setIsAddingCar={setIsAddingCar}
-              setEditingCar={setEditingCar}
-              deleteCarMutation={deleteCarMutation}
+              onAddVehicle={openAddVehicleModal}
+              onArchiveVehicle={(car) => setCarActionState({ car, mode: 'archive' })}
+              onDeleteVehicle={(car) => setCarActionState({ car, mode: 'delete' })}
+              onEditVehicle={openEditVehicleModal}
+              onRestoreVehicle={(car) => setCarActionState({ car, mode: 'restore' })}
             />
           )}
 
@@ -843,7 +1030,7 @@ export default function AdminDashboard() {
             <AgreementsTab
               applications={applications}
               approvedApplications={approvedApplications}
-              cars={cars}
+              cars={activeCars}
               selected_agreement_application_id={selected_agreement_application_id}
               set_selected_agreement_application_id={set_selected_agreement_application_id}
               selected_agreement_car_id={selected_agreement_car_id}
@@ -1074,7 +1261,7 @@ export default function AdminDashboard() {
                           {cars
                             .filter(
                               (car) =>
-                                car.status === 'Available' ||
+                                (!car.archived_at && car.status === 'Available') ||
                                 car.id === selectedApplication?.assigned_car_id
                             )
                             .map((car) => (
@@ -1217,86 +1404,309 @@ export default function AdminDashboard() {
         )}
       </AnimatePresence>
 
-      {/* Car Modal */}
+      {/* Vehicle Modal */}
       <AnimatePresence>
-        {(isAddingCar || editingCar) && (
+        {isVehicleModalOpen && (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-navy/60 backdrop-blur-xl sm:items-center sm:p-6">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-brand-navy shadow-2xl sm:rounded-3xl"
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-brand-navy shadow-2xl sm:rounded-3xl"
             >
               <div className="flex items-center justify-between border-b border-white/10 p-4 sm:p-8">
-                <h3 className="text-xl font-bold text-white uppercase tracking-tighter">
-                  {editingCar ? 'Edit Vehicle' : 'Add New Vehicle'}
-                </h3>
-                <button 
-                  onClick={() => { setIsAddingCar(false); setEditingCar(null); }}
-                  className="p-2 hover:bg-white/5 rounded-full transition-all text-brand-grey hover:text-white"
+                <div>
+                  <h3 className="text-xl font-bold uppercase tracking-tighter text-white">
+                    {editingCar ? 'Edit Vehicle' : 'Add Vehicle'}
+                  </h3>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.24em] text-brand-grey">
+                    Client-friendly vehicle details and image upload
+                  </p>
+                </div>
+                <button
+                  onClick={resetVehicleModal}
+                  className="rounded-full p-2 text-brand-grey transition-all hover:bg-white/5 hover:text-white"
                 >
-                  <XCircle className="w-6 h-6" />
+                  <XCircle className="h-6 w-6" />
                 </button>
               </div>
-              <div className="space-y-8 overflow-y-auto p-6 sm:p-12">
-                <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Model Name</label>
-                    <input 
-                      value={editingCar ? editingCar.name : newCar.name}
-                      onChange={(e) => editingCar ? setEditingCar({...editingCar, name: e.target.value}) : setNewCar({...newCar, name: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
-                    />
+
+              <div className="grid gap-8 overflow-y-auto p-6 sm:grid-cols-[1.1fr_0.9fr] sm:p-8">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div className="space-y-2 sm:col-span-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                        Vehicle Name
+                      </label>
+                      <input
+                        value={vehicleForm.name}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setVehicleForm((current) => ({ ...current, name: value }));
+                          setVehicleFormErrors((current) => ({ ...current, name: undefined }));
+                        }}
+                        placeholder="Toyota Camry Hybrid"
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none transition-all focus:border-brand-gold"
+                      />
+                      {vehicleFormErrors.name && (
+                        <p className="text-xs text-red-300">{vehicleFormErrors.name}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                        Weekly Rental (AUD)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={vehicleForm.weekly_price}
+                        onChange={(e) => {
+                          const value = Number(e.target.value);
+                          setVehicleForm((current) => ({ ...current, weekly_price: value }));
+                          setVehicleFormErrors((current) => ({ ...current, weekly_price: undefined }));
+                        }}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none transition-all focus:border-brand-gold"
+                      />
+                      {vehicleFormErrors.weekly_price && (
+                        <p className="text-xs text-red-300">{vehicleFormErrors.weekly_price}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                        Model Year
+                      </label>
+                      <input
+                        type="number"
+                        min="1900"
+                        value={vehicleForm.model_year}
+                        onChange={(e) => {
+                          const value = Number(e.target.value);
+                          setVehicleForm((current) => ({ ...current, model_year: value }));
+                          setVehicleFormErrors((current) => ({ ...current, model_year: undefined }));
+                        }}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none transition-all focus:border-brand-gold"
+                      />
+                      {vehicleFormErrors.model_year && (
+                        <p className="text-xs text-red-300">{vehicleFormErrors.model_year}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                        Security Bond (AUD)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={vehicleForm.bond}
+                        onChange={(e) => {
+                          const value = Number(e.target.value);
+                          setVehicleForm((current) => ({ ...current, bond: value }));
+                          setVehicleFormErrors((current) => ({ ...current, bond: undefined }));
+                        }}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none transition-all focus:border-brand-gold"
+                      />
+                      {vehicleFormErrors.bond && (
+                        <p className="text-xs text-red-300">{vehicleFormErrors.bond}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                        Fleet Status
+                      </label>
+                      <select
+                        value={vehicleForm.status}
+                        onChange={(e) =>
+                          setVehicleForm((current) => ({
+                            ...current,
+                            status: e.target.value as CarType['status'],
+                          }))
+                        }
+                        className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none transition-all focus:border-brand-gold"
+                      >
+                        <option value="Available">Available</option>
+                        <option value="Maintenance">Maintenance</option>
+                        <option value="Rented">Rented</option>
+                      </select>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Weekly Rental (AUD)</label>
-                    <input 
-                      type="number"
-                      value={editingCar ? editingCar.weekly_price : newCar.weekly_price}
-                      onChange={(e) => editingCar ? setEditingCar({...editingCar, weekly_price: Number(e.target.value)}) : setNewCar({...newCar, weekly_price: Number(e.target.value)})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Model Year</label>
-                    <input 
-                      type="number"
-                      value={editingCar ? editingCar.model_year : newCar.model_year}
-                      onChange={(e) => editingCar ? setEditingCar({...editingCar, model_year: Number(e.target.value)}) : setNewCar({...newCar, model_year: Number(e.target.value)})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Security Bond (AUD)</label>
-                    <input 
-                      type="number"
-                      value={editingCar ? editingCar.bond : newCar.bond}
-                      onChange={(e) => editingCar ? setEditingCar({...editingCar, bond: Number(e.target.value)}) : setNewCar({...newCar, bond: Number(e.target.value)})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
-                    />
+
+                  <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey">
+                      Image Management
+                    </p>
+                    <p className="mt-2 text-sm font-light text-brand-grey">
+                      Upload a new image, replace the current one, or remove it and fall back to
+                      the standard Maple Rentals vehicle image.
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-brand-gold/30 bg-brand-gold/10 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-gold transition-all hover:bg-brand-gold/20">
+                        <input type="file" accept="image/*" className="hidden" onChange={handleVehicleImageSelected} />
+                        {vehicleImageFile || vehicleForm.image !== DEFAULT_VEHICLE_IMAGE ? (
+                          <Upload className="h-3.5 w-3.5" />
+                        ) : (
+                          <ImagePlus className="h-3.5 w-3.5" />
+                        )}
+                        {vehicleImageFile || vehicleForm.image !== DEFAULT_VEHICLE_IMAGE ? 'Replace Image' : 'Upload Image'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleRemoveVehicleImage}
+                        disabled={vehicleImagePreview === DEFAULT_VEHICLE_IMAGE && !vehicleImageFile}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <ImageOff className="h-3.5 w-3.5" />
+                        Remove Image
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Vehicle Image URL</label>
-                  <input 
-                    value={editingCar ? editingCar.image : newCar.image}
-                    onChange={(e) => editingCar ? setEditingCar({...editingCar, image: e.target.value}) : setNewCar({...newCar, image: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
-                  />
+
+                <div className="space-y-4">
+                  <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]">
+                    <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey">
+                          Current Preview
+                        </p>
+                        <p className="mt-1 text-sm text-white">
+                          {vehicleImageFile ? 'New upload selected' : editingCar ? 'Saved image' : 'Default image'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="aspect-[4/3] bg-brand-navy/60">
+                      <img
+                        src={vehicleImagePreview}
+                        alt={vehicleForm.name || 'Vehicle preview'}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey">
+                      Save
+                    </p>
+                    <p className="mt-2 text-sm font-light text-brand-grey">
+                      Clients only see clean actions here. The system handles storage and image URL
+                      management automatically.
+                    </p>
+                    <div className="mt-5 flex flex-col gap-3">
+                      <button
+                        onClick={handleSaveVehicle}
+                        disabled={isVehicleSubmitting}
+                        className="flex items-center justify-center gap-3 rounded-2xl bg-brand-gold px-5 py-4 text-sm font-bold uppercase tracking-widest text-brand-navy transition-all hover:bg-brand-gold-light disabled:opacity-50"
+                      >
+                        {isVehicleSubmitting ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-5 w-5" />
+                        )}
+                        {editingCar ? 'Save Vehicle Changes' : 'Add Vehicle'}
+                      </button>
+                      <button
+                        onClick={resetVehicleModal}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey transition-all hover:bg-white/10 hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => {
-                    if (editingCar) {
-                      updateCarMutation.mutate(editingCar);
-                    } else {
-                      addCarMutation.mutate(newCar);
-                    }
-                  }}
-                  disabled={addCarMutation.isPending || updateCarMutation.isPending}
-                  className="w-full bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-sm hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Vehicle Archive/Delete Modal */}
+      <AnimatePresence>
+        {carActionState && (
+          <div className="fixed inset-0 z-[55] flex items-end justify-center bg-brand-navy/60 backdrop-blur-xl sm:items-center sm:p-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full max-w-xl rounded-t-3xl border border-white/10 bg-brand-navy p-6 shadow-2xl sm:rounded-3xl sm:p-8"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey">
+                    {carActionState.mode === 'archive'
+                      ? 'Archive Vehicle'
+                      : carActionState.mode === 'restore'
+                        ? 'Restore Vehicle'
+                        : 'Delete Vehicle'}
+                  </p>
+                  <h3 className="mt-2 text-2xl font-bold text-white">{carActionState.car.name}</h3>
+                  <p className="mt-3 text-sm font-light leading-relaxed text-brand-grey">
+                    {carActionState.mode === 'archive' &&
+                      'Archive this vehicle to hide it from client-facing selection while keeping its historical records.'}
+                    {carActionState.mode === 'restore' &&
+                      'Restore this vehicle to make it available in admin and public fleet workflows again.'}
+                    {carActionState.mode === 'delete' &&
+                      'Delete this archived vehicle permanently. Its managed Supabase image will be cleaned up as part of the deletion.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCarActionState(null)}
+                  className="rounded-full p-2 text-brand-grey transition-all hover:bg-white/5 hover:text-white"
                 >
-                  {addCarMutation.isPending || updateCarMutation.isPending ? <Loader2 className="animate-spin w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
-                  {editingCar ? 'Update Vehicle' : 'Add Vehicle to Fleet'}
+                  <XCircle className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs font-light text-brand-grey">
+                {carActionState.mode === 'delete'
+                  ? 'Permanent delete only works when rentals, bookings, agreements, and assigned applications no longer reference this vehicle.'
+                  : 'Archive is the safer option when you want to retire a vehicle without losing past operational history.'}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button
+                  onClick={() => setCarActionState(null)}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey transition-all hover:bg-white/10 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (carActionState.mode === 'delete') {
+                      deleteCarMutation.mutate(carActionState.car.id);
+                      return;
+                    }
+
+                    archiveCarMutation.mutate({
+                      id: carActionState.car.id,
+                      archived: carActionState.mode === 'archive',
+                    });
+                  }}
+                  disabled={isVehicleActionPending}
+                  className={`flex items-center justify-center gap-3 rounded-2xl px-5 py-4 text-[10px] font-bold uppercase tracking-[0.22em] transition-all disabled:opacity-50 ${
+                    carActionState.mode === 'delete'
+                      ? 'border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20'
+                      : 'border border-brand-gold/30 bg-brand-gold text-brand-navy hover:bg-brand-gold-light'
+                  }`}
+                >
+                  {isVehicleActionPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : carActionState.mode === 'delete' ? (
+                    <Trash2 className="h-4 w-4" />
+                  ) : carActionState.mode === 'archive' ? (
+                    <Archive className="h-4 w-4" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  {carActionState.mode === 'archive'
+                    ? 'Archive Vehicle'
+                    : carActionState.mode === 'restore'
+                      ? 'Restore Vehicle'
+                      : 'Delete Permanently'}
                 </button>
               </div>
             </motion.div>

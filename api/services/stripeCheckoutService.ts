@@ -277,7 +277,7 @@ const fetchCar = async (carId: number) => {
     return null;
   }
 
-  return car as StripeCar;
+  return car as unknown as StripeCar;
 };
 
 const fetchAgreementContent = async ({

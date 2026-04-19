@@ -47,7 +47,7 @@ describe('schemaCompat', () => {
 
     await expect(getCarCreatedAtColumn()).resolves.toBe('created_at');
     await expect(getCarSelectColumns()).resolves.toBe(
-      'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at'
+      'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, archived_at:archivedAt, created_at'
     );
   });
 
@@ -167,13 +167,13 @@ describe('schemaCompat', () => {
     const { getCarSelectColumns } = await import('./schemaCompat.js');
 
     await expect(getCarSelectColumns()).resolves.toBe(
-      'id, name, model_year, weekly_price, bond, status, image, created_at'
+      'id, name, model_year, weekly_price, bond, status, image, archived_at, created_at'
     );
 
     vi.advanceTimersByTime(61_000);
 
     await expect(getCarSelectColumns()).resolves.toBe(
-      'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, created_at'
+      'id, name, model_year:modelYear, weekly_price:weeklyPrice, bond, status, image, archived_at:archivedAt, created_at'
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(2);

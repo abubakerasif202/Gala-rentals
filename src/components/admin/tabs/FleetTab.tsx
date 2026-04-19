@@ -1,21 +1,47 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Archive, Edit2, Eye, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { Car } from '../../../types';
-import { UseMutationResult } from '@tanstack/react-query';
 
 interface FleetTabProps {
   cars: Car[];
-  setIsAddingCar: (val: boolean) => void;
-  setEditingCar: (car: Car) => void;
-  deleteCarMutation: UseMutationResult<any, Error, number, unknown>;
+  onAddVehicle: () => void;
+  onArchiveVehicle: (car: Car) => void;
+  onDeleteVehicle: (car: Car) => void;
+  onEditVehicle: (car: Car) => void;
+  onRestoreVehicle: (car: Car) => void;
 }
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+
+const getStatusBadgeClasses = (car: Car) => {
+  if (car.archived_at) {
+    return 'bg-white/10 text-brand-grey border-white/10';
+  }
+
+  if (car.status === 'Available') {
+    return 'bg-green-500/15 text-green-300 border-green-500/25';
+  }
+
+  if (car.status === 'Rented') {
+    return 'bg-brand-gold/15 text-brand-gold border-brand-gold/30';
+  }
+
+  return 'bg-orange-500/15 text-orange-300 border-orange-500/25';
+};
 
 export default function FleetTab({
   cars,
-  setIsAddingCar,
-  setEditingCar,
-  deleteCarMutation,
+  onAddVehicle,
+  onArchiveVehicle,
+  onDeleteVehicle,
+  onEditVehicle,
+  onRestoreVehicle,
 }: FleetTabProps) {
   return (
     <motion.div
@@ -23,91 +49,144 @@ export default function FleetTab({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="space-y-12"
+      className="space-y-8"
     >
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">
-            Fleet <span className="text-brand-gold italic">Management</span>
+          <h2 className="mb-2 text-4xl font-bold uppercase tracking-tighter text-white">
+            Fleet <span className="italic text-brand-gold">Management</span>
           </h2>
-          <p className="text-brand-grey font-light">
-            Control and update your vehicle inventory.
+          <p className="max-w-2xl text-sm font-light text-brand-grey">
+            Add, update, archive, or remove vehicles without handling raw image URLs.
           </p>
         </div>
         <button
-          onClick={() => setIsAddingCar(true)}
-          className="flex w-full items-center justify-center gap-3 bg-brand-gold px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light md:w-auto"
+          onClick={onAddVehicle}
+          className="flex w-full items-center justify-center gap-3 bg-brand-gold px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light lg:w-auto"
         >
-          <Plus className="w-4 h-4" /> Add New Vehicle
+          <Plus className="h-4 w-4" />
+          Add Vehicle
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-        {cars.map((car) => (
-          <div
-            key={car.id}
-            className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden group hover:border-brand-gold/30 transition-all duration-500"
-          >
-            <div className="aspect-video relative overflow-hidden">
-              <img
-                src={car.image}
-                alt={car.name}
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute top-4 right-4 flex gap-2">
-                <span
-                  className={`px-4 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-md border ${
-                    car.status === 'Available'
-                      ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                      : 'bg-brand-navy/60 text-brand-grey border-white/10'
-                  }`}
-                >
-                  {car.status}
-                </span>
-              </div>
-            </div>
-            <div className="p-8">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h3 className="text-xl font-bold text-white group-hover:text-brand-gold transition-colors">
-                    {car.name}
-                  </h3>
-                  <div className="text-xs text-brand-grey mt-1 font-light">
-                    {car.model_year} Model
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+        <div className="hidden grid-cols-[minmax(0,2.4fr)_140px_140px_140px_180px] gap-4 border-b border-white/10 px-6 py-4 text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey lg:grid">
+          <span>Vehicle</span>
+          <span>Status</span>
+          <span>Weekly Rent</span>
+          <span>Bond</span>
+          <span className="text-right">Actions</span>
+        </div>
+
+        <div className="divide-y divide-white/10">
+          {cars.map((car) => {
+            const isArchived = Boolean(car.archived_at);
+
+            return (
+              <div
+                key={car.id}
+                className="grid gap-5 px-5 py-5 transition-colors hover:bg-white/[0.04] lg:grid-cols-[minmax(0,2.4fr)_140px_140px_140px_180px] lg:items-center lg:px-6"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="h-20 w-28 overflow-hidden rounded-2xl border border-white/10 bg-brand-navy/70">
+                    <img src={car.image} alt={car.name} className="h-full w-full object-cover" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold text-white">{car.name}</h3>
+                      {isArchived && (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-brand-grey">
+                          Archived
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs uppercase tracking-[0.22em] text-brand-grey">
+                      {car.model_year} model
+                    </p>
+                    <a
+                      href={car.image}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-gold transition-colors hover:text-brand-gold-light"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View image
+                    </a>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-brand-grey uppercase tracking-widest mb-1">
-                    Weekly
+
+                <div className="lg:text-center">
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey lg:hidden">
+                    Status
                   </div>
-                  <div className="text-sm font-bold text-white">
-                    ${car.weekly_price}
+                  <span
+                    className={`inline-flex rounded-full border px-4 py-2 text-[10px] font-bold uppercase tracking-[0.22em] ${getStatusBadgeClasses(
+                      car
+                    )}`}
+                  >
+                    {isArchived ? 'Archived' : car.status}
+                  </span>
+                </div>
+
+                <div className="lg:text-center">
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey lg:hidden">
+                    Weekly Rent
                   </div>
+                  <p className="text-sm font-semibold text-white">{formatCurrency(car.weekly_price)}</p>
+                </div>
+
+                <div className="lg:text-center">
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey lg:hidden">
+                    Bond
+                  </div>
+                  <p className="text-sm font-semibold text-white">{formatCurrency(car.bond)}</p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <button
+                    onClick={() => onEditVehicle(car)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white transition-all hover:border-brand-gold hover:bg-brand-gold hover:text-brand-navy"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                  {isArchived ? (
+                    <>
+                      <button
+                        onClick={() => onRestoreVehicle(car)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-gold transition-all hover:border-brand-gold hover:bg-brand-gold/10"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Restore
+                      </button>
+                      <button
+                        onClick={() => onDeleteVehicle(car)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-red-300 transition-all hover:bg-red-500/20"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => onArchiveVehicle(car)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey transition-all hover:border-white/20 hover:bg-white/10 hover:text-white"
+                    >
+                      <Archive className="h-3.5 w-3.5" />
+                      Archive
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-2 pt-6 border-t border-white/5">
-                <button
-                  onClick={() => setEditingCar(car)}
-                  className="flex-1 py-3 bg-white/5 border border-white/10 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-brand-gold hover:text-brand-navy hover:border-brand-gold transition-all"
-                >
-                  <Edit2 className="w-3.5 h-3.5 mx-auto" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (
-                      window.confirm('Are you sure you want to delete this vehicle?')
-                    ) {
-                      deleteCarMutation.mutate(car.id);
-                    }
-                  }}
-                  className="flex-1 py-3 bg-white/5 border border-white/10 text-red-500 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white hover:border-red-500 transition-all"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mx-auto" />
-                </button>
-              </div>
+            );
+          })}
+
+          {cars.length === 0 && (
+            <div className="px-6 py-16 text-center">
+              <p className="text-sm font-light text-brand-grey">No vehicles found yet.</p>
             </div>
-          </div>
-        ))}
+          )}
+        </div>
       </div>
     </motion.div>
   );

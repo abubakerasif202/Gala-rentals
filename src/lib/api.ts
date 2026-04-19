@@ -48,8 +48,9 @@ export const verifyAdminSession = async (): Promise<AdminSessionResponse> => {
   return data;
 };
 
-export const fetchCars = async (): Promise<Car[]> => {
-  const { data } = await api.get('/cars');
+export const fetchCars = async (options: { includeArchived?: boolean } = {}): Promise<Car[]> => {
+  const endpoint = options.includeArchived ? '/cars/admin/all' : '/cars';
+  const { data } = await api.get(endpoint);
   return data;
 };
 
@@ -70,6 +71,14 @@ export const updateCar = async (id: number, carData: Partial<Car>): Promise<{ su
 
 export const deleteCar = async (id: number): Promise<{ success: boolean }> => {
   const { data } = await api.delete(`/cars/${id}`);
+  return data;
+};
+
+export const archiveCar = async (
+  id: number,
+  archived: boolean
+): Promise<{ success: boolean }> => {
+  const { data } = await api.patch(`/cars/${id}/archive`, { archived });
   return data;
 };
 

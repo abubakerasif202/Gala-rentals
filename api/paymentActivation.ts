@@ -520,7 +520,7 @@ export const handleVehicleCheckoutCompletion = async (
     }
 
     const application = applicationResult.data as unknown as Record<string, unknown>;
-    const car = carResult.data as Record<string, unknown>;
+    const car = carResult.data as unknown as Record<string, unknown>;
     const { compat, rentalApplicationIdColumn, rentals: existingRentals } = existingRentalsResult;
     const approvedWeeklyPrice =
       Number(

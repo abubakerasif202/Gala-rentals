@@ -763,7 +763,9 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Assigned vehicle not found' });
     }
 
-    if (car.status !== 'Available') {
+    const assignedCar = car as unknown as Record<string, any>;
+
+    if (assignedCar.status !== 'Available') {
       return res.status(409).json({ error: 'Assigned vehicle is not available.' });
     }
 
@@ -827,7 +829,7 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
 
     const agreementContent = renderApplicationLeaseAgreement(
       applicationDetails,
-      car as Record<string, any>,
+      assignedCar,
       payload.approved_weekly_price,
       nowIso,
       payload.approved_bond
@@ -856,7 +858,7 @@ router.post('/:id/approve-payment', authenticateAdmin, async (req, res) => {
         applicantName: applicationRecord.name,
         approvedBond: payload.approved_bond,
         approvedWeeklyPrice: payload.approved_weekly_price,
-        carName: car.name,
+        carName: String(assignedCar.name || ''),
         checkoutUrl,
         setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
         agreement: agreementContent,

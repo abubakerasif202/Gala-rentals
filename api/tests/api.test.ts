@@ -1496,6 +1496,41 @@ describe('Cars API', () => {
     expect(res.status).toBe(401);
   });
 
+  it('DELETE /api/cars/image removes a managed uploaded vehicle image', async () => {
+    const previousSupabaseUrl = process.env.SUPABASE_URL;
+    process.env.SUPABASE_URL = 'https://test-project.supabase.co';
+    const remove = vi.fn(async () => ({ data: null, error: null }));
+
+    mockStorageFrom.mockImplementationOnce(() => ({
+      remove,
+      upload: vi.fn(async (path: string) => ({ data: { path }, error: null })),
+      createSignedUrl: vi.fn(async (path: string) => ({
+        data: { signedUrl: `https://signed.example/vehicle-images/${path}` },
+        error: null,
+      })),
+    }));
+
+    try {
+      const res = await request(app)
+        .delete('/api/cars/image')
+        .set('Authorization', 'Bearer fake-token')
+        .send({
+          imageUrl:
+            'https://test-project.supabase.co/storage/v1/object/public/vehicle-images/admin-uploads/camry.jpg',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(remove).toHaveBeenCalledWith(['admin-uploads/camry.jpg']);
+    } finally {
+      if (previousSupabaseUrl === undefined) {
+        delete process.env.SUPABASE_URL;
+      } else {
+        process.env.SUPABASE_URL = previousSupabaseUrl;
+      }
+    }
+  });
+
   it('PUT /api/cars/:id updates an existing car and returns success', async () => {
     const res = await request(app)
       .put('/api/cars/1')

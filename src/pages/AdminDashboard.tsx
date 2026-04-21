@@ -316,7 +316,6 @@ export default function AdminDashboard() {
 
     setVehicleImageFile(file);
     setVehicleImagePreview(previewUrl);
-    setVehicleForm((current) => ({ ...current, image: previewUrl }));
   };
 
   const handleRemoveVehicleImage = () => {
@@ -351,18 +350,13 @@ export default function AdminDashboard() {
     }
 
     let imageUrl = vehicleForm.image || DEFAULT_VEHICLE_IMAGE;
+    let uploadedImage: { path: string; publicUrl: string } | null = null;
 
     try {
       if (vehicleImageFile) {
         setIsUploadingVehicleImage(true);
-        const uploadedImage = await uploadVehicleImage(vehicleImageFile);
+        uploadedImage = await uploadVehicleImage(vehicleImageFile);
         imageUrl = uploadedImage.publicUrl;
-        if (vehicleImagePreview.startsWith('blob:')) {
-          URL.revokeObjectURL(vehicleImagePreview);
-        }
-        setVehicleForm((current) => ({ ...current, image: uploadedImage.publicUrl }));
-        setVehicleImagePreview(uploadedImage.publicUrl);
-        showNotification('Vehicle image uploaded successfully', 'success');
       }
 
       const payload: CarType = {
@@ -382,10 +376,26 @@ export default function AdminDashboard() {
         await addCarMutation.mutateAsync(payload);
       }
     } catch (error) {
+      if (uploadedImage?.publicUrl) {
+        try {
+          await api.removeVehicleImageUpload(uploadedImage.publicUrl);
+        } catch (cleanupError) {
+          console.warn('Failed to clean up uploaded vehicle image after save failure:', cleanupError);
+        }
+      }
+
       showNotification(
         getApiErrorMessage(
           error,
-          editingCar ? 'Failed to update vehicle image' : 'Failed to upload vehicle image'
+          vehicleImageFile
+            ? uploadedImage
+              ? editingCar
+                ? 'Failed to update vehicle'
+                : 'Failed to add vehicle'
+              : 'Failed to upload vehicle image'
+            : editingCar
+              ? 'Failed to update vehicle'
+              : 'Failed to add vehicle'
         ),
         'error'
       );
@@ -1516,6 +1526,7 @@ export default function AdminDashboard() {
           setVehicleForm((current) => ({ ...current, [field]: value }));
           setVehicleFormErrors((current) => ({ ...current, [field]: undefined }));
         }}
+        onImageNotify={showNotification}
         onImageReady={handleVehicleImagePrepared}
         onRemoveImage={handleRemoveVehicleImage}
         onRequestClose={requestCloseVehicleModal}

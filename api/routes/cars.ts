@@ -34,6 +34,10 @@ const archiveCarSchema = z.object({
   archived: z.boolean(),
 });
 
+const cleanupVehicleImageSchema = z.object({
+  imageUrl: z.string().url(),
+});
+
 const toCarBond = (car: Record<string, any>) => {
   const storedBond = Number(car.bond);
   return Number.isFinite(storedBond)
@@ -216,6 +220,21 @@ router.get('/admin/all', authenticateAdmin, async (_req, res) => {
   }
 
   res.json((data || []).map((car) => toCarResponse(car as Record<string, any>)));
+});
+
+router.delete('/image', authenticateAdmin, async (req, res) => {
+  try {
+    const { imageUrl } = cleanupVehicleImageSchema.parse(req.body ?? {});
+    await removeUploadedVehicleImage(imageUrl);
+    res.json({ success: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    console.error('Vehicle image cleanup error:', error);
+    res.status(500).json({ error: 'Failed to clean up vehicle image' });
+  }
 });
 
 router.get('/:id', async (req, res) => {

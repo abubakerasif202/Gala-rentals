@@ -18,6 +18,7 @@ interface VehicleFormModalProps {
   onArchiveOrRestore: () => void;
   onDelete: () => void;
   onFieldChange: <K extends keyof VehicleFormValues>(field: K, value: VehicleFormValues[K]) => void;
+  onImageNotify: (message: string, type: 'success' | 'error') => void;
   onImageReady: (result: { file: File; previewUrl: string }) => void;
   onRemoveImage: () => void;
   onRequestClose: () => void;
@@ -56,6 +57,7 @@ export default function VehicleFormModal({
   onArchiveOrRestore,
   onDelete,
   onFieldChange,
+  onImageNotify,
   onImageReady,
   onRemoveImage,
   onRequestClose,
@@ -107,6 +109,7 @@ export default function VehicleFormModal({
               hasCustomImage={hasCustomImage}
               isUploading={isUploading}
               onFileReady={onImageReady}
+              onNotify={onImageNotify}
               onRemoveImage={onRemoveImage}
             />
 

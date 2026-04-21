@@ -1,9 +1,12 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ImagePlus, Loader2, RefreshCw, Trash2, UploadCloud } from 'lucide-react';
 
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-const MAX_DIMENSION = 1800;
-const JPEG_QUALITY = 0.82;
+const DEFAULT_VEHICLE_IMAGE = '/hero-camry.webp';
+const MAX_RECOMMENDED_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_ALLOWED_FILE_SIZE_BYTES = MAX_RECOMMENDED_FILE_SIZE_BYTES * 3;
+const MAX_DIMENSION = 1600;
+const JPEG_QUALITY = 0.84;
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 type FilePickResult = {
   error?: string;
@@ -16,10 +19,24 @@ interface VehicleImageUploaderProps {
   hasCustomImage: boolean;
   isUploading: boolean;
   onFileReady: (result: { file: File; previewUrl: string }) => void;
+  onNotify?: (message: string, type: 'success' | 'error') => void;
   onRemoveImage: () => void;
 }
 
-const formatFileSize = (bytes: number) => `${Math.round(bytes / (1024 * 1024))}MB`;
+const formatFileSize = (bytes: number) =>
+  bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+const getFileNameFromUrl = (value: string) => {
+  try {
+    const url = new URL(value, window.location.origin);
+    const filename = url.pathname.split('/').pop();
+    return filename || 'vehicle-image';
+  } catch {
+    return 'vehicle-image';
+  }
+};
 
 const readImageFile = (file: File) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
@@ -51,7 +68,7 @@ const canvasToBlob = (canvas: HTMLCanvasElement, type: string, quality?: number)
 const optimiseImage = async (file: File) => {
   const image = await readImageFile(file);
   const shouldResize = image.width > MAX_DIMENSION || image.height > MAX_DIMENSION;
-  const shouldCompress = file.size > MAX_FILE_SIZE_BYTES * 0.8;
+  const shouldCompress = file.size > MAX_RECOMMENDED_FILE_SIZE_BYTES * 0.7;
 
   if (!shouldResize && !shouldCompress) {
     return file;
@@ -70,7 +87,11 @@ const optimiseImage = async (file: File) => {
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
   const nextType = file.type === 'image/png' && !shouldCompress ? 'image/png' : 'image/jpeg';
-  const blob = await canvasToBlob(canvas, nextType, nextType === 'image/jpeg' ? JPEG_QUALITY : undefined);
+  const blob = await canvasToBlob(
+    canvas,
+    nextType,
+    nextType === 'image/jpeg' ? JPEG_QUALITY : undefined
+  );
   const extension = nextType === 'image/png' ? 'png' : 'jpg';
   const safeName = file.name.replace(/\.[^.]+$/, '');
 
@@ -81,14 +102,14 @@ const optimiseImage = async (file: File) => {
 };
 
 export async function prepareVehicleImageFile(file: File): Promise<FilePickResult> {
-  if (!file.type.startsWith('image/')) {
+  if (!ALLOWED_TYPES.has(file.type)) {
     return { error: 'Choose a JPG, PNG, or WebP image.' };
   }
 
-  if (file.size > MAX_FILE_SIZE_BYTES * 3) {
+  if (file.size > MAX_ALLOWED_FILE_SIZE_BYTES) {
     return {
       error: `This image is too large. Please choose a file under ${formatFileSize(
-        MAX_FILE_SIZE_BYTES * 3
+        MAX_ALLOWED_FILE_SIZE_BYTES
       )}.`,
     };
   }
@@ -109,10 +130,36 @@ export default function VehicleImageUploader({
   hasCustomImage,
   isUploading,
   onFileReady,
+  onNotify,
   onRemoveImage,
 }: VehicleImageUploaderProps) {
-  const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [dragDepth, setDragDepth] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [fileMeta, setFileMeta] = useState<{ name: string; size: string } | null>(
+    hasCustomImage && !currentImageUrl.startsWith('blob:')
+      ? { name: getFileNameFromUrl(currentImageUrl), size: 'Saved image' }
+      : null
+  );
+
+  const hasPendingUpload = currentImageUrl.startsWith('blob:');
+  const isDragActive = dragDepth > 0;
+
+  useEffect(() => {
+    if (!hasCustomImage) {
+      setFileMeta(null);
+      return;
+    }
+
+    if (hasPendingUpload) {
+      return;
+    }
+
+    setFileMeta({
+      name: getFileNameFromUrl(currentImageUrl),
+      size: 'Saved image',
+    });
+  }, [currentImageUrl, hasCustomImage, hasPendingUpload]);
 
   const pickerLabel = useMemo(() => {
     if (isUploading) {
@@ -122,9 +169,23 @@ export default function VehicleImageUploader({
     return hasCustomImage ? 'Replace image' : 'Choose image';
   }, [hasCustomImage, isUploading]);
 
+  const helperText = useMemo(() => {
+    if (hasPendingUpload) {
+      return 'This image is ready locally and will upload only when you save the vehicle.';
+    }
+
+    if (hasCustomImage) {
+      return 'Drop a new image anywhere on this panel or use Replace to update the vehicle photo.';
+    }
+
+    return `Upload JPG, PNG, or WebP. Large images are compressed before upload. Recommended maximum size: ${formatFileSize(
+      MAX_RECOMMENDED_FILE_SIZE_BYTES
+    )}.`;
+  }, [hasCustomImage, hasPendingUpload]);
+
   const handleFileSelection = useCallback(
     async (file: File | null | undefined) => {
-      if (!file) {
+      if (!file || isUploading) {
         return;
       }
 
@@ -132,110 +193,191 @@ export default function VehicleImageUploader({
       const result = await prepareVehicleImageFile(file);
 
       if (!result.file || !result.previewUrl) {
-        setLocalError(result.error || 'Unable to use that image.');
+        const message = result.error || 'Unable to use that image.';
+        setLocalError(message);
+        onNotify?.(message, 'error');
         return;
       }
 
+      setFileMeta({
+        name: result.file.name,
+        size: formatFileSize(result.file.size),
+      });
       onFileReady({
         file: result.file,
         previewUrl: result.previewUrl,
       });
     },
-    [onFileReady]
+    [isUploading, onFileReady, onNotify]
   );
+
+  const openPicker = () => {
+    if (isUploading) {
+      return;
+    }
+
+    inputRef.current?.click();
+  };
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04]">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey">
-              Vehicle Image
-            </p>
-            <p className="mt-1 text-sm text-white">
-              {hasCustomImage ? 'Current vehicle photo' : 'Default Maple Rentals placeholder'}
-            </p>
-          </div>
-          {isUploading && (
-            <div className="inline-flex items-center gap-2 rounded-full border border-brand-gold/30 bg-brand-gold/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-gold">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Uploading
-            </div>
-          )}
-        </div>
-
-        <div className="aspect-[4/3] bg-brand-navy/50">
-          <img src={currentImageUrl} alt="Vehicle preview" className="h-full w-full object-cover" />
-        </div>
-      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(event) => {
+          void handleFileSelection(event.target.files?.[0]);
+          event.target.value = '';
+        }}
+      />
 
       <div
+        role="button"
+        tabIndex={isUploading ? -1 : 0}
+        aria-disabled={isUploading}
+        onClick={openPicker}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openPicker();
+          }
+        }}
         onDragEnter={(event) => {
           event.preventDefault();
-          setIsDragging(true);
+          event.stopPropagation();
+          if (isUploading) {
+            return;
+          }
+
+          setDragDepth((current) => current + 1);
         }}
         onDragOver={(event) => {
           event.preventDefault();
-          setIsDragging(true);
+          event.stopPropagation();
         }}
         onDragLeave={(event) => {
           event.preventDefault();
-          setIsDragging(false);
+          event.stopPropagation();
+          setDragDepth((current) => Math.max(0, current - 1));
         }}
-        onDrop={async (event) => {
+        onDrop={(event) => {
           event.preventDefault();
-          setIsDragging(false);
-          const droppedFile = event.dataTransfer.files?.[0];
-          await handleFileSelection(droppedFile);
+          event.stopPropagation();
+          setDragDepth(0);
+          void handleFileSelection(event.dataTransfer.files?.[0]);
         }}
-        className={`rounded-[28px] border border-dashed px-5 py-6 transition-all ${
-          isDragging
-            ? 'border-brand-gold bg-brand-gold/10'
-            : 'border-white/15 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.05]'
+        className={`group relative overflow-hidden rounded-[30px] border border-dashed transition-all duration-200 ${
+          isUploading ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
+        } ${
+          isDragActive
+            ? 'border-brand-gold bg-brand-gold/10 shadow-[0_0_0_1px_rgba(214,183,109,0.35)]'
+            : 'border-white/15 bg-white/[0.04] hover:border-brand-gold/50 hover:bg-white/[0.06]'
         }`}
       >
-        <div className="flex flex-col items-start gap-4">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-brand-gold">
-            <UploadCloud className="h-5 w-5" />
-          </div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(214,183,109,0.16),_transparent_48%)] opacity-70" />
 
-          <div>
-            <h4 className="text-lg font-semibold text-white">Drag and drop a vehicle image</h4>
-            <p className="mt-2 text-sm leading-7 text-brand-grey">
-              Upload JPG, PNG, or WebP. Maple Rentals will optimise large images for easier admin
-              management. Recommended maximum upload size: {formatFileSize(MAX_FILE_SIZE_BYTES)}.
-            </p>
-          </div>
+        {hasCustomImage ? (
+          <div className="relative aspect-[4/3]">
+            <img
+              src={currentImageUrl}
+              alt="Vehicle image preview"
+              className="h-full w-full object-cover"
+            />
 
-          <div className="flex flex-wrap gap-3">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-brand-gold px-5 py-4 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-navy transition-all hover:bg-brand-gold-light">
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={async (event) => {
-                  await handleFileSelection(event.target.files?.[0]);
-                  event.target.value = '';
+            <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/90 via-brand-navy/10 to-brand-navy/35" />
+
+            <div className="absolute right-4 top-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openPicker();
                 }}
-              />
-              {hasCustomImage ? <RefreshCw className="h-4 w-4" /> : <ImagePlus className="h-4 w-4" />}
-              {pickerLabel}
-            </label>
+                disabled={isUploading}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-brand-navy/80 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.22em] text-white transition-all hover:border-brand-gold hover:text-brand-gold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Replace
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setLocalError(null);
+                  setFileMeta(null);
+                  onRemoveImage();
+                }}
+                disabled={isUploading}
+                className="inline-flex items-center gap-2 rounded-2xl border border-red-500/25 bg-brand-navy/80 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.22em] text-red-200 transition-all hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
+              </button>
+            </div>
 
-            <button
-              type="button"
-              onClick={onRemoveImage}
-              disabled={!hasCustomImage}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Trash2 className="h-4 w-4" />
-              Remove image
-            </button>
+            <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-4 p-4">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">
+                  {fileMeta?.name || 'Vehicle image'}
+                </p>
+                <p className="mt-1 text-xs text-white/70">
+                  {fileMeta?.size || (hasPendingUpload ? 'Ready to save' : 'Saved image')}
+                </p>
+              </div>
+              {hasPendingUpload && !isUploading && (
+                <div className="inline-flex items-center gap-2 rounded-full border border-brand-gold/25 bg-brand-gold/15 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-gold">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Pending Save
+                </div>
+              )}
+            </div>
+
+            {isUploading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-brand-navy/72 backdrop-blur-sm">
+                <div className="rounded-full border border-brand-gold/30 bg-brand-gold/10 p-4 text-brand-gold">
+                  <Loader2 className="h-7 w-7 animate-spin" />
+                </div>
+                <div className="px-6 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-gold">
+                    Uploading image
+                  </p>
+                  <p className="mt-2 text-sm text-white/80">
+                    Hold on while the selected vehicle image is uploaded.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-
-          {localError && <p className="text-sm text-red-300">{localError}</p>}
-        </div>
+        ) : (
+          <div className="relative flex aspect-[4/3] flex-col items-center justify-center px-8 py-10 text-center">
+            <div className="rounded-[24px] border border-white/10 bg-white/5 p-4 text-brand-gold">
+              {isUploading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
+              ) : (
+                <UploadCloud className="h-8 w-8" />
+              )}
+            </div>
+            <h4 className="mt-6 text-2xl font-semibold text-white">Drag & drop image here</h4>
+            <p className="mt-2 text-sm text-brand-grey">or click to upload</p>
+            <p className="mt-4 max-w-md text-sm leading-7 text-brand-grey">{helperText}</p>
+            <div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-brand-gold/30 bg-brand-gold/10 px-5 py-4 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-gold transition-all group-hover:bg-brand-gold/15">
+              <ImagePlus className="h-4 w-4" />
+              {pickerLabel}
+            </div>
+          </div>
+        )}
       </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-brand-grey">
+        {helperText}
+      </div>
+
+      {localError && (
+        <p className="text-sm text-red-300" role="alert">
+          {localError}
+        </p>
+      )}
     </div>
   );
 }

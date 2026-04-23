@@ -206,7 +206,7 @@ export default function CarDetails() {
               </div>
 
               <Link
-                to={`/apply?carId=${car.id}`}
+                to="/apply"
                 className={`flex items-center justify-center gap-3 w-full py-6 font-bold text-sm transition-all uppercase tracking-widest shadow-2xl ${
                   car.status === 'Available'
                     ? 'bg-brand-gold hover:bg-brand-gold-light text-brand-navy'

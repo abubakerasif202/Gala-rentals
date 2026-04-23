@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 import {
   AUSTRALIAN_MOBILE_REGEX,
@@ -8,16 +8,20 @@ import {
   isValidDateOnly,
   normalizeApplicationEmail,
   normalizeAustralianMobile,
-} from '../shared/applicationSubmission.js';
+} from "../shared/applicationSubmission.js";
 
-export const modelYearSchema = z.number().int().min(1900).max(new Date().getFullYear() + 1);
+export const modelYearSchema = z
+  .number()
+  .int()
+  .min(1900)
+  .max(new Date().getFullYear() + 1);
 export const weeklyPriceSchema = z.number().positive();
 const isRootRelativeAssetPath = (value: string) =>
-  value.startsWith('/') && !value.startsWith('//');
+  value.startsWith("/") && !value.startsWith("//");
 const isHttpUrl = (value: string) => {
   try {
     const parsed = new URL(value);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
     return false;
   }
@@ -28,60 +32,81 @@ const carImageSchema = z
   .min(1)
   .refine(
     (value) => isRootRelativeAssetPath(value) || isHttpUrl(value),
-    'Image must be a root-relative asset path or an absolute HTTP(S) URL'
+    "Image must be a root-relative asset path or an absolute HTTP(S) URL",
   );
 
 export const adminLoginSchema = z.object({
-  username: z.string().trim().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
+  username: z.string().trim().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
 });
 
 const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
-  z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
+  z
+    .string()
+    .trim()
+    .min(1, requiredMessage)
+    .refine(isValidDateOnly, invalidMessage);
+const optionalPositiveIntegerSchema = z.preprocess(
+  (value) => (value === "" || value == null ? undefined : value),
+  z.coerce.number().int().positive().optional(),
+);
 
-export const uuidSchema = z.string().trim().uuid('Expected a UUID identifier');
+export const uuidSchema = z.string().trim().uuid("Expected a UUID identifier");
 
 export const carSchema = z.object({
   name: z.string().min(1),
   model_year: modelYearSchema,
   weekly_price: weeklyPriceSchema,
   bond: z.number().nonnegative(),
-  status: z.enum(['Available', 'Rented', 'Maintenance']),
+  status: z.enum(["Available", "Rented", "Maintenance"]),
   image: carImageSchema,
 });
 
 export const applicationSchema = z.object({
-  selected_car_id: z.coerce.number().int().positive(),
+  selected_car_id: optionalPositiveIntegerSchema,
   name: z.string().trim().min(2),
   phone: z
     .string()
     .transform(normalizeAustralianMobile)
-    .pipe(z.string().regex(AUSTRALIAN_MOBILE_REGEX, 'Valid Australian mobile number required')),
-  email: z.string().transform(normalizeApplicationEmail).pipe(z.string().email()),
+    .pipe(
+      z
+        .string()
+        .regex(
+          AUSTRALIAN_MOBILE_REGEX,
+          "Valid Australian mobile number required",
+        ),
+    ),
+  email: z
+    .string()
+    .transform(normalizeApplicationEmail)
+    .pipe(z.string().email()),
   license_number: z.string().trim().min(5),
   license_expiry: dateOnlySchema(
-    'License expiry date is required',
-    'License expiry date must be a valid date'
-  ).refine((value) => isFutureAustraliaDate(value, getTodayInAustralia()), 'License must not be expired'),
-  uber_status: z.enum(['Active', 'Applying', 'Not Yet Registered']),
+    "License expiry date is required",
+    "License expiry date must be a valid date",
+  ).refine(
+    (value) => isFutureAustraliaDate(value, getTodayInAustralia()),
+    "License must not be expired",
+  ),
+  uber_status: z.enum(["Active", "Applying", "Not Yet Registered"]),
   experience: z.string().trim().min(1),
   address: z.string().trim().min(5),
   weekly_budget: z.string().trim().optional(),
   intended_start_date: dateOnlySchema(
-    'Start date is required',
-    'Start date must be a valid date'
+    "Start date is required",
+    "Start date must be a valid date",
   ).refine(
     (value) => isTodayOrFutureAustraliaDate(value, getTodayInAustralia()),
-    'Start date must be today or later'
+    "Start date must be today or later",
   ),
 });
 
 export const applicationStatusEnum = z.enum([
-  'Pending',
-  'Paid',
-  'Approved',
-  'Rejected',
-  'Payment Review',
+  "Pending",
+  "Paid",
+  "Approved",
+  "Rejected",
+  "Payment Review",
 ]);
 
 export const vehicleCheckoutSessionSchema = z.object({
@@ -140,5 +165,5 @@ export const createLeaseAgreementSchema = z.object({
   application_id: uuidSchema,
   car_id: z.coerce.number().int().positive(),
   content: z.string().min(1),
-  status: z.string().optional().default('generated'),
+  status: z.string().optional().default("generated"),
 });

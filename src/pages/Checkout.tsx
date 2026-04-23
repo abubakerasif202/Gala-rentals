@@ -141,7 +141,7 @@ export default function Checkout() {
               link for the selected car.
             </p>
             <Link
-              to={id ? `/apply?carId=${id}` : '/apply'}
+              to="/apply"
               className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-brand-gold-light transition-all"
             >
               Start Application

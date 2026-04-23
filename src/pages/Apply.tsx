@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
-import { motion, type Variants } from 'motion/react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
+import { motion, type Variants } from "motion/react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -7,18 +13,16 @@ import {
   CheckCircle2,
   Loader2,
   ShieldCheck,
-  Sparkles,
   Upload,
   User,
-} from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import Seo from '../components/Seo';
-import { fetchCars, submitApplication } from '../lib/api';
-import { getApiErrorMessage } from '../lib/errorHandling';
-import type { Car } from '../types';
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import Seo from "../components/Seo";
+import { submitApplication } from "../lib/api";
+import { getApiErrorMessage } from "../lib/errorHandling";
 import {
   APPLICATION_IMAGE_CONTENT_TYPES,
   AUSTRALIAN_MOBILE_REGEX,
@@ -29,100 +33,122 @@ import {
   isValidDateOnly,
   normalizeApplicationEmail,
   normalizeAustralianMobile,
-} from '../../shared/applicationSubmission';
+} from "../../shared/applicationSubmission";
 
 const ALLOWED_UPLOAD_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
-const MAX_UPLOAD_SIZE_MB = Math.floor(MAX_APPLICATION_UPLOAD_BYTES / (1024 * 1024));
+const MAX_UPLOAD_SIZE_MB = Math.floor(
+  MAX_APPLICATION_UPLOAD_BYTES / (1024 * 1024),
+);
 
 const heroVariants: Variants = {
   hidden: { opacity: 0, y: 22 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
 };
 
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 18 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' } },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: "easeOut" },
+  },
 };
 
 const sectionVariants: Variants = {
   hidden: { opacity: 0, x: 18 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.45, ease: 'easeOut' } },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.45, ease: "easeOut" },
+  },
 };
 
 const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
-  z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
+  z
+    .string()
+    .trim()
+    .min(1, requiredMessage)
+    .refine(isValidDateOnly, invalidMessage);
 
 const applicationFileSchema = (label: string) =>
   z
-    .custom<File>(
-      (value) => value instanceof File,
-      { message: `${label} is required` }
-    )
+    .custom<File>((value) => value instanceof File, {
+      message: `${label} is required`,
+    })
     .refine(
       (file) => ALLOWED_UPLOAD_TYPES.has(file.type),
-      `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`
+      `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
     )
     .refine(
       (file) => file.size <= MAX_APPLICATION_UPLOAD_BYTES,
-      `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`
+      `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
     );
 
 const applySchema = z.object({
-  selected_car_id: z.number().int().positive('Select a vehicle to continue'),
-  name: z.string().trim().min(2, 'Full name is required'),
+  name: z.string().trim().min(2, "Full name is required"),
   phone: z
     .string()
     .transform(normalizeAustralianMobile)
-    .pipe(z.string().regex(AUSTRALIAN_MOBILE_REGEX, 'Valid Australian mobile number required')),
+    .pipe(
+      z
+        .string()
+        .regex(
+          AUSTRALIAN_MOBILE_REGEX,
+          "Valid Australian mobile number required",
+        ),
+    ),
   email: z
     .string()
     .transform(normalizeApplicationEmail)
-    .pipe(z.string().email('Invalid email address')),
-  address: z.string().trim().min(5, 'Residential address is required'),
-  license_number: z.string().trim().min(5, 'License number is required'),
+    .pipe(z.string().email("Invalid email address")),
+  address: z.string().trim().min(5, "Residential address is required"),
+  license_number: z.string().trim().min(5, "License number is required"),
   license_expiry: dateOnlySchema(
-    'License expiry date is required',
-    'License expiry date must be a valid date'
+    "License expiry date is required",
+    "License expiry date must be a valid date",
   ).refine(
     (value) => isFutureAustraliaDate(value, getTodayInAustralia()),
-    'License must not be expired'
+    "License must not be expired",
   ),
-  uber_status: z.enum(['Active', 'Applying', 'Not Yet Registered']),
-  experience: z.string().trim().min(1, 'Experience is required'),
+  uber_status: z.enum(["Active", "Applying", "Not Yet Registered"]),
+  experience: z.string().trim().min(1, "Experience is required"),
   weekly_budget: z.string().trim().optional(),
   intended_start_date: dateOnlySchema(
-    'Start date is required',
-    'Start date must be a valid date'
+    "Start date is required",
+    "Start date must be a valid date",
   ).refine(
     (value) => isTodayOrFutureAustraliaDate(value, getTodayInAustralia()),
-    'Start date must be today or later'
+    "Start date must be today or later",
   ),
-  license_photo: applicationFileSchema('Driver licence front photo'),
-  license_back_photo: applicationFileSchema('Driver licence back photo'),
+  license_photo: applicationFileSchema("Driver licence front photo"),
+  license_back_photo: applicationFileSchema("Driver licence back photo"),
 });
 
 type ApplyValues = z.input<typeof applySchema>;
 type ApplySubmissionValues = z.output<typeof applySchema>;
 
 const defaultValues: ApplyValues = {
-  selected_car_id: 0,
-  name: '',
-  phone: '',
-  email: '',
-  address: '',
-  license_number: '',
-  license_expiry: '',
-  uber_status: 'Active',
-  experience: 'New Driver',
-  weekly_budget: '',
-  intended_start_date: '',
+  name: "",
+  phone: "",
+  email: "",
+  address: "",
+  license_number: "",
+  license_expiry: "",
+  uber_status: "Active",
+  experience: "New Driver",
+  weekly_budget: "",
+  intended_start_date: "",
   license_photo: null,
   license_back_photo: null,
 };
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
-  return <p className="text-red-300 text-[11px] font-semibold tracking-wide">{message}</p>;
+  return (
+    <p className="text-red-300 text-[11px] font-semibold tracking-wide">
+      {message}
+    </p>
+  );
 }
 
 function SectionShell({
@@ -143,7 +169,7 @@ function SectionShell({
       variants={sectionVariants}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, margin: '-80px' }}
+      viewport={{ once: true, margin: "-80px" }}
       className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-7 shadow-[0_24px_80px_rgba(0,0,0,0.12)]"
     >
       <div className="mb-6 flex items-start gap-4">
@@ -154,7 +180,9 @@ function SectionShell({
           <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
             {eyebrow}
           </p>
-          <h2 className="mt-2 text-xl sm:text-2xl font-bold tracking-tight text-white">{title}</h2>
+          <h2 className="mt-2 text-xl sm:text-2xl font-bold tracking-tight text-white">
+            {title}
+          </h2>
           <p className="mt-2 max-w-2xl text-sm sm:text-[15px] leading-7 text-brand-grey">
             {description}
           </p>
@@ -195,11 +223,11 @@ function StepBadge({
     <div className="flex flex-col items-center gap-3 text-center">
       <div
         className={[
-          'flex h-11 w-11 items-center justify-center rounded-full border text-[12px] font-bold transition-colors',
+          "flex h-11 w-11 items-center justify-center rounded-full border text-[12px] font-bold transition-colors",
           active
-            ? 'border-brand-gold bg-brand-gold text-brand-navy'
-            : 'border-white/10 bg-white/[0.03] text-brand-grey',
-        ].join(' ')}
+            ? "border-brand-gold bg-brand-gold text-brand-navy"
+            : "border-white/10 bg-white/[0.03] text-brand-grey",
+        ].join(" ")}
       >
         {step}
       </div>
@@ -211,15 +239,12 @@ function StepBadge({
 }
 
 export default function Apply() {
-  const [searchParams] = useSearchParams();
-  const requestedCarId = Number(searchParams.get('carId') || 0);
   const [step, setStep] = useState(1);
   const [pageError, setPageError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingCars, setIsLoadingCars] = useState(true);
-  const [availableCars, setAvailableCars] = useState<Car[]>([]);
-  const [carsError, setCarsError] = useState<string | null>(null);
-  const [submittedApplicationId, setSubmittedApplicationId] = useState<string | null>(null);
+  const [submittedApplicationId, setSubmittedApplicationId] = useState<
+    string | null
+  >(null);
 
   const {
     register,
@@ -230,60 +255,26 @@ export default function Apply() {
     formState: { errors },
   } = useForm<ApplyValues, unknown, ApplySubmissionValues>({
     resolver: zodResolver(applySchema),
-    mode: 'onChange',
-    defaultValues: {
-      ...defaultValues,
-      selected_car_id: requestedCarId || 0,
-    },
+    mode: "onChange",
+    defaultValues,
   });
 
   useEffect(() => {
-    let isActive = true;
-
-    const loadCars = async () => {
-      setIsLoadingCars(true);
-      setCarsError(null);
-
-      try {
-        const cars = await fetchCars();
-        if (!isActive) {
-          return;
-        }
-
-        setAvailableCars(cars.filter((car) => car.status === 'Available'));
-      } catch {
-        if (!isActive) {
-          return;
-        }
-
-        setCarsError('We could not load the fleet right now. Refresh and try again.');
-      } finally {
-        if (isActive) {
-          setIsLoadingCars(false);
-        }
-      }
-    };
-
-    void loadCars();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    register('license_photo');
-    register('license_back_photo');
+    register("license_photo");
+    register("license_back_photo");
   }, [register]);
 
-  const licensePhoto = watch('license_photo');
-  const licenseBackPhoto = watch('license_back_photo');
-  const selectedCarId = watch('selected_car_id');
-  const selectedCar = availableCars.find((car) => car.id === Number(selectedCarId)) || null;
+  const licensePhoto = watch("license_photo");
+  const licenseBackPhoto = watch("license_back_photo");
 
   const trustSignals = useMemo(
-    () => ['Fast approval', 'Approval support', 'Premium support', 'Reliable vehicles'],
-    []
+    () => [
+      "Fast approval",
+      "Approval support",
+      "Premium support",
+      "Reliable vehicles",
+    ],
+    [],
   );
 
   const pageSeo = (
@@ -292,18 +283,18 @@ export default function Apply() {
       description="Apply to drive with Maple Rentals for a premium weekly rental and Uber-ready vehicle program in Sydney. Simple onboarding, fast approval, and reliable cars."
       canonicalPath="/apply"
       keywords={[
-        'apply to drive maple rentals',
-        'uber driver application sydney',
-        'weekly rental application',
-        'rideshare car rental application',
-        'sydney driver onboarding',
+        "apply to drive maple rentals",
+        "uber driver application sydney",
+        "weekly rental application",
+        "rideshare car rental application",
+        "sydney driver onboarding",
       ]}
     />
   );
 
   const handleFileUpload = (
     event: ChangeEvent<HTMLInputElement>,
-    field: 'license_photo' | 'license_back_photo'
+    field: "license_photo" | "license_back_photo",
   ) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -311,15 +302,19 @@ export default function Apply() {
       return;
     }
     if (!ALLOWED_UPLOAD_TYPES.has(file.type)) {
-      event.target.value = '';
+      event.target.value = "";
       setValue(field, null, { shouldValidate: true });
-      setPageError(`Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`);
+      setPageError(
+        `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
+      );
       return;
     }
     if (file.size > MAX_APPLICATION_UPLOAD_BYTES) {
-      event.target.value = '';
+      event.target.value = "";
       setValue(field, null, { shouldValidate: true });
-      setPageError(`Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`);
+      setPageError(
+        `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
+      );
       return;
     }
 
@@ -329,15 +324,13 @@ export default function Apply() {
 
   const goToNextStep = async () => {
     const isValid = await trigger([
-      'selected_car_id',
-      'name',
-      'phone',
-      'email',
-      'address',
-      'uber_status',
-      'experience',
-      'weekly_budget',
-      'intended_start_date',
+      "name",
+      "phone",
+      "email",
+      "address",
+      "uber_status",
+      "experience",
+      "intended_start_date",
     ]);
 
     if (isValid) {
@@ -352,28 +345,27 @@ export default function Apply() {
 
     try {
       if (!values.license_photo || !values.license_back_photo) {
-        setPageError('Please attach both licence images before submitting.');
+        setPageError("Please attach both licence images before submitting.");
         return;
       }
 
       const payload = new FormData();
-      payload.set('selected_car_id', String(values.selected_car_id));
-      payload.set('name', values.name);
-      payload.set('phone', values.phone);
-      payload.set('email', values.email);
-      payload.set('address', values.address);
-      payload.set('license_number', values.license_number);
-      payload.set('license_expiry', values.license_expiry);
-      payload.set('uber_status', values.uber_status);
-      payload.set('experience', values.experience);
-      payload.set('intended_start_date', values.intended_start_date);
+      payload.set("name", values.name);
+      payload.set("phone", values.phone);
+      payload.set("email", values.email);
+      payload.set("address", values.address);
+      payload.set("license_number", values.license_number);
+      payload.set("license_expiry", values.license_expiry);
+      payload.set("uber_status", values.uber_status);
+      payload.set("experience", values.experience);
+      payload.set("intended_start_date", values.intended_start_date);
 
       if (values.weekly_budget?.trim()) {
-        payload.set('weekly_budget', values.weekly_budget.trim());
+        payload.set("weekly_budget", values.weekly_budget.trim());
       }
 
-      payload.set('license_photo', values.license_photo);
-      payload.set('license_back_photo', values.license_back_photo);
+      payload.set("license_photo", values.license_photo);
+      payload.set("license_back_photo", values.license_back_photo);
 
       const submission = await submitApplication(payload);
       setSubmittedApplicationId(submission.application_id);
@@ -381,8 +373,8 @@ export default function Apply() {
       setPageError(
         getApiErrorMessage(
           error,
-          'Failed to save your application. Please check your details and try again.'
-        )
+          "Failed to save your application. Please check your details and try again.",
+        ),
       );
     } finally {
       setIsSubmitting(false);
@@ -421,15 +413,16 @@ export default function Apply() {
                     Review in progress
                   </h1>
                   <p className="mt-5 max-w-2xl text-base sm:text-lg leading-8 text-brand-grey">
-                    Your application was saved successfully. We will review your details and
-                    contact you with next steps if everything is approved.
+                    Your application was saved successfully. We will review your
+                    details and contact you with next steps if everything is
+                    approved.
                   </p>
 
                   <div className="mt-10 grid gap-4 sm:grid-cols-3">
                     {[
-                      'Fast approval',
-                    'Vehicle matching',
-                      'Secure checkout link if approved',
+                      "Fast approval",
+                      "Vehicle review",
+                      "Secure checkout link if approved",
                     ].map((item) => (
                       <div
                         key={item}
@@ -468,9 +461,16 @@ export default function Apply() {
                       Next steps
                     </p>
                     <ul className="mt-5 space-y-4 text-sm leading-7 text-brand-grey">
-                      <li>1. A team member reviews your application and documents.</li>
-                      <li>2. We confirm vehicle availability and the approved handoff details.</li>
-                      <li>3. You receive a secure checkout link if approved.</li>
+                      <li>
+                        1. A team member reviews your application and documents.
+                      </li>
+                      <li>
+                        2. We confirm vehicle availability and the approved
+                        handoff details.
+                      </li>
+                      <li>
+                        3. You receive a secure checkout link if approved.
+                      </li>
                     </ul>
                   </div>
                 </div>
@@ -488,7 +488,13 @@ export default function Apply() {
       <div className="min-h-screen bg-brand-navy">
         <section className="relative overflow-hidden border-b border-white/10 pt-24 sm:pt-28">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(197,160,40,0.18),transparent_32%)]" />
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
+          <div
+            className="absolute inset-0 opacity-10"
+            style={{
+              backgroundImage: "radial-gradient(#ffffff 1px, transparent 1px)",
+              backgroundSize: "28px 28px",
+            }}
+          />
 
           <div className="relative mx-auto grid max-w-7xl gap-10 px-6 pb-12 pt-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start lg:gap-12 lg:pb-16 lg:pt-14">
             <motion.div
@@ -502,30 +508,35 @@ export default function Apply() {
                   Driver onboarding
                 </p>
                 <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl xl:text-6xl">
-                  Apply to Drive with{' '}
-                  <span className="font-serif italic text-brand-gold">Maple Rentals</span>
+                  Apply to Drive with{" "}
+                  <span className="font-serif italic text-brand-gold">
+                    Maple Rentals
+                  </span>
                 </h1>
                 <p className="mt-6 max-w-xl text-base leading-8 text-brand-grey sm:text-lg">
-                  Build your weekly earnings with a premium vehicle program designed for Uber
-                  drivers. Quick approval, reliable cars, and direct support keep onboarding simple.
+                  Build your weekly earnings with a premium onboarding program
+                  designed for Uber drivers. Quick approval, reliable cars, and
+                  direct support keep onboarding simple.
                 </p>
 
                 <div className="mt-10 grid gap-4 sm:grid-cols-3">
                   {[
-                    { value: '24-48h', label: 'Typical review window' },
-                    { value: 'Weekly', label: 'Rental cadence' },
-                    { value: 'Uber-ready', label: 'Vehicle standard' },
+                    { value: "24-48h", label: "Typical review window" },
+                    { value: "Weekly", label: "Rental cadence" },
+                    { value: "Uber-ready", label: "Vehicle standard" },
                   ].map((item) => (
                     <div
                       key={item.label}
                       className="rounded-3xl border border-white/10 bg-white/[0.04] p-5"
                     >
-                    <p className="text-2xl font-bold tracking-tight text-white">{item.value}</p>
-                    <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.3em] text-brand-grey">
-                      {item.label}
-                    </p>
-                  </div>
-                ))}
+                      <p className="text-2xl font-bold tracking-tight text-white">
+                        {item.value}
+                      </p>
+                      <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.3em] text-brand-grey">
+                        {item.label}
+                      </p>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mt-8 flex flex-wrap gap-3">
@@ -537,20 +548,24 @@ export default function Apply() {
                 <div className="mt-10 grid gap-4 sm:grid-cols-2">
                   {[
                     {
-                      title: 'Weekly earning focus',
-                      text: 'Choose a vehicle that supports consistent driving hours and predictable costs.',
+                      title: "Weekly earning focus",
+                      text: "Share your driving goals and weekly budget so we can review the right rental setup privately.",
                     },
                     {
-                      title: 'Reliable vehicles',
-                      text: 'Hybrid, Uber-ready cars prepared to keep you on the road longer.',
+                      title: "Reliable vehicles",
+                      text: "Hybrid, Uber-ready cars prepared to keep you on the road longer.",
                     },
                   ].map((item) => (
                     <div
                       key={item.title}
                       className="rounded-3xl border border-white/10 bg-white/[0.04] p-5"
                     >
-                      <p className="text-sm font-semibold text-white">{item.title}</p>
-                      <p className="mt-2 text-sm leading-7 text-brand-grey">{item.text}</p>
+                      <p className="text-sm font-semibold text-white">
+                        {item.title}
+                      </p>
+                      <p className="mt-2 text-sm leading-7 text-brand-grey">
+                        {item.text}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -559,10 +574,13 @@ export default function Apply() {
                   <div className="flex items-start gap-3">
                     <ShieldCheck className="mt-0.5 h-5 w-5 text-brand-gold" />
                     <div>
-                    <p className="text-sm font-semibold text-white">Fast, premium onboarding</p>
-                    <p className="mt-2 text-sm leading-7 text-brand-grey">
-                      Complete the form in a few minutes, upload your licence documents securely,
-                      and receive a decision-ready application for review.
+                      <p className="text-sm font-semibold text-white">
+                        Fast, premium onboarding
+                      </p>
+                      <p className="mt-2 text-sm leading-7 text-brand-grey">
+                        Complete the form in a few minutes, upload your licence
+                        documents securely, and receive a decision-ready
+                        application for review.
                       </p>
                     </div>
                   </div>
@@ -574,9 +592,17 @@ export default function Apply() {
                       What we look for
                     </p>
                     <ul className="mt-4 space-y-3 text-sm leading-7 text-brand-grey">
-                      <li>• A valid Australian licence and clean document uploads.</li>
-                      <li>• Willingness to drive regularly and keep a professional standard.</li>
-                      <li>• A vehicle fit that supports your weekly earning target.</li>
+                      <li>
+                        • A valid Australian licence and clean document uploads.
+                      </li>
+                      <li>
+                        • Willingness to drive regularly and keep a professional
+                        standard.
+                      </li>
+                      <li>
+                        • Clear onboarding details that help us match the right
+                        rental setup.
+                      </li>
                     </ul>
                   </div>
                   <div className="rounded-3xl border border-white/10 bg-black/10 p-5">
@@ -584,9 +610,16 @@ export default function Apply() {
                       Why drivers choose Maple
                     </p>
                     <ul className="mt-4 space-y-3 text-sm leading-7 text-brand-grey">
-                      <li>• Vehicle pricing and registration details are confirmed privately after approval.</li>
-                      <li>• Premium support through the application and handoff.</li>
-                      <li>• Reliable fleet choices designed for ride-share work.</li>
+                      <li>
+                        • Vehicle pricing and registration details are confirmed
+                        privately after approval.
+                      </li>
+                      <li>
+                        • Premium support through the application and handoff.
+                      </li>
+                      <li>
+                        • Reliable fleet choices designed for ride-share work.
+                      </li>
                     </ul>
                   </div>
                 </div>
@@ -606,8 +639,6 @@ export default function Apply() {
                   <StepBadge step="2" label="Licence" active={step >= 2} />
                   <div className="hidden h-px flex-1 bg-white/10 sm:block" />
                   <StepBadge step="3" label="Experience" active={step >= 2} />
-                  <div className="hidden h-px flex-1 bg-white/10 sm:block" />
-                  <StepBadge step="4" label="Vehicle" active={step >= 2} />
                 </div>
               </div>
 
@@ -616,7 +647,9 @@ export default function Apply() {
                   <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-4">
                     <div className="flex items-start gap-3">
                       <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-300" />
-                      <p className="text-sm leading-7 text-red-50">{pageError}</p>
+                      <p className="text-sm leading-7 text-red-50">
+                        {pageError}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -633,7 +666,7 @@ export default function Apply() {
                         <div className="space-y-2">
                           <FormLabel>Full name</FormLabel>
                           <input
-                            {...register('name')}
+                            {...register("name")}
                             className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold"
                             placeholder="As shown on your licence"
                           />
@@ -643,7 +676,7 @@ export default function Apply() {
                         <div className="space-y-2">
                           <FormLabel>Mobile number</FormLabel>
                           <input
-                            {...register('phone')}
+                            {...register("phone")}
                             className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold"
                             placeholder="0412 345 678"
                           />
@@ -653,7 +686,7 @@ export default function Apply() {
                         <div className="space-y-2">
                           <FormLabel>Email address</FormLabel>
                           <input
-                            {...register('email')}
+                            {...register("email")}
                             className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold"
                             placeholder="driver@example.com"
                           />
@@ -664,112 +697,24 @@ export default function Apply() {
                           <FormLabel>Intended start date</FormLabel>
                           <input
                             type="date"
-                            {...register('intended_start_date')}
+                            {...register("intended_start_date")}
                             className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors focus:border-brand-gold"
                           />
-                          <FieldError message={errors.intended_start_date?.message} />
+                          <FieldError
+                            message={errors.intended_start_date?.message}
+                          />
                         </div>
 
                         <div className="space-y-2 md:col-span-2">
                           <FormLabel>Residential address</FormLabel>
                           <textarea
-                            {...register('address')}
+                            {...register("address")}
                             rows={3}
                             className="w-full resize-none rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold"
                             placeholder="Street, suburb, state, postcode"
                           />
                           <FieldError message={errors.address?.message} />
                         </div>
-                      </div>
-                    </SectionShell>
-                  )}
-
-                  {step === 1 && (
-                    <SectionShell
-                      eyebrow="Vehicle fit"
-                      title="Rental Preferences"
-                      description="Choose the vehicle you want and the budget you have in mind so we can match the right plan during review."
-                      icon={Sparkles}
-                    >
-                      <div className="space-y-5">
-                        <div className="space-y-2">
-                          <FormLabel>Preferred vehicle</FormLabel>
-                          <select
-                            {...register('selected_car_id', { valueAsNumber: true })}
-                            disabled={isLoadingCars || availableCars.length === 0}
-                            className="w-full appearance-none rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors focus:border-brand-gold disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <option value="">
-                              {isLoadingCars ? 'Loading available vehicles...' : 'Select your vehicle'}
-                            </option>
-                            {availableCars.map((car) => (
-                              <option key={car.id} value={car.id}>
-                                {car.name} ({car.model_year})
-                              </option>
-                            ))}
-                          </select>
-                          <FieldError message={errors.selected_car_id?.message} />
-                          {carsError && <p className="text-xs text-red-300">{carsError}</p>}
-                        </div>
-
-                        <div className="space-y-2">
-                          <FormLabel>Weekly budget</FormLabel>
-                          <input
-                            {...register('weekly_budget')}
-                            className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold"
-                            placeholder="Optional: e.g. $350"
-                          />
-                          <FieldError message={errors.weekly_budget?.message} />
-                        </div>
-
-                        {selectedCar && (
-                          <div className="overflow-hidden rounded-[1.75rem] border border-brand-gold/20 bg-brand-gold/8">
-                            <div className="grid gap-0 md:grid-cols-[1.05fr_0.95fr]">
-                              <div className="min-h-[220px] bg-black/10 p-5">
-                                <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
-                                  Selected vehicle
-                                </p>
-                                <p className="mt-2 text-xl font-bold text-white">
-                                  {selectedCar.name}
-                                </p>
-                                <p className="mt-1 text-sm text-brand-grey">
-                                  {selectedCar.model_year} model
-                                </p>
-                                <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold">
-                                    Private after approval
-                                  </p>
-                                  <p className="mt-3 text-sm leading-7 text-brand-grey">
-                                    Maple Rentals confirms the final vehicle pricing, number plate,
-                                    and payment handoff only after your application is reviewed.
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="p-5">
-                                <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
-                                  What happens next
-                                </p>
-                                <div className="mt-4 space-y-4 text-sm leading-7 text-brand-grey">
-                                  <p>1. We review your documents and confirm vehicle availability.</p>
-                                  <p>2. Maple Rentals shares the approved quote and private vehicle details directly with you.</p>
-                                  <p>3. If approved, you receive the secure checkout handoff to complete payment.</p>
-                                </div>
-                                <p className="mt-4 text-xs leading-6 text-brand-grey">
-                                  Your selected vehicle is saved with the application, but its
-                                  public page does not expose price or number plate details.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {requestedCarId > 0 && !selectedCar && !isLoadingCars && !carsError && (
-                          <p className="text-xs text-red-300">
-                            The vehicle linked from the previous page is no longer available.
-                            Please choose another vehicle.
-                          </p>
-                        )}
                       </div>
                     </SectionShell>
                   )}
@@ -785,21 +730,25 @@ export default function Apply() {
                         <div className="space-y-2">
                           <FormLabel>Licence number</FormLabel>
                           <input
-                            {...register('license_number')}
+                            {...register("license_number")}
                             className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold"
                             placeholder="NSW licence number"
                           />
-                          <FieldError message={errors.license_number?.message} />
+                          <FieldError
+                            message={errors.license_number?.message}
+                          />
                         </div>
 
                         <div className="space-y-2">
                           <FormLabel>Licence expiry</FormLabel>
                           <input
                             type="date"
-                            {...register('license_expiry')}
+                            {...register("license_expiry")}
                             className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors focus:border-brand-gold"
                           />
-                          <FieldError message={errors.license_expiry?.message} />
+                          <FieldError
+                            message={errors.license_expiry?.message}
+                          />
                         </div>
 
                         <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
@@ -807,7 +756,8 @@ export default function Apply() {
                             Front photo
                           </p>
                           <p className="mt-2 text-sm leading-7 text-brand-grey">
-                            Upload a clear JPG or PNG. Maximum file size is {MAX_UPLOAD_SIZE_MB} MB.
+                            Upload a clear JPG or PNG. Maximum file size is{" "}
+                            {MAX_UPLOAD_SIZE_MB} MB.
                           </p>
                           <label className="mt-5 flex cursor-pointer flex-col items-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-5 py-8 text-center transition-colors hover:border-brand-gold/40">
                             <Upload className="h-5 w-5 text-brand-gold" />
@@ -815,17 +765,23 @@ export default function Apply() {
                               Upload front photo
                             </span>
                             <span className="text-xs text-brand-grey">
-                              {licensePhoto ? licensePhoto.name : 'Choose an image file'}
+                              {licensePhoto
+                                ? licensePhoto.name
+                                : "Choose an image file"}
                             </span>
                             <input
                               type="file"
-                              accept={APPLICATION_IMAGE_CONTENT_TYPES.join(',')}
+                              accept={APPLICATION_IMAGE_CONTENT_TYPES.join(",")}
                               className="hidden"
-                              onChange={(event) => handleFileUpload(event, 'license_photo')}
+                              onChange={(event) =>
+                                handleFileUpload(event, "license_photo")
+                              }
                             />
                           </label>
                           <div className="mt-4">
-                            <FieldError message={errors.license_photo?.message} />
+                            <FieldError
+                              message={errors.license_photo?.message}
+                            />
                           </div>
                         </div>
 
@@ -834,7 +790,8 @@ export default function Apply() {
                             Back photo
                           </p>
                           <p className="mt-2 text-sm leading-7 text-brand-grey">
-                            Upload the back of your licence as a clear JPG or PNG.
+                            Upload the back of your licence as a clear JPG or
+                            PNG.
                           </p>
                           <label className="mt-5 flex cursor-pointer flex-col items-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-5 py-8 text-center transition-colors hover:border-brand-gold/40">
                             <Upload className="h-5 w-5 text-brand-gold" />
@@ -842,24 +799,30 @@ export default function Apply() {
                               Upload back photo
                             </span>
                             <span className="text-xs text-brand-grey">
-                              {licenseBackPhoto ? licenseBackPhoto.name : 'Choose an image file'}
+                              {licenseBackPhoto
+                                ? licenseBackPhoto.name
+                                : "Choose an image file"}
                             </span>
                             <input
                               type="file"
-                              accept={APPLICATION_IMAGE_CONTENT_TYPES.join(',')}
+                              accept={APPLICATION_IMAGE_CONTENT_TYPES.join(",")}
                               className="hidden"
-                              onChange={(event) => handleFileUpload(event, 'license_back_photo')}
+                              onChange={(event) =>
+                                handleFileUpload(event, "license_back_photo")
+                              }
                             />
                           </label>
                           <div className="mt-4">
-                            <FieldError message={errors.license_back_photo?.message} />
+                            <FieldError
+                              message={errors.license_back_photo?.message}
+                            />
                           </div>
                         </div>
                       </div>
 
                       <div className="mt-5 rounded-2xl border border-brand-gold/15 bg-brand-gold/8 px-5 py-4 text-sm leading-7 text-brand-grey">
-                        Complete uploads help us move faster and reduce back-and-forth after
-                        submission.
+                        Complete uploads help us move faster and reduce
+                        back-and-forth after submission.
                       </div>
                     </SectionShell>
                   )}
@@ -868,19 +831,21 @@ export default function Apply() {
                     <SectionShell
                       eyebrow="Step 3"
                       title="Driving Experience"
-                      description="Share your background so we can align the best vehicle and rental setup with your goals."
+                      description="Share your background and weekly budget so we can align the right rental setup during review."
                       icon={Loader2}
                     >
                       <div className="grid gap-5 md:grid-cols-2">
                         <div className="space-y-2">
                           <FormLabel>Uber status</FormLabel>
                           <select
-                            {...register('uber_status')}
+                            {...register("uber_status")}
                             className="w-full appearance-none rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors focus:border-brand-gold"
                           >
                             <option value="Active">Active Driver</option>
                             <option value="Applying">Applying</option>
-                            <option value="Not Yet Registered">Not Yet Registered</option>
+                            <option value="Not Yet Registered">
+                              Not Yet Registered
+                            </option>
                           </select>
                           <FieldError message={errors.uber_status?.message} />
                         </div>
@@ -888,15 +853,27 @@ export default function Apply() {
                         <div className="space-y-2">
                           <FormLabel>Rideshare experience</FormLabel>
                           <select
-                            {...register('experience')}
+                            {...register("experience")}
                             className="w-full appearance-none rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors focus:border-brand-gold"
                           >
                             <option value="New Driver">New Driver</option>
-                            <option value="Less than 1 year">Less than 1 year</option>
+                            <option value="Less than 1 year">
+                              Less than 1 year
+                            </option>
                             <option value="1-3 years">1-3 years</option>
                             <option value="3+ years">3+ years</option>
                           </select>
                           <FieldError message={errors.experience?.message} />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <FormLabel>Weekly budget</FormLabel>
+                          <input
+                            {...register("weekly_budget")}
+                            className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold"
+                            placeholder="Optional: e.g. $350"
+                          />
+                          <FieldError message={errors.weekly_budget?.message} />
                         </div>
                       </div>
                     </SectionShell>
@@ -917,7 +894,7 @@ export default function Apply() {
                       className="inline-flex items-center justify-center gap-3 rounded-full border border-white/10 px-7 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-white/5"
                     >
                       <ArrowLeft className="h-4 w-4" />
-                      {step === 2 ? 'Back' : 'Continue'}
+                      {step === 2 ? "Back" : "Continue"}
                     </button>
 
                     <button

@@ -148,10 +148,10 @@ export default function Pricing() {
                       Start Application <ArrowRight className="w-4 h-4" />
                     </Link>
                     <Link
-                      to="/cars"
+                      to="/"
                       className={`w-full inline-flex items-center justify-center gap-2 rounded-xl border px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] transition-colors ${plan.popular ? 'border-white/15 text-white hover:border-white/40' : 'border-slate-200 text-brand-navy hover:border-brand-navy/25'}`}
                     >
-                      Browse Fleet
+                      Back to Home
                     </Link>
                   </div>
                 </motion.div>

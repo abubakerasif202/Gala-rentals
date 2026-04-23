@@ -61,6 +61,24 @@ const homeJsonLd = {
   ],
 };
 
+const featuredVehicles = [
+  {
+    image: '/car-images/CNO40S.jpeg',
+    title: 'Uber-ready hybrid sedan',
+    description: 'Clean, professional presentation for airport runs, city shifts, and daily rideshare work.',
+  },
+  {
+    image: '/car-images/YNU55M.jpeg',
+    title: 'Driver-focused weekly rental',
+    description: 'Prepared for drivers who want consistent support, reliable handover, and fast onboarding.',
+  },
+  {
+    image: '/car-images/YPB83A.jpeg',
+    title: 'Maple approval program',
+    description: 'Vehicle availability, private handover details, and final payment steps stay managed after review.',
+  },
+];
+
 export default function Home() {
   const {
     data: rentalPlans = [],
@@ -184,6 +202,59 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="bg-white py-24 sm:py-28 border-y border-slate-200/70">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeIn}
+            className="max-w-3xl mb-14"
+          >
+            <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">
+              Vehicle Gallery
+            </p>
+            <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-5">
+              See the kind of vehicles drivers apply for with Maple Rentals.
+            </h2>
+            <p className="text-slate-600 text-lg font-light leading-relaxed">
+              The public site now keeps the focus on driver onboarding. You can still see the quality
+              of the vehicles here, while final assignment, pricing, and plate confirmation stay private
+              during review.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {featuredVehicles.map((vehicle, index) => (
+              <motion.article
+                key={vehicle.image}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45, delay: index * 0.08 }}
+                className="overflow-hidden rounded-[2rem] border border-slate-200 bg-[#F8F9FA] shadow-sm"
+              >
+                <div className="aspect-[4/3] overflow-hidden">
+                  <img
+                    src={vehicle.image}
+                    alt={vehicle.title}
+                    className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="p-6">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-brand-gold mb-3">
+                    Maple Rentals
+                  </p>
+                  <h3 className="text-2xl font-serif font-bold text-brand-navy mb-3">{vehicle.title}</h3>
+                  <p className="text-sm leading-7 text-slate-600">{vehicle.description}</p>
+                </div>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="pb-32 bg-[#F8F9FA] relative z-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <DeferredInquiryForm />
@@ -258,12 +329,12 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeIn} className="mb-20">
             <h2 className="text-4xl md:text-6xl font-serif font-bold tracking-tight text-brand-navy mb-6">Start Driving in 3 Steps</h2>
-            <p className="text-slate-600 text-lg font-light">Maximize your weekly returns with our exclusive and reliable fleet.</p>
+            <p className="text-slate-600 text-lg font-light">Apply once, get reviewed quickly, and move into a managed rental with clear next steps.</p>
           </motion.div>
 
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {[
-              { step: '01', title: 'Choose & Apply', desc: 'Select your vehicle, upload your driver details, and submit the required documents through our secure portal.' },
+              { step: '01', title: 'Apply Online', desc: 'Upload your driver details and required documents through our secure portal.' },
               { step: '02', title: 'Review & Approval', desc: 'Maple Rentals confirms vehicle availability, private registration details, and the approved payment terms after review.' },
               { step: '03', title: 'Collect & Start Earning', desc: 'Pick up your keys, connect to the Uber app, and start earning immediately.' },
             ].map((item) => (
@@ -445,10 +516,10 @@ export default function Home() {
                   Apply Now
                 </Link>
                 <Link
-                  to="/cars"
+                  to="/pricing"
                   className="w-full sm:w-auto px-12 py-5 border border-white/20 text-white font-bold tracking-widest uppercase text-sm hover:border-brand-gold hover:text-brand-gold transition-all duration-300"
                 >
-                  Browse Fleet
+                  View Plans
                 </Link>
               </div>
             </motion.div>

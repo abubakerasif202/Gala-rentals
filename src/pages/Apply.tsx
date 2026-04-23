@@ -435,10 +435,10 @@ export default function Apply() {
 
                   <div className="mt-10 flex flex-col gap-4 sm:flex-row">
                     <Link
-                      to="/cars"
+                      to="/pricing"
                       className="inline-flex items-center justify-center gap-3 rounded-full bg-brand-gold px-8 py-4 text-xs font-bold uppercase tracking-[0.22em] text-brand-navy transition-colors hover:bg-brand-gold-light"
                     >
-                      Browse fleet
+                      View plans
                     </Link>
                     <Link
                       to="/"

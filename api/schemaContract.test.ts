@@ -32,6 +32,7 @@ describe('schemaContract', () => {
               properties: {
                 approved_at: { type: 'string' },
                 approved_bond: { type: 'number' },
+                approved_vehicle: { type: 'string' },
                 approved_weekly_price: { type: 'number' },
                 assigned_car_id: { type: 'number' },
                 paid_at: { type: 'string' },
@@ -81,6 +82,7 @@ describe('schemaContract', () => {
               properties: {
                 approvedAt: { type: 'string' },
                 approvedBond: { type: 'number' },
+                approvedVehicle: { type: 'string' },
                 approvedWeeklyPrice: { type: 'number' },
                 assignedCarId: { type: 'number' },
                 licenseBackPhoto: { type: 'string' },

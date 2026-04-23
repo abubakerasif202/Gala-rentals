@@ -63,7 +63,6 @@ export const carSchema = z.object({
 });
 
 export const applicationSchema = z.object({
-  selected_car_id: optionalPositiveIntegerSchema,
   name: z.string().trim().min(2),
   phone: z
     .string()
@@ -111,15 +110,14 @@ export const applicationStatusEnum = z.enum([
 
 export const vehicleCheckoutSessionSchema = z.object({
   application_id: uuidSchema,
-  car_id: z.coerce.number().int().positive(),
   checkout_token: z.string().min(1),
 });
 
 export const applicationApprovalSchema = z.object({
+  approved_vehicle: z.string().trim().min(1),
   approved_bond: z.coerce.number().nonnegative(),
   approved_weekly_price: z.coerce.number().positive(),
   application_id: uuidSchema,
-  assigned_car_id: z.coerce.number().int().positive(),
   send_payment_link: z.boolean().optional().default(true),
 });
 

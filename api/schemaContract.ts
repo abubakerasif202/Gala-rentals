@@ -9,6 +9,7 @@ const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
   applications: [
     { label: 'approved_at', acceptable: ['approved_at', 'approvedAt'] },
     { label: 'approved_bond', acceptable: ['approved_bond', 'approvedBond'] },
+    { label: 'approved_vehicle', acceptable: ['approved_vehicle', 'approvedVehicle'] },
     {
       label: 'approved_weekly_price',
       acceptable: ['approved_weekly_price', 'approvedWeeklyPrice'],

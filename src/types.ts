@@ -12,8 +12,8 @@ export interface Car {
 export interface Application {
   approved_at?: string | null;
   approved_bond?: number | null;
+  approved_vehicle?: string | null;
   approved_weekly_price?: number | null;
-  assigned_car_id?: number | null;
   id: string;
   name: string;
   phone: string;

@@ -21,7 +21,6 @@ import {
   getApplicationDuplicateCheckColumns,
   getApplicationDocumentColumn,
   getApplicationSelectColumns,
-  getCarSelectColumns,
   toApplicationPaymentWritePayload,
   toApplicationWritePayload,
 } from "../schemaCompat.js";
@@ -33,15 +32,7 @@ import {
   buildDriverPaymentLink,
   sendDriverPaymentLinkEmail,
 } from "../paymentLinks.js";
-import {
-  assertVehicleAllocationAvailable,
-  VehicleAllocationConflictError,
-} from "../vehicleAllocations.js";
 import { handleVehicleCheckoutCompletion } from "../paymentActivation.js";
-import {
-  ADMIN_PAYMENTS_RESTRICTED_MESSAGE,
-  assertTransactionalPaymentProcessing,
-} from "../paymentProcessing.js";
 import {
   APPLICATION_IMAGE_CONTENT_TYPES,
   normalizeApplicationEmail,
@@ -53,7 +44,6 @@ import {
   sanitizeEmailHeaderValue,
   sendResendEmail,
 } from "../email.js";
-import { renderApplicationLeaseAgreement } from "../agreementGeneration.js";
 import { normalizeUuid } from "../../shared/uuid.js";
 
 const router = express.Router();
@@ -219,8 +209,8 @@ const hasAvailableDocumentSigningCapacity = (index: number) =>
 
 type ApplicationPaymentApprovalRecord = {
   approved_bond?: number | null;
+  approved_vehicle?: string | null;
   approved_weekly_price?: number | null;
-  assigned_car_id?: number | null;
   email: string;
   id: string;
   name: string;
@@ -238,8 +228,6 @@ const isRecoverableVehicleCheckoutSession = (
   session.metadata?.checkout_kind === "vehicle" &&
   normalizeUuid(session.metadata?.application_id || "") ===
     normalizeUuid(application.id) &&
-  Number(session.metadata?.car_id || 0) ===
-    Number(application.assigned_car_id || 0) &&
   Number(session.metadata?.payment_link_version || 0) ===
     Number(application.payment_link_version || 0);
 
@@ -277,31 +265,6 @@ const getApplicationBackPhotoValue = (application: Record<string, any>) =>
 const createRequestError = (status: number, message: string) =>
   Object.assign(new Error(message), { status });
 
-const isVehicleAllocationUniqueConstraintError = (error: unknown) => {
-  if (!error || typeof error !== "object" || !("code" in error)) {
-    return false;
-  }
-
-  if (String((error as { code?: string }).code || "") !== "23505") {
-    return false;
-  }
-
-  const message = [
-    (error as { message?: string }).message,
-    (error as { details?: string }).details,
-    (error as { hint?: string }).hint,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" ")
-    .toLowerCase();
-
-  return (
-    message.includes("idx_applications_active_vehicle_allocation_unique") ||
-    message.includes("assigned_car") ||
-    message.includes("assignedcarid")
-  );
-};
-
 const removeUploadedApplicationDocuments = async (paths: string[]) => {
   if (paths.length === 0) {
     return;
@@ -311,43 +274,6 @@ const removeUploadedApplicationDocuments = async (paths: string[]) => {
 
   if (error) {
     console.warn("Failed to clean up uploaded application documents:", error);
-  }
-};
-
-const fetchCarById = async (carId: number) => {
-  const { data: car, error } = await db
-    .from("cars")
-    .select(await getCarSelectColumns())
-    .eq("id", carId)
-    .single();
-
-  if (error || !car) {
-    return null;
-  }
-
-  return car as Record<string, any>;
-};
-
-const saveLeaseAgreement = async ({
-  applicationId,
-  carId,
-  content,
-}: {
-  applicationId: string;
-  carId: number;
-  content: string;
-}) => {
-  const { error } = await db.from("lease_agreements").insert([
-    {
-      application_id: applicationId,
-      car_id: carId,
-      content,
-      status: "generated",
-    },
-  ]);
-
-  if (error) {
-    throw error;
   }
 };
 
@@ -618,30 +544,6 @@ router.post(
         }
       }
 
-      const selectedCarId =
-        typeof normalizedApplicationData.selected_car_id === "number" &&
-        Number.isFinite(normalizedApplicationData.selected_car_id)
-          ? Number(normalizedApplicationData.selected_car_id)
-          : null;
-      let selectedCar: Record<string, any> | null = null;
-
-      if (selectedCarId) {
-        selectedCar = await fetchCarById(selectedCarId);
-
-        if (!selectedCar) {
-          return res
-            .status(404)
-            .json({ error: "Selected vehicle was not found." });
-        }
-
-        if (String(selectedCar.status) !== "Available") {
-          return res.status(409).json({
-            error:
-              "Selected vehicle is no longer available. Please choose another vehicle.",
-          });
-        }
-      }
-
       licensePhotoUrl = await uploadApplicationFile({
         file: licensePhotoFile,
         filePrefix: "license-front",
@@ -662,12 +564,9 @@ router.post(
         license_back_photo: licenseBackPhotoUrl,
         status: "Pending",
       });
-      const selectionPayload = await toApplicationPaymentWritePayload({
-        assigned_car_id: selectedCarId,
-      });
       const { data: inserted, error } = await db
         .from("applications")
-        .insert([{ ...basePayload, ...selectionPayload }])
+        .insert([basePayload])
         .select("id")
         .single();
 
@@ -700,12 +599,6 @@ router.post(
           const safeIntendedStart = escapeHtml(
             normalizedApplicationData.intended_start_date,
           );
-          const safeRequestedVehicle = selectedCar
-            ? escapeHtml(String(selectedCar.name || "Vehicle"))
-            : null;
-          const requestedVehicleMarkup = safeRequestedVehicle
-            ? `<li><strong>Requested Vehicle:</strong> ${safeRequestedVehicle}</li>`
-            : "<li><strong>Requested Vehicle:</strong> Assigned during review</li>";
           const applicantNameForSubject = sanitizeEmailHeaderValue(
             normalizedApplicationData.name,
           );
@@ -726,9 +619,8 @@ router.post(
                     <li><strong>Uber Status:</strong> ${safeUberStatus}</li>
                     <li><strong>Experience:</strong> ${safeExperience}</li>
                     <li><strong>Intended Start:</strong> ${safeIntendedStart}</li>
-                    ${requestedVehicleMarkup}
                   </ul>
-                  <p>Review the application in the admin dashboard before issuing any payment link.</p>
+                  <p>Review the application in the admin dashboard, confirm the approved vehicle and pricing, then issue the Stripe payment link.</p>
                 </div>
               `,
             }),
@@ -787,17 +679,6 @@ router.post(
         return res.status(err.status).json({ error: err.message });
       }
 
-      if (err instanceof VehicleAllocationConflictError) {
-        return res.status(err.status).json({ error: err.message });
-      }
-
-      if (isVehicleAllocationUniqueConstraintError(err)) {
-        return res.status(409).json({
-          error:
-            "Selected vehicle is no longer available. Please choose another vehicle.",
-        });
-      }
-
       console.error("Application submission error:", err);
       res.status(500).json({ error: "Application submission failed" });
     }
@@ -810,10 +691,6 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
       ...req.body,
       application_id: req.params.id,
     });
-
-    if (payload.send_payment_link) {
-      assertTransactionalPaymentProcessing(ADMIN_PAYMENTS_RESTRICTED_MESSAGE);
-    }
 
     const selectColumns = await getApplicationSelectColumns();
     const { data: application, error: applicationError } = await db
@@ -828,8 +705,6 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
 
     const applicationRecord =
       application as unknown as ApplicationPaymentApprovalRecord;
-    const applicationDetails = application as Record<string, any>;
-
     if (applicationRecord.status === "Paid") {
       return res
         .status(409)
@@ -839,7 +714,7 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
     if (applicationRecord.status === "Payment Review") {
       return res.status(409).json({
         error:
-          "This application has already been paid and is awaiting rental activation. Do not send a new payment link.",
+          "This application has already been paid and is awaiting onboarding follow-up. Do not send a new payment link.",
       });
     }
 
@@ -850,31 +725,6 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
           error: "Rejected applications cannot be approved for payment.",
         });
     }
-
-    const { data: car, error: carError } = await db
-      .from("cars")
-      .select(await getCarSelectColumns())
-      .eq("id", payload.assigned_car_id)
-      .single();
-
-    if (carError || !car) {
-      return res.status(404).json({ error: "Assigned vehicle not found" });
-    }
-
-    const assignedCar = car as unknown as Record<string, any>;
-
-    if (assignedCar.status !== "Available") {
-      return res
-        .status(409)
-        .json({ error: "Assigned vehicle is not available." });
-    }
-
-    await assertVehicleAllocationAvailable({
-      applicationId: payload.application_id,
-      carId: payload.assigned_car_id,
-      message:
-        "Assigned vehicle already has another active approval or payment review. Resolve that allocation first.",
-    });
 
     const currentVersion = Number(applicationRecord.payment_link_version || 0);
     const nextVersion = currentVersion + 1;
@@ -900,8 +750,9 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
         payload: {
           approved_at: nowIso,
           approved_bond: payload.approved_bond,
+          approved_vehicle: payload.approved_vehicle.trim(),
           approved_weekly_price: payload.approved_weekly_price,
-          assigned_car_id: payload.assigned_car_id,
+          assigned_car_id: null,
           paid_at: null,
           payment_link_sent_at: payload.send_payment_link ? nowIso : null,
           payment_link_version: nextVersion,
@@ -919,35 +770,13 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
 
     const checkoutToken = createCheckoutToken({
       applicationId: payload.application_id,
-      carId: payload.assigned_car_id,
       purpose: "vehicle",
       version: nextVersion,
     });
     const checkoutUrl = buildDriverPaymentLink({
       applicationId: payload.application_id,
-      carId: payload.assigned_car_id,
       token: checkoutToken.token,
     });
-
-    const agreementContent = renderApplicationLeaseAgreement(
-      applicationDetails,
-      assignedCar,
-      payload.approved_weekly_price,
-      nowIso,
-      payload.approved_bond,
-    );
-
-    let leaseAgreementSaved = false;
-    try {
-      await saveLeaseAgreement({
-        applicationId: payload.application_id,
-        carId: payload.assigned_car_id,
-        content: agreementContent,
-      });
-      leaseAgreementSaved = true;
-    } catch (agreementError) {
-      console.error("Lease agreement save error:", agreementError);
-    }
 
     let emailDelivery = {
       delivered: false,
@@ -960,10 +789,9 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
         applicantName: applicationRecord.name,
         approvedBond: payload.approved_bond,
         approvedWeeklyPrice: payload.approved_weekly_price,
-        carName: String(assignedCar.name || ""),
+        approvedVehicle: payload.approved_vehicle.trim(),
         checkoutUrl,
         setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
-        agreement: agreementContent,
       });
     }
 
@@ -974,24 +802,13 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
       checkout_url: checkoutUrl,
       email_delivered: emailDelivery.delivered,
       email_reason: emailDelivery.reason,
-      lease_agreement_saved: leaseAgreementSaved,
+      lease_agreement_saved: false,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res
         .status(400)
         .json({ error: "Validation failed", details: error.issues });
-    }
-
-    if (error instanceof VehicleAllocationConflictError) {
-      return res.status(error.status).json({ error: error.message });
-    }
-
-    if (isVehicleAllocationUniqueConstraintError(error)) {
-      return res.status(409).json({
-        error:
-          "Assigned vehicle already has another active approval or payment review. Resolve that allocation first.",
-      });
     }
 
     if (
@@ -1034,13 +851,7 @@ router.post(
 
       if (applicationRecord.status !== "Payment Review") {
         return res.status(409).json({
-          error: "Only paid applications awaiting activation can be retried.",
-        });
-      }
-
-      if (!applicationRecord.assigned_car_id) {
-        return res.status(409).json({
-          error: "This payment review is missing its assigned vehicle.",
+          error: "Only paid applications awaiting onboarding follow-up can be retried.",
         });
       }
 
@@ -1074,7 +885,7 @@ router.post(
       if (refreshedRecord.status !== "Paid") {
         return res.status(409).json({
           error:
-            "Activation is still blocked. Resolve the vehicle conflict or maintenance hold, then retry again.",
+            "Payment finalization is still blocked. Retry again or reconcile the Stripe session manually.",
         });
       }
 

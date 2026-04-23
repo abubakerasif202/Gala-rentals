@@ -126,33 +126,6 @@ const isRestrictedPaymentLinkError = (error: unknown) =>
     .toLowerCase()
     .includes('session-capable postgres connection');
 
-const REGISTRATION_SUFFIX_CAPTURE_PATTERN =
-  /\s*(?:\(([A-Z0-9-]*\d[A-Z0-9-]*)\)|[-|]\s*([A-Z0-9-]*\d[A-Z0-9-]*))\s*$/i;
-
-const normalizeVehicleLookupValue = (value: string) => value.replace(/[^a-z0-9]/gi, '').toUpperCase();
-
-const getVehicleRegistrationFromName = (name: string) => {
-  const match = name.match(REGISTRATION_SUFFIX_CAPTURE_PATTERN);
-  return match ? match[1] || match[2] || '' : '';
-};
-
-const getVehicleLookupLabel = (car: CarType) => getVehicleRegistrationFromName(car.name) || car.name;
-
-const findCarByVehicleLookup = (cars: CarType[], lookupValue: string) => {
-  const normalizedLookup = normalizeVehicleLookupValue(lookupValue);
-
-  if (!normalizedLookup) {
-    return null;
-  }
-
-  const matchingCars = cars.filter((car) => {
-    const registration = getVehicleLookupLabel(car);
-    return normalizeVehicleLookupValue(registration) === normalizedLookup;
-  });
-
-  return matchingCars.length === 1 ? matchingCars[0] : null;
-};
-
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -178,8 +151,7 @@ export default function AdminDashboard() {
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [openingDocument, setOpeningDocument] = useState<'license_photo' | 'license_back_photo' | null>(null);
   const [applicationApprovalForm, setApplicationApprovalForm] = useState({
-    assigned_car_id: '',
-    assigned_vehicle_lookup: '',
+    approved_vehicle: '',
     approved_bond: '',
     approved_weekly_price: '',
   });
@@ -593,9 +565,9 @@ export default function AdminDashboard() {
     }: {
       id: string;
       payload: {
+        approved_vehicle: string;
         approved_bond: number;
         approved_weekly_price: number;
-        assigned_car_id: number;
         send_payment_link?: boolean;
       };
     }) => api.approveApplicationForPayment(id, payload),
@@ -646,8 +618,7 @@ export default function AdminDashboard() {
   const handleGenerateAgreement = async () => {
     const application_id = selected_agreement_application_id;
     const selectedApplication = applications.find((a) => a.id === application_id);
-    const assignedCarId = Number(selectedApplication?.assigned_car_id || 0);
-    const car_id = assignedCarId || Number(selected_agreement_car_id);
+    const car_id = Number(selected_agreement_car_id);
     
     if (!application_id || !selectedApplication || !car_id) {
       showNotification('Please select both an application and a car', 'error');
@@ -664,12 +635,7 @@ export default function AdminDashboard() {
       const selectedCar = cars.find(c => c.id === car_id);
 
       if (!selectedCar) {
-        showNotification('Assigned vehicle could not be found for this application.', 'error');
-        return;
-      }
-
-      if (assignedCarId && selectedCar.id !== assignedCarId) {
-        showNotification('Agreement must use the vehicle assigned during approval.', 'error');
+        showNotification('Select the fleet vehicle for the agreement.', 'error');
         return;
       }
 
@@ -737,13 +703,12 @@ export default function AdminDashboard() {
     }
 
     const applicationId = selectedApplication.id;
-    const matchedCar = findCarByVehicleLookup(cars, applicationApprovalForm.assigned_vehicle_lookup);
-    const assignedCarId = matchedCar?.id ?? Number(applicationApprovalForm.assigned_car_id);
+    const approvedVehicle = applicationApprovalForm.approved_vehicle.trim();
     const approvedBond = Number(applicationApprovalForm.approved_bond);
     const approvedWeeklyPrice = Number(applicationApprovalForm.approved_weekly_price);
 
-    if (!assignedCarId || approvedBond < 0 || approvedWeeklyPrice <= 0) {
-      showNotification('Enter a valid vehicle number plate and valid bond and weekly payment amounts.', 'error');
+    if (!approvedVehicle || approvedBond < 0 || approvedWeeklyPrice <= 0) {
+      showNotification('Enter the approved vehicle and valid bond and weekly payment amounts.', 'error');
       return;
     }
 
@@ -751,9 +716,9 @@ export default function AdminDashboard() {
       const response = await approveApplicationPaymentMutation.mutateAsync({
         id: applicationId,
         payload: {
+          approved_vehicle: approvedVehicle,
           approved_bond: approvedBond,
           approved_weekly_price: approvedWeeklyPrice,
-          assigned_car_id: assignedCarId,
           send_payment_link: true,
         },
       });
@@ -781,9 +746,9 @@ export default function AdminDashboard() {
           const restrictedApproval = await approveApplicationPaymentMutation.mutateAsync({
             id: applicationId,
             payload: {
+              approved_vehicle: approvedVehicle,
               approved_bond: approvedBond,
               approved_weekly_price: approvedWeeklyPrice,
-              assigned_car_id: assignedCarId,
               send_payment_link: false,
             },
           });
@@ -837,7 +802,7 @@ export default function AdminDashboard() {
 
     try {
       await retryPaymentReviewActivationMutation.mutateAsync(selectedApplication.id);
-      showNotification('Payment activation completed and the rental is now live.', 'success');
+      showNotification('Payment finalization completed and the application is marked paid.', 'success');
       setSelectedApplication(null);
     } catch (error) {
       showNotification(
@@ -895,23 +860,7 @@ export default function AdminDashboard() {
     }
 
     setApplicationApprovalForm({
-      assigned_car_id: selectedApplication.assigned_car_id
-        ? String(selectedApplication.assigned_car_id)
-        : '',
-      assigned_vehicle_lookup: selectedApplication.assigned_car_id
-        ? getVehicleLookupLabel(
-            cars.find((car) => car.id === Number(selectedApplication.assigned_car_id)) ?? {
-              id: Number(selectedApplication.assigned_car_id),
-              archived_at: null,
-              bond: 0,
-              image: '',
-              model_year: new Date().getFullYear(),
-              name: '',
-              status: 'Available',
-              weekly_price: 0,
-            }
-          )
-        : '',
+      approved_vehicle: selectedApplication.approved_vehicle || '',
       approved_bond:
         selectedApplication.approved_bond != null ? String(selectedApplication.approved_bond) : '',
       approved_weekly_price:
@@ -919,7 +868,7 @@ export default function AdminDashboard() {
           ? String(selectedApplication.approved_weekly_price)
           : '',
     });
-  }, [cars, selectedApplication]);
+  }, [selectedApplication]);
 
   const isLoadingCustomerDataset = shouldLoadCustomers && customerDatasetQuery.isPending && !customerDataset;
   const isLoadingInvoiceDataset = shouldLoadInvoices && invoiceDatasetQuery.isPending && !invoiceDataset;
@@ -951,20 +900,9 @@ export default function AdminDashboard() {
   const selectedAgreementApplication = applications.find(
     (app) => app.id === selected_agreement_application_id
   );
-  const matchedApprovalCar =
-    findCarByVehicleLookup(cars, applicationApprovalForm.assigned_vehicle_lookup) ??
-    cars.find(
-      (car) =>
-        car.id === Number(applicationApprovalForm.assigned_car_id || selectedApplication?.assigned_car_id || 0)
-    );
-  const selectedApplicationAssignedCar = cars.find(
-    (car) =>
-      car.id === Number(matchedApprovalCar?.id || selectedApplication?.assigned_car_id || 0)
-  );
   const canCopyVehicleCheckoutLink =
     Boolean(selectedAgreementApplication) &&
-    selectedAgreementApplication?.status === 'Approved' &&
-    Boolean(selectedAgreementApplication?.assigned_car_id);
+    selectedAgreementApplication?.status === 'Approved';
   const formatCurrency = (value?: number | string | null) => `$${Number(value ?? 0).toFixed(2)}`;
   const formatDate = (value?: string | null) => {
     if (!value) {
@@ -1358,7 +1296,7 @@ export default function AdminDashboard() {
                           Approval & Payment Quote
                         </h4>
                         <p className="text-sm text-brand-grey font-light mt-3 max-w-2xl">
-                          Assign the vehicle, set the approved bond and weekly payment, then email a fresh secure payment link.
+                          Confirm the approved vehicle, set the bond and weekly payment, then email a fresh secure Stripe payment link.
                         </p>
                       </div>
                       {selectedApplication.payment_link_sent_at && (
@@ -1381,34 +1319,24 @@ export default function AdminDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                          Vehicle Number Plate
+                          Approved Vehicle
                         </label>
                         <input
                           type="text"
-                          value={applicationApprovalForm.assigned_vehicle_lookup}
-                          onChange={(e) => {
-                            const nextLookup = e.target.value.toUpperCase();
-                            const matchedCar = findCarByVehicleLookup(cars, nextLookup);
+                          value={applicationApprovalForm.approved_vehicle}
+                          onChange={(e) =>
                             setApplicationApprovalForm((current) => ({
-                              assigned_car_id: matchedCar ? String(matchedCar.id) : '',
-                              assigned_vehicle_lookup: nextLookup,
-                              approved_bond:
-                                current.approved_bond || !matchedCar ? current.approved_bond : String(matchedCar.bond),
-                              approved_weekly_price:
-                                current.approved_weekly_price || !matchedCar
-                                  ? current.approved_weekly_price
-                                  : String(matchedCar.weekly_price),
-                            }));
-                          }}
+                              ...current,
+                              approved_vehicle: e.target.value,
+                            }))
+                          }
                           className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
-                          placeholder="Enter number plate"
+                          placeholder="Example: 2023 Toyota Camry Hybrid"
                           autoComplete="off"
                           spellCheck={false}
                         />
                         <p className="text-xs text-brand-grey font-light">
-                          {matchedApprovalCar
-                            ? `Matched vehicle: ${matchedApprovalCar.name} (${matchedApprovalCar.model_year})`
-                            : 'Enter the exact vehicle number plate to match one fleet vehicle.'}
+                          This free-text vehicle note is shown in the payment flow and admin review.
                         </p>
                       </div>
                       <div className="space-y-2">
@@ -1449,13 +1377,13 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {selectedApplicationAssignedCar && (
+                    {applicationApprovalForm.approved_vehicle && (
                       <div className="rounded-2xl border border-brand-gold/20 bg-brand-gold/5 px-5 py-4">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
                           Approved payment summary
                         </p>
                         <p className="text-sm text-brand-grey font-light leading-relaxed">
-                          Vehicle: <span className="text-white font-bold">{selectedApplicationAssignedCar.name}</span>
+                          Vehicle: <span className="text-white font-bold">{applicationApprovalForm.approved_vehicle}</span>
                           {' '}| Bond:{' '}
                           <span className="text-white font-bold">
                             ${Number(applicationApprovalForm.approved_bond || 0).toFixed(2)}
@@ -1511,11 +1439,7 @@ export default function AdminDashboard() {
                   <button
                     onClick={() => {
                       set_selected_agreement_application_id(selectedApplication.id.toString());
-                      set_selected_agreement_car_id(
-                        selectedApplication.assigned_car_id
-                          ? selectedApplication.assigned_car_id.toString()
-                          : ''
-                      );
+                      set_selected_agreement_car_id('');
                       setSelectedApplication(null);
                       setActiveTab('agreements');
                     }}
@@ -1535,7 +1459,7 @@ export default function AdminDashboard() {
                     ) : (
                       <RefreshCw className="w-4 h-4" />
                     )}
-                    Retry Activation
+                    Retry Payment Finalization
                   </button>
                 )}
               </div>

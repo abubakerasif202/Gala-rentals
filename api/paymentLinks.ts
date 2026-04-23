@@ -25,15 +25,12 @@ export const getAppBaseUrl = () => {
 
 export const buildDriverPaymentLink = ({
   applicationId,
-  carId,
   token,
 }: {
   applicationId: string;
-  carId: number;
   token: string;
 }) => {
-  const checkoutUrl = new URL(`/checkout/${carId}`, getAppBaseUrl());
-  checkoutUrl.searchParams.set('application_id', String(applicationId));
+  const checkoutUrl = new URL(`/checkout/${applicationId}`, getAppBaseUrl());
   return appendCheckoutTokenHash(checkoutUrl, token).toString();
 };
 
@@ -42,19 +39,17 @@ export const sendDriverPaymentLinkEmail = async ({
   applicantName,
   approvedBond,
   approvedWeeklyPrice,
-  carName,
+  approvedVehicle,
   checkoutUrl,
   setupFees,
-  agreement,
 }: {
   applicantEmail: string;
   applicantName: string;
   approvedBond: number;
   approvedWeeklyPrice: number;
-  carName: string;
+  approvedVehicle: string;
   checkoutUrl: string;
   setupFees: number;
-  agreement?: string;
 }) => {
   if (!process.env.RESEND_API_KEY) {
     return {
@@ -67,9 +62,8 @@ export const sendDriverPaymentLinkEmail = async ({
   const resend = new Resend(process.env.RESEND_API_KEY);
   const upfrontDue = approvedBond + approvedWeeklyPrice + setupFees;
   const safeApplicantName = escapeHtml(applicantName);
-  const safeCarName = escapeHtml(carName);
+  const safeApprovedVehicle = escapeHtml(approvedVehicle);
   const safeCheckoutUrl = escapeHtml(checkoutUrl);
-  const safeAgreement = agreement ? escapeHtml(agreement) : null;
   const hasSetupFees = setupFees > 0;
 
   try {
@@ -81,8 +75,8 @@ export const sendDriverPaymentLinkEmail = async ({
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
           <h2 style="color: #D4AF37;">Application Ready For Checkout</h2>
           <p>Hi ${safeApplicantName},</p>
-          <p>Your application is complete and your secure checkout link is now ready.</p>
-          <p><strong>Assigned vehicle:</strong> ${safeCarName}</p>
+          <p>Your application review is complete and your secure checkout link is now ready.</p>
+          <p><strong>Approved vehicle:</strong> ${safeApprovedVehicle}</p>
           <p><strong>Bond:</strong> ${formatCurrency(approvedBond)}</p>
           <p><strong>Weekly payment:</strong> ${formatCurrency(approvedWeeklyPrice)}</p>
           ${
@@ -92,6 +86,7 @@ export const sendDriverPaymentLinkEmail = async ({
           }
           <p><strong>Total due now:</strong> ${formatCurrency(upfrontDue)}</p>
           <p>After the upfront payment, Stripe automatically charges ${formatCurrency(approvedWeeklyPrice)} each week.</p>
+          <p>Once Stripe confirms payment, Maple Rentals finalises onboarding and handover with you directly.</p>
           <p>
             <a
               href="${safeCheckoutUrl}"
@@ -101,13 +96,6 @@ export const sendDriverPaymentLinkEmail = async ({
             </a>
           </p>
           <p>This link is time-limited for security. If it expires, reply to this email and we will issue a fresh one.</p>
-          ${
-            safeAgreement
-              ? `
-          <h3 style="color: #0f172a;">Lease Agreement</h3>
-          <pre style="white-space: pre-wrap;padding:10px;background:#f9fafb;border:1px solid #d1d5db;border-radius:6px;">${safeAgreement}</pre>`
-              : ''
-          }
           <p>Best regards,<br /><strong>The Maple Rentals Team</strong></p>
         </div>
       `,

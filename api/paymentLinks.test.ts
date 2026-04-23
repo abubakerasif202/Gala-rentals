@@ -35,9 +35,8 @@ describe('paymentLinks', () => {
     expect(
       buildDriverPaymentLink({
         applicationId: '11111111-1111-4111-8111-111111111111',
-        carId: 7,
         token: 'checkout-token',
       })
-    ).toContain('http://localhost:3000/checkout/7');
+    ).toContain('http://localhost:3000/checkout/11111111-1111-4111-8111-111111111111');
   });
 });

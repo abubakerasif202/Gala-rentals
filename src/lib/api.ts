@@ -182,9 +182,9 @@ export interface ApplicationActivationRetryResponse {
 }
 
 export interface ApprovedPaymentContextResponse {
-  agreement: string;
   applicant_name: string;
   application_id: string;
+  approved_vehicle: string;
   billing: {
     bond: number;
     currency: string;
@@ -196,7 +196,7 @@ export interface ApprovedPaymentContextResponse {
     setupFees: number;
     upfrontDue: number;
   };
-  car: Car;
+  vehicle_image: string;
 }
 
 export const fetchApplicationDocumentUrl = async (
@@ -221,7 +221,6 @@ export const submitInquiry = async (
 
 export const createVehicleCheckoutSession = async (payload: {
   application_id: string;
-  car_id: number;
   checkout_token: string;
 }): Promise<HostedCheckoutSessionResponse> => {
   const { data } = await api.post('/stripe/vehicle-checkout-session', payload);
@@ -230,7 +229,6 @@ export const createVehicleCheckoutSession = async (payload: {
 
 export const fetchApprovedPaymentContext = async (options: {
   application_id: string;
-  car_id: number;
   checkout_token: string;
 }): Promise<ApprovedPaymentContextResponse> => {
   const { checkout_token, ...params } = options;
@@ -247,7 +245,6 @@ export const fetchCheckoutSessionStatus = async (
   sessionId: string,
   options: {
     application_id: string;
-    car_id: number;
     checkout_token: string;
   }
 ): Promise<CheckoutSessionStatusResponse> => {
@@ -317,9 +314,9 @@ export const createVehicleCheckoutLink = async (payload: {
 export const approveApplicationForPayment = async (
   id: string,
   payload: {
+    approved_vehicle: string;
     approved_bond: number;
     approved_weekly_price: number;
-    assigned_car_id: number;
     send_payment_link?: boolean;
   }
 ): Promise<ApplicationApprovalResponse> => {

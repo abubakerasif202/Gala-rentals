@@ -107,7 +107,7 @@ export const verifyCheckoutToken = ({
     throw new Error('Checkout token application mismatch.');
   }
 
-  if ((payload.carId ?? null) !== carId) {
+  if (carId != null && (payload.carId ?? null) !== carId) {
     throw new Error('Checkout token car mismatch.');
   }
 

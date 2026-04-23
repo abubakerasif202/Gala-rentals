@@ -20,21 +20,19 @@ const fadeIn = {
 const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
 
 export default function Checkout() {
-  const { id } = useParams();
+  const { id: applicationIdParam } = useParams();
   const [searchParams] = useSearchParams();
   const [checkoutToken, setCheckoutToken] = useState(
     () => resolveCheckoutToken(searchParams, window.location.hash)
   );
   const [pageError, setPageError] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const applicationIdParam = searchParams.get('application_id') || '';
-  const applicationId = isUuid(applicationIdParam) ? applicationIdParam : '';
-  const carId = Number(id || 0);
+  const applicationId = isUuid(applicationIdParam || '') ? String(applicationIdParam) : '';
   const pageSeo = (
     <Seo
       title="Secure Checkout | Maple Rentals"
-      description="Secure Maple Rentals checkout for approved vehicle applications."
-      canonicalPath={id ? `/checkout/${id}` : '/checkout'}
+      description="Secure Maple Rentals checkout for approved driver applications."
+      canonicalPath={applicationId ? `/checkout/${applicationId}` : '/checkout'}
       robots="noindex,nofollow"
     />
   );
@@ -44,14 +42,13 @@ export default function Checkout() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['approved-payment-context', applicationId, carId, checkoutToken],
+    queryKey: ['approved-payment-context', applicationId, checkoutToken],
     queryFn: () =>
       fetchApprovedPaymentContext({
         application_id: applicationId,
-        car_id: carId,
         checkout_token: checkoutToken,
       }),
-    enabled: Boolean(applicationId && carId && checkoutToken),
+    enabled: Boolean(applicationId && checkoutToken),
     retry: false,
   });
 
@@ -90,7 +87,7 @@ export default function Checkout() {
   }, [checkoutToken]);
 
   const handleStartCheckout = async () => {
-    if (!carId || !applicationId || !checkoutToken) {
+    if (!applicationId || !checkoutToken) {
       setPageError('This secure checkout link is incomplete. Contact the team for a fresh link.');
       return;
     }
@@ -101,7 +98,6 @@ export default function Checkout() {
     try {
       const session = await createVehicleCheckoutSession({
         application_id: applicationId,
-        car_id: carId,
         checkout_token: checkoutToken,
       });
 
@@ -124,7 +120,7 @@ export default function Checkout() {
     }
   };
 
-  if (!applicationId || !checkoutToken || !carId) {
+  if (!applicationId || !checkoutToken) {
     return (
       <>
         {pageSeo}
@@ -137,8 +133,8 @@ export default function Checkout() {
               This payment page needs a valid checkout link
             </h1>
             <p className="text-brand-grey font-light">
-              Start with a vehicle application so we can generate the agreement and secure checkout
-              link for the selected car.
+              Start with a Maple Rentals application so we can complete review, approve the vehicle,
+              and issue a secure Stripe payment link.
             </p>
             <Link
               to="/apply"
@@ -183,7 +179,7 @@ export default function Checkout() {
     );
   }
 
-  const { agreement, billing, car } = paymentContext;
+  const { approved_vehicle, billing, vehicle_image } = paymentContext;
   const hasSetupFees = billing.setupFees > 0;
 
   return (
@@ -193,10 +189,10 @@ export default function Checkout() {
       <div className="container mx-auto px-6">
         <div className="max-w-6xl mx-auto">
           <Link
-            to={`/cars/${car.id}`}
+            to="/apply"
             className="inline-flex items-center gap-2 text-brand-grey hover:text-brand-gold transition-colors mb-12 uppercase tracking-widest text-[10px] font-bold"
           >
-            <ArrowLeft className="w-4 h-4" /> Back to vehicle
+            <ArrowLeft className="w-4 h-4" /> Back to application
           </Link>
 
           {pageError && (
@@ -210,10 +206,10 @@ export default function Checkout() {
               <motion.div initial="hidden" animate="visible" variants={fadeIn} className="space-y-10">
                 <div>
                   <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 uppercase tracking-tighter">
-                    Checkout <span className="text-brand-gold italic">& Agreement</span>
+                    Secure <span className="text-brand-gold italic">Stripe Checkout</span>
                   </h1>
                   <p className="text-brand-grey font-light">
-                    Review the rental terms, confirm the upfront amount, then continue to Stripe.
+                    Review the approved vehicle and payment breakdown, then continue to Stripe.
                   </p>
                 </div>
 
@@ -227,21 +223,24 @@ export default function Checkout() {
                         Hosted Stripe session
                       </p>
                       <p className="text-sm text-brand-grey font-light leading-relaxed">
-                        This payment collects the approved security bond shown below, your first
-                        weekly rental payment, and any setup fees before automatic weekly billing
-                        starts.
+                        Payment happens only after Maple Rentals has reviewed your application.
+                        Stripe collects the approved bond, your first weekly payment, and any setup
+                        fees before recurring weekly billing starts.
                       </p>
                     </div>
                   </div>
 
-                  <details className="rounded-2xl border border-white/10 bg-brand-navy/40 px-5 py-4">
-                    <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-widest text-brand-gold">
-                      View generated agreement
-                    </summary>
-                    <pre className="mt-4 whitespace-pre-wrap text-xs text-brand-grey font-light leading-relaxed">
-                      {agreement}
-                    </pre>
-                  </details>
+                  <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-5 py-5 space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">
+                      Approved vehicle
+                    </p>
+                    <p className="text-xl font-semibold text-white">{approved_vehicle}</p>
+                    <p className="text-sm text-brand-grey font-light leading-relaxed">
+                      Your application has already been reviewed by Maple Rentals. After Stripe
+                      confirms payment, the team finalises onboarding, handover, and any remaining
+                      operational steps directly with you.
+                    </p>
+                  </div>
 
                   <button
                     type="button"
@@ -279,12 +278,12 @@ export default function Checkout() {
               >
                 <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
                   <div className="aspect-video relative">
-                    <img src={car.image} alt={`${car.name} secure checkout preview`} className="w-full h-full object-cover" />
+                    <img src={vehicle_image} alt="Maple Rentals approved vehicle preview" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-brand-navy to-transparent opacity-60" />
                     <div className="absolute bottom-6 left-6">
-                      <h3 className="text-xl font-bold text-white uppercase tracking-tight">{car.name}</h3>
+                      <h3 className="text-xl font-bold text-white tracking-tight">{approved_vehicle}</h3>
                       <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">
-                        {car.model_year} model hybrid
+                        Reviewed and approved by Maple Rentals
                       </p>
                     </div>
                   </div>
@@ -325,7 +324,8 @@ export default function Checkout() {
                     </div>
                     <p className="text-[10px] text-brand-grey leading-relaxed">
                       After the upfront payment, your recurring rental will be{' '}
-                      <strong>{formatCurrency(billing.recurringAmount)}</strong> {billing.recurringLabel}.
+                      <strong>{formatCurrency(billing.recurringAmount)}</strong> {billing.recurringLabel}. Stripe
+                      handles the payment securely and Maple Rentals completes the driver onboarding process after confirmation.
                     </p>
                   </div>
                 </div>

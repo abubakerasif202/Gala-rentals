@@ -7,7 +7,10 @@ import {
   withPostgresAdvisoryLock,
   withPostgresTransaction,
 } from './db/postgres.js';
-import { transitionApplicationToPaymentReviewIfCurrentVersion } from './applicationPaymentState.js';
+import {
+  transitionApplicationToPaymentReviewIfCurrentVersion,
+  updateApplicationPaymentStateIfCurrentVersion,
+} from './applicationPaymentState.js';
 import {
   getApplicationSelectColumns,
   getCarSelectColumns,
@@ -483,14 +486,11 @@ export const handleVehicleCheckoutCompletion = async (
   session: Stripe.Checkout.Session
 ): Promise<'already_fulfilled' | 'fulfilled' | 'manual_review' | 'skipped'> => {
   const applicationId = normalizeUuid(session.metadata?.application_id || '');
-  const carId = Number(session.metadata?.car_id || 0);
+  const legacyCarId = Number(session.metadata?.car_id || 0) || null;
   const sessionPaymentLinkVersion = Number(session.metadata?.payment_link_version || 0);
   const subscriptionId =
     typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null;
-  const customerId =
-    typeof session.customer === 'string' ? session.customer : session.customer?.id || null;
-
-  if (!applicationId || !carId || !subscriptionId) {
+  if (!applicationId || !subscriptionId) {
     return 'skipped' as const;
   }
 
@@ -502,42 +502,27 @@ export const handleVehicleCheckoutCompletion = async (
       return 'already_fulfilled' as const;
     }
 
-    const activeDate = getTodayInAustralia();
-
     const selectColumns = await getApplicationSelectColumns();
-    const [applicationResult, carResult, existingRentalsResult] = await Promise.all([
-      db.from('applications').select(selectColumns).eq('id', applicationId).single(),
-      db.from('cars').select(await getCarSelectColumns()).eq('id', carId).single(),
-      fetchExistingRentalsForCar(carId),
-    ]);
+    const applicationResult = await db
+      .from('applications')
+      .select(selectColumns)
+      .eq('id', applicationId)
+      .single();
 
     if (applicationResult.error || !applicationResult.data) {
       throw new Error(`Failed to fetch application ${applicationId} for payment completion.`);
     }
 
-    if (carResult.error || !carResult.data) {
-      throw new Error(`Failed to fetch car ${carId} for payment completion.`);
-    }
-
     const application = applicationResult.data as unknown as Record<string, unknown>;
-    const car = carResult.data as unknown as Record<string, unknown>;
-    const { compat, rentalApplicationIdColumn, rentals: existingRentals } = existingRentalsResult;
-    const approvedWeeklyPrice =
-      Number(
-        application.approved_weekly_price ??
-          application.approvedWeeklyPrice ??
-          session.metadata?.approved_weekly_price ??
-          0
-      ) || 0;
-    const approvedBond =
-      Number(
-        application.approved_bond ??
-          application.approvedBond ??
-          session.metadata?.approved_bond ??
-          0
-      ) || 0;
     const safeApplicantName = escapeHtml(String(application.name || ''));
-    const safeCarName = escapeHtml(String(car.name || ''));
+    const safeApprovedVehicle = escapeHtml(
+      String(
+        application.approved_vehicle ??
+          application.approvedVehicle ??
+          session.metadata?.approved_vehicle ??
+          'Approved vehicle'
+      )
+    );
     const recordedPaidAt = application.paid_at
       ? String(application.paid_at)
       : new Date().toISOString();
@@ -579,7 +564,7 @@ export const handleVehicleCheckoutCompletion = async (
               <h2 style="color: #D4AF37;">Payment Received, Activation Pending</h2>
               <p><strong>Application ID:</strong> ${applicationId}</p>
               <p><strong>Applicant:</strong> ${safeApplicantName}</p>
-              <p><strong>Vehicle:</strong> ${safeCarName}</p>
+              <p><strong>Approved vehicle:</strong> ${safeApprovedVehicle}</p>
               <p><strong>Checkout session:</strong> ${escapeHtml(session.id)}</p>
               <p><strong>Stripe subscription:</strong> ${escapeHtml(subscriptionId)}</p>
               <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
@@ -593,22 +578,15 @@ export const handleVehicleCheckoutCompletion = async (
       return 'manual_review' as const;
     };
 
-    if (!hasTransactionalPaymentProcessing()) {
-      return moveApplicationToPaymentReview(
-        AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON
-      );
-    }
-    const assignedCarId = Number(application.assigned_car_id || 0);
     const pendingCheckoutSessionId = application.pending_checkout_session_id
       ? String(application.pending_checkout_session_id)
       : null;
     const sessionStillMatchesCurrentApproval =
-      assignedCarId === carId &&
       sessionPaymentLinkVersion === Number(application.payment_link_version || 0);
 
     if (!sessionStillMatchesCurrentApproval) {
       return moveApplicationToPaymentReview(
-        'Paid Stripe session no longer matches the latest approved vehicle assignment or payment link version.'
+        'Paid Stripe session no longer matches the latest approved payment link version.'
       );
     }
 
@@ -635,156 +613,101 @@ export const handleVehicleCheckoutCompletion = async (
       );
     }
 
-    const rentalsForApplication = existingRentals.filter(
-      (rental) => String(rental[rentalApplicationIdColumn]) === applicationId
-    );
-    let existingRental =
-      (compat.rentalStripeSubscriptionColumn
-        ? existingRentals.find(
-            (rental) => rental[compat.rentalStripeSubscriptionColumn!] === subscriptionId
-          )
-        : null) || null;
+    if (legacyCarId) {
+      const { rentalApplicationIdColumn, rentals } =
+        await fetchExistingRentalsForCar(legacyCarId);
+      const existingRentalForApplication =
+        rentals.find(
+          (rental) =>
+            normalizeUuid(String(rental[rentalApplicationIdColumn] || '')) ===
+            applicationId
+        ) || null;
+      const blockingRental =
+        rentals.find((rental) => {
+          const rentalApplicationId = normalizeUuid(
+            String(rental[rentalApplicationIdColumn] || '')
+          );
+          return (
+            rentalApplicationId !== applicationId &&
+            isLiveRentalStatus(rental.status)
+          );
+        }) || null;
 
-    if (!existingRental && rentalsForApplication.length === 1) {
-      existingRental = rentalsForApplication[0];
-    }
-
-    if (!existingRental && rentalsForApplication.length > 1) {
-      return moveApplicationToPaymentReview(
-        `Multiple rentals match application ${applicationId} and car ${carId}; manual activation review required.`
-      );
-    }
-    const blockingRental = existingRentals.find(
-      (rental) =>
-        isLiveRentalStatus(rental.status) &&
-        String(rental[rentalApplicationIdColumn]) !== applicationId
-    );
-
-    const existingRentalSubscriptionId = compat.rentalStripeSubscriptionColumn
-      ? String(existingRental?.[compat.rentalStripeSubscriptionColumn] || '')
-      : '';
-
-    if (applicationStatus === 'Paid' && existingRental) {
-      if (
-        existingRentalSubscriptionId &&
-        existingRentalSubscriptionId !== subscriptionId
-      ) {
-        console.warn(
-          `Ignoring duplicate checkout completion ${session.id} because application ${applicationId} is already bound to subscription ${existingRentalSubscriptionId}.`
+      if (blockingRental) {
+        return moveApplicationToPaymentReview(
+          `Vehicle ${legacyCarId} is no longer available for automatic activation.`
         );
-        return 'already_fulfilled' as const;
       }
 
+      const approvedBond = Number(
+        session.metadata?.approved_bond ?? application.approved_bond ?? 0
+      );
+      const approvedWeeklyPrice = Number(
+        session.metadata?.approved_weekly_price ??
+          application.approved_weekly_price ??
+          0
+      );
+      const rentalPayload = await toRentalWritePayload({
+        application_id: applicationId,
+        bond_paid: approvedBond,
+        car_id: legacyCarId,
+        start_date: getTodayInAustralia(),
+        status: 'Active',
+        stripe_customer_id:
+          typeof session.customer === 'string' ? session.customer : null,
+        stripe_subscription_id: subscriptionId,
+        weekly_price: approvedWeeklyPrice,
+      });
+
+      try {
+        return await applyVehicleCheckoutActivationWrites({
+          applicationId,
+          carId: legacyCarId,
+          existingRentalId:
+            Number(existingRentalForApplication?.id || 0) || null,
+          expectedPaymentLinkVersion: sessionPaymentLinkVersion,
+          fulfillmentSessionId: session.id,
+          paidAt: recordedPaidAt,
+          rentalInsertPayload: rentalPayload,
+          rentalRepairPayload: stripRentalIdentityFields(rentalPayload),
+        });
+      } catch (error) {
+        if (isDuplicateWrite(error)) {
+          return 'already_fulfilled' as const;
+        }
+
+        return moveApplicationToPaymentReview(
+          error instanceof Error
+            ? error.message
+            : 'Automatic vehicle activation failed and requires manual review.'
+        );
+      }
+    }
+
+    if (applicationStatus === 'Paid') {
       console.info(
-        `Ignoring replayed checkout completion ${session.id} because application ${applicationId} is already active.`
+        `Ignoring replayed checkout completion ${session.id} because application ${applicationId} is already marked paid.`
       );
       return 'already_fulfilled' as const;
     }
 
-    if (blockingRental) {
+    const didAdvance = await updateApplicationPaymentStateIfCurrentVersion({
+      applicationId,
+      expectedPaymentLinkVersion: sessionPaymentLinkVersion,
+      payload: {
+        paid_at: recordedPaidAt,
+        pending_checkout_session_id: null,
+        status: 'Paid',
+      },
+    });
+
+    if (!didAdvance) {
       return moveApplicationToPaymentReview(
-        `Vehicle ${carId} is already attached to another live rental.`
+        'Application payment details changed while finalizing the paid Stripe session.'
       );
     }
 
-    if (!existingRental) {
-      if (String(car.status) !== 'Available' && String(car.status) !== 'Rented') {
-        return moveApplicationToPaymentReview(
-          `Vehicle ${carId} is not available for activation while marked ${car.status}.`
-        );
-      }
-
-      const rentalInsertPayload = (await toRentalWritePayload({
-        application_id: applicationId,
-        bond_paid: approvedBond,
-        car_id: carId,
-        start_date: activeDate,
-        status: 'Active',
-        stripe_customer_id: customerId,
-        stripe_subscription_id: subscriptionId,
-        weekly_price: approvedWeeklyPrice,
-      })) as Record<string, unknown>;
-      const rentalRepairPayload = stripRentalIdentityFields(rentalInsertPayload);
-
-      try {
-        const activationOutcome = await applyVehicleCheckoutActivationWrites({
-          applicationId,
-          carId,
-          existingRentalId: null,
-          expectedPaymentLinkVersion: sessionPaymentLinkVersion,
-          fulfillmentSessionId: session.id,
-          paidAt: recordedPaidAt,
-          rentalInsertPayload,
-          rentalRepairPayload,
-        });
-
-        if (activationOutcome === 'already_fulfilled') {
-          return activationOutcome;
-        }
-      } catch (error) {
-        if (!isDuplicateWrite(error)) {
-          throw error;
-        }
-
-        const refetchedRentals = await fetchExistingRentalsForCar(carId);
-        const refetchedRentalsForApplication = refetchedRentals.rentals.filter(
-          (rental) => String(rental[rentalApplicationIdColumn]) === applicationId
-        );
-
-        existingRental =
-          (compat.rentalStripeSubscriptionColumn
-            ? refetchedRentals.rentals.find(
-                (rental) => rental[compat.rentalStripeSubscriptionColumn!] === subscriptionId
-              )
-            : null) ||
-          (refetchedRentalsForApplication.length === 1
-            ? refetchedRentalsForApplication[0]
-            : null);
-
-        if (!existingRental && refetchedRentalsForApplication.length > 1) {
-          return moveApplicationToPaymentReview(
-            `Multiple rentals match application ${applicationId} and car ${carId}; manual activation review required.`
-          );
-        }
-
-        if (!existingRental) {
-          throw new Error(
-            `Rental insert reported a duplicate write, but no rental could be recovered for application ${applicationId}.`
-          );
-        }
-      }
-    }
-
-    if (existingRental) {
-      const rentalInsertPayload = (await toRentalWritePayload({
-        application_id: applicationId,
-        bond_paid: approvedBond,
-        car_id: carId,
-        start_date: activeDate,
-        status: 'Active',
-        stripe_customer_id: customerId,
-        stripe_subscription_id: subscriptionId,
-        weekly_price: approvedWeeklyPrice,
-      })) as Record<string, unknown>;
-      const rentalRepairPayload = stripRentalIdentityFields(rentalInsertPayload);
-
-      const activationOutcome = await applyVehicleCheckoutActivationWrites({
-        applicationId,
-        carId,
-        existingRentalId: Number(existingRental.id),
-        expectedPaymentLinkVersion: sessionPaymentLinkVersion,
-        fulfillmentSessionId: session.id,
-        paidAt: recordedPaidAt,
-        rentalInsertPayload,
-        rentalRepairPayload,
-      });
-
-      if (activationOutcome === 'already_fulfilled') {
-        return activationOutcome;
-      }
-    }
-
-    if (!process.env.RESEND_API_KEY || String(application.status) === 'Paid') {
+    if (!process.env.RESEND_API_KEY) {
       return 'fulfilled' as const;
     }
 
@@ -798,8 +721,8 @@ export const handleVehicleCheckoutCompletion = async (
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
             <h2 style="color: #D4AF37;">Payment Confirmed</h2>
             <p>Hi ${safeApplicantName},</p>
-            <p>Your payment for the <strong>${safeCarName}</strong> has been successfully processed.</p>
-            <p>Your rental is now <strong>Active</strong>. We will contact you shortly with collection details.</p>
+            <p>Your payment for the approved vehicle <strong>${safeApprovedVehicle}</strong> has been successfully processed.</p>
+            <p>Your application is now marked <strong>Paid</strong>. Maple Rentals will contact you shortly to complete onboarding and handover details.</p>
             <p><strong>Subscription ID:</strong> ${escapeHtml(subscriptionId)}</p>
             <br>
             <p>Best regards,</p>

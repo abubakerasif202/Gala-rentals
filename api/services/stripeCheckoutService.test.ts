@@ -44,7 +44,7 @@ describe('stripeCheckoutService checkout helpers', () => {
       id: 'cs_open_vehicle',
       metadata: {
         application_id: '11111111-1111-4111-8111-111111111111',
-        car_id: '7',
+        checkout_kind: 'vehicle',
         payment_link_version: '4',
       },
       status: 'open',
@@ -61,7 +61,6 @@ describe('stripeCheckoutService checkout helpers', () => {
           pending_checkout_session_id: 'cs_open_vehicle',
           status: 'Approved',
         },
-        carId: 7,
       })
     ).resolves.toEqual({
       retryKeySeed: null,
@@ -69,7 +68,7 @@ describe('stripeCheckoutService checkout helpers', () => {
         id: 'cs_open_vehicle',
         metadata: {
           application_id: '11111111-1111-4111-8111-111111111111',
-          car_id: '7',
+          checkout_kind: 'vehicle',
           payment_link_version: '4',
         },
         status: 'open',

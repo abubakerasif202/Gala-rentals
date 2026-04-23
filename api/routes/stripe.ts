@@ -179,10 +179,9 @@ router.get('/lease-settings', (_req, res) => {
 
 router.get('/payment-context', async (req, res) => {
   try {
-    const { application_id, car_id, checkout_token } = z
+    const { application_id, checkout_token } = z
       .object({
         application_id: uuidSchema,
-        car_id: z.coerce.number().int().positive(),
         checkout_token: z.string().min(1).optional(),
       })
       .parse(req.query);
@@ -203,7 +202,6 @@ router.get('/payment-context', async (req, res) => {
 
     const response = await getVehiclePaymentContext({
       applicationId: application_id,
-      carId: car_id,
       checkoutToken: resolvedCheckoutToken,
     });
 
@@ -237,10 +235,9 @@ router.get('/payment-context', async (req, res) => {
 
 router.post('/vehicle-checkout-session', async (req, res) => {
   try {
-    const { application_id, car_id, checkout_token } = vehicleCheckoutSessionSchema.parse(req.body);
+    const { application_id, checkout_token } = vehicleCheckoutSessionSchema.parse(req.body);
     const responsePayload = await createVehicleCheckoutSession({
       applicationId: application_id,
-      carId: car_id,
       checkoutToken: checkout_token,
     });
 
@@ -328,10 +325,9 @@ router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
 router.get('/checkout-sessions/:sessionId', async (req, res) => {
   try {
     const { sessionId } = z.object({ sessionId: z.string().min(1) }).parse(req.params);
-    const { application_id, car_id, checkout_token } = z
+    const { application_id, checkout_token } = z
       .object({
         application_id: uuidSchema,
-        car_id: z.coerce.number().int().positive(),
         checkout_token: z.string().min(1).optional(),
       })
       .parse(req.query);
@@ -352,7 +348,6 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
 
     const response = await getVehicleCheckoutSessionStatus({
       applicationId: application_id,
-      carId: car_id,
       checkoutToken: resolvedCheckoutToken,
       sessionId,
     });
@@ -370,7 +365,7 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
     if (
       error instanceof Error &&
       (error.message === 'Checkout session does not match this payment link.' ||
-        error.message === 'Checkout session does not match this vehicle link.')
+        error.message === 'Checkout session belongs to an outdated payment link.')
     ) {
       return res.status(403).json({ error: error.message });
     }

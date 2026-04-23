@@ -14,6 +14,7 @@ BEGIN
       ADD COLUMN IF NOT EXISTS license_back_photo TEXT,
       ADD COLUMN IF NOT EXISTS assigned_car_id BIGINT REFERENCES public.cars(id) ON DELETE SET NULL,
       ADD COLUMN IF NOT EXISTS approved_bond NUMERIC CHECK (approved_bond >= 0),
+      ADD COLUMN IF NOT EXISTS approved_vehicle TEXT,
       ADD COLUMN IF NOT EXISTS approved_weekly_price NUMERIC CHECK (approved_weekly_price >= 0),
       ADD COLUMN IF NOT EXISTS payment_link_version INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS payment_link_sent_at TIMESTAMPTZ,

@@ -74,15 +74,8 @@ export default function AgreementsTab({
               value={selected_agreement_application_id}
               onChange={(e) => {
                 const applicationId = e.target.value;
-                const nextApplication = applications.find(
-                  (app) => app.id === applicationId
-                );
                 set_selected_agreement_application_id(applicationId);
-                set_selected_agreement_car_id(
-                  nextApplication?.assigned_car_id
-                    ? String(nextApplication.assigned_car_id)
-                    : ''
-                );
+                set_selected_agreement_car_id('');
               }}
               className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
             >
@@ -96,7 +89,7 @@ export default function AgreementsTab({
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-              Select Assigned Vehicle
+              Select Fleet Vehicle
             </label>
             <select
               value={selected_agreement_car_id}
@@ -104,17 +97,11 @@ export default function AgreementsTab({
               className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
             >
               <option value="">Select a car...</option>
-              {cars
-                .filter((car) =>
-                  selectedAgreementApplication?.assigned_car_id
-                    ? car.id === selectedAgreementApplication.assigned_car_id
-                    : true
-                )
-                .map((car) => (
-                  <option key={car.id} value={car.id}>
-                    {car.name} ({car.model_year}) - {car.status}
-                  </option>
-                ))}
+              {cars.map((car) => (
+                <option key={car.id} value={car.id}>
+                  {car.name} ({car.model_year}) - {car.status}
+                </option>
+              ))}
             </select>
           </div>
           <div className="grid grid-cols-1 gap-3">
@@ -154,7 +141,7 @@ export default function AgreementsTab({
         </div>
         <p className="mt-4 text-[11px] text-brand-grey font-light">
           Secure payment links are signed and time-limited. Approve the
-          application first so the assigned vehicle and pricing are locked before
+          application first so the approved vehicle and pricing are locked before
           copying a fresh link.
         </p>
         {selectedAgreementApplication &&

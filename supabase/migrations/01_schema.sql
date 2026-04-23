@@ -36,6 +36,7 @@ CREATE TABLE applications (
   license_back_photo TEXT,
   assigned_car_id BIGINT REFERENCES cars(id) ON DELETE SET NULL,
   approved_bond NUMERIC CHECK (approved_bond >= 0),
+  approved_vehicle TEXT,
   approved_weekly_price NUMERIC CHECK (approved_weekly_price >= 0),
   payment_link_version INTEGER NOT NULL DEFAULT 0,
   payment_link_sent_at TIMESTAMPTZ,

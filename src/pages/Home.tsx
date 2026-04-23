@@ -1,37 +1,30 @@
 import { Link } from 'react-router-dom';
 import {
-  ShieldCheck,
   ArrowRight,
-  Check,
-  Wrench,
-  Fuel,
+  BadgeCheck,
+  CheckCircle2,
+  CreditCard,
+  ShieldCheck,
   Sparkles,
-  AlertCircle,
-  Loader2,
+  Wallet,
 } from 'lucide-react';
-import { motion, Variants } from 'motion/react';
+import { motion, type Variants } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import DeferredInquiryForm from '../components/DeferredInquiryForm';
 import Seo from '../components/Seo';
 import { fetchRentalPlans } from '../lib/api';
 import { buildCanonicalUrl } from '../lib/seo';
 
-const fadeIn: Variants = {
-  hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: 'easeOut' } },
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: 'easeOut' } },
 };
 
-const slideInLeft: Variants = {
-  hidden: { opacity: 0, x: -50 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.8, ease: 'easeOut' } },
-};
-
-const staggerContainer: Variants = {
-  hidden: { opacity: 0 },
+const stagger: Variants = {
+  hidden: {},
   visible: {
-    opacity: 1,
     transition: {
-      staggerChildren: 0.15,
+      staggerChildren: 0.12,
     },
   },
 };
@@ -42,7 +35,7 @@ const homeJsonLd = {
   name: 'Maple Rentals',
   url: buildCanonicalUrl('/'),
   description:
-    'Maple Rentals offers weekly car rentals and Uber car rentals for professional drivers across Sydney, Merrylands, and Parramatta.',
+    'Maple Rentals provides premium driver onboarding, reviewed approvals, and secure Stripe payment workflows for professional drivers across Sydney.',
   telephone: '+61 420 550 556',
   email: 'admin@maplerentals.com.au',
   address: {
@@ -57,182 +50,336 @@ const homeJsonLd = {
     { '@type': 'City', name: 'Sydney' },
     { '@type': 'City', name: 'Parramatta' },
     { '@type': 'City', name: 'Merrylands' },
-    { '@type': 'City', name: 'Lidcombe' },
   ],
 };
 
-const featuredVehicles = [
+const showcaseVehicles = [
   {
     image: '/car-images/CNO40S.jpeg',
-    title: 'Uber-ready hybrid sedan',
-    description: 'Clean, professional presentation for airport runs, city shifts, and daily rideshare work.',
+    title: 'Professional presentation',
+    body: 'Late-model, rideshare-ready vehicles presented for serious working drivers.',
   },
   {
     image: '/car-images/YNU55M.jpeg',
-    title: 'Driver-focused weekly rental',
-    description: 'Prepared for drivers who want consistent support, reliable handover, and fast onboarding.',
+    title: 'Managed weekly program',
+    body: 'Structured onboarding, clear payment steps, and admin-led approvals instead of open marketplace browsing.',
   },
   {
     image: '/car-images/YPB83A.jpeg',
-    title: 'Maple approval program',
-    description: 'Vehicle availability, private handover details, and final payment steps stay managed after review.',
+    title: 'Operational confidence',
+    body: 'Vehicle details stay professionally controlled while drivers move through review, payment, and handover.',
+  },
+];
+
+const trustPoints = [
+  {
+    icon: ShieldCheck,
+    title: 'Admin-reviewed approvals',
+    body: 'Every driver application is reviewed before any payment request is sent.',
+  },
+  {
+    icon: CreditCard,
+    title: 'Stripe-hosted checkout',
+    body: 'Payment happens through a secure Stripe session with approved amounts already confirmed.',
+  },
+  {
+    icon: BadgeCheck,
+    title: 'Clear onboarding path',
+    body: 'Drivers know what happens before payment, at payment, and after payment.',
+  },
+];
+
+const howItWorks = [
+  {
+    step: '01',
+    title: 'Apply as a driver',
+    body: 'Submit your documents, start date, and driver details through Maple Rentals.',
+  },
+  {
+    step: '02',
+    title: 'Admin review and approval',
+    body: 'The team reviews your application, approves the vehicle and pricing, and confirms the next step.',
+  },
+  {
+    step: '03',
+    title: 'Secure Stripe payment',
+    body: 'You receive a time-limited Stripe checkout link only after approval is complete.',
+  },
+  {
+    step: '04',
+    title: 'Onboarding and handover',
+    body: 'After successful payment, Maple Rentals finalises onboarding, scheduling, and operational handover.',
   },
 ];
 
 export default function Home() {
   const {
     data: rentalPlans = [],
-    isLoading: isLoadingRentalPlans,
-    isError: hasRentalPlanError,
   } = useQuery({
     queryKey: ['rental-plans'],
     queryFn: fetchRentalPlans,
   });
 
+  const popularPlan = rentalPlans.find((plan) => plan.popular) ?? rentalPlans[0] ?? null;
+
   return (
-    <div className="bg-white text-brand-navy min-h-screen font-sans selection:bg-brand-gold selection:text-black">
+    <div className="min-h-screen bg-[#0c0a09] text-white selection:bg-brand-gold selection:text-black">
       <Seo
-        title="Car Rentals Sydney | Uber Car Rentals Parramatta & Merrylands | Maple Rentals"
-        description="Maple Rentals provides fully insured weekly car rentals and Uber car rentals in Sydney, with convenient service for drivers in Merrylands, Parramatta, and nearby suburbs."
+        title="Premium Driver Car Rentals Sydney | Maple Rentals"
+        description="Apply with Maple Rentals for a premium, admin-reviewed driver rental program in Sydney with secure Stripe payments and structured onboarding."
         canonicalPath="/"
         keywords={[
-          'car rentals sydney',
-          'uber car rentals sydney',
-          'merrylands car rentals',
-          'parramatta car rentals',
-          'rideshare car rental sydney',
+          'driver car rentals sydney',
+          'uber rental approval sydney',
+          'weekly driver rental sydney',
+          'stripe car rental payment sydney',
+          'maple rentals sydney',
         ]}
         jsonLd={homeJsonLd}
       />
 
-      <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-32 overflow-hidden bg-[#F8F9FA]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(197,160,40,0.18),transparent_32%)]" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              variants={staggerContainer}
-              className="text-left"
-            >
-              <motion.p variants={fadeIn} className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">
-                Sydney Car Rentals
-              </motion.p>
-              <motion.h1 variants={fadeIn} className="text-5xl lg:text-7xl font-serif font-bold tracking-tight mb-8 leading-[1.05] text-brand-navy">
-                Car Rentals in Sydney for Uber Drivers.
-              </motion.h1>
-              <motion.p variants={fadeIn} className="text-lg text-slate-600 mb-10 max-w-lg font-light leading-relaxed">
-                Maple Rentals provides fully insured weekly car rentals and Uber car rentals
-                for professional drivers across Sydney, including Merrylands, Parramatta, and
-                nearby suburbs. Choose reliable hybrid vehicles designed to keep you earning.
-              </motion.p>
+      <section className="relative overflow-hidden border-b border-white/10 bg-[#120f0d]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.16),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(245,158,11,0.12),transparent_25%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))]" />
+        <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-16 px-6 pb-24 pt-32 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:pb-32 lg:pt-36">
+          <motion.div initial="hidden" animate="visible" variants={stagger} className="max-w-3xl">
+            <motion.p variants={fadeUp} className="mb-5 text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">
+              Driver Onboarding, Properly Managed
+            </motion.p>
+            <motion.h1 variants={fadeUp} className="max-w-4xl text-5xl font-serif font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl">
+              Premium driver rentals with admin-reviewed approvals and secure Stripe payments.
+            </motion.h1>
+            <motion.p variants={fadeUp} className="mt-8 max-w-2xl text-lg font-light leading-8 text-stone-300">
+              Maple Rentals is built for drivers who want a legitimate process. Apply once,
+              get reviewed by the team, receive a confirmed quote, and pay only when your
+              approval is ready.
+            </motion.p>
 
-              <motion.div variants={fadeIn} className="flex flex-col sm:flex-row gap-4 mb-10">
-                <Link
-                  to="/apply"
-                  className="bg-brand-gold hover:bg-brand-gold-light text-brand-navy px-10 py-4 font-bold text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 group"
-                >
-                  Apply Now <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <Link
-                  to="/pricing"
-                  className="border border-brand-navy/15 hover:border-brand-navy bg-white text-brand-navy px-10 py-4 font-bold text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-                >
-                  View Plans
-                </Link>
-              </motion.div>
-
-              <motion.div variants={fadeIn} className="flex flex-wrap items-center gap-6 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                <span className="inline-flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-brand-gold" /> Fully insured</span>
-                <span className="inline-flex items-center gap-2"><Sparkles className="w-4 h-4 text-brand-gold" /> Professionally detailed</span>
-                <span className="inline-flex items-center gap-2"><Fuel className="w-4 h-4 text-brand-gold" /> Serving Merrylands & Parramatta</span>
-              </motion.div>
+            <motion.div variants={fadeUp} className="mt-10 flex flex-col gap-4 sm:flex-row">
+              <Link
+                to="/apply"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-brand-navy transition-colors hover:bg-brand-gold-light"
+              >
+                Start Driver Application <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                to="/pricing"
+                className="inline-flex items-center justify-center rounded-full border border-white/15 px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-white transition-colors hover:border-brand-gold hover:text-brand-gold"
+              >
+                Review Plans
+              </Link>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-              className="relative"
-            >
-              <div className="absolute -inset-6 bg-brand-gold/10 blur-3xl" />
-              <div className="relative z-10 rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_30px_80px_rgba(0,35,71,0.12)]">
-                <p className="text-[10px] font-bold tracking-[0.38em] uppercase text-brand-gold mb-4">
-                  Approval-First Access
-                </p>
-                <div className="space-y-4">
-                  {[
-                    {
-                      icon: ShieldCheck,
-                      title: 'Private vehicle details',
-                      body: 'Car registration and final pricing are confirmed directly by Maple Rentals after approval.',
-                    },
-                    {
-                      icon: Wrench,
-                      title: 'Managed fleet support',
-                      body: 'Maintenance, servicing, and support expectations stay handled by the Maple team.',
-                    },
-                    {
-                      icon: Fuel,
-                      title: 'Hybrid-ready program',
-                      body: 'Designed for Sydney rideshare drivers who want reliable, efficient vehicles.',
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.title}
-                      className="rounded-3xl border border-slate-200 bg-[#F8F9FA] p-5"
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="rounded-2xl bg-brand-gold/10 p-3">
-                          <item.icon className="w-5 h-5 text-brand-gold" />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-bold text-brand-navy">{item.title}</h2>
-                          <p className="mt-2 text-sm leading-7 text-slate-600">{item.body}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+            <motion.div variants={fadeUp} className="mt-12 flex flex-wrap gap-3">
+              {['Application review before payment', 'Secure Stripe checkout', 'Admin-controlled onboarding'].map((item) => (
+                <div
+                  key={item}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-200"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-gold" />
+                  {item}
+                </div>
+              ))}
+            </motion.div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 32 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            className="grid gap-6"
+          >
+            <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#1b1713] shadow-[0_40px_120px_rgba(0,0,0,0.45)]">
+              <div className="aspect-[4/3] overflow-hidden">
+                <img
+                  src="/car-images/CNO40S.jpeg"
+                  alt="Premium Maple Rentals vehicle"
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="space-y-5 p-7">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
+                    Payment Confidence
+                  </p>
+                  <ShieldCheck className="h-5 w-5 text-brand-gold" />
+                </div>
+                <h2 className="text-2xl font-semibold text-white">
+                  Structured before checkout, secure at checkout, managed after checkout.
+                </h2>
+                <div className="grid gap-3 text-sm text-stone-300">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                    Payment is requested only after approval and quote review.
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                    Stripe handles the bond, first weekly payment, and recurring billing securely.
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                    Maple Rentals then completes onboarding and operational handover directly.
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {popularPlan && (
+              <div className="rounded-[2rem] border border-brand-gold/20 bg-gradient-to-br from-brand-gold/10 to-transparent p-7">
+                <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
+                  Plan Snapshot
+                </p>
+                <div className="mt-4 flex items-end justify-between gap-4">
+                  <div>
+                    <h3 className="text-2xl font-serif font-bold text-white">{popularPlan.name}</h3>
+                    <p className="mt-2 max-w-md text-sm leading-7 text-stone-300">
+                      {popularPlan.description}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-gold">
+                    {popularPlan.cadenceLabel}
+                  </p>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      </section>
+
+      <section className="border-b border-white/10 bg-[#0f0d0c] py-20">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-100px' }}
+            variants={stagger}
+            className="grid gap-6 md:grid-cols-3"
+          >
+            {trustPoints.map((item) => (
+              <motion.article
+                key={item.title}
+                variants={fadeUp}
+                className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-7"
+              >
+                <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-gold/10 text-brand-gold">
+                  <item.icon className="h-5 w-5" />
+                </div>
+                <h2 className="text-2xl font-serif font-bold text-white">{item.title}</h2>
+                <p className="mt-3 text-sm leading-7 text-stone-300">{item.body}</p>
+              </motion.article>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      <section className="border-b border-white/10 bg-[#16110e] py-24">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="grid items-start gap-10 lg:grid-cols-[0.85fr_1.15fr]">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">How It Works</p>
+              <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
+                A tighter process from first application to final onboarding.
+              </h2>
+              <p className="mt-6 max-w-xl text-lg font-light leading-8 text-stone-300">
+                This is not a public inventory marketplace. Maple Rentals keeps the process controlled,
+                clear, and professional so drivers know exactly when review ends and payment begins.
+              </p>
             </motion.div>
+
+            <div className="grid gap-5">
+              {howItWorks.map((item) => (
+                <motion.div
+                  key={item.step}
+                  initial={{ opacity: 0, x: 18 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.45, ease: 'easeOut' }}
+                  className="rounded-[1.75rem] border border-white/10 bg-[#1d1713] p-6"
+                >
+                  <div className="flex items-start gap-5">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-gold text-[12px] font-bold tracking-[0.2em] text-brand-navy">
+                      {item.step}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-white">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-7 text-stone-300">{item.body}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="bg-white py-24 sm:py-28 border-y border-slate-200/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeIn}
-            className="max-w-3xl mb-14"
-          >
-            <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">
-              Vehicle Gallery
-            </p>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-5">
-              See the kind of vehicles drivers apply for with Maple Rentals.
+      <section className="border-b border-white/10 bg-[#0f0d0c] py-24">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="max-w-3xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">Stripe and Payments</p>
+            <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
+              Payment clarity is built into the experience.
             </h2>
-            <p className="text-slate-600 text-lg font-light leading-relaxed">
-              The public site now keeps the focus on driver onboarding. You can still see the quality
-              of the vehicles here, while final assignment, pricing, and plate confirmation stay private
-              during review.
+            <p className="mt-6 text-lg font-light leading-8 text-stone-300">
+              Drivers should never have to guess when they are paying or why. Maple Rentals keeps the payment
+              step separate from the application review so approved pricing is clear before checkout opens.
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {featuredVehicles.map((vehicle, index) => (
+          <div className="mt-12 grid gap-6 lg:grid-cols-3">
+            {[
+              {
+                icon: Wallet,
+                title: 'Before payment',
+                body: 'Your application is reviewed first. Maple Rentals confirms the approved vehicle, bond, and weekly amount before any checkout link is issued.',
+              },
+              {
+                icon: CreditCard,
+                title: 'At payment',
+                body: 'The Stripe session collects the approved bond, first weekly payment, and any setup fees in one secure, hosted checkout.',
+              },
+              {
+                icon: Sparkles,
+                title: 'After payment',
+                body: 'Once Stripe confirms payment, Maple Rentals moves you into onboarding, scheduling, and operational handover with clear follow-up.',
+              },
+            ].map((item) => (
+              <motion.article
+                key={item.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45, ease: 'easeOut' }}
+                className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-7"
+              >
+                <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-gold/10 text-brand-gold">
+                  <item.icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-2xl font-serif font-bold text-white">{item.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-stone-300">{item.body}</p>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-white/10 bg-[#17110d] py-24">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="max-w-3xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">Vehicle Quality</p>
+            <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
+              Real vehicles, shown for trust, not for public fleet shopping.
+            </h2>
+            <p className="mt-6 text-lg font-light leading-8 text-stone-300">
+              Maple Rentals uses real vehicle imagery to show standards and presentation while keeping assignment,
+              pricing, and operational control inside the approval workflow.
+            </p>
+          </motion.div>
+
+          <div className="mt-12 grid gap-8 md:grid-cols-3">
+            {showcaseVehicles.map((vehicle, index) => (
               <motion.article
                 key={vehicle.image}
-                initial={{ opacity: 0, y: 24 }}
+                initial={{ opacity: 0, y: 22 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.45, delay: index * 0.08 }}
-                className="overflow-hidden rounded-[2rem] border border-slate-200 bg-[#F8F9FA] shadow-sm"
+                className="overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#221a15]"
               >
                 <div className="aspect-[4/3] overflow-hidden">
                   <img
@@ -243,11 +390,11 @@ export default function Home() {
                   />
                 </div>
                 <div className="p-6">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-brand-gold mb-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
                     Maple Rentals
                   </p>
-                  <h3 className="text-2xl font-serif font-bold text-brand-navy mb-3">{vehicle.title}</h3>
-                  <p className="text-sm leading-7 text-slate-600">{vehicle.description}</p>
+                  <h3 className="mt-3 text-2xl font-serif font-bold text-white">{vehicle.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-stone-300">{vehicle.body}</p>
                 </div>
               </motion.article>
             ))}
@@ -255,309 +402,45 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="pb-32 bg-[#F8F9FA] relative z-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <DeferredInquiryForm />
-        </div>
-      </section>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 1 }}
-        className="border-y border-white/10 bg-brand-navy-light"
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <p className="text-center text-[10px] md:text-xs font-bold text-brand-gold uppercase tracking-[0.4em]">
-            Uber Car Rentals Across Sydney, Parramatta, and Merrylands
-          </p>
-        </div>
-      </motion.div>
-
-      <section className="py-32 bg-brand-navy relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#D4AF37 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={slideInLeft}>
-              <h2 className="text-4xl md:text-6xl font-serif font-bold mb-10 tracking-tight leading-tight text-white">
-                Uber Car Rentals Built for Professional Drivers.
-              </h2>
-              <div className="space-y-6 text-slate-400 text-lg font-light leading-relaxed max-w-xl">
-                <p>
-                  Maple Rentals provides weekly car rentals for rideshare drivers who need
-                  reliable hybrid vehicles, lower fuel costs, and strong uptime across Sydney.
+      <section className="bg-[#0d0b0a] py-24">
+        <div className="mx-auto max-w-6xl px-6 lg:px-8">
+          <div className="rounded-[2.25rem] border border-brand-gold/20 bg-gradient-to-br from-brand-gold/10 via-white/[0.03] to-transparent px-8 py-10 sm:px-10 sm:py-12">
+            <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">
+                  Start With Confidence
                 </p>
-                <p>
-                  Drivers from Parramatta, Merrylands, and surrounding suburbs choose our Uber
-                  car rentals because maintenance, compliance, and support are built into every
-                  plan.
+                <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
+                  Apply once. Get reviewed properly. Pay only when everything is ready.
+                </h2>
+                <p className="mt-6 max-w-2xl text-lg font-light leading-8 text-stone-300">
+                  Maple Rentals is designed for real driver onboarding, real admin control, and clear Stripe-backed payment handling.
                 </p>
               </div>
-            </motion.div>
-
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="space-y-6">
-              {[
-                {
-                  icon: Wrench,
-                  title: 'Professional Maintenance',
-                  body: 'Every vehicle is serviced and inspected to keep you earning consistently.',
-                },
-                {
-                  icon: Fuel,
-                  title: 'Hybrid Efficiency',
-                  body: 'Lower your weekly fuel costs with a fleet optimized for long shifts across Sydney.',
-                },
-              ].map((item) => (
-                <motion.div key={item.title} variants={fadeIn} className="bg-brand-navy-light p-8 border border-brand-gold/30 flex items-start gap-6 group hover:bg-brand-navy transition-colors">
-                  <div className="bg-brand-gold/10 p-4 rounded-lg">
-                    <item.icon className="w-8 h-8 text-brand-gold" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white mb-2 tracking-wide">{item.title}</h3>
-                    <p className="text-slate-400 text-sm font-light leading-relaxed">{item.body}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-32 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeIn} className="mb-20">
-            <h2 className="text-4xl md:text-6xl font-serif font-bold tracking-tight text-brand-navy mb-6">Start Driving in 3 Steps</h2>
-            <p className="text-slate-600 text-lg font-light">Apply once, get reviewed quickly, and move into a managed rental with clear next steps.</p>
-          </motion.div>
-
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {[
-              { step: '01', title: 'Apply Online', desc: 'Upload your driver details and required documents through our secure portal.' },
-              { step: '02', title: 'Review & Approval', desc: 'Maple Rentals confirms vehicle availability, private registration details, and the approved payment terms after review.' },
-              { step: '03', title: 'Collect & Start Earning', desc: 'Pick up your keys, connect to the Uber app, and start earning immediately.' },
-            ].map((item) => (
-              <motion.div key={item.step} variants={fadeIn} className="flex flex-col items-center">
-                <div className="w-16 h-16 bg-brand-navy text-brand-gold flex items-center justify-center text-xl font-bold mb-8 rounded-full">
-                  {item.step}
-                </div>
-                <h3 className="text-2xl font-bold text-brand-navy mb-4">{item.title}</h3>
-                <p className="text-slate-600 font-light text-sm leading-relaxed max-w-xs">{item.desc}</p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="py-28 bg-[#F4F6F8] border-y border-slate-200/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeIn} className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-14">
-            <div>
-              <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">Flexible Plans</p>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-4">Choose a rental plan that fits your driving schedule.</h2>
-              <p className="text-slate-600 max-w-2xl text-lg font-light leading-relaxed">
-                Compare billing cadence, support level, and plan inclusions before you start an application. Final pricing is confirmed by Maple Rentals during approval.
-              </p>
-            </div>
-            <Link to="/pricing" className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-brand-navy hover:text-brand-gold transition-colors">
-              Explore all plans <ArrowRight className="w-4 h-4" />
-            </Link>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {isLoadingRentalPlans &&
-              Array.from({ length: 3 }, (_, index) => (
-                <div
-                  key={`rental-plan-skeleton-${index}`}
-                  className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm"
-                >
-                  <Loader2 className="w-6 h-6 animate-spin text-brand-gold mb-6" />
-                  <div className="space-y-4">
-                    <div className="h-3 w-28 rounded bg-slate-200" />
-                    <div className="h-8 w-40 rounded bg-slate-200" />
-                    <div className="h-20 rounded bg-slate-100" />
-                  </div>
-                </div>
-              ))}
-
-            {!isLoadingRentalPlans &&
-              !hasRentalPlanError &&
-              rentalPlans.map((plan, index) => (
-                <motion.div
-                  key={plan.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.45, delay: index * 0.08 }}
-                  className={`rounded-3xl border p-8 shadow-sm ${plan.popular ? 'bg-brand-navy text-white border-brand-gold/50 shadow-[0_25px_60px_rgba(0,35,71,0.2)]' : 'bg-white text-brand-navy border-slate-200'}`}
-                >
-                  <div className="flex items-start justify-between gap-4 mb-8">
-                    <div>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.3em] mb-3 ${plan.popular ? 'text-brand-gold' : 'text-slate-400'}`}>
-                        {plan.highlight}
-                      </p>
-                      <h3 className="text-2xl font-serif font-bold mb-2">{plan.name}</h3>
-                      <p className={`text-sm leading-relaxed ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>{plan.description}</p>
-                    </div>
-                    {plan.popular && <span className="rounded-full border border-brand-gold/40 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-gold">Popular</span>}
-                  </div>
-
-                  <div className="mb-8">
-                    <p className={`text-xs uppercase tracking-[0.22em] ${plan.popular ? 'text-brand-gold' : 'text-slate-500'}`}>
-                      {plan.cadenceLabel}
-                    </p>
-                    <p className={`mt-3 text-sm leading-7 ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>
-                      Maple Rentals shares the approved vehicle, registration details, and final billing amount after your application is reviewed.
-                    </p>
-                  </div>
-
-                  <ul className="space-y-4">
-                    {plan.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-3 text-sm">
-                        <Check className={`w-4 h-4 mt-0.5 ${plan.popular ? 'text-brand-gold' : 'text-brand-navy'}`} />
-                        <span className={plan.popular ? 'text-slate-200' : 'text-slate-600'}>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </motion.div>
-              ))}
-
-            {!isLoadingRentalPlans && hasRentalPlanError && (
-              <div className="md:col-span-3 rounded-3xl border border-red-200 bg-white px-6 py-10 text-center shadow-sm">
-                <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-                <p className="text-sm uppercase tracking-[0.2em] font-bold text-red-500 mb-3">
-                  Plan details unavailable
-                </p>
-                <p className="text-slate-600 mb-6">
-                  We could not load the current plan summaries on the homepage. Open the full plans
-                  page or continue with the application flow.
-                </p>
-                <Link
-                  to="/pricing"
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
-                >
-                  View Plans <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-28 bg-white border-t border-slate-200/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeIn}
-            className="max-w-3xl mb-14"
-          >
-            <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">
-              Service Areas
-            </p>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-5">
-              Car Rentals Serving Parramatta, Merrylands, and Greater Sydney.
-            </h2>
-            <p className="text-slate-600 text-lg font-light leading-relaxed">
-              We support professional drivers looking for affordable car rentals close to
-              Merrylands, Parramatta, Lidcombe, and surrounding Sydney suburbs. Apply online,
-              compare plan options, and secure an Uber-ready hybrid backed by Maple Rentals.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              {
-                title: 'Merrylands Pickup',
-                body: 'Collect from our Merrylands location and start driving with a vehicle prepared for daily rideshare work.',
-              },
-              {
-                title: 'Parramatta Access',
-                body: 'A convenient option for drivers based around Parramatta who need a dependable weekly car rental plan.',
-              },
-              {
-                title: 'Greater Sydney Coverage',
-                body: 'Our fleet supports drivers working airport runs, CBD shifts, and suburban trips across Sydney.',
-              },
-            ].map((area) => (
-              <motion.div
-                key={area.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.45 }}
-                className="rounded-3xl border border-slate-200 bg-[#F8F9FA] p-8 shadow-sm"
-              >
-                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold mb-4">
-                  Local SEO
-                </p>
-                <h3 className="text-2xl font-serif font-bold text-brand-navy mb-4">{area.title}</h3>
-                <p className="text-slate-600 font-light leading-relaxed">{area.body}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-32 bg-brand-navy relative overflow-hidden border-t border-white/10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(212,175,55,0.05)_0%,transparent_70%)]"></div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeIn} className="text-left">
-              <h2 className="text-4xl md:text-6xl font-serif font-bold mb-8 leading-tight text-white">Ready for a reliable Sydney car rental?</h2>
-              <p className="text-xl text-slate-400 mb-12 font-light">Join drivers who use Maple Rentals for weekly car rentals and Uber car rentals across Merrylands, Parramatta, and greater Sydney.</p>
-              <div className="flex flex-col sm:flex-row items-center justify-start gap-6">
+              <div className="flex flex-col gap-4">
                 <Link
                   to="/apply"
-                  className="w-full sm:w-auto px-12 py-5 bg-brand-gold text-brand-navy font-bold tracking-widest uppercase text-sm hover:bg-brand-gold-light transition-all duration-300 shadow-xl"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-brand-navy transition-colors hover:bg-brand-gold-light"
                 >
-                  Apply Now
+                  Apply Now <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   to="/pricing"
-                  className="w-full sm:w-auto px-12 py-5 border border-white/20 text-white font-bold tracking-widest uppercase text-sm hover:border-brand-gold hover:text-brand-gold transition-all duration-300"
+                  className="inline-flex items-center justify-center rounded-full border border-white/15 px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-white transition-colors hover:border-brand-gold hover:text-brand-gold"
                 >
-                  View Plans
+                  View Rental Plans
                 </Link>
               </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.92 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 1 }}
-              className="relative hidden lg:block"
-            >
-              <div className="rounded-[2rem] border border-white/10 bg-brand-navy-light p-8 shadow-2xl">
-                <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
-                  What stays private
-                </p>
-                <div className="mt-6 space-y-4">
-                  {[
-                    'Vehicle number plates are shared only by Maple Rentals after approval.',
-                    'Exact car pricing is confirmed by staff during review, not on the public site.',
-                    'Collection and payment handoff details are sent once your application is approved.',
-                  ].map((item) => (
-                    <div
-                      key={item}
-                      className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm leading-7 text-slate-300"
-                    >
-                      <div className="flex items-start gap-3">
-                        <Check className="mt-1 h-4 w-4 shrink-0 text-brand-gold" />
-                        <span>{item}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
+            </div>
           </div>
+        </div>
+      </section>
+
+      <section className="bg-[#0c0a09] pb-28">
+        <div className="mx-auto max-w-4xl px-6 lg:px-8">
+          <DeferredInquiryForm />
         </div>
       </section>
     </div>
   );
 }
-

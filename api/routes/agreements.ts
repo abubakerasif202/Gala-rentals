@@ -117,15 +117,6 @@ router.post('/', authenticateAdmin, async (req, res) => {
       });
     }
 
-    if (
-      !applicationRecord.assigned_car_id ||
-      Number(applicationRecord.assigned_car_id) !== Number(data.car_id)
-    ) {
-      return res.status(409).json({
-        error: 'Lease agreement must use the vehicle assigned to the paid application.',
-      });
-    }
-
     const { data: inserted, error } = await db.from('lease_agreements').insert([data]).select('id').single();
 
     if (error) throw error;

@@ -213,7 +213,6 @@ describe('weeklyPriceSchema', () => {
 describe('vehicleCheckoutSessionSchema', () => {
   const valid = {
     application_id: '11111111-1111-4111-8111-111111111111',
-    car_id: 1,
     checkout_token: 'tok_abc123',
   };
 
@@ -221,21 +220,8 @@ describe('vehicleCheckoutSessionSchema', () => {
     expect(() => vehicleCheckoutSessionSchema.parse(valid)).not.toThrow();
   });
 
-  it('coerces a string car_id to a number', () => {
-    const result = vehicleCheckoutSessionSchema.parse({ ...valid, car_id: '2' });
-    expect(result.car_id).toBe(2);
-  });
-
   it('rejects a non-UUID application_id', () => {
     expect(() => vehicleCheckoutSessionSchema.parse({ ...valid, application_id: 'bad' })).toThrow();
-  });
-
-  it('rejects a zero car_id', () => {
-    expect(() => vehicleCheckoutSessionSchema.parse({ ...valid, car_id: 0 })).toThrow();
-  });
-
-  it('rejects a negative car_id', () => {
-    expect(() => vehicleCheckoutSessionSchema.parse({ ...valid, car_id: -1 })).toThrow();
   });
 
   it('rejects an empty checkout_token', () => {
@@ -249,10 +235,10 @@ describe('vehicleCheckoutSessionSchema', () => {
 
 describe('applicationApprovalSchema', () => {
   const valid = {
+    approved_vehicle: '2023 Toyota Camry Hybrid',
     approved_bond: 700,
     approved_weekly_price: 350,
     application_id: '11111111-1111-4111-8111-111111111111',
-    assigned_car_id: 1,
   };
 
   it('accepts a valid approval payload', () => {
@@ -289,8 +275,8 @@ describe('applicationApprovalSchema', () => {
     expect(() => applicationApprovalSchema.parse({ ...valid, application_id: 'bad-id' })).toThrow();
   });
 
-  it('rejects a zero assigned_car_id', () => {
-    expect(() => applicationApprovalSchema.parse({ ...valid, assigned_car_id: 0 })).toThrow();
+  it('rejects an empty approved_vehicle', () => {
+    expect(() => applicationApprovalSchema.parse({ ...valid, approved_vehicle: '' })).toThrow();
   });
 
   it('coerces string numbers for approved_bond', () => {

@@ -14,6 +14,7 @@ type ApplicationBackPhotoColumn =
 
 type SchemaCompat = {
   applicationApprovedAtColumn: string;
+  applicationApprovedVehicleColumn: string;
   carArchivedAtColumn: string;
   carCreatedAtColumn: string;
   coreMode: SchemaMode;
@@ -31,6 +32,7 @@ type SchemaCompat = {
 
 const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationApprovedAtColumn: 'approved_at',
+  applicationApprovedVehicleColumn: 'approved_vehicle',
   carArchivedAtColumn: 'archived_at',
   carCreatedAtColumn: 'created_at',
   coreMode: 'snake',
@@ -151,6 +153,16 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
             : coreMode === 'camel'
               ? 'approvedWeeklyPrice'
               : 'approved_weekly_price';
+        const applicationApprovedVehicleColumn = hasProperty(
+          applicationsDefinition,
+          'approvedVehicle'
+        )
+          ? 'approvedVehicle'
+          : hasProperty(applicationsDefinition, 'approved_vehicle')
+            ? 'approved_vehicle'
+            : coreMode === 'camel'
+              ? 'approvedVehicle'
+              : 'approved_vehicle';
         const applicationPaymentLinkVersionColumn = hasProperty(
           applicationsDefinition,
           'paymentLinkVersion'
@@ -208,6 +220,7 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
 
         const resolvedCompat = {
           applicationApprovedAtColumn,
+          applicationApprovedVehicleColumn,
           carArchivedAtColumn,
           carCreatedAtColumn,
           coreMode,
@@ -310,6 +323,7 @@ export const getApplicationSelectColumns = async () => {
     applicationBackPhotoColumn,
     applicationAssignedCarColumn,
     applicationApprovedBondColumn,
+    applicationApprovedVehicleColumn,
     applicationApprovedWeeklyPriceColumn,
     applicationPaymentLinkVersionColumn,
     applicationPaymentLinkSentAtColumn,
@@ -329,6 +343,10 @@ export const getApplicationSelectColumns = async () => {
     applicationApprovedBondColumn === 'approved_bond'
       ? 'approved_bond'
       : `approved_bond:${applicationApprovedBondColumn}`;
+  const approvedVehicleSelect =
+    applicationApprovedVehicleColumn === 'approved_vehicle'
+      ? 'approved_vehicle'
+      : `approved_vehicle:${applicationApprovedVehicleColumn}`;
   const approvedWeeklyPriceSelect =
     applicationApprovedWeeklyPriceColumn === 'approved_weekly_price'
       ? 'approved_weekly_price'
@@ -371,6 +389,7 @@ export const getApplicationSelectColumns = async () => {
         backPhotoSelect,
         assignedCarSelect,
         approvedBondSelect,
+        approvedVehicleSelect,
         approvedWeeklyPriceSelect,
         paymentLinkVersionSelect,
         paymentLinkSentAtSelect,
@@ -396,6 +415,7 @@ export const getApplicationSelectColumns = async () => {
         backPhotoSelect,
         assignedCarSelect,
         approvedBondSelect,
+        approvedVehicleSelect,
         approvedWeeklyPriceSelect,
         paymentLinkVersionSelect,
         paymentLinkSentAtSelect,
@@ -485,6 +505,7 @@ export const getApplicationAssignedCarColumn = async () => {
 export const toApplicationPaymentWritePayload = async (payload: {
   assigned_car_id?: number | null;
   approved_bond?: number | null;
+  approved_vehicle?: string | null;
   approved_weekly_price?: number | null;
   payment_link_version?: number;
   payment_link_sent_at?: string | null;
@@ -502,6 +523,10 @@ export const toApplicationPaymentWritePayload = async (payload: {
 
   if ('approved_bond' in payload) {
     mappedPayload[compat.applicationApprovedBondColumn] = payload.approved_bond ?? null;
+  }
+
+  if ('approved_vehicle' in payload) {
+    mappedPayload[compat.applicationApprovedVehicleColumn] = payload.approved_vehicle ?? null;
   }
 
   if ('approved_weekly_price' in payload) {

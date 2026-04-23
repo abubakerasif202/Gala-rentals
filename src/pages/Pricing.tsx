@@ -55,8 +55,8 @@ export default function Pricing() {
             className="text-slate-300 text-lg max-w-3xl mx-auto font-light leading-relaxed"
           >
             Compare each plan&apos;s billing cadence, support level, and included services before
-            you apply. Maple Rentals confirms the approved vehicle, registration, and final quote
-            after review.
+            you apply. Maple Rentals confirms the approved vehicle, weekly amount, and payment
+            step only after review.
           </motion.p>
         </div>
       </section>
@@ -167,12 +167,12 @@ export default function Pricing() {
             {
               icon: ShieldCheck,
               title: 'Protected payments',
-              body: 'Stripe checkout opens only after the selected vehicle application is approved and the agreement is generated.',
+              body: 'Stripe checkout opens only after your application is reviewed and the approved quote is confirmed.',
             },
             {
               icon: Check,
-              title: 'Private final quote',
-              body: 'Maple Rentals confirms the approved vehicle, registration details, and exact billing amount during review.',
+              title: 'Review-first approval',
+              body: 'Maple Rentals confirms the approved vehicle, onboarding notes, and exact billing amount during review.',
             },
             {
               icon: Check,

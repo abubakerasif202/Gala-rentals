@@ -30,7 +30,6 @@ import {
   normalizeApplicationEmail,
   normalizeAustralianMobile,
 } from '../../shared/applicationSubmission';
-import { calculateBondFromWeeklyRent } from '../../shared/rentalPricing';
 
 const ALLOWED_UPLOAD_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
 const MAX_UPLOAD_SIZE_MB = Math.floor(MAX_APPLICATION_UPLOAD_BYTES / (1024 * 1024));
@@ -49,16 +48,6 @@ const sectionVariants: Variants = {
   hidden: { opacity: 0, x: 18 },
   visible: { opacity: 1, x: 0, transition: { duration: 0.45, ease: 'easeOut' } },
 };
-
-const getDisplayBond = (car: Pick<Car, 'bond' | 'weekly_price'>) => {
-  const storedBond = Number(car.bond);
-  return Number.isFinite(storedBond) && storedBond >= 0
-    ? storedBond
-    : calculateBondFromWeeklyRent(car.weekly_price);
-};
-
-const getUpfrontDue = (car: Pick<Car, 'bond' | 'weekly_price'>) =>
-  Number((getDisplayBond(car) + car.weekly_price).toFixed(2));
 
 const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
   z.string().trim().min(1, requiredMessage).refine(isValidDateOnly, invalidMessage);
@@ -291,10 +280,9 @@ export default function Apply() {
   const licenseBackPhoto = watch('license_back_photo');
   const selectedCarId = watch('selected_car_id');
   const selectedCar = availableCars.find((car) => car.id === Number(selectedCarId)) || null;
-  const selectedCarBond = selectedCar ? getDisplayBond(selectedCar) : 0;
 
   const trustSignals = useMemo(
-    () => ['Fast approval', 'Weekly billing', 'Premium support', 'Reliable vehicles'],
+    () => ['Fast approval', 'Approval support', 'Premium support', 'Reliable vehicles'],
     []
   );
 
@@ -481,7 +469,7 @@ export default function Apply() {
                     </p>
                     <ul className="mt-5 space-y-4 text-sm leading-7 text-brand-grey">
                       <li>1. A team member reviews your application and documents.</li>
-                      <li>2. We confirm vehicle availability and pricing.</li>
+                      <li>2. We confirm vehicle availability and the approved handoff details.</li>
                       <li>3. You receive a secure checkout link if approved.</li>
                     </ul>
                   </div>
@@ -517,9 +505,9 @@ export default function Apply() {
                   Apply to Drive with{' '}
                   <span className="font-serif italic text-brand-gold">Maple Rentals</span>
                 </h1>
-                  <p className="mt-6 max-w-xl text-base leading-8 text-brand-grey sm:text-lg">
+                <p className="mt-6 max-w-xl text-base leading-8 text-brand-grey sm:text-lg">
                   Build your weekly earnings with a premium vehicle program designed for Uber
-                  drivers. Quick approval, clear pricing, and reliable cars keep onboarding simple.
+                  drivers. Quick approval, reliable cars, and direct support keep onboarding simple.
                 </p>
 
                 <div className="mt-10 grid gap-4 sm:grid-cols-3">
@@ -596,7 +584,7 @@ export default function Apply() {
                       Why drivers choose Maple
                     </p>
                     <ul className="mt-4 space-y-3 text-sm leading-7 text-brand-grey">
-                      <li>• Transparent weekly pricing with clear bond expectations.</li>
+                      <li>• Vehicle pricing and registration details are confirmed privately after approval.</li>
                       <li>• Premium support through the application and handoff.</li>
                       <li>• Reliable fleet choices designed for ride-share work.</li>
                     </ul>
@@ -700,7 +688,7 @@ export default function Apply() {
                     <SectionShell
                       eyebrow="Vehicle fit"
                       title="Rental Preferences"
-                      description="Choose the vehicle you want and the budget you have in mind so we can match the right plan."
+                      description="Choose the vehicle you want and the budget you have in mind so we can match the right plan during review."
                       icon={Sparkles}
                     >
                       <div className="space-y-5">
@@ -716,7 +704,7 @@ export default function Apply() {
                             </option>
                             {availableCars.map((car) => (
                               <option key={car.id} value={car.id}>
-                                {car.name} ({car.model_year}) - ${car.weekly_price.toFixed(2)}/week
+                                {car.name} ({car.model_year})
                               </option>
                             ))}
                           </select>
@@ -737,14 +725,7 @@ export default function Apply() {
                         {selectedCar && (
                           <div className="overflow-hidden rounded-[1.75rem] border border-brand-gold/20 bg-brand-gold/8">
                             <div className="grid gap-0 md:grid-cols-[1.05fr_0.95fr]">
-                              <div className="relative min-h-[220px] bg-black/10">
-                                <img
-                                  src={selectedCar.image}
-                                  alt={`${selectedCar.name} selected for Maple Rentals application`}
-                                  className="absolute inset-0 h-full w-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-brand-navy via-brand-navy/20 to-transparent" />
-                                <div className="absolute bottom-0 left-0 right-0 p-5">
+                              <div className="min-h-[220px] bg-black/10 p-5">
                                 <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
                                   Selected vehicle
                                 </p>
@@ -753,36 +734,30 @@ export default function Apply() {
                                 </p>
                                 <p className="mt-1 text-sm text-brand-grey">
                                   {selectedCar.model_year} model
+                                </p>
+                                <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-4">
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold">
+                                    Private after approval
+                                  </p>
+                                  <p className="mt-3 text-sm leading-7 text-brand-grey">
+                                    Maple Rentals confirms the final vehicle pricing, number plate,
+                                    and payment handoff only after your application is reviewed.
                                   </p>
                                 </div>
                               </div>
 
                               <div className="p-5">
                                 <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
-                                  Checkout summary
+                                  What happens next
                                 </p>
-                                <div className="mt-4 grid gap-4 sm:grid-cols-3 md:grid-cols-1">
-                                  <div>
-                                    <p className="text-xs text-brand-grey">Weekly rent</p>
-                                    <p className="mt-1 text-lg font-bold text-white">
-                                      ${selectedCar.weekly_price.toFixed(2)}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-brand-grey">Bond</p>
-                                    <p className="mt-1 text-lg font-bold text-white">
-                                      ${selectedCarBond.toFixed(2)}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-brand-grey">Due today</p>
-                                    <p className="mt-1 text-lg font-bold text-white">
-                                      ${getUpfrontDue(selectedCar).toFixed(2)}
-                                    </p>
-                                  </div>
+                                <div className="mt-4 space-y-4 text-sm leading-7 text-brand-grey">
+                                  <p>1. We review your documents and confirm vehicle availability.</p>
+                                  <p>2. Maple Rentals shares the approved quote and private vehicle details directly with you.</p>
+                                  <p>3. If approved, you receive the secure checkout handoff to complete payment.</p>
                                 </div>
                                 <p className="mt-4 text-xs leading-6 text-brand-grey">
-                                  If approved, Stripe will automatically bill ${selectedCar.weekly_price.toFixed(2)} each week.
+                                  Your selected vehicle is saved with the application, but its
+                                  public page does not expose price or number plate details.
                                 </p>
                               </div>
                             </div>

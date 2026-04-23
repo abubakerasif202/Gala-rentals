@@ -17,7 +17,10 @@ import {
 import {
   VehicleAllocationConflictError,
 } from '../vehicleAllocations.js';
-import { buildRentalPlanWithPricing, rentalPlans } from '../../src/lib/rentalPlans.js';
+import {
+  buildPublicRentalPlan,
+  rentalPlans,
+} from '../../src/lib/rentalPlans.js';
 import { LEASE_SETTINGS } from '../constants.js';
 
 const router = express.Router();
@@ -161,7 +164,7 @@ const getCheckoutTokenFromRequest = (
 };
 
 router.get('/rental-plans', (_req, res) => {
-  res.json(rentalPlans.map((plan) => buildRentalPlanWithPricing(plan, LEASE_SETTINGS.fees)));
+  res.json(rentalPlans.map((plan) => buildPublicRentalPlan(plan)));
 });
 
 router.get('/lease-settings', (_req, res) => {

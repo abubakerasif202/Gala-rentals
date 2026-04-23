@@ -53,6 +53,9 @@ const cleanupVehicleImageSchema = z.object({
   imageUrl: z.string().url(),
 });
 
+const PUBLIC_REGISTRATION_SUFFIX_PATTERN =
+  /\s*(?:\([A-Z0-9-]*\d[A-Z0-9-]*\)|[-|]\s*[A-Z0-9-]*\d[A-Z0-9-]*)\s*$/i;
+
 const toCarBond = (car: Record<string, any>) => {
   const storedBond = Number(car.bond);
   return Number.isFinite(storedBond)
@@ -66,6 +69,21 @@ const toCarResponse = (car: Record<string, any>): CarRecord =>
     archived_at: car.archived_at ?? null,
     bond: toCarBond(car),
   }) as CarRecord;
+
+const toPublicCarResponse = (car: Record<string, any>): CarRecord => {
+  const fullCar = toCarResponse(car);
+  const sanitizedName =
+    fullCar.name.replace(PUBLIC_REGISTRATION_SUFFIX_PATTERN, '').trim() ||
+    fullCar.name.trim();
+
+  return {
+    ...fullCar,
+    name: sanitizedName,
+    weekly_price: 0,
+    bond: 0,
+    image: '',
+  };
+};
 
 const toStorageOrigin = () => {
   const candidate = process.env.SUPABASE_URL;
@@ -223,7 +241,7 @@ router.get('/', async (_req, res) => {
     console.error('Fetch cars error', error);
     return res.status(500).json({ error: 'Failed to fetch cars' });
   }
-  res.json((data || []).map((car) => toCarResponse(car as Record<string, any>)));
+  res.json((data || []).map((car) => toPublicCarResponse(car as Record<string, any>)));
 });
 
 router.get('/admin/all', authenticateAdmin, async (_req, res) => {
@@ -258,7 +276,7 @@ router.get('/:id', async (req, res) => {
   if (!data || data.archived_at) {
     return res.status(404).json({ error: 'Car not found' });
   }
-  res.json(data);
+  res.json(toPublicCarResponse(data));
 });
 
 router.post('/', authenticateAdmin, async (req, res) => {

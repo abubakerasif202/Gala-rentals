@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, CreditCard, ShieldCheck, Star, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowRight, Check, ShieldCheck, Star, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import Seo from '../components/Seo';
@@ -18,15 +18,15 @@ export default function Pricing() {
   return (
     <div className="min-h-screen bg-[#F4F6F8] text-brand-navy selection:bg-brand-gold selection:text-black">
       <Seo
-        title="Car Rental Pricing Sydney | Weekly Uber Rental Plans | Maple Rentals"
-        description="Compare Maple Rentals weekly car rental plans for Uber drivers in Sydney, Merrylands, and Parramatta. Review billing cadence, bond estimates, and upfront pricing before you apply."
+        title="Car Rental Plans Sydney | Uber Rental Options | Maple Rentals"
+        description="Compare Maple Rentals car rental plans for Uber drivers in Sydney, Merrylands, and Parramatta. Review billing cadence, inclusions, and the approval flow before you apply."
         canonicalPath="/pricing"
         keywords={[
-          'car rental pricing sydney',
+          'car rental plans sydney',
           'weekly car rental sydney',
           'uber rental plans sydney',
-          'merrylands car rental pricing',
-          'parramatta car rental pricing',
+          'merrylands car rental plans',
+          'parramatta car rental plans',
         ]}
       />
 
@@ -46,7 +46,7 @@ export default function Pricing() {
             transition={{ duration: 0.5 }}
             className="text-4xl md:text-6xl font-serif font-bold text-white mb-6"
           >
-            Sydney car rental pricing built for professional drivers.
+            Sydney rental plans built for professional drivers.
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 22 }}
@@ -54,9 +54,9 @@ export default function Pricing() {
             transition={{ duration: 0.6 }}
             className="text-slate-300 text-lg max-w-3xl mx-auto font-light leading-relaxed"
           >
-            Compare each plan&apos;s billing cadence, weekly-equivalent economics, estimated bond,
-            and starting quote before you apply. Bond and upfront figures use the plan&apos;s weekly
-            equivalent rate.
+            Compare each plan&apos;s billing cadence, support level, and included services before
+            you apply. Maple Rentals confirms the approved vehicle, registration, and final quote
+            after review.
           </motion.p>
         </div>
       </section>
@@ -66,15 +66,22 @@ export default function Pricing() {
           {isLoading && (
             <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
               <Loader2 className="w-8 h-8 animate-spin text-brand-gold mx-auto mb-4" />
-              <p className="text-sm uppercase tracking-[0.2em] font-bold text-slate-500">Loading pricing plans</p>
+              <p className="text-sm uppercase tracking-[0.2em] font-bold text-slate-500">
+                Loading plan options
+              </p>
             </div>
           )}
 
           {isError && (
             <div className="rounded-3xl border border-red-200 bg-white px-6 py-16 text-center shadow-sm">
               <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-              <p className="text-sm uppercase tracking-[0.2em] font-bold text-red-500 mb-3">Pricing unavailable</p>
-              <p className="text-slate-600 mb-6">We could not load the current rental plans. Try again shortly or continue with the standard application flow.</p>
+              <p className="text-sm uppercase tracking-[0.2em] font-bold text-red-500 mb-3">
+                Plans unavailable
+              </p>
+              <p className="text-slate-600 mb-6">
+                We could not load the current rental plan summaries. Try again shortly or continue
+                with the standard application flow.
+              </p>
               <Link
                 to="/apply"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
@@ -102,50 +109,32 @@ export default function Pricing() {
                   )}
 
                   <div className="p-8 flex-1">
-                    <p className={`text-[10px] font-bold uppercase tracking-[0.35em] mb-4 ${plan.popular ? 'text-brand-gold' : 'text-slate-400'}`}>{plan.highlight}</p>
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.35em] mb-4 ${plan.popular ? 'text-brand-gold' : 'text-slate-400'}`}>
+                      {plan.highlight}
+                    </p>
                     <h2 className="text-3xl font-serif font-bold mb-3">{plan.name}</h2>
-                    <p className={`text-sm leading-relaxed mb-8 ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>{plan.description}</p>
+                    <p className={`text-sm leading-relaxed mb-8 ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>
+                      {plan.description}
+                    </p>
 
-                    <div className="mb-8 space-y-3">
-                      <div className="flex items-end gap-2">
-                        <span className={`text-5xl font-bold ${plan.popular ? 'text-brand-gold' : 'text-brand-navy'}`}>
-                          ${plan.pricing.recurringDueAud.toFixed(2)}
-                        </span>
-                        <span className={`text-xs uppercase tracking-[0.22em] mb-2 ${plan.popular ? 'text-slate-300' : 'text-slate-400'}`}>
-                          {plan.pricing.recurringLabel}
-                        </span>
-                      </div>
-                      <p className={`text-xs uppercase tracking-[0.18em] ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Automatic recurring charge every {plan.pricing.recurringInterval === 'month'
-                          ? 'month'
-                          : plan.pricing.recurringIntervalCount > 1
-                            ? `${plan.pricing.recurringIntervalCount} weeks`
-                            : 'week'}
+                    <div className={`rounded-2xl border p-4 mb-8 ${plan.popular ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Billing cadence
                       </p>
-                      {(plan.pricing.recurringInterval !== 'week' ||
-                        plan.pricing.recurringIntervalCount !== 1) && (
-                        <p className={`text-sm ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>
-                          Equivalent to ${plan.pricing.comparisonWeeklyAud.toFixed(2)} per week for bond and upfront calculations.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className={`grid grid-cols-2 gap-4 rounded-2xl border p-4 mb-8 ${plan.popular ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
-                      <div>
-                        <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>Typical upfront quote</p>
-                        <p className="text-2xl font-bold">${plan.pricing.upfrontDueAud.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>Bond</p>
-                        <p className="text-2xl font-bold">${plan.pricing.bondAud.toFixed(2)}</p>
-                      </div>
+                      <p className="text-2xl font-bold">{plan.cadenceLabel}</p>
+                      <p className={`mt-3 text-sm leading-7 ${plan.popular ? 'text-slate-300' : 'text-slate-600'}`}>
+                        Exact pricing and vehicle details are shared privately by Maple Rentals
+                        after your application is approved.
+                      </p>
                     </div>
 
                     <ul className="space-y-4">
                       {plan.features.map((feature) => (
                         <li key={feature} className="flex items-start gap-3 text-sm">
                           <Check className={`w-4 h-4 mt-0.5 ${plan.popular ? 'text-brand-gold' : 'text-brand-navy'}`} />
-                          <span className={plan.popular ? 'text-slate-200' : 'text-slate-600'}>{feature}</span>
+                          <span className={plan.popular ? 'text-slate-200' : 'text-slate-600'}>
+                            {feature}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -178,12 +167,12 @@ export default function Pricing() {
             {
               icon: ShieldCheck,
               title: 'Protected payments',
-              body: 'Stripe checkout opens once the selected vehicle application is approved and the agreement is generated.',
+              body: 'Stripe checkout opens only after the selected vehicle application is approved and the agreement is generated.',
             },
             {
-              icon: CreditCard,
-              title: 'Transparent upfront cost',
-              body: 'Every plan shows its estimated bond and starting quote using the plan&apos;s weekly equivalent rate before checkout starts.',
+              icon: Check,
+              title: 'Private final quote',
+              body: 'Maple Rentals confirms the approved vehicle, registration details, and exact billing amount during review.',
             },
             {
               icon: Check,

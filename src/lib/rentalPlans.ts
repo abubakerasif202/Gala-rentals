@@ -43,6 +43,16 @@ export interface RentalPlanWithPricing extends RentalPlan {
   pricing: RentalPlanPricing;
 }
 
+export interface PublicRentalPlan {
+  id: string;
+  name: string;
+  description: string;
+  highlight?: string;
+  popular?: boolean;
+  features: string[];
+  cadenceLabel: string;
+}
+
 const MONTHLY_PLAN_COMPARISON_WEEKS = 4;
 
 const getPlanBillingCycleWeeks = (
@@ -183,5 +193,26 @@ export function buildRentalPlanWithPricing(
       recurringInterval: plan.billingInterval,
       recurringIntervalCount: plan.billingIntervalCount,
     },
+  };
+}
+
+export function buildPublicRentalPlan(plan: RentalPlan): PublicRentalPlan {
+  const cadenceLabel =
+    plan.billingInterval === 'month'
+      ? plan.billingIntervalCount === 1
+        ? 'Monthly billing'
+        : `Every ${plan.billingIntervalCount} months`
+      : plan.billingIntervalCount === 1
+        ? 'Weekly billing'
+        : `Every ${plan.billingIntervalCount} weeks`;
+
+  return {
+    id: plan.id,
+    name: plan.name,
+    description: plan.description,
+    highlight: plan.highlight,
+    popular: plan.popular,
+    features: plan.features,
+    cadenceLabel,
   };
 }

@@ -1349,7 +1349,9 @@ describe('Cars API', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body[0].name).toBe('Toyota Prius');
-    expect(res.body[0].bond).toBe(600);
+    expect(res.body[0].bond).toBe(0);
+    expect(res.body[0].weekly_price).toBe(0);
+    expect(res.body[0].image).toBe('');
   });
 
   it('GET /api/cars hides archived vehicles from the public fleet list', async () => {
@@ -1374,12 +1376,22 @@ describe('Cars API', () => {
     expect(res.body.find((car: { id: number }) => car.id === 1)?.archived_at).toBe(
       '2026-04-20T00:00:00.000Z'
     );
+    expect(res.body.find((car: { id: number }) => car.id === 1)?.weekly_price).toBe(250);
+    expect(res.body.find((car: { id: number }) => car.id === 1)?.image).toBe(
+      'https://example.com/camry.jpg'
+    );
   });
 
-  it('GET /api/cars/:id should return a single car', async () => {
+  it('GET /api/cars strips registration-style suffixes and redacts private fields', async () => {
+    mockState.cars[0].name = 'Toyota Camry (ABC123)';
+
     const res = await request(app).get('/api/cars/1');
+
     expect(res.status).toBe(200);
     expect(res.body.name).toBe('Toyota Camry');
+    expect(res.body.weekly_price).toBe(0);
+    expect(res.body.bond).toBe(0);
+    expect(res.body.image).toBe('');
   });
 
   it('PUT /api/cars/:id returns 404 when the car does not exist', async () => {
@@ -1615,6 +1627,23 @@ describe('Cars API', () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Car not found');
+  });
+});
+
+describe('Public rental plan API', () => {
+  it('GET /api/stripe/rental-plans returns public plan summaries without price fields', async () => {
+    const res = await request(app).get('/api/stripe/rental-plans');
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body[0]).toMatchObject({
+      id: 'weekly',
+      name: 'Weekly Rental',
+      cadenceLabel: 'Weekly billing',
+    });
+    expect(res.body[0].pricing).toBeUndefined();
+    expect(res.body[0].priceAud).toBeUndefined();
+    expect(res.body[0].bondAud).toBeUndefined();
   });
 });
 

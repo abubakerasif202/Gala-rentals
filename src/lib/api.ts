@@ -8,7 +8,7 @@ import {
   OperationalCustomer,
   OperationalInvoice,
 } from '../types';
-import type { RentalPlanWithPricing } from './rentalPlans';
+import type { PublicRentalPlan } from './rentalPlans';
 import type { InquiryValues } from '../../shared/inquiry';
 
 const api = axios.create({
@@ -135,7 +135,7 @@ export const fetchOperationalInvoices = async (
   return data;
 };
 
-export const fetchRentalPlans = async (): Promise<RentalPlanWithPricing[]> => {
+export const fetchRentalPlans = async (): Promise<PublicRentalPlan[]> => {
   const { data } = await api.get('/stripe/rental-plans');
   return data;
 };

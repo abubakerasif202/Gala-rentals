@@ -13,9 +13,8 @@ import { motion, Variants } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import DeferredInquiryForm from '../components/DeferredInquiryForm';
 import Seo from '../components/Seo';
-import { fetchCars, fetchRentalPlans } from '../lib/api';
+import { fetchRentalPlans } from '../lib/api';
 import { buildCanonicalUrl } from '../lib/seo';
-import type { Car } from '../types';
 
 const fadeIn: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -42,10 +41,6 @@ const homeJsonLd = {
   '@type': 'LocalBusiness',
   name: 'Maple Rentals',
   url: buildCanonicalUrl('/'),
-  image: [
-    buildCanonicalUrl('/hero-camry.webp'),
-    buildCanonicalUrl('/cta-camry.webp'),
-  ],
   description:
     'Maple Rentals offers weekly car rentals and Uber car rentals for professional drivers across Sydney, Merrylands, and Parramatta.',
   telephone: '+61 420 550 556',
@@ -75,35 +70,6 @@ export default function Home() {
     queryKey: ['rental-plans'],
     queryFn: fetchRentalPlans,
   });
-  const {
-    data: fleetCars = [],
-    isLoading: isLoadingFleetCars,
-    isError: hasFleetError,
-  } = useQuery<Car[]>({
-    // Keep the public fleet cache under the shared "cars" prefix so admin
-    // mutations invalidate it, without colliding with the admin/all query.
-    queryKey: ['cars', 'public'],
-    queryFn: () => fetchCars(),
-  });
-
-  const availableFleetCars = fleetCars.filter((car) => car.status === 'Available');
-  const featuredFleetCars = (availableFleetCars.length > 0 ? availableFleetCars : fleetCars).slice(0, 3);
-  const startingWeeklyPrice =
-    fleetCars.length > 0 ? Math.min(...fleetCars.map((car) => car.weekly_price)) : null;
-  const fleetSummary = [
-    {
-      label: 'Live fleet',
-      value: fleetCars.length > 0 ? String(fleetCars.length) : '--',
-    },
-    {
-      label: 'Available now',
-      value: fleetCars.length > 0 ? String(availableFleetCars.length) : '--',
-    },
-    {
-      label: 'Weekly from',
-      value: startingWeeklyPrice != null ? `$${startingWeeklyPrice.toFixed(0)}` : '--',
-    },
-  ];
 
   return (
     <div className="bg-white text-brand-navy min-h-screen font-sans selection:bg-brand-gold selection:text-black">
@@ -174,11 +140,45 @@ export default function Home() {
               className="relative"
             >
               <div className="absolute -inset-6 bg-brand-gold/10 blur-3xl" />
-              <img
-                src="/hero-camry.webp"
-                alt="Toyota Camry hybrid Uber car rental in Sydney"
-                className="w-full h-auto object-cover relative z-10 rounded-3xl shadow-[0_30px_80px_rgba(0,35,71,0.18)]"
-              />
+              <div className="relative z-10 rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_30px_80px_rgba(0,35,71,0.12)]">
+                <p className="text-[10px] font-bold tracking-[0.38em] uppercase text-brand-gold mb-4">
+                  Approval-First Access
+                </p>
+                <div className="space-y-4">
+                  {[
+                    {
+                      icon: ShieldCheck,
+                      title: 'Private vehicle details',
+                      body: 'Car registration and final pricing are confirmed directly by Maple Rentals after approval.',
+                    },
+                    {
+                      icon: Wrench,
+                      title: 'Managed fleet support',
+                      body: 'Maintenance, servicing, and support expectations stay handled by the Maple team.',
+                    },
+                    {
+                      icon: Fuel,
+                      title: 'Hybrid-ready program',
+                      body: 'Designed for Sydney rideshare drivers who want reliable, efficient vehicles.',
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.title}
+                      className="rounded-3xl border border-slate-200 bg-[#F8F9FA] p-5"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="rounded-2xl bg-brand-gold/10 p-3">
+                          <item.icon className="w-5 h-5 text-brand-gold" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold text-brand-navy">{item.title}</h2>
+                          <p className="mt-2 text-sm leading-7 text-slate-600">{item.body}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </motion.div>
           </div>
         </div>
@@ -187,177 +187,6 @@ export default function Home() {
       <section className="pb-32 bg-[#F8F9FA] relative z-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <DeferredInquiryForm />
-        </div>
-      </section>
-
-      <section className="py-28 bg-white border-y border-slate-200/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeIn}
-            className="flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between mb-14"
-          >
-            <div className="max-w-3xl">
-              <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">
-                Live Fleet
-              </p>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-5">
-                The website now reads the managed fleet directly.
-              </h2>
-              <p className="text-slate-600 text-lg font-light leading-relaxed">
-                Available vehicles shown here come from the same live fleet feed used by the
-                public fleet and application pages, so pricing and availability stay aligned with
-                what staff manage.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:min-w-[420px]">
-              {fleetSummary.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-3xl border border-slate-200 bg-[#F8F9FA] px-5 py-6 shadow-sm"
-                >
-                  <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-brand-gold">
-                    {item.label}
-                  </p>
-                  <p className="mt-3 text-3xl font-bold tracking-tight text-brand-navy">
-                    {item.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {isLoadingFleetCars && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {Array.from({ length: 3 }, (_, index) => (
-                <div
-                  key={`fleet-skeleton-${index}`}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-[#F8F9FA] shadow-sm"
-                >
-                  <div className="aspect-[16/10] bg-slate-200" />
-                  <div className="p-6 space-y-4">
-                    <Loader2 className="w-6 h-6 animate-spin text-brand-gold" />
-                    <div className="h-3 w-24 rounded bg-slate-200" />
-                    <div className="h-8 w-40 rounded bg-slate-200" />
-                    <div className="h-12 rounded bg-slate-100" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!isLoadingFleetCars && !hasFleetError && featuredFleetCars.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {featuredFleetCars.map((car: Car, index) => (
-                <motion.article
-                  key={car.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.45, delay: index * 0.08 }}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-[#F8F9FA] shadow-sm"
-                >
-                  <div className="relative aspect-[16/10] overflow-hidden">
-                    <img
-                      src={car.image}
-                      alt={`${car.name} weekly rental in Sydney`}
-                      className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/75 via-brand-navy/5 to-transparent" />
-                    <div className="absolute left-5 right-5 top-5 flex items-start justify-between gap-3">
-                      <span
-                        className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] ${
-                          car.status === 'Available'
-                            ? 'bg-emerald-500/85 text-white'
-                            : 'bg-amber-500/85 text-brand-navy'
-                        }`}
-                      >
-                        {car.status}
-                      </span>
-                      <span className="rounded-full bg-white/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-brand-navy">
-                        {car.model_year}
-                      </span>
-                    </div>
-                    <div className="absolute bottom-0 left-0 right-0 p-5">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.34em] text-brand-gold">
-                        Weekly rental
-                      </p>
-                      <p className="mt-2 text-3xl font-bold tracking-tight text-white">
-                        ${car.weekly_price.toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-6">
-                    <h3 className="text-2xl font-serif font-bold text-brand-navy">{car.name}</h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-600">
-                      Live website inventory card powered by the managed fleet feed. Open the
-                      vehicle page for details and start an application when you are ready.
-                    </p>
-
-                    <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                      <Link
-                        to={`/cars/${car.id}`}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
-                      >
-                        View vehicle <ArrowRight className="w-4 h-4" />
-                      </Link>
-                      <Link
-                        to={car.status === 'Available' ? `/apply?carId=${car.id}` : '/cars'}
-                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] transition-colors ${
-                          car.status === 'Available'
-                            ? 'bg-brand-gold text-brand-navy hover:bg-brand-gold-light'
-                            : 'border border-slate-300 text-slate-500 hover:border-slate-400'
-                        }`}
-                      >
-                        {car.status === 'Available' ? 'Apply now' : 'Browse fleet'}
-                      </Link>
-                    </div>
-                  </div>
-                </motion.article>
-              ))}
-            </div>
-          )}
-
-          {!isLoadingFleetCars && hasFleetError && (
-            <div className="rounded-3xl border border-red-200 bg-red-50 px-6 py-10 text-center shadow-sm">
-              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-              <p className="text-sm uppercase tracking-[0.2em] font-bold text-red-500 mb-3">
-                Live fleet unavailable
-              </p>
-              <p className="text-slate-600 mb-6">
-                The homepage could not load the current fleet feed just now. Open the dedicated
-                fleet page for a direct retry.
-              </p>
-              <Link
-                to="/cars"
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
-              >
-                Browse Fleet <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          )}
-
-          {!isLoadingFleetCars && !hasFleetError && featuredFleetCars.length === 0 && (
-            <div className="rounded-3xl border border-slate-200 bg-[#F8F9FA] px-6 py-10 text-center shadow-sm">
-              <p className="text-sm uppercase tracking-[0.2em] font-bold text-brand-gold mb-3">
-                Fleet feed is connected
-              </p>
-              <p className="text-slate-600 mb-6">
-                No vehicles are available to preview yet, but the homepage is now wired to the
-                same live fleet source as the public fleet pages.
-              </p>
-              <Link
-                to="/cars"
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
-              >
-                Open Fleet <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          )}
         </div>
       </section>
 
@@ -435,7 +264,7 @@ export default function Home() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {[
               { step: '01', title: 'Choose & Apply', desc: 'Select your vehicle, upload your driver details, and submit the required documents through our secure portal.' },
-              { step: '02', title: 'Checkout Securely', desc: 'Review the approved agreement, pay the quoted security bond and first weekly rent through Stripe, and start automatic weekly billing.' },
+              { step: '02', title: 'Review & Approval', desc: 'Maple Rentals confirms vehicle availability, private registration details, and the approved payment terms after review.' },
               { step: '03', title: 'Collect & Start Earning', desc: 'Pick up your keys, connect to the Uber app, and start earning immediately.' },
             ].map((item) => (
               <motion.div key={item.step} variants={fadeIn} className="flex flex-col items-center">
@@ -455,9 +284,9 @@ export default function Home() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeIn} className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-14">
             <div>
               <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">Flexible Plans</p>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-4">Choose a car rental plan that fits your driving schedule.</h2>
+              <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-4">Choose a rental plan that fits your driving schedule.</h2>
               <p className="text-slate-600 max-w-2xl text-lg font-light leading-relaxed">
-                We merged the replica plan merchandising into the main app here so drivers can compare tiers before choosing a vehicle or starting an application.
+                Compare billing cadence, support level, and plan inclusions before you start an application. Final pricing is confirmed by Maple Rentals during approval.
               </p>
             </div>
             <Link to="/pricing" className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-brand-navy hover:text-brand-gold transition-colors">
@@ -504,19 +333,12 @@ export default function Home() {
                   </div>
 
                   <div className="mb-8">
-                    <div className="flex items-end gap-2">
-                      <span className={`text-5xl font-bold ${plan.popular ? 'text-brand-gold' : 'text-brand-navy'}`}>${plan.pricing.recurringDueAud.toFixed(2)}</span>
-                      <span className={`text-xs uppercase tracking-[0.2em] mb-2 ${plan.popular ? 'text-slate-300' : 'text-slate-400'}`}>{plan.pricing.recurringLabel}</span>
-                    </div>
-                    <p className={`mt-3 text-xs uppercase tracking-[0.18em] ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>
-                      Includes ${plan.pricing.serviceFeeAud.toFixed(2)} service fee each billing cycle
+                    <p className={`text-xs uppercase tracking-[0.22em] ${plan.popular ? 'text-brand-gold' : 'text-slate-500'}`}>
+                      {plan.cadenceLabel}
                     </p>
-                    {(plan.pricing.recurringInterval !== 'week' ||
-                      plan.pricing.recurringIntervalCount !== 1) && (
-                      <p className={`mt-3 text-sm ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>
-                        Equivalent to ${plan.pricing.comparisonWeeklyAud.toFixed(2)} per week for bond planning.
-                      </p>
-                    )}
+                    <p className={`mt-3 text-sm leading-7 ${plan.popular ? 'text-slate-300' : 'text-slate-500'}`}>
+                      Maple Rentals shares the approved vehicle, registration details, and final billing amount after your application is reviewed.
+                    </p>
                   </div>
 
                   <ul className="space-y-4">
@@ -534,17 +356,17 @@ export default function Home() {
               <div className="md:col-span-3 rounded-3xl border border-red-200 bg-white px-6 py-10 text-center shadow-sm">
                 <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
                 <p className="text-sm uppercase tracking-[0.2em] font-bold text-red-500 mb-3">
-                  Live pricing unavailable
+                  Plan details unavailable
                 </p>
                 <p className="text-slate-600 mb-6">
-                  We could not load the current plan pricing on the homepage. Open the full pricing
-                  page for the latest quote.
+                  We could not load the current plan summaries on the homepage. Open the full plans
+                  page or continue with the application flow.
                 </p>
                 <Link
                   to="/pricing"
                   className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
                 >
-                  View Pricing <ArrowRight className="w-4 h-4" />
+                  View Plans <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
             )}
@@ -570,7 +392,7 @@ export default function Home() {
             <p className="text-slate-600 text-lg font-light leading-relaxed">
               We support professional drivers looking for affordable car rentals close to
               Merrylands, Parramatta, Lidcombe, and surrounding Sydney suburbs. Apply online,
-              compare weekly pricing, and secure an Uber-ready hybrid backed by Maple Rentals.
+              compare plan options, and secure an Uber-ready hybrid backed by Maple Rentals.
             </p>
           </motion.div>
 
@@ -638,11 +460,28 @@ export default function Home() {
               transition={{ duration: 1 }}
               className="relative hidden lg:block"
             >
-              <img
-                src="/cta-camry.webp"
-                alt="Maple Rentals car rentals fleet serving Sydney, Parramatta, and Merrylands"
-                className="w-full h-auto shadow-2xl rounded-3xl"
-              />
+              <div className="rounded-[2rem] border border-white/10 bg-brand-navy-light p-8 shadow-2xl">
+                <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
+                  What stays private
+                </p>
+                <div className="mt-6 space-y-4">
+                  {[
+                    'Vehicle number plates are shared only by Maple Rentals after approval.',
+                    'Exact car pricing is confirmed by staff during review, not on the public site.',
+                    'Collection and payment handoff details are sent once your application is approved.',
+                  ].map((item) => (
+                    <div
+                      key={item}
+                      className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm leading-7 text-slate-300"
+                    >
+                      <div className="flex items-start gap-3">
+                        <Check className="mt-1 h-4 w-4 shrink-0 text-brand-gold" />
+                        <span>{item}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </motion.div>
           </div>
         </div>

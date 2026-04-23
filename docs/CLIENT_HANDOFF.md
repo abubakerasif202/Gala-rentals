@@ -36,7 +36,7 @@ Deployment impact:
 
 ### Admin and Content Management
 
-- Vehicle image validation now accepts seeded root-relative asset paths such as `/cars/ABC123.jpeg`, so existing records can be edited without rewriting image URLs.
+- Vehicle image validation now accepts seeded root-relative asset paths such as `/car-images/ABC123.jpeg`, so existing records can be edited without rewriting image URLs.
 
 ## Deployment Checklist
 
@@ -112,7 +112,7 @@ Run these checks against production:
    - the new application appears in admin as `Pending`
 3. Approve that application through the admin workflow and confirm the payment-link flow still works.
 4. Submit repeated public inquiries from the same IP and confirm the limiter blocks excessive requests.
-5. Edit a seeded vehicle that uses a `/cars/...` image path and confirm the save succeeds.
+5. Edit a seeded vehicle that uses a `/car-images/...` image path and confirm the save succeeds.
 6. Log in and out of admin from the real production origin and confirm the session behaves normally.
 
 ## Operational Notes

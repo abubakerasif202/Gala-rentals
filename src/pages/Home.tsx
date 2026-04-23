@@ -13,8 +13,9 @@ import { motion, Variants } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import DeferredInquiryForm from '../components/DeferredInquiryForm';
 import Seo from '../components/Seo';
-import { fetchRentalPlans } from '../lib/api';
+import { fetchCars, fetchRentalPlans } from '../lib/api';
 import { buildCanonicalUrl } from '../lib/seo';
+import type { Car } from '../types';
 
 const fadeIn: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -74,6 +75,35 @@ export default function Home() {
     queryKey: ['rental-plans'],
     queryFn: fetchRentalPlans,
   });
+  const {
+    data: fleetCars = [],
+    isLoading: isLoadingFleetCars,
+    isError: hasFleetError,
+  } = useQuery<Car[]>({
+    // Keep the public fleet cache under the shared "cars" prefix so admin
+    // mutations invalidate it, without colliding with the admin/all query.
+    queryKey: ['cars', 'public'],
+    queryFn: () => fetchCars(),
+  });
+
+  const availableFleetCars = fleetCars.filter((car) => car.status === 'Available');
+  const featuredFleetCars = (availableFleetCars.length > 0 ? availableFleetCars : fleetCars).slice(0, 3);
+  const startingWeeklyPrice =
+    fleetCars.length > 0 ? Math.min(...fleetCars.map((car) => car.weekly_price)) : null;
+  const fleetSummary = [
+    {
+      label: 'Live fleet',
+      value: fleetCars.length > 0 ? String(fleetCars.length) : '--',
+    },
+    {
+      label: 'Available now',
+      value: fleetCars.length > 0 ? String(availableFleetCars.length) : '--',
+    },
+    {
+      label: 'Weekly from',
+      value: startingWeeklyPrice != null ? `$${startingWeeklyPrice.toFixed(0)}` : '--',
+    },
+  ];
 
   return (
     <div className="bg-white text-brand-navy min-h-screen font-sans selection:bg-brand-gold selection:text-black">
@@ -157,6 +187,177 @@ export default function Home() {
       <section className="pb-32 bg-[#F8F9FA] relative z-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <DeferredInquiryForm />
+        </div>
+      </section>
+
+      <section className="py-28 bg-white border-y border-slate-200/70">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeIn}
+            className="flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between mb-14"
+          >
+            <div className="max-w-3xl">
+              <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-brand-gold mb-4">
+                Live Fleet
+              </p>
+              <h2 className="text-4xl md:text-5xl font-serif font-bold text-brand-navy mb-5">
+                The website now reads the managed fleet directly.
+              </h2>
+              <p className="text-slate-600 text-lg font-light leading-relaxed">
+                Available vehicles shown here come from the same live fleet feed used by the
+                public fleet and application pages, so pricing and availability stay aligned with
+                what staff manage.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:min-w-[420px]">
+              {fleetSummary.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-3xl border border-slate-200 bg-[#F8F9FA] px-5 py-6 shadow-sm"
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-brand-gold">
+                    {item.label}
+                  </p>
+                  <p className="mt-3 text-3xl font-bold tracking-tight text-brand-navy">
+                    {item.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {isLoadingFleetCars && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {Array.from({ length: 3 }, (_, index) => (
+                <div
+                  key={`fleet-skeleton-${index}`}
+                  className="overflow-hidden rounded-3xl border border-slate-200 bg-[#F8F9FA] shadow-sm"
+                >
+                  <div className="aspect-[16/10] bg-slate-200" />
+                  <div className="p-6 space-y-4">
+                    <Loader2 className="w-6 h-6 animate-spin text-brand-gold" />
+                    <div className="h-3 w-24 rounded bg-slate-200" />
+                    <div className="h-8 w-40 rounded bg-slate-200" />
+                    <div className="h-12 rounded bg-slate-100" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!isLoadingFleetCars && !hasFleetError && featuredFleetCars.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {featuredFleetCars.map((car: Car, index) => (
+                <motion.article
+                  key={car.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.45, delay: index * 0.08 }}
+                  className="overflow-hidden rounded-3xl border border-slate-200 bg-[#F8F9FA] shadow-sm"
+                >
+                  <div className="relative aspect-[16/10] overflow-hidden">
+                    <img
+                      src={car.image}
+                      alt={`${car.name} weekly rental in Sydney`}
+                      className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/75 via-brand-navy/5 to-transparent" />
+                    <div className="absolute left-5 right-5 top-5 flex items-start justify-between gap-3">
+                      <span
+                        className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] ${
+                          car.status === 'Available'
+                            ? 'bg-emerald-500/85 text-white'
+                            : 'bg-amber-500/85 text-brand-navy'
+                        }`}
+                      >
+                        {car.status}
+                      </span>
+                      <span className="rounded-full bg-white/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-brand-navy">
+                        {car.model_year}
+                      </span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-5">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.34em] text-brand-gold">
+                        Weekly rental
+                      </p>
+                      <p className="mt-2 text-3xl font-bold tracking-tight text-white">
+                        ${car.weekly_price.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-6">
+                    <h3 className="text-2xl font-serif font-bold text-brand-navy">{car.name}</h3>
+                    <p className="mt-3 text-sm leading-7 text-slate-600">
+                      Live website inventory card powered by the managed fleet feed. Open the
+                      vehicle page for details and start an application when you are ready.
+                    </p>
+
+                    <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                      <Link
+                        to={`/cars/${car.id}`}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
+                      >
+                        View vehicle <ArrowRight className="w-4 h-4" />
+                      </Link>
+                      <Link
+                        to={car.status === 'Available' ? `/apply?carId=${car.id}` : '/cars'}
+                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] transition-colors ${
+                          car.status === 'Available'
+                            ? 'bg-brand-gold text-brand-navy hover:bg-brand-gold-light'
+                            : 'border border-slate-300 text-slate-500 hover:border-slate-400'
+                        }`}
+                      >
+                        {car.status === 'Available' ? 'Apply now' : 'Browse fleet'}
+                      </Link>
+                    </div>
+                  </div>
+                </motion.article>
+              ))}
+            </div>
+          )}
+
+          {!isLoadingFleetCars && hasFleetError && (
+            <div className="rounded-3xl border border-red-200 bg-red-50 px-6 py-10 text-center shadow-sm">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+              <p className="text-sm uppercase tracking-[0.2em] font-bold text-red-500 mb-3">
+                Live fleet unavailable
+              </p>
+              <p className="text-slate-600 mb-6">
+                The homepage could not load the current fleet feed just now. Open the dedicated
+                fleet page for a direct retry.
+              </p>
+              <Link
+                to="/cars"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
+              >
+                Browse Fleet <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
+
+          {!isLoadingFleetCars && !hasFleetError && featuredFleetCars.length === 0 && (
+            <div className="rounded-3xl border border-slate-200 bg-[#F8F9FA] px-6 py-10 text-center shadow-sm">
+              <p className="text-sm uppercase tracking-[0.2em] font-bold text-brand-gold mb-3">
+                Fleet feed is connected
+              </p>
+              <p className="text-slate-600 mb-6">
+                No vehicles are available to preview yet, but the homepage is now wired to the
+                same live fleet source as the public fleet pages.
+              </p>
+              <Link
+                to="/cars"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
+              >
+                Open Fleet <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 

@@ -3,6 +3,7 @@ param(
     [string]$InvoicePath = "C:\Users\abuba\Invoice-list.xls",
     [string]$ClientPath = "C:\Users\abuba\RentalClientList.xlsx",
     [int]$RecentInvoiceWindowDays = 21,
+    [switch]$EmitPayload,
     [switch]$Apply
 )
 
@@ -472,6 +473,24 @@ $summary = [ordered]@{
 }
 
 if (-not $Apply) {
+    if ($EmitPayload) {
+        $payload = [ordered]@{
+            cars = @($carImports | ForEach-Object {
+                [ordered]@{
+                    registration = $_.registration
+                    name = $_.name
+                    model_year = $_.model_year
+                    weekly_price = $_.weekly_price
+                    bond = $_.bond
+                    status = $_.status
+                    image = $_.image
+                }
+            })
+        }
+        $payload | ConvertTo-Json -Depth 8
+        exit 0
+    }
+
     $summary | ConvertTo-Json -Depth 8
     exit 0
 }

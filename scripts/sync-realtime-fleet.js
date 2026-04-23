@@ -1,9 +1,12 @@
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import {
   buildFleetCarSeedRows,
   buildFleetDriverSeedRows,
   canonicalizeRegistration,
   REALTIME_FLEET_ROWS,
 } from './realtime-fleet-data.js';
+import { resolveRealtimeFleetSyncSource } from './fleet-sync-source.js';
 import {
   createSupabaseAdminClient,
   extractRegistrationFromCar,
@@ -63,7 +66,104 @@ const deleteByIds = async ({ supabase, table, ids }) => {
   }
 };
 
-async function syncRealtimeFleet() {
+const IMPORT_WORKBOOK_SCRIPT_PATH = fileURLToPath(
+  new URL('./import-fleet-from-workbooks.ps1', import.meta.url)
+);
+
+const buildSnapshotCarPayloadByRegistration = () =>
+  new Map(
+    REALTIME_FLEET_ROWS.map((row, index) => [
+      canonicalizeRegistration(row.registration),
+      buildFleetCarSeedRows()[index],
+    ])
+  );
+
+const buildProcessError = (result) => {
+  const details = [result.error?.message, result.stderr, result.stdout]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+
+  return new Error(details.join('\n\n') || 'Workbook fleet import failed.');
+};
+
+const loadWorkbookFleetPayload = (workbookImport) => {
+  const powerShellCommand =
+    process.env.MAPLE_FLEET_POWERSHELL_BIN || (process.platform === 'win32' ? 'powershell.exe' : 'pwsh');
+  const args = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    IMPORT_WORKBOOK_SCRIPT_PATH,
+    '-FleetPath',
+    workbookImport.fleetPath,
+    '-InvoicePath',
+    workbookImport.invoicePath,
+    '-ClientPath',
+    workbookImport.clientPath,
+    '-EmitPayload',
+  ];
+
+  const result = spawnSync(powerShellCommand, args, {
+    encoding: 'utf8',
+    stdio: 'pipe',
+    windowsHide: true,
+  });
+
+  if (result.error || result.status !== 0) {
+    throw buildProcessError(result);
+  }
+
+  const stdout = String(result.stdout || '').trim();
+  if (!stdout) {
+    throw new Error('Workbook fleet importer returned no payload.');
+  }
+
+  try {
+    return JSON.parse(stdout);
+  } catch (error) {
+    throw new Error(
+      `Workbook fleet importer returned invalid JSON.\n${String(error)}\n\n${stdout}`
+    );
+  }
+};
+
+const buildWorkbookCarPayloadByRegistration = (workbookPayload) => {
+  const snapshotPayloadByRegistration = buildSnapshotCarPayloadByRegistration();
+  const payloadByRegistration = new Map();
+  const workbookCars = workbookPayload?.cars || [];
+
+  if (workbookCars.length === 0) {
+    throw new Error('Workbook fleet payload contained no cars.');
+  }
+
+  for (const workbookCar of workbookCars) {
+    const registration =
+      canonicalizeRegistration(workbookCar.registration || extractRegistrationFromCar(workbookCar));
+
+    if (!registration) {
+      throw new Error(
+        `Workbook fleet payload contained a car without a registration: ${JSON.stringify(workbookCar)}`
+      );
+    }
+
+    const snapshotCar = snapshotPayloadByRegistration.get(registration);
+    payloadByRegistration.set(registration, {
+      ...(snapshotCar || {}),
+      ...workbookCar,
+      bond: Number(workbookCar.bond ?? snapshotCar?.bond ?? 500),
+      image: snapshotCar?.image || workbookCar.image,
+      model_year: Number(workbookCar.model_year ?? snapshotCar?.model_year ?? 2024),
+      name: snapshotCar?.name || workbookCar.name,
+      status: workbookCar.status || snapshotCar?.status || 'Available',
+      weekly_price: Number(workbookCar.weekly_price ?? snapshotCar?.weekly_price ?? 0),
+    });
+  }
+
+  return payloadByRegistration;
+};
+
+export async function runRealtimeFleetSync(syncSource) {
   const { supabase, supabaseUrl, supabaseServiceRoleKey } = createSupabaseAdminClient();
   const coreMode = await getCoreSchemaMode({ supabaseUrl, supabaseServiceRoleKey });
   const importDate = new Date().toISOString().slice(0, 10);
@@ -93,38 +193,46 @@ async function syncRealtimeFleet() {
   const currentCars = carsResult.data || [];
   const currentApplications = applicationsResult.data || [];
   const currentRentals = rentalsResult.data || [];
-  const fleetRegistrations = new Set(
-    REALTIME_FLEET_ROWS.map((row) => canonicalizeRegistration(row.registration))
-  );
+  const fleetCarPayloadByRegistration =
+    syncSource.source === 'workbook'
+      ? buildWorkbookCarPayloadByRegistration(loadWorkbookFleetPayload(syncSource.workbookImport))
+      : buildSnapshotCarPayloadByRegistration();
+  const fleetRegistrations = new Set(fleetCarPayloadByRegistration.keys());
 
-  const legacyApplicationIds = currentApplications
-    .filter((application) => {
-      const email = String(application.email || '').toLowerCase();
-      const licenseNumber = String(getApplicationLicenseNumber(application, coreMode) || '');
-      const experience = String(application.experience || '');
+  let legacyApplicationIds = [];
+  let legacyRentalIds = [];
+  let legacyApplicationIdSet = new Set();
 
-      return (
-        email.endsWith('@example.invalid') ||
-        licenseNumber.startsWith('LEGACY-') ||
-        experience.includes('Legacy renter import') ||
-        experience.includes('Imported from live fleet data')
-      );
-    })
-    .map((application) => application.id);
+  if (syncSource.source === 'snapshot') {
+    legacyApplicationIds = currentApplications
+      .filter((application) => {
+        const email = String(application.email || '').toLowerCase();
+        const licenseNumber = String(getApplicationLicenseNumber(application, coreMode) || '');
+        const experience = String(application.experience || '');
 
-  const legacyApplicationIdSet = new Set(legacyApplicationIds);
-  const legacyRentalIds = currentRentals
-    .filter((rental) =>
-      legacyApplicationIdSet.has(coreMode === 'camel' ? rental.applicationId : rental.application_id)
-    )
-    .map((rental) => rental.id);
+        return (
+          email.endsWith('@example.invalid') ||
+          licenseNumber.startsWith('LEGACY-') ||
+          experience.includes('Legacy renter import') ||
+          experience.includes('Imported from live fleet data')
+        );
+      })
+      .map((application) => application.id);
 
-  if (legacyRentalIds.length > 0) {
-    await deleteByIds({ supabase, table: 'rentals', ids: legacyRentalIds });
-  }
+    legacyApplicationIdSet = new Set(legacyApplicationIds);
+    legacyRentalIds = currentRentals
+      .filter((rental) =>
+        legacyApplicationIdSet.has(coreMode === 'camel' ? rental.applicationId : rental.application_id)
+      )
+      .map((rental) => rental.id);
 
-  if (legacyApplicationIds.length > 0) {
-    await deleteByIds({ supabase, table: 'applications', ids: legacyApplicationIds });
+    if (legacyRentalIds.length > 0) {
+      await deleteByIds({ supabase, table: 'rentals', ids: legacyRentalIds });
+    }
+
+    if (legacyApplicationIds.length > 0) {
+      await deleteByIds({ supabase, table: 'applications', ids: legacyApplicationIds });
+    }
   }
 
   const registrationToCar = new Map();
@@ -137,28 +245,33 @@ async function syncRealtimeFleet() {
     }
   }
 
-  const carPayloadByRegistration = new Map(
-    REALTIME_FLEET_ROWS.map((row, index) => [
-      canonicalizeRegistration(row.registration),
-      buildFleetCarSeedRows()[index],
-    ])
-  );
-
   const updatedCarIds = [];
   const insertedCars = [];
 
-  for (const row of REALTIME_FLEET_ROWS) {
-    const registration = canonicalizeRegistration(row.registration);
+  for (const [registration, sourceCarPayload] of fleetCarPayloadByRegistration.entries()) {
     const existingCar = registrationToCar.get(registration);
-    const carPayload = mapCarPayloadForSchema(
-      carPayloadByRegistration.get(registration),
-      coreMode
-    );
+    const carPayload = mapCarPayloadForSchema(sourceCarPayload, coreMode);
 
     if (existingCar) {
-      // Exclude `image` from updates — images are managed via Supabase Storage and
-      // must not be overwritten with the local-path placeholder used for new-car inserts.
-      const { image: _image, ...carUpdatePayload } = carPayload;
+      const carUpdatePayload =
+        syncSource.source === 'workbook'
+          ? coreMode === 'camel'
+            ? {
+                bond: carPayload.bond,
+                status: carPayload.status,
+                weeklyPrice: carPayload.weeklyPrice,
+              }
+            : {
+                bond: carPayload.bond,
+                status: carPayload.status,
+                weekly_price: carPayload.weekly_price,
+              }
+          : (() => {
+              // Exclude `image` from updates — images are managed via Supabase Storage and
+              // must not be overwritten with the local-path placeholder used for new-car inserts.
+              const { image: _image, ...payload } = carPayload;
+              return payload;
+            })();
       const { error } = await supabase.from('cars').update(carUpdatePayload).eq('id', existingCar.id);
 
       if (error) {
@@ -198,63 +311,73 @@ async function syncRealtimeFleet() {
     }
   }
 
-  const { applications, rentals } = buildFleetDriverSeedRows({
-    carIdByRegistration,
-    importDate,
-    importTimestamp,
-  });
+  let importedApplications = 0;
+  let importedRentals = 0;
 
-  const insertedApplications = await insertInChunks({
-    supabase,
-    table: 'applications',
-    rows: applications.map((application) => mapApplicationPayloadForSchema(application, coreMode)),
-    select: 'id, email',
-  });
+  if (syncSource.source === 'snapshot') {
+    const { applications, rentals } = buildFleetDriverSeedRows({
+      carIdByRegistration,
+      importDate,
+      importTimestamp,
+    });
 
-  const applicationIdByEmail = new Map(
-    insertedApplications.map((application) => [application.email, application.id])
-  );
+    const insertedApplications = await insertInChunks({
+      supabase,
+      table: 'applications',
+      rows: applications.map((application) => mapApplicationPayloadForSchema(application, coreMode)),
+      select: 'id, email',
+    });
 
-  const rentalRows = rentals.map((rental) => {
-    const applicationId = applicationIdByEmail.get(
-      `legacy-${rental.registration.toLowerCase()}@example.invalid`
+    const applicationIdByEmail = new Map(
+      insertedApplications.map((application) => [application.email, application.id])
     );
-    const carId = carIdByRegistration.get(rental.registration);
 
-    if (!applicationId || !carId) {
-      throw new Error(`Missing imported ids for registration ${rental.registration}`);
-    }
+    const rentalRows = rentals.map((rental) => {
+      const applicationId = applicationIdByEmail.get(
+        `legacy-${rental.registration.toLowerCase()}@example.invalid`
+      );
+      const carId = carIdByRegistration.get(rental.registration);
 
-    return mapRentalPayloadForSchema(
-      {
-        application_id: applicationId,
-        car_id: carId,
-        start_date: rental.start_date,
-        weekly_price: rental.weekly_price,
-        bond_paid: rental.bond_paid,
-        status: rental.status,
-      },
-      coreMode
-    );
-  });
+      if (!applicationId || !carId) {
+        throw new Error(`Missing imported ids for registration ${rental.registration}`);
+      }
 
-  await insertInChunks({
-    supabase,
-    table: 'rentals',
-    rows: rentalRows,
-    select: 'id',
-  });
+      return mapRentalPayloadForSchema(
+        {
+          application_id: applicationId,
+          car_id: carId,
+          start_date: rental.start_date,
+          weekly_price: rental.weekly_price,
+          bond_paid: rental.bond_paid,
+          status: rental.status,
+        },
+        coreMode
+      );
+    });
+
+    await insertInChunks({
+      supabase,
+      table: 'rentals',
+      rows: rentalRows,
+      select: 'id',
+    });
+
+    importedApplications = applications.length;
+    importedRentals = rentals.length;
+  }
 
   const protectedCarIds = new Set(
     currentApplications
-      .filter((application) => !legacyApplicationIdSet.has(application.id))
+      .filter((application) =>
+        syncSource.source === 'snapshot' ? !legacyApplicationIdSet.has(application.id) : true
+      )
       .map((application) => getApplicationAssignedCarId(application, coreMode))
       .filter(Boolean)
   );
 
   const protectedRentalCarIds = new Set(
     currentRentals
-      .filter((rental) => !legacyRentalIds.includes(rental.id))
+      .filter((rental) => (syncSource.source === 'snapshot' ? !legacyRentalIds.includes(rental.id) : true))
       .map((rental) => getRentalCarId(rental, coreMode))
   );
 
@@ -293,30 +416,38 @@ async function syncRealtimeFleet() {
     supabase.from('rentals').select('id', { count: 'exact', head: true }),
   ]);
 
-  console.log(
-    JSON.stringify(
-      {
-        coreMode,
-        updatedCars: updatedCarIds.length,
-        insertedCars: insertedCars.length,
-        deletedCars: deletedRegistrations.length,
-        skippedDeletions,
-        importedApplications: applications.length,
-        importedRentals: rentals.length,
-        totals: {
-          cars: summaryResult[0].count ?? 0,
-          applications: summaryResult[1].count ?? 0,
-          rentals: summaryResult[2].count ?? 0,
-        },
-      },
-      null,
-      2
-    )
-  );
+  const summary = {
+    source: syncSource.source,
+    coreMode,
+    updatedCars: updatedCarIds.length,
+    insertedCars: insertedCars.length,
+    deletedCars: deletedRegistrations.length,
+    skippedDeletions,
+    importedApplications,
+    importedRentals,
+    totals: {
+      cars: summaryResult[0].count ?? 0,
+      applications: summaryResult[1].count ?? 0,
+      rentals: summaryResult[2].count ?? 0,
+    },
+  };
+
+  console.info(`[fleet-sync] Sync complete: ${JSON.stringify(summary)}`);
+  return summary;
 }
 
-syncRealtimeFleet().catch((error) => {
-  console.error('Realtime fleet sync failed.');
-  console.error(error);
-  process.exit(1);
-});
+export async function syncRealtimeFleet() {
+  const syncSource = resolveRealtimeFleetSyncSource();
+  console.info(`[fleet-sync] Starting sync: ${syncSource.reason}`);
+  return runRealtimeFleetSync(syncSource);
+}
+
+// Only run immediately if executed directly
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isMain) {
+  syncRealtimeFleet().catch((error) => {
+    console.error('Realtime fleet sync failed.');
+    console.error(error);
+    process.exit(1);
+  });
+}

@@ -102,7 +102,7 @@ export const getFleetCarName = (row) =>
   )})`;
 
 export const getFleetCarImage = (row) =>
-  `/cars/${canonicalizeRegistration(row.registration)}.jpeg`;
+  `/car-images/${canonicalizeRegistration(row.registration)}.jpeg`;
 
 export const getFleetApplicationEmail = (row) =>
   `legacy-${canonicalizeRegistration(row.registration).toLowerCase()}@example.invalid`;

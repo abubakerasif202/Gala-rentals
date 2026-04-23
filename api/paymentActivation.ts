@@ -541,6 +541,7 @@ export const handleVehicleCheckoutCompletion = async (
     const recordedPaidAt = application.paid_at
       ? String(application.paid_at)
       : new Date().toISOString();
+    const applicationStatus = String(application.status || '');
 
     const moveApplicationToPaymentReview = async (reason: string) => {
       const transitionedApplication = await updateApplicationPaymentState({
@@ -597,8 +598,6 @@ export const handleVehicleCheckoutCompletion = async (
         AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON
       );
     }
-
-    const applicationStatus = String(application.status || '');
     const assignedCarId = Number(application.assigned_car_id || 0);
     const pendingCheckoutSessionId = application.pending_checkout_session_id
       ? String(application.pending_checkout_session_id)

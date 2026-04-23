@@ -3684,6 +3684,45 @@ describe('Stripe API', () => {
     expect(mockState.rentals).toHaveLength(0);
   });
 
+  it('POST /api/stripe/webhook does not crash when restricted-mode replay hits an application that is already Paid', async () => {
+    mockHasDirectDatabaseConnection.mockReturnValue(false);
+    mockState.applications[1].status = 'Paid';
+    mockState.applications[1].paid_at = '2026-03-06T00:00:00.000Z';
+    mockState.applications[1].pending_checkout_session_id = null;
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: 'evt_test_2_paid_replay',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_paid_replay',
+          payment_status: 'paid',
+          metadata: {
+            application_id: APPROVED_APPLICATION_ID,
+            approved_bond: '500.00',
+            approved_weekly_price: '250.00',
+            car_id: '1',
+            checkout_kind: 'vehicle',
+            payment_link_version: '1',
+          },
+          customer: 'cus_paid_replay',
+          subscription: 'sub_paid_replay',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', 'test-signature')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+
+    expect(res.status).toBe(200);
+    expect(mockState.applications[1].status).toBe('Paid');
+    expect(mockState.applications[1].paid_at).toBe('2026-03-06T00:00:00.000Z');
+    expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
+    expect(mockState.rentals).toHaveLength(0);
+  });
+
   it('POST /api/stripe/webhook skips subscription lifecycle updates when strict Stripe rental identity is missing', async () => {
     mockState.cars[0].status = 'Rented';
     mockState.rentals = [

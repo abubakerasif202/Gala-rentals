@@ -16,8 +16,23 @@ import {
 import { enqueueIndexNowUrl } from '../services/indexNow.js';
 import { calculateBondFromWeeklyRent } from '../../shared/rentalPricing.js';
 
+import { syncRealtimeFleet } from '../../scripts/sync-realtime-fleet.js';
+
 const router = express.Router();
 const VEHICLE_IMAGES_BUCKET = (process.env.SUPABASE_VEHICLE_IMAGES_BUCKET || 'vehicle-images').trim();
+
+router.post('/admin/sync', authenticateAdmin, async (_req, res) => {
+  try {
+    const summary = await syncRealtimeFleet();
+    res.json({ success: true, summary });
+  } catch (error) {
+    console.error('[fleet-sync] Manual sync error:', error);
+    res.status(500).json({ 
+      error: 'Fleet synchronization failed', 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
 type CarRecord = {
   archived_at?: string | null;
   bond: number;

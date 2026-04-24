@@ -19,14 +19,19 @@ async function runMigration() {
     await client.connect();
     console.log('Connected to PostgreSQL using the provided connection string.');
 
-    const sqlPath = path.join(process.cwd(), 'supabase', 'migrations', '03_vehicle_allocation_index.sql');
+    const sqlPath = path.join(
+      process.cwd(),
+      'supabase',
+      'migrations',
+      '20260424143000_remove_legacy_vehicle_allocation.sql'
+    );
     const sql = fs.readFileSync(sqlPath, 'utf8');
 
-    console.log('Executing supabase/migrations/03_vehicle_allocation_index.sql...');
+    console.log('Executing supabase/migrations/20260424143000_remove_legacy_vehicle_allocation.sql...');
     await client.query(sql);
-    console.log('Active vehicle allocation index applied successfully.');
+    console.log('Legacy vehicle allocation contract removed successfully.');
   } catch (error) {
-    console.error('Error applying active vehicle allocation index:', error);
+    console.error('Error removing legacy vehicle allocation contract:', error);
     process.exitCode = 1;
   } finally {
     await client.end();

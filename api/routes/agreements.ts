@@ -117,6 +117,17 @@ router.post('/', authenticateAdmin, async (req, res) => {
       });
     }
 
+    const carRecord = car as unknown as Record<string, unknown>;
+    const carStatus = String(carRecord.status || '');
+    const isArchived = Boolean(carRecord.archived_at);
+
+    if (isArchived || carStatus !== 'Available') {
+      return res.status(409).json({
+        error:
+          'Lease agreements can only be created for active available vehicles. Review the vehicle status before generating the agreement.',
+      });
+    }
+
     const { data: inserted, error } = await db.from('lease_agreements').insert([data]).select('id').single();
 
     if (error) throw error;

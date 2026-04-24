@@ -148,11 +148,14 @@ export const buildLockedApplicationSelectSql = async () => {
     applicationAssignedCarColumn,
     applicationPaymentLinkVersionColumn,
   } = await getSchemaCompat();
+  const assignedCarSelect = applicationAssignedCarColumn
+    ? `${quoteIdentifier(applicationAssignedCarColumn)} AS assigned_car_id`
+    : 'NULL::bigint AS assigned_car_id';
 
   return (
     `SELECT status, ` +
     `${quoteIdentifier(applicationPaymentLinkVersionColumn)} AS payment_link_version, ` +
-    `${quoteIdentifier(applicationAssignedCarColumn)} AS assigned_car_id ` +
+    `${assignedCarSelect} ` +
     `FROM ${quoteIdentifier('applications')} WHERE id = $1 FOR UPDATE`
   );
 };
@@ -349,7 +352,7 @@ const applyVehicleCheckoutActivationWrites = async ({
     }
 
     const lockedAssignedCarId = Number(lockedApplicationRow.assigned_car_id || 0);
-    if (lockedAssignedCarId !== carId) {
+    if (lockedAssignedCarId && lockedAssignedCarId !== carId) {
       throw new Error(
         `Application ${applicationId} is no longer assigned to car ${carId}; activation requires manual review.`
       );

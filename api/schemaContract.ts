@@ -14,7 +14,6 @@ const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
       label: 'approved_weekly_price',
       acceptable: ['approved_weekly_price', 'approvedWeeklyPrice'],
     },
-    { label: 'assigned_car_id', acceptable: ['assigned_car_id', 'assignedCarId'] },
     { label: 'paid_at', acceptable: ['paid_at', 'paidAt'] },
     {
       label: 'payment_link_sent_at',
@@ -163,7 +162,6 @@ export const verifyProductionSchemaContract = async () => {
 
       const compatMappedColumns = [
         { table: 'applications', column: compat.applicationApprovedAtColumn },
-        { table: 'applications', column: compat.applicationAssignedCarColumn },
         { table: 'applications', column: compat.applicationApprovedBondColumn },
         { table: 'applications', column: compat.applicationApprovedWeeklyPriceColumn },
         { table: 'applications', column: compat.applicationPaidAtColumn },

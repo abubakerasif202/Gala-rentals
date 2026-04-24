@@ -19,7 +19,7 @@ type SchemaCompat = {
   carCreatedAtColumn: string;
   coreMode: SchemaMode;
   applicationBackPhotoColumn: ApplicationBackPhotoColumn;
-  applicationAssignedCarColumn: string;
+  applicationAssignedCarColumn: string | null;
   applicationApprovedBondColumn: string;
   applicationApprovedWeeklyPriceColumn: string;
   applicationPaidAtColumn: string;
@@ -40,7 +40,7 @@ const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   // introspection (e.g. missing SUPABASE_SERVICE_ROLE_KEY) still write to
   // the correct column defined in supabase/migrations/01_schema.sql.
   applicationBackPhotoColumn: 'license_back_photo',
-  applicationAssignedCarColumn: 'assigned_car_id',
+  applicationAssignedCarColumn: null,
   applicationApprovedBondColumn: 'approved_bond',
   applicationApprovedWeeklyPriceColumn: 'approved_weekly_price',
   applicationPaidAtColumn: 'paid_at',
@@ -133,9 +133,7 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           ? 'assignedCarId'
           : hasProperty(applicationsDefinition, 'assigned_car_id')
             ? 'assigned_car_id'
-            : coreMode === 'camel'
-              ? 'assignedCarId'
-              : 'assigned_car_id';
+            : null;
         const applicationApprovedBondColumn = hasProperty(applicationsDefinition, 'approvedBond')
           ? 'approvedBond'
           : hasProperty(applicationsDefinition, 'approved_bond')
@@ -335,10 +333,11 @@ export const getApplicationSelectColumns = async () => {
     applicationBackPhotoColumn === 'license_back_photo'
       ? 'license_back_photo'
       : `license_back_photo:${applicationBackPhotoColumn}`;
-  const assignedCarSelect =
-    applicationAssignedCarColumn === 'assigned_car_id'
+  const assignedCarSelect = applicationAssignedCarColumn
+    ? applicationAssignedCarColumn === 'assigned_car_id'
       ? 'assigned_car_id'
-      : `assigned_car_id:${applicationAssignedCarColumn}`;
+      : `assigned_car_id:${applicationAssignedCarColumn}`
+    : null;
   const approvedBondSelect =
     applicationApprovedBondColumn === 'approved_bond'
       ? 'approved_bond'
@@ -387,7 +386,7 @@ export const getApplicationSelectColumns = async () => {
         'intended_start_date:intendedStartDate',
         'license_photo:licensePhoto',
         backPhotoSelect,
-        assignedCarSelect,
+        ...(assignedCarSelect ? [assignedCarSelect] : []),
         approvedBondSelect,
         approvedVehicleSelect,
         approvedWeeklyPriceSelect,
@@ -413,7 +412,7 @@ export const getApplicationSelectColumns = async () => {
         'intended_start_date',
         'license_photo',
         backPhotoSelect,
-        assignedCarSelect,
+        ...(assignedCarSelect ? [assignedCarSelect] : []),
         approvedBondSelect,
         approvedVehicleSelect,
         approvedWeeklyPriceSelect,
@@ -517,7 +516,7 @@ export const toApplicationPaymentWritePayload = async (payload: {
   const compat = await getSchemaCompat();
   const mappedPayload: Record<string, unknown> = {};
 
-  if ('assigned_car_id' in payload) {
+  if ('assigned_car_id' in payload && compat.applicationAssignedCarColumn) {
     mappedPayload[compat.applicationAssignedCarColumn] = payload.assigned_car_id ?? null;
   }
 

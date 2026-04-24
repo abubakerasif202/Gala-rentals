@@ -1549,7 +1549,7 @@ describe("Cars API", () => {
 
     expect(res.status).toBe(409);
     expect(res.body.usage).toMatchObject({
-      assigned_applications: 1,
+      assigned_applications: 0,
       bookings: 1,
       lease_agreements: 1,
       rentals: 1,
@@ -1925,8 +1925,10 @@ describe("Agreements API", () => {
     expect(mockState.lease_agreements).toHaveLength(0);
   });
 
-  it("POST /api/agreements allows admins to generate an agreement for any fleet car after payment", async () => {
+  it("POST /api/agreements allows admins to generate an agreement for an available fleet car after payment", async () => {
     mockState.applications[1].status = "Paid";
+    mockState.cars[1].status = "Available";
+    mockState.cars[1].archived_at = null;
 
     const res = await request(app)
       .post("/api/agreements")
@@ -1944,6 +1946,24 @@ describe("Agreements API", () => {
       car_id: 2,
       status: "generated",
     });
+  });
+
+  it("POST /api/agreements blocks unavailable fleet cars after payment", async () => {
+    mockState.applications[1].status = "Paid";
+    mockState.cars[1].status = "Maintenance";
+
+    const res = await request(app)
+      .post("/api/agreements")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 2,
+        content: "# Draft agreement",
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("available vehicles");
+    expect(mockState.lease_agreements).toHaveLength(0);
   });
 
   it("POST /api/agreements stores agreements only for paid applications and their assigned car", async () => {

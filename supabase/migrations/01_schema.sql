@@ -34,7 +34,6 @@ CREATE TABLE applications (
   intended_start_date DATE NOT NULL, -- Proper DATE type
   license_photo TEXT,
   license_back_photo TEXT,
-  assigned_car_id BIGINT REFERENCES cars(id) ON DELETE SET NULL,
   approved_bond NUMERIC CHECK (approved_bond >= 0),
   approved_vehicle TEXT,
   approved_weekly_price NUMERIC CHECK (approved_weekly_price >= 0),
@@ -171,11 +170,6 @@ CREATE INDEX IF NOT EXISTS idx_bookings_car_id ON bookings(car_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_application_id ON bookings(application_id);
 CREATE INDEX IF NOT EXISTS idx_lease_agreements_application_id ON lease_agreements(application_id);
 CREATE INDEX IF NOT EXISTS idx_lease_agreements_car_id ON lease_agreements(car_id);
-CREATE INDEX IF NOT EXISTS idx_applications_assigned_car_id ON applications(assigned_car_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_active_vehicle_allocation_unique
-  ON applications(assigned_car_id)
-  WHERE assigned_car_id IS NOT NULL
-    AND lower(status) IN ('approved', 'payment review');
 CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_single_active
   ON applications(email)
   WHERE lower(status) IN ('pending', 'approved', 'payment review');

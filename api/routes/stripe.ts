@@ -215,6 +215,10 @@ router.get('/payment-context', async (req, res) => {
       return res.status(error.status).json({ error: error.message });
     }
 
+    if (error instanceof Error && error.message === 'Application not found') {
+      return res.status(404).json({ error: error.message });
+    }
+
     if (
       error instanceof Error &&
       (error.message.toLowerCase().includes('payment link') ||

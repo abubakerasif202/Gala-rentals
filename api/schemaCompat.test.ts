@@ -65,7 +65,7 @@ describe('schemaCompat', () => {
     const { getSchemaCompat } = await import('./schemaCompat.js');
 
     await expect(getSchemaCompat()).resolves.toMatchObject({
-      applicationAssignedCarColumn: 'assigned_car_id',
+      applicationAssignedCarColumn: null,
       carCreatedAtColumn: 'created_at',
       coreMode: 'snake',
       rentalStripeSubscriptionColumn: 'stripe_subscription_id',

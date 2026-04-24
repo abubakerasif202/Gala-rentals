@@ -178,7 +178,11 @@ const fetchCarById = async (id: string): Promise<CarRecord | null> => {
   return toCarResponse(data as Record<string, any>);
 };
 
-const countRowsForCar = async (table: string, column: string, id: string) => {
+const countRowsForCar = async (table: string, column: string | null, id: string) => {
+  if (!column) {
+    return 0;
+  }
+
   const { count, error } = await db
     .from(table)
     .select('id', { count: 'exact', head: true })
@@ -392,7 +396,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
     ) {
       return res.status(409).json({
         error:
-          'This vehicle is still referenced by rentals, bookings, agreements, or assigned applications. Remove those links before deleting the car.',
+          'This vehicle is still referenced by rentals, bookings, or agreements. Remove those links before deleting the car.',
         usage: {
           assigned_applications: assignedApplicationCount,
           bookings: bookingCount,

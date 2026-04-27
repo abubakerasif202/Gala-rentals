@@ -5,6 +5,7 @@ import {
   carSchema,
   modelYearSchema,
   uuidSchema,
+  vehicleCheckoutLinkSchema,
   vehicleCheckoutSessionSchema,
   weeklyPriceSchema,
 } from './validation.js';
@@ -239,6 +240,7 @@ describe('applicationApprovalSchema', () => {
     approved_bond: 700,
     approved_weekly_price: 350,
     application_id: '11111111-1111-4111-8111-111111111111',
+    car_id: 1,
   };
 
   it('accepts a valid approval payload', () => {
@@ -275,6 +277,11 @@ describe('applicationApprovalSchema', () => {
     expect(() => applicationApprovalSchema.parse({ ...valid, application_id: 'bad-id' })).toThrow();
   });
 
+  it('rejects a missing car_id', () => {
+    const { car_id: _carId, ...withoutCarId } = valid;
+    expect(() => applicationApprovalSchema.parse(withoutCarId)).toThrow();
+  });
+
   it('rejects an empty approved_vehicle', () => {
     expect(() => applicationApprovalSchema.parse({ ...valid, approved_vehicle: '' })).toThrow();
   });
@@ -282,5 +289,21 @@ describe('applicationApprovalSchema', () => {
   it('coerces string numbers for approved_bond', () => {
     const result = applicationApprovalSchema.parse({ ...valid, approved_bond: '500' });
     expect(result.approved_bond).toBe(500);
+  });
+});
+
+describe('vehicleCheckoutLinkSchema', () => {
+  const valid = {
+    application_id: '11111111-1111-4111-8111-111111111111',
+    car_id: 1,
+  };
+
+  it('accepts a valid link payload', () => {
+    expect(() => vehicleCheckoutLinkSchema.parse(valid)).not.toThrow();
+  });
+
+  it('rejects a missing car_id', () => {
+    const { car_id: _carId, ...withoutCarId } = valid;
+    expect(() => vehicleCheckoutLinkSchema.parse(withoutCarId)).toThrow();
   });
 });

@@ -50,6 +50,7 @@ const optionalPositiveIntegerSchema = z.preprocess(
   (value) => (value === "" || value == null ? undefined : value),
   z.coerce.number().int().positive().optional(),
 );
+const requiredPositiveIntegerSchema = z.coerce.number().int().positive();
 
 export const uuidSchema = z.string().trim().uuid("Expected a UUID identifier");
 
@@ -118,11 +119,13 @@ export const applicationApprovalSchema = z.object({
   approved_bond: z.coerce.number().nonnegative(),
   approved_weekly_price: z.coerce.number().positive(),
   application_id: uuidSchema,
+  car_id: requiredPositiveIntegerSchema,
   send_payment_link: z.boolean().optional().default(true),
 });
 
 export const vehicleCheckoutLinkSchema = z.object({
   application_id: uuidSchema,
+  car_id: requiredPositiveIntegerSchema,
 });
 
 export const leaseFeeSchema = z.object({

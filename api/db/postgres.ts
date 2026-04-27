@@ -10,6 +10,37 @@ export type DirectDatabaseConfig = {
   source: DirectDatabaseConfigSource;
 };
 
+const REQUIRED_PAYMENT_SCHEMA_COLUMNS: Record<string, string[]> = {
+  applications: [
+    'id',
+    'status',
+    'approved_bond',
+    'approved_weekly_price',
+    'payment_link_version',
+    'pending_checkout_session_id',
+    'paid_at',
+  ],
+  cars: ['id', 'status'],
+  rentals: [
+    'id',
+    'car_id',
+    'application_id',
+    'status',
+    'weekly_price',
+    'bond_paid',
+    'stripe_subscription_id',
+    'stripe_customer_id',
+  ],
+  stripe_webhook_events: [
+    'id',
+    'stripe_event_id',
+    'event_type',
+    'status',
+    'received_at',
+    'processed_at',
+  ],
+};
+
 const { Pool } = pg;
 
 let postgresPool: InstanceType<typeof Pool> | null = null;
@@ -84,6 +115,37 @@ export const getPostgresConnectionMode = () => getDirectDatabaseConfig().mode;
 export const hasDirectDatabaseConnection = () =>
   getPostgresConnectionMode() === 'session';
 
+const checkPaymentActivationSchema = async (client: PoolClient) => {
+  const requiredTables = Object.keys(REQUIRED_PAYMENT_SCHEMA_COLUMNS);
+  const { rows } = await client.query(
+    `
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = ANY($1::text[])
+    `,
+    [requiredTables]
+  );
+  const availableColumns = new Set(
+    rows.map(
+      (row: { table_name: string; column_name: string }) =>
+        `${row.table_name}.${row.column_name}`
+    )
+  );
+  const issues: string[] = [];
+
+  for (const [table, columns] of Object.entries(REQUIRED_PAYMENT_SCHEMA_COLUMNS)) {
+    for (const column of columns) {
+      const key = `${table}.${column}`;
+      if (!availableColumns.has(key)) {
+        issues.push(`missing ${key}`);
+      }
+    }
+  }
+
+  return issues;
+};
+
 const getPostgresPool = () => {
   const { connectionString, mode: connectionMode } = getDirectDatabaseConfig();
 
@@ -124,6 +186,7 @@ export const checkDirectDatabaseHealth = async () => {
     return {
       configured: false,
       mode: config.mode,
+      schemaIssues: [] as string[],
       source: config.source,
     };
   }
@@ -132,6 +195,7 @@ export const checkDirectDatabaseHealth = async () => {
     return {
       configured: true,
       mode: config.mode,
+      schemaIssues: [] as string[],
       source: config.source,
     };
   }
@@ -140,10 +204,12 @@ export const checkDirectDatabaseHealth = async () => {
 
   try {
     await client.query('SELECT 1');
+    const schemaIssues = await checkPaymentActivationSchema(client);
 
     return {
       configured: true,
       mode: config.mode,
+      schemaIssues,
       source: config.source,
     };
   } finally {

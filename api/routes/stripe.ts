@@ -298,8 +298,11 @@ router.post('/vehicle-checkout-session', async (req, res) => {
 
 router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
   try {
-    const { application_id } = vehicleCheckoutLinkSchema.parse(req.body);
-    const response = await createVehicleCheckoutLink({ applicationId: application_id });
+    const { application_id, car_id } = vehicleCheckoutLinkSchema.parse(req.body);
+    const response = await createVehicleCheckoutLink({
+      applicationId: application_id,
+      carId: car_id,
+    });
     res.json(response);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -314,9 +317,14 @@ router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
       return res.status(503).json({ error: error.message });
     }
 
+    if (error instanceof Error && error.message === 'Car not found') {
+      return res.status(404).json({ error: error.message });
+    }
+
     if (
       error instanceof Error &&
-      error.message.toLowerCase().includes('payment link')
+      (error.message.toLowerCase().includes('payment link') ||
+        isVehicleCheckoutConflictMessage(error.message))
     ) {
       return res.status(409).json({ error: error.message });
     }
@@ -369,6 +377,7 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
     if (
       error instanceof Error &&
       (error.message === 'Checkout session does not match this payment link.' ||
+        error.message === 'Checkout session vehicle does not match this payment link.' ||
         error.message === 'Checkout session belongs to an outdated payment link.')
     ) {
       return res.status(403).json({ error: error.message });

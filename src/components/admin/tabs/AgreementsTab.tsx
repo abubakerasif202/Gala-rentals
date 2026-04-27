@@ -16,7 +16,12 @@ interface AgreementsTabProps {
   isGeneratingAgreement: boolean;
   handleGenerateAgreement: () => void;
   canCopyVehicleCheckoutLink: boolean;
-  generateCheckoutLinkMutation: UseMutationResult<any, Error, { application_id: string; }, unknown>;
+  generateCheckoutLinkMutation: UseMutationResult<
+    any,
+    Error,
+    { application_id: string; car_id: number },
+    unknown
+  >;
   handleCopyVehicleCheckoutLink: () => void;
   savedAgreements: any[];
   setAgreementModalMode: (mode: 'draft' | 'saved') => void;

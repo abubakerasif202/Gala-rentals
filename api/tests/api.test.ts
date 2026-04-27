@@ -2106,6 +2106,25 @@ describe("Applications API", () => {
     });
   });
 
+  it("GET /api/health returns 503 when payment activation schema checks fail", async () => {
+    mockCheckDirectDatabaseHealth.mockResolvedValueOnce({
+      configured: true,
+      mode: "session",
+      schemaIssues: ["missing rentals.stripe_subscription_id"],
+      source: "DATABASE_URL",
+    });
+
+    const res = await request(app).get("/api/health");
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      status: "error",
+      database: "ok",
+      directDatabase: "unavailable",
+      directDatabaseSchemaIssues: ["missing rentals.stripe_subscription_id"],
+    });
+  });
+
   it("GET /api/health returns 503 when the database health check fails", async () => {
     mockCheckDBHealth.mockRejectedValueOnce(new Error("database unavailable"));
 
@@ -2878,6 +2897,7 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry",
         approved_bond: 650,
         approved_weekly_price: 285,
+        car_id: 1,
       });
 
     expect(res.status).toBe(401);
@@ -2894,6 +2914,7 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry Hybrid",
         approved_bond: 650,
         approved_weekly_price: 285,
+        car_id: 1,
       });
 
     expect(res.status).toBe(200);
@@ -2924,7 +2945,7 @@ describe("Stripe API", () => {
       version: 4,
     });
     expect(verified.version).toBe(4);
-    expect(verified.carId).toBeNull();
+    expect(verified.carId).toBe(1);
   });
 
   it("POST /api/applications/:id/approve-payment still sends a payment link without direct DB access", async () => {
@@ -2937,6 +2958,7 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry",
         approved_bond: 650,
         approved_weekly_price: 285,
+        car_id: 1,
         send_payment_link: true,
       });
 
@@ -2958,6 +2980,7 @@ describe("Stripe API", () => {
         approved_vehicle: '<a href="https://evil.example">Camry</a>',
         approved_bond: 650,
         approved_weekly_price: 285,
+        car_id: 1,
         send_payment_link: true,
       });
 
@@ -2992,6 +3015,7 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry",
         approved_bond: 650,
         approved_weekly_price: 285,
+        car_id: 1,
         send_payment_link: true,
       });
 
@@ -3010,6 +3034,7 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry",
         approved_bond: 650,
         approved_weekly_price: 285,
+        car_id: 1,
       });
 
     expect(res.status).toBe(409);
@@ -3032,6 +3057,7 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry",
         approved_bond: 650,
         approved_weekly_price: 285,
+        car_id: 1,
       });
 
     expect(res.status).toBe(409);
@@ -3050,6 +3076,7 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry",
         approved_bond: 650,
         approved_weekly_price: 285,
+        car_id: 1,
       });
 
     expect(res.status).toBe(200);
@@ -3123,6 +3150,7 @@ describe("Stripe API", () => {
   it("GET /api/stripe/payment-context returns the approved quote for a valid payment link", async () => {
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3145,6 +3173,7 @@ describe("Stripe API", () => {
 
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3162,6 +3191,7 @@ describe("Stripe API", () => {
   it("POST /api/stripe/vehicle-checkout-session rejects unapproved applications", async () => {
     const token = createCheckoutToken({
       applicationId: PENDING_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
     });
 
@@ -3181,6 +3211,7 @@ describe("Stripe API", () => {
     mockHasDirectDatabaseConnection.mockReturnValue(false);
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3202,6 +3233,7 @@ describe("Stripe API", () => {
   it("POST /api/stripe/vehicle-checkout-session rejects outdated payment-link versions", async () => {
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 0,
     });
@@ -3221,6 +3253,7 @@ describe("Stripe API", () => {
   it("POST /api/stripe/vehicle-checkout-session rejects mismatched tokens", async () => {
     const token = createCheckoutToken({
       applicationId: PENDING_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3255,6 +3288,7 @@ describe("Stripe API", () => {
     });
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3294,6 +3328,7 @@ describe("Stripe API", () => {
     });
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3314,6 +3349,7 @@ describe("Stripe API", () => {
   it("POST /api/stripe/vehicle-checkout-session creates a hosted session from the approved quote", async () => {
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3339,7 +3375,10 @@ describe("Stripe API", () => {
     expect(payload.metadata.approved_vehicle).toBe("Toyota Camry");
     expect(payload.metadata.approved_bond).toBe("500.00");
     expect(payload.metadata.approved_weekly_price).toBe("250.00");
-    expect(payload.metadata.car_id).toBeUndefined();
+    expect(payload.metadata.applicant_email).toBe("approved@example.com");
+    expect(payload.metadata.car_id).toBe("1");
+    expect(payload.metadata.payment_type).toBe("vehicle_rental");
+    expect(payload.subscription_data.metadata.car_id).toBe("1");
 
     const recurringItem = payload.line_items.find(
       (item: any) => item.price_data.recurring,
@@ -3367,6 +3406,7 @@ describe("Stripe API", () => {
 
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3404,6 +3444,7 @@ describe("Stripe API", () => {
 
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3432,6 +3473,7 @@ describe("Stripe API", () => {
 
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3488,6 +3530,7 @@ describe("Stripe API", () => {
       .post("/api/stripe/vehicle-checkout-link")
       .send({
         application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
       });
 
     expect(res.status).toBe(401);
@@ -3501,6 +3544,7 @@ describe("Stripe API", () => {
       .set("Authorization", "Bearer fake-token")
       .send({
         application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
       });
 
     expect(res.status).toBe(200);
@@ -3514,6 +3558,7 @@ describe("Stripe API", () => {
       .set("Authorization", "Bearer fake-token")
       .send({
         application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
       });
 
     expect(res.status).toBe(200);
@@ -3530,7 +3575,7 @@ describe("Stripe API", () => {
       version: 2,
     });
     expect(verified.applicationId).toBe(APPROVED_APPLICATION_ID);
-    expect(verified.carId).toBeNull();
+    expect(verified.carId).toBe(1);
   });
 
   it("POST /api/stripe/vehicle-checkout-link rejects approved applications that are missing pricing", async () => {
@@ -3541,6 +3586,7 @@ describe("Stripe API", () => {
       .set("Authorization", "Bearer fake-token")
       .send({
         application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
       });
 
     expect(res.status).toBe(409);
@@ -3559,6 +3605,7 @@ describe("Stripe API", () => {
   it("GET /api/stripe/checkout-sessions/:id returns the Stripe session status", async () => {
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3582,6 +3629,29 @@ describe("Stripe API", () => {
     });
   });
 
+  it("GET /api/stripe/checkout-sessions/:id does not return complete from application status alone", async () => {
+    mockState.applications[1].status = "Paid";
+
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: "vehicle",
+      version: 1,
+    });
+    const res = await request(app)
+      .get("/api/stripe/checkout-sessions/cs_test_123")
+      .query({
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        checkout_token: token.token,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.internal_status).toBe("manual_review");
+    expect(res.body.application_status).toBe("Paid");
+    expect(res.body.rental_status).toBeNull();
+  });
+
   it("GET /api/stripe/checkout-sessions/:id returns complete once rental activation exists", async () => {
     mockState.applications[1].status = "Paid";
     mockState.rentals = [
@@ -3597,6 +3667,7 @@ describe("Stripe API", () => {
     ];
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3611,7 +3682,7 @@ describe("Stripe API", () => {
     expect(res.status).toBe(200);
     expect(res.body.internal_status).toBe("complete");
     expect(res.body.application_status).toBe("Paid");
-    expect(res.body.rental_status).toBeNull();
+    expect(res.body.rental_status).toBe("Active");
   });
 
   it("GET /api/stripe/checkout-sessions/:id returns manual_review when payment completed but activation was blocked", async () => {
@@ -3619,6 +3690,7 @@ describe("Stripe API", () => {
 
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3649,6 +3721,7 @@ describe("Stripe API", () => {
     });
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3666,7 +3739,7 @@ describe("Stripe API", () => {
     );
   });
 
-  it("GET /api/stripe/checkout-sessions/:id ignores legacy car metadata when the application and version match", async () => {
+  it("GET /api/stripe/checkout-sessions/:id rejects mismatched car metadata", async () => {
     mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
       id: "cs_test_123",
       status: "complete",
@@ -3680,6 +3753,7 @@ describe("Stripe API", () => {
     });
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3691,8 +3765,10 @@ describe("Stripe API", () => {
         checkout_token: token.token,
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.checkout_kind).toBe("vehicle");
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe(
+      "Checkout session vehicle does not match this payment link.",
+    );
   });
 
   it("GET /api/stripe/checkout-sessions/:id returns 404 when Stripe no longer has the session", async () => {
@@ -3710,6 +3786,7 @@ describe("Stripe API", () => {
 
     const token = createCheckoutToken({
       applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
       purpose: "vehicle",
       version: 1,
     });
@@ -3821,6 +3898,43 @@ describe("Stripe API", () => {
       status: "Active",
       stripe_subscription_id: "sub_123",
     });
+  });
+
+  it("POST /api/stripe/webhook moves paid checkouts with missing car_id to Payment Review", async () => {
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: "evt_missing_car_id",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_missing_car_id",
+          payment_status: "paid",
+          metadata: {
+            application_id: APPROVED_APPLICATION_ID,
+            approved_bond: "500.00",
+            approved_weekly_price: "250.00",
+            checkout_kind: "vehicle",
+            payment_link_version: "1",
+          },
+          customer: "cus_missing_car",
+          subscription: "sub_missing_car",
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post("/api/stripe/webhook")
+      .set("stripe-signature", "test-signature")
+      .set("Content-Type", "application/json")
+      .send("{}");
+
+    expect(res.status).toBe(200);
+    expect(mockState.cars[0].status).toBe("Available");
+    expect(mockState.applications[1].status).toBe("Payment Review");
+    expect(mockState.applications[1].pending_checkout_session_id).toBe(
+      "cs_missing_car_id",
+    );
+    expect(mockState.applications[1].paid_at).toBeTruthy();
+    expect(mockState.rentals).toHaveLength(0);
   });
 
   it("POST /api/stripe/webhook returns a generic signature failure message", async () => {

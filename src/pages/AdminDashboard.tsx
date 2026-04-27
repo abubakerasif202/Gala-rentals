@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useRef, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus,
@@ -154,8 +154,9 @@ export default function AdminDashboard() {
     approved_vehicle: '',
     approved_bond: '',
     approved_weekly_price: '',
+    car_id: '',
   });
-  
+
   // Agreement Management State
   const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
   const [selected_agreement_application_id, set_selected_agreement_application_id] = useState<string>('');
@@ -568,6 +569,7 @@ export default function AdminDashboard() {
         approved_vehicle: string;
         approved_bond: number;
         approved_weekly_price: number;
+        car_id: number;
         send_payment_link?: boolean;
       };
     }) => api.approveApplicationForPayment(id, payload),
@@ -578,7 +580,7 @@ export default function AdminDashboard() {
   });
 
   const generateCheckoutLinkMutation = useMutation({
-    mutationFn: (payload: { application_id: string }) =>
+    mutationFn: (payload: { application_id: string; car_id: number }) =>
       api.createVehicleCheckoutLink(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
@@ -619,7 +621,7 @@ export default function AdminDashboard() {
     const application_id = selected_agreement_application_id;
     const selectedApplication = applications.find((a) => a.id === application_id);
     const car_id = Number(selected_agreement_car_id);
-    
+
     if (!application_id || !selectedApplication || !car_id) {
       showNotification('Please select both an application and a car', 'error');
       return;
@@ -667,15 +669,17 @@ export default function AdminDashboard() {
 
   const handleCopyVehicleCheckoutLink = async () => {
     const application_id = selected_agreement_application_id;
+    const car_id = Number(selected_agreement_car_id);
 
-    if (!application_id) {
-      showNotification('Please select an approved application', 'error');
+    if (!application_id || !car_id) {
+      showNotification('Please select an approved application and available vehicle', 'error');
       return;
     }
 
     try {
       const response = await generateCheckoutLinkMutation.mutateAsync({
         application_id,
+        car_id,
       });
       const copied = await copyTextToClipboard(response.checkout_url);
 
@@ -706,9 +710,10 @@ export default function AdminDashboard() {
     const approvedVehicle = applicationApprovalForm.approved_vehicle.trim();
     const approvedBond = Number(applicationApprovalForm.approved_bond);
     const approvedWeeklyPrice = Number(applicationApprovalForm.approved_weekly_price);
+    const approvedCarId = Number(applicationApprovalForm.car_id);
 
-    if (!approvedVehicle || approvedBond < 0 || approvedWeeklyPrice <= 0) {
-      showNotification('Enter the approved vehicle and valid bond and weekly payment amounts.', 'error');
+    if (!approvedVehicle || !approvedCarId || approvedBond < 0 || approvedWeeklyPrice <= 0) {
+      showNotification('Select the approved vehicle and enter valid bond and weekly payment amounts.', 'error');
       return;
     }
 
@@ -719,6 +724,7 @@ export default function AdminDashboard() {
           approved_vehicle: approvedVehicle,
           approved_bond: approvedBond,
           approved_weekly_price: approvedWeeklyPrice,
+          car_id: approvedCarId,
           send_payment_link: true,
         },
       });
@@ -749,6 +755,7 @@ export default function AdminDashboard() {
               approved_vehicle: approvedVehicle,
               approved_bond: approvedBond,
               approved_weekly_price: approvedWeeklyPrice,
+              car_id: approvedCarId,
               send_payment_link: false,
             },
           });
@@ -758,6 +765,7 @@ export default function AdminDashboard() {
           try {
             const generatedLink = await generateCheckoutLinkMutation.mutateAsync({
               application_id: applicationId,
+              car_id: approvedCarId,
             });
             checkoutUrl = generatedLink.checkout_url;
           } catch (generateLinkError) {
@@ -853,12 +861,19 @@ export default function AdminDashboard() {
   const invoiceDataset = invoiceDatasetQuery.data;
   const weeklyFinancials = weeklyFinancialsQuery.data;
   const savedAgreements = savedAgreementsQuery.data || [];
+  const availablePaymentCars = useMemo(
+    () => cars.filter((car) => car.status === 'Available' && !car.archived_at),
+    [cars]
+  );
 
   useEffect(() => {
     if (!selectedApplication) {
       return;
     }
 
+    const matchedCar = availablePaymentCars.find(
+      (car) => car.name === selectedApplication.approved_vehicle
+    );
     setApplicationApprovalForm({
       approved_vehicle: selectedApplication.approved_vehicle || '',
       approved_bond:
@@ -867,8 +882,9 @@ export default function AdminDashboard() {
         selectedApplication.approved_weekly_price != null
           ? String(selectedApplication.approved_weekly_price)
           : '',
+      car_id: matchedCar ? String(matchedCar.id) : '',
     });
-  }, [selectedApplication]);
+  }, [availablePaymentCars, selectedApplication]);
 
   const isLoadingCustomerDataset = shouldLoadCustomers && customerDatasetQuery.isPending && !customerDataset;
   const isLoadingInvoiceDataset = shouldLoadInvoices && invoiceDatasetQuery.isPending && !invoiceDataset;
@@ -900,9 +916,14 @@ export default function AdminDashboard() {
   const selectedAgreementApplication = applications.find(
     (app) => app.id === selected_agreement_application_id
   );
+  const selectedAgreementCar = cars.find(
+    (car) => String(car.id) === selected_agreement_car_id
+  );
   const canCopyVehicleCheckoutLink =
     Boolean(selectedAgreementApplication) &&
-    selectedAgreementApplication?.status === 'Approved';
+    selectedAgreementApplication?.status === 'Approved' &&
+    selectedAgreementCar?.status === 'Available' &&
+    !selectedAgreementCar.archived_at;
   const formatCurrency = (value?: number | string | null) => `$${Number(value ?? 0).toFixed(2)}`;
   const formatDate = (value?: string | null) => {
     if (!value) {
@@ -979,9 +1000,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-brand-navy">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         handleLogout={handleLogout}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -1321,23 +1342,35 @@ export default function AdminDashboard() {
                         <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
                           Approved Vehicle
                         </label>
-                        <input
-                          type="text"
-                          value={applicationApprovalForm.approved_vehicle}
-                          onChange={(e) =>
+                        <select
+                          value={applicationApprovalForm.car_id}
+                          onChange={(e) => {
+                            const selectedCar = availablePaymentCars.find(
+                              (car) => String(car.id) === e.target.value
+                            );
                             setApplicationApprovalForm((current) => ({
                               ...current,
-                              approved_vehicle: e.target.value,
-                            }))
-                          }
+                              car_id: e.target.value,
+                              approved_vehicle: selectedCar?.name || '',
+                              approved_bond:
+                                selectedCar?.bond != null
+                                  ? String(selectedCar.bond)
+                                  : current.approved_bond,
+                              approved_weekly_price:
+                                selectedCar?.weekly_price != null
+                                  ? String(selectedCar.weekly_price)
+                                  : current.approved_weekly_price,
+                            }));
+                          }}
                           className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
-                          placeholder="Example: 2023 Toyota Camry Hybrid"
-                          autoComplete="off"
-                          spellCheck={false}
-                        />
-                        <p className="text-xs text-brand-grey font-light">
-                          This free-text vehicle note is shown in the payment flow and admin review.
-                        </p>
+                        >
+                          <option value="">Select an available vehicle</option>
+                          {availablePaymentCars.map((car) => (
+                            <option key={car.id} value={car.id}>
+                              {car.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
@@ -1516,7 +1549,7 @@ export default function AdminDashboard() {
       <AnimatePresence>
         {isAgreementModalOpen && (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-navy/60 backdrop-blur-xl sm:items-center sm:p-6">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
@@ -1537,14 +1570,14 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="flex flex-col-reverse gap-4 border-t border-white/10 bg-white/5 p-4 sm:flex-row sm:p-8">
-                <button 
+                <button
                   onClick={closeAgreementModal}
                   className="w-full border border-white/10 py-5 text-xs font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5 sm:flex-1"
                 >
                   {agreementModalMode === 'saved' ? 'Close' : 'Discard'}
                 </button>
                 {agreementModalMode === 'draft' && (
-                  <button 
+                  <button
                     onClick={() => {
                       const application_id = selected_agreement_application_id;
                       const car_id = Number(selected_agreement_car_id);

@@ -9,7 +9,6 @@ import {
 } from './db/postgres.js';
 import {
   transitionApplicationToPaymentReviewIfCurrentVersion,
-  updateApplicationPaymentStateIfCurrentVersion,
 } from './applicationPaymentState.js';
 import {
   getApplicationSelectColumns,
@@ -532,6 +531,13 @@ export const handleVehicleCheckoutCompletion = async (
     const applicationStatus = String(application.status || '');
 
     const moveApplicationToPaymentReview = async (reason: string) => {
+      console.warn('Vehicle checkout activation requires review', {
+        applicationId,
+        checkoutSessionId: session.id,
+        reason,
+        stripeSubscriptionId: subscriptionId,
+      });
+
       const transitionedApplication = await updateApplicationPaymentState({
         applicationId,
         expectedPaymentLinkVersion: sessionPaymentLinkVersion,
@@ -616,6 +622,12 @@ export const handleVehicleCheckoutCompletion = async (
       );
     }
 
+    if (!legacyCarId) {
+      return moveApplicationToPaymentReview(
+        'Paid Stripe vehicle checkout is missing car_id metadata and cannot be activated automatically.'
+      );
+    }
+
     if (legacyCarId) {
       const { rentalApplicationIdColumn, rentals } =
         await fetchExistingRentalsForCar(legacyCarId);
@@ -686,57 +698,5 @@ export const handleVehicleCheckoutCompletion = async (
         );
       }
     }
-
-    if (applicationStatus === 'Paid') {
-      console.info(
-        `Ignoring replayed checkout completion ${session.id} because application ${applicationId} is already marked paid.`
-      );
-      return 'already_fulfilled' as const;
-    }
-
-    const didAdvance = await updateApplicationPaymentStateIfCurrentVersion({
-      applicationId,
-      expectedPaymentLinkVersion: sessionPaymentLinkVersion,
-      payload: {
-        paid_at: recordedPaidAt,
-        pending_checkout_session_id: null,
-        status: 'Paid',
-      },
-    });
-
-    if (!didAdvance) {
-      return moveApplicationToPaymentReview(
-        'Application payment details changed while finalizing the paid Stripe session.'
-      );
-    }
-
-    if (!process.env.RESEND_API_KEY) {
-      return 'fulfilled' as const;
-    }
-
-    try {
-      const resend = await getResend();
-      await sendResendEmail(resend, {
-        from: 'Maple Rentals <noreply@maplerentals.com.au>',
-        to: String(application.email),
-        subject: 'Rental Confirmed - Maple Rentals',
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
-            <h2 style="color: #D4AF37;">Payment Confirmed</h2>
-            <p>Hi ${safeApplicantName},</p>
-            <p>Your payment for the approved vehicle <strong>${safeApprovedVehicle}</strong> has been successfully processed.</p>
-            <p>Your application is now marked <strong>Paid</strong>. Maple Rentals will contact you shortly to complete onboarding and handover details.</p>
-            <p><strong>Subscription ID:</strong> ${escapeHtml(subscriptionId)}</p>
-            <br>
-            <p>Best regards,</p>
-            <p><strong>The Maple Rentals Team</strong></p>
-          </div>
-        `,
-      });
-    } catch (emailErr) {
-      console.error('Failed to send rental confirmation email:', emailErr);
-    }
-
-    return 'fulfilled' as const;
   });
 };

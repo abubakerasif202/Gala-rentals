@@ -7,7 +7,13 @@ import {
 } from '../db/postgres.js';
 import { ensureStripeCatalog } from '../stripeCatalog.js';
 import { getStripeClient } from '../stripeClient.js';
-import { getApplicationSelectColumns } from '../schemaCompat.js';
+import {
+  getApplicationSelectColumns,
+  getCarSelectColumns,
+  getRentalApplicationIdColumn,
+  getRentalCarIdColumn,
+  getSchemaCompat,
+} from '../schemaCompat.js';
 import {
   createCheckoutToken,
   verifyCheckoutToken,
@@ -50,6 +56,7 @@ export type VehiclePaymentContextResponse = {
   application_id: string;
   approved_vehicle: string;
   billing: BillingBreakdown;
+  car_id: number;
   vehicle_image: string;
 };
 
@@ -81,10 +88,33 @@ type StripeApplication = {
   status: string;
 };
 
+type CheckoutVehicle = {
+  archived_at?: string | null;
+  id: number | string;
+  name?: string | null;
+  status?: string | null;
+};
+
 const toCents = (value: number) => Math.round(value * 100);
 const fromCents = (value: number) => Number((value / 100).toFixed(2));
 const toFloat = (value: number | string | null | undefined) =>
   Number(Number(value || 0).toFixed(2));
+const isLiveRentalStatus = (status: unknown) => {
+  const normalized = String(status || '').toLowerCase();
+  return normalized !== 'completed' && normalized !== 'cancelled';
+};
+
+const requireCheckoutTokenCarId = (carId: unknown) => {
+  const numericCarId = Number(carId || 0);
+
+  if (!Number.isInteger(numericCarId) || numericCarId <= 0) {
+    throw new Error(
+      'Payment link is missing a vehicle assignment. Request a fresh payment link.'
+    );
+  }
+
+  return numericCarId;
+};
 
 const buildApprovedBillingBreakdown = (application: StripeApplication): BillingBreakdown => {
   const approvedBondCents = Math.round(Number(application.approved_bond || 0) * 100);
@@ -177,18 +207,23 @@ const buildSuccessUrl = ({
 const createHostedCheckoutSession = async ({
   application,
   billingBreakdown,
+  carId,
   checkoutToken,
   idempotencyKey,
 }: {
   application: StripeApplication;
   billingBreakdown: BillingBreakdown;
+  carId: number;
   checkoutToken: string;
   idempotencyKey: string;
 }) => {
   const metadata = {
     application_id: String(application.id),
+    applicant_email: String(application.email),
     approved_vehicle: String(application.approved_vehicle || DEFAULT_APPROVED_VEHICLE_LABEL),
+    car_id: String(carId),
     checkout_kind: 'vehicle',
+    payment_type: 'vehicle_rental',
     approved_bond: billingBreakdown.bond.toFixed(2),
     approved_weekly_price: billingBreakdown.recurringAmount.toFixed(2),
     payment_link_version: String(Number(application.payment_link_version || 0)),
@@ -233,6 +268,43 @@ const fetchApplication = async (applicationId: string) => {
   }
 
   return application as unknown as StripeApplication;
+};
+
+const fetchCheckoutVehicle = async (carId: number) => {
+  const selectColumns = await getCarSelectColumns();
+  const { data: car, error } = await db
+    .from('cars')
+    .select(selectColumns)
+    .eq('id', carId)
+    .single();
+
+  if (error || !car) {
+    return null;
+  }
+
+  return car as unknown as CheckoutVehicle;
+};
+
+const requireCheckoutVehicleAvailable = async (carId: number) => {
+  const car = await fetchCheckoutVehicle(carId);
+
+  if (!car) {
+    throw new Error('Car not found');
+  }
+
+  if (car.archived_at) {
+    throw new Error(
+      'Vehicle is no longer available for checkout. Request a fresh payment link.'
+    );
+  }
+
+  if (String(car.status || '') !== 'Available') {
+    throw new Error(
+      'Vehicle is no longer available for checkout. Request a fresh payment link.'
+    );
+  }
+
+  return car;
 };
 
 const requireApprovedPaymentContext = ({
@@ -307,8 +379,10 @@ export const buildHostedCheckoutSessionIdempotencyKey = ({
 
 export const resolvePendingCheckoutSession = async ({
   application,
+  carId,
 }: {
   application: StripeApplication;
+  carId: number;
 }): Promise<PendingCheckoutSessionResolution> => {
   const pendingSessionId = application.pending_checkout_session_id;
   if (!pendingSessionId) {
@@ -322,10 +396,12 @@ export const resolvePendingCheckoutSession = async ({
     const session = await getStripe().checkout.sessions.retrieve(pendingSessionId);
     const sessionVersion = Number(session.metadata?.payment_link_version || 0);
     const sessionApplicationId = normalizeUuid(session.metadata?.application_id || '');
+    const sessionCarId = Number(session.metadata?.car_id || 0);
     const isSameContext =
       sessionApplicationId === normalizeUuid(application.id) &&
       sessionVersion === Number(application.payment_link_version || 0) &&
-      session.metadata?.checkout_kind === 'vehicle';
+      session.metadata?.checkout_kind === 'vehicle' &&
+      sessionCarId === carId;
 
     if (isSameContext && (session.status === 'open' || session.status === 'complete')) {
       return {
@@ -356,12 +432,14 @@ export const getVehiclePaymentContext = async ({
     throw new Error('Application not found');
   }
 
-  verifyCheckoutToken({
+  const checkoutTokenPayload = verifyCheckoutToken({
     applicationId,
     purpose: 'vehicle',
     token: checkoutToken,
     version: Number(application.payment_link_version || 0),
   });
+  const carId = requireCheckoutTokenCarId(checkoutTokenPayload.carId);
+  await requireCheckoutVehicleAvailable(carId);
   requireApprovedPaymentContext({ application });
 
   return {
@@ -369,6 +447,7 @@ export const getVehiclePaymentContext = async ({
     application_id: applicationId,
     approved_vehicle: String(application.approved_vehicle || DEFAULT_APPROVED_VEHICLE_LABEL),
     billing: buildApprovedBillingBreakdown(application),
+    car_id: carId,
     vehicle_image: DEFAULT_VEHICLE_IMAGE,
   };
 };
@@ -387,16 +466,19 @@ export const createVehicleCheckoutSession = async ({
       throw new Error('Application not found');
     }
 
-    verifyCheckoutToken({
+    const checkoutTokenPayload = verifyCheckoutToken({
       applicationId,
       purpose: 'vehicle',
       token: checkoutToken,
       version: Number(application.payment_link_version || 0),
     });
+    const carId = requireCheckoutTokenCarId(checkoutTokenPayload.carId);
+    await requireCheckoutVehicleAvailable(carId);
     requireApprovedPaymentContext({ application });
 
     const pendingSessionResolution = await resolvePendingCheckoutSession({
       application,
+      carId,
     });
 
     if (pendingSessionResolution.session) {
@@ -415,6 +497,7 @@ export const createVehicleCheckoutSession = async ({
     const session = await createHostedCheckoutSession({
       application,
       billingBreakdown: buildApprovedBillingBreakdown(application),
+      carId,
       checkoutToken,
       idempotencyKey: buildHostedCheckoutSessionIdempotencyKey({
         applicationId: application.id,
@@ -442,8 +525,10 @@ export const createVehicleCheckoutSession = async ({
 
 export const createVehicleCheckoutLink = async ({
   applicationId,
+  carId,
 }: {
   applicationId: string;
+  carId: number;
 }) => {
   const application = await fetchApplication(applicationId);
 
@@ -462,6 +547,7 @@ export const createVehicleCheckoutLink = async ({
   requireApprovedPaymentContext({
     application,
   });
+  await requireCheckoutVehicleAvailable(carId);
 
   const nextVersion = Number(application.payment_link_version || 0) + 1;
   await expirePendingCheckoutSession(application.pending_checkout_session_id);
@@ -482,6 +568,7 @@ export const createVehicleCheckoutLink = async ({
 
   const checkoutToken = createCheckoutToken({
     applicationId,
+    carId,
     purpose: 'vehicle',
     version: Number(updatedApplication.payment_link_version || nextVersion),
   });
@@ -494,6 +581,53 @@ export const createVehicleCheckoutLink = async ({
       token: checkoutToken.token,
     }),
   };
+};
+
+const getConfirmedRentalStatus = async ({
+  applicationId,
+  carId,
+  subscriptionId,
+}: {
+  applicationId: string;
+  carId: number;
+  subscriptionId: string | null;
+}) => {
+  const compat = await getSchemaCompat();
+  const rentalApplicationIdColumn = await getRentalApplicationIdColumn();
+  const rentalCarIdColumn = await getRentalCarIdColumn();
+  const selectColumns = [
+    'id',
+    'status',
+    rentalApplicationIdColumn,
+    rentalCarIdColumn,
+    compat.rentalStripeSubscriptionColumn,
+  ]
+    .filter((column): column is string => Boolean(column))
+    .join(', ');
+  const { data, error } = await db
+    .from('rentals')
+    .select(selectColumns)
+    .eq(rentalApplicationIdColumn, applicationId)
+    .eq(rentalCarIdColumn, carId);
+
+  if (error) {
+    throw new Error(
+      `Failed to inspect local rental activation state: ${error.message || 'Unknown error'}`
+    );
+  }
+
+  const rentals = ((data || []) as unknown) as Array<Record<string, unknown>>;
+  const liveRentals = rentals.filter((rental) => isLiveRentalStatus(rental.status));
+  const subscriptionColumn = compat.rentalStripeSubscriptionColumn;
+  const matchingSubscriptionRental =
+    subscriptionId && subscriptionColumn
+      ? liveRentals.find(
+          (rental) => String(rental[subscriptionColumn] || '') === subscriptionId
+        )
+      : null;
+  const matchingRental = matchingSubscriptionRental || liveRentals[0];
+
+  return matchingRental ? String(matchingRental.status || '') || null : null;
 };
 
 export const getVehicleCheckoutSessionStatus = async ({
@@ -511,17 +645,23 @@ export const getVehicleCheckoutSessionStatus = async ({
     throw new Error('Application not found');
   }
 
-  verifyCheckoutToken({
+  const checkoutTokenPayload = verifyCheckoutToken({
     applicationId,
     purpose: 'vehicle',
     token: checkoutToken,
     version: Number(application.payment_link_version || 0),
   });
+  const carId = requireCheckoutTokenCarId(checkoutTokenPayload.carId);
 
   const session = await getStripe().checkout.sessions.retrieve(sessionId);
   const metadataApplicationId = normalizeUuid(session.metadata?.application_id || '');
+  const metadataCarId = Number(session.metadata?.car_id || 0);
   const metadataCheckoutKind = session.metadata?.checkout_kind || null;
   const metadataVersion = Number(session.metadata?.payment_link_version || 0);
+  const subscriptionId =
+    typeof session.subscription === 'string'
+      ? session.subscription
+      : session.subscription?.id || null;
 
   if (metadataApplicationId !== normalizeUuid(applicationId)) {
     throw new Error('Checkout session does not match this application.');
@@ -531,18 +671,28 @@ export const getVehicleCheckoutSessionStatus = async ({
     throw new Error('Checkout session does not match this payment link.');
   }
 
+  if (metadataCarId !== carId) {
+    throw new Error('Checkout session vehicle does not match this payment link.');
+  }
+
   if (metadataVersion !== Number(application.payment_link_version || 0)) {
     throw new Error('Checkout session belongs to an outdated payment link.');
   }
 
+  const rentalStatus = await getConfirmedRentalStatus({
+    applicationId,
+    carId,
+    subscriptionId,
+  });
+  const isStripePaidComplete =
+    session.status === 'complete' && session.payment_status === 'paid';
   const internalStatus =
-    application.status === 'Paid'
+    application.status === 'Paid' && rentalStatus
       ? 'complete'
-      : application.status === 'Payment Review' &&
-          session.status === 'complete' &&
-          session.payment_status === 'paid'
+      : isStripePaidComplete &&
+          (application.status === 'Payment Review' || application.status === 'Paid')
         ? 'manual_review'
-        : session.status === 'complete' && session.payment_status === 'paid'
+        : isStripePaidComplete
           ? 'pending'
           : 'open';
 
@@ -552,7 +702,7 @@ export const getVehicleCheckoutSessionStatus = async ({
     id: session.id,
     internal_status: internalStatus,
     payment_status: session.payment_status,
-    rental_status: null,
+    rental_status: rentalStatus,
     status: session.status,
   };
 };

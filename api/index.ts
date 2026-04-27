@@ -354,6 +354,10 @@ const resolveDirectDatabaseHealthStatus = (
     return 'not_configured';
   }
 
+  if (result.schemaIssues?.length) {
+    return 'unavailable';
+  }
+
   return result.mode === 'session' ? 'ok' : 'restricted';
 };
 
@@ -460,6 +464,7 @@ const registerCoreRoutes = (app: express.Express) => {
   app.get('/api/health', async (_req, res) => {
     let database: 'ok' | 'not_configured' | 'unavailable' = 'ok';
     let directDatabase: DirectDatabaseHealthStatus = 'not_configured';
+    let directDatabaseSchemaIssues: string[] = [];
 
     try {
       const { configured } = await runDBHealthCheck();
@@ -472,6 +477,7 @@ const registerCoreRoutes = (app: express.Express) => {
     try {
       const directHealth = await runDirectDBHealthCheck();
       directDatabase = resolveDirectDatabaseHealthStatus(directHealth);
+      directDatabaseSchemaIssues = directHealth.schemaIssues || [];
     } catch (error) {
       directDatabase = 'unavailable';
       console.error('Healthcheck direct database error:', error);
@@ -495,6 +501,7 @@ const registerCoreRoutes = (app: express.Express) => {
         environment: process.env.NODE_ENV || 'development',
         database,
         directDatabase,
+        directDatabaseSchemaIssues,
         paymentActivationMode: getPaymentProcessingMode(),
       });
       return;
@@ -505,6 +512,7 @@ const registerCoreRoutes = (app: express.Express) => {
       environment: process.env.NODE_ENV || 'development',
       database,
       directDatabase,
+      directDatabaseSchemaIssues,
       paymentActivationMode: getPaymentProcessingMode(),
     });
   });

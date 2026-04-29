@@ -1,7 +1,7 @@
 import React, { ChangeEvent, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { AlertTriangle, Printer, RotateCcw } from 'lucide-react';
-import { Application } from '../../../types';
+import type { Application } from '../../../types';
 
 type ResponsibilityType = 'responsible' | 'new-owner' | 'previous-owner';
 type WitnessQualification = 'Legal practitioner' | 'Justice of the Peace';
@@ -43,14 +43,21 @@ interface TollStatDecTabProps {
   applications: Application[];
 }
 
+const ownerDefaults = {
+  declarantFullName: 'SAFFARAZ ALI RAJABI',
+  organisationAddress: '1327-33 ADDLESTONE RD MERRYLANDS NSW 2160',
+  organisationName: 'MAPLE PAINTING PTY LTD',
+  organisationPhone: '0420 550 556',
+};
+
 const emptyForm: TollStatDecForm = {
-  declarantFullName: '',
-  organisationName: 'Maple Rentals',
-  organisationAddress: '',
-  organisationPhone: '',
+  declarantFullName: ownerDefaults.declarantFullName,
+  organisationName: ownerDefaults.organisationName,
+  organisationAddress: ownerDefaults.organisationAddress,
+  organisationPhone: ownerDefaults.organisationPhone,
   tollNoticeNumber: '',
   vehicleRegistration: '',
-  tollNoticeEnclosed: false,
+  tollNoticeEnclosed: true,
   nomineeSurnameOrOrganisation: '',
   nomineeGivenNames: '',
   nomineeDateOfBirth: '',
@@ -82,8 +89,6 @@ const requiredFields: Array<keyof TollStatDecForm> = [
   'declarantFullName',
   'organisationName',
   'nomineeSurnameOrOrganisation',
-  'nomineeMailingAddress',
-  'declarationDate',
 ];
 
 const fieldLabels: Partial<Record<keyof TollStatDecForm, string>> = {
@@ -92,60 +97,14 @@ const fieldLabels: Partial<Record<keyof TollStatDecForm, string>> = {
   declarantFullName: 'Declarant full name',
   organisationName: 'Organisation name',
   nomineeSurnameOrOrganisation: 'Nominee surname or organisation',
-  nomineeMailingAddress: 'Nominee mailing address',
-  declarationDate: 'Declaration date',
-};
-
-const splitApplicantName = (name: string) => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-
-  if (parts.length <= 1) {
-    return {
-      givenNames: '',
-      surnameOrOrganisation: parts[0] || '',
-    };
-  }
-
-  return {
-    givenNames: parts.slice(0, -1).join(' '),
-    surnameOrOrganisation: parts[parts.length - 1],
-  };
-};
-
-const extractRegistrationCandidate = (application: Application) => {
-  const candidates = [application.approved_vehicle, application.weekly_budget].filter(Boolean);
-
-  for (const candidate of candidates) {
-    const explicitMatch = candidate?.match(/\b(?:rego|registration|plate)\s*[:#-]?\s*([A-Z0-9 -]{3,10})\b/i);
-
-    if (explicitMatch?.[1]) {
-      return explicitMatch[1].trim().toUpperCase();
-    }
-  }
-
-  return '';
-};
-
-const splitAddress = (address: string) => {
-  const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
-  const lastPart = parts[parts.length - 1] || '';
-  const statePostcode = lastPart.match(/\b([A-Z]{2,3})\s+(\d{4})\b/i);
-
-  return {
-    street: parts.slice(0, statePostcode ? -1 : undefined).join(', ') || address,
-    suburb: parts.length > 1 ? parts[parts.length - 2] || '' : '',
-    state: statePostcode?.[1]?.toUpperCase() || 'NSW',
-    postcode: statePostcode?.[2] || '',
-  };
 };
 
 const display = (value: string) => value.trim() || ' ';
 
 const checkbox = (checked: boolean) => (checked ? '[x]' : '[ ]');
 
-export default function TollStatDecTab({ applications }: TollStatDecTabProps) {
+export default function TollStatDecTab({ applications: _applications }: TollStatDecTabProps) {
   const [form, setForm] = useState<TollStatDecForm>(emptyForm);
-  const [selectedApplicationId, setSelectedApplicationId] = useState('');
 
   const missingRequiredFields = useMemo(
     () => requiredFields.filter((field) => !String(form[field]).trim()),
@@ -162,35 +121,7 @@ export default function TollStatDecTab({ applications }: TollStatDecTabProps) {
       updateField(field, event.target.value as never);
     };
 
-  const handleApplicationSelect = (applicationId: string) => {
-    setSelectedApplicationId(applicationId);
-
-    const application = applications.find((item) => item.id === applicationId);
-
-    if (!application) {
-      return;
-    }
-
-    const applicantName = splitApplicantName(application.name);
-    const applicantAddress = splitAddress(application.address || '');
-    const registration = extractRegistrationCandidate(application);
-
-    setForm((current) => ({
-      ...current,
-      nomineeGivenNames: applicantName.givenNames || current.nomineeGivenNames,
-      nomineeSurnameOrOrganisation:
-        applicantName.surnameOrOrganisation || current.nomineeSurnameOrOrganisation,
-      nomineePhone: application.phone || current.nomineePhone,
-      nomineeMailingAddress: applicantAddress.street || current.nomineeMailingAddress,
-      nomineeSuburb: applicantAddress.suburb || current.nomineeSuburb,
-      nomineeState: applicantAddress.state || current.nomineeState,
-      nomineePostcode: applicantAddress.postcode || current.nomineePostcode,
-      vehicleRegistration: registration || current.vehicleRegistration,
-    }));
-  };
-
   const handleReset = () => {
-    setSelectedApplicationId('');
     setForm(emptyForm);
   };
 
@@ -317,8 +248,9 @@ export default function TollStatDecTab({ applications }: TollStatDecTabProps) {
             Toll <span className="text-brand-gold italic">Stat Dec</span>
           </h2>
           <p className="max-w-3xl font-light text-brand-grey">
-            Prepare NSW toll notice statutory declarations for company nominations.
-            V1 uses local browser state only and does not save records.
+            Prepare NSW toll notice statutory declarations for company nominations. Owner
+            details are prefilled; enter the responsible person and vehicle registration before
+            printing.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -364,28 +296,29 @@ export default function TollStatDecTab({ applications }: TollStatDecTabProps) {
         <div className="no-print space-y-8">
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
             <h3 className="mb-5 text-sm font-bold uppercase tracking-widest text-white">
-              Auto-fill
+              Quick Print Fields
             </h3>
-            <label className="space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
-                Auto-fill from application
-              </span>
-              <select
-                value={selectedApplicationId}
-                onChange={(event) => handleApplicationSelect(event.target.value)}
-                className="w-full appearance-none rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none transition-all focus:border-brand-gold"
-              >
-                <option value="">Select an application...</option>
-                {applications.map((application) => (
-                  <option key={application.id} value={application.id}>
-                    {application.name} ({application.email})
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Responsible surname / organisation"
+                field="nomineeSurnameOrOrganisation"
+                placeholder="e.g. KHALIQ"
+              />
+              <Field
+                label="Responsible given name(s)"
+                field="nomineeGivenNames"
+                placeholder="e.g. AHMAD ABDUL"
+              />
+              <Field
+                label="Vehicle registration number"
+                field="vehicleRegistration"
+                placeholder="e.g. CZ55XY"
+              />
+              <Field label="Toll Notice number" field="tollNoticeNumber" />
+            </div>
             <p className="mt-3 text-[11px] font-light text-brand-grey">
-              Auto-fill uses applicant name, phone, address, and explicit rego text if available.
-              It does not guess a registration number from a vehicle model.
+              This tool no longer imports responsible person details from applications. Admin enters
+              the responsible person and car rego manually before printing.
             </p>
           </section>
 

@@ -119,13 +119,13 @@ export const applicationApprovalSchema = z.object({
   approved_bond: z.coerce.number().nonnegative(),
   approved_weekly_price: z.coerce.number().positive(),
   application_id: uuidSchema,
-  car_id: requiredPositiveIntegerSchema,
+  car_id: optionalPositiveIntegerSchema,
   send_payment_link: z.boolean().optional().default(true),
 });
 
 export const vehicleCheckoutLinkSchema = z.object({
   application_id: uuidSchema,
-  car_id: requiredPositiveIntegerSchema,
+  car_id: optionalPositiveIntegerSchema,
 });
 
 export const leaseFeeSchema = z.object({
@@ -164,7 +164,8 @@ export const leaseAgreementSchema = z.object({
 
 export const createLeaseAgreementSchema = z.object({
   application_id: uuidSchema,
-  car_id: z.coerce.number().int().positive(),
+  car_id: optionalPositiveIntegerSchema,
   content: z.string().min(1),
   status: z.string().optional().default("generated"),
+  vehicle_label: z.string().trim().optional(),
 });

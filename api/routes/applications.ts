@@ -769,7 +769,9 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
         });
     }
 
-    await requireAvailablePaymentVehicle(payload.car_id);
+    if (payload.car_id) {
+      await requireAvailablePaymentVehicle(payload.car_id);
+    }
 
     const currentVersion = Number(applicationRecord.payment_link_version || 0);
     const nextVersion = currentVersion + 1;
@@ -815,7 +817,7 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
 
     const checkoutToken = createCheckoutToken({
       applicationId: payload.application_id,
-      carId: payload.car_id,
+      carId: payload.car_id ?? null,
       purpose: "vehicle",
       version: nextVersion,
     });

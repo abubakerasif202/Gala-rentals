@@ -4,17 +4,18 @@ import { authenticateAdmin } from '../middleware/auth.js';
 import { renderCarLeaseAgreement } from '../templates/carLeaseAgreement.js';
 import { leaseAgreementSchema, createLeaseAgreementSchema } from '../validation.js';
 import { z } from 'zod';
-import { getApplicationSelectColumns, getCarSelectColumns } from '../schemaCompat.js';
+import { getApplicationSelectColumns } from '../schemaCompat.js';
 
 const router = express.Router();
 
 type LeaseAgreementRecord = {
   application_id: string;
-  car_id: number;
+  car_id?: number | null;
   content: string;
   created_at: string;
   id: number;
   status: string;
+  vehicle_label?: string | null;
 };
 
 const enrichLeaseAgreements = async (
@@ -30,7 +31,7 @@ const enrichLeaseAgreements = async (
   const carIds = Array.from(
     new Set(
       agreements
-        .map((agreement) => Number(agreement.car_id))
+        .map((agreement) => Number(agreement.car_id || 0))
         .filter((id) => Number.isInteger(id) && id > 0)
     )
   );
@@ -65,7 +66,10 @@ const enrichLeaseAgreements = async (
   return agreements.map((agreement) => ({
     ...agreement,
     applicant_name: applicationNames.get(agreement.application_id) || undefined,
-    car_name: carNames.get(Number(agreement.car_id)) || undefined,
+    car_name:
+      carNames.get(Number(agreement.car_id || 0)) ||
+      agreement.vehicle_label ||
+      undefined,
   }));
 };
 
@@ -91,22 +95,15 @@ router.post('/car-lease/render', authenticateAdmin, async (req, res) => {
 router.post('/', authenticateAdmin, async (req, res) => {
   try {
     const data = createLeaseAgreementSchema.parse(req.body);
-    const [applicationSelectColumns, carSelectColumns] = await Promise.all([
-      getApplicationSelectColumns(),
-      getCarSelectColumns(),
-    ]);
-    const [{ data: application, error: applicationError }, { data: car, error: carError }] =
-      await Promise.all([
-        db.from('applications').select(applicationSelectColumns).eq('id', data.application_id).single(),
-        db.from('cars').select(carSelectColumns).eq('id', data.car_id).single(),
-      ]);
+    const applicationSelectColumns = await getApplicationSelectColumns();
+    const { data: application, error: applicationError } = await db
+      .from('applications')
+      .select(applicationSelectColumns)
+      .eq('id', data.application_id)
+      .single();
 
     if (applicationError || !application) {
       return res.status(404).json({ error: 'Application not found' });
-    }
-
-    if (carError || !car) {
-      return res.status(404).json({ error: 'Car not found' });
     }
 
     const applicationRecord = application as unknown as Record<string, unknown>;
@@ -117,18 +114,12 @@ router.post('/', authenticateAdmin, async (req, res) => {
       });
     }
 
-    const carRecord = car as unknown as Record<string, unknown>;
-    const carStatus = String(carRecord.status || '');
-    const isArchived = Boolean(carRecord.archived_at);
-
-    if (isArchived || carStatus !== 'Available') {
-      return res.status(409).json({
-        error:
-          'Lease agreements can only be created for active available vehicles. Review the vehicle status before generating the agreement.',
-      });
-    }
-
-    const { data: inserted, error } = await db.from('lease_agreements').insert([data]).select('id').single();
+    const insertPayload = {
+      ...data,
+      car_id: data.car_id ?? null,
+      vehicle_label: data.vehicle_label || null,
+    };
+    const { data: inserted, error } = await db.from('lease_agreements').insert([insertPayload]).select('id').single();
 
     if (error) throw error;
     res.status(201).json({ id: String(inserted.id) });
@@ -145,7 +136,7 @@ router.get('/', authenticateAdmin, async (_req, res) => {
   try {
     const { data, error } = await db
       .from('lease_agreements')
-      .select('id, application_id, car_id, content, status, created_at')
+      .select('id, application_id, car_id, vehicle_label, content, status, created_at')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -171,7 +162,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 
     const { data, error } = await db
       .from('lease_agreements')
-      .select('id, application_id, car_id, content, status, created_at')
+      .select('id, application_id, car_id, vehicle_label, content, status, created_at')
       .eq('id', parsedParams.data.id)
       .single();
 

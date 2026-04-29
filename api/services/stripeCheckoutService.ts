@@ -56,7 +56,7 @@ export type VehiclePaymentContextResponse = {
   application_id: string;
   approved_vehicle: string;
   billing: BillingBreakdown;
-  car_id: number;
+  car_id: number | null;
   vehicle_image: string;
 };
 
@@ -104,12 +104,16 @@ const isLiveRentalStatus = (status: unknown) => {
   return normalized !== 'completed' && normalized !== 'cancelled';
 };
 
-const requireCheckoutTokenCarId = (carId: unknown) => {
+const getCheckoutTokenCarId = (carId: unknown) => {
+  if (carId == null || carId === '') {
+    return null;
+  }
+
   const numericCarId = Number(carId || 0);
 
   if (!Number.isInteger(numericCarId) || numericCarId <= 0) {
     throw new Error(
-      'Payment link is missing a vehicle assignment. Request a fresh payment link.'
+      'Payment link has an invalid vehicle assignment. Request a fresh payment link.'
     );
   }
 
@@ -213,21 +217,24 @@ const createHostedCheckoutSession = async ({
 }: {
   application: StripeApplication;
   billingBreakdown: BillingBreakdown;
-  carId: number;
+  carId: number | null;
   checkoutToken: string;
   idempotencyKey: string;
 }) => {
-  const metadata = {
+  const metadata: Record<string, string> = {
     application_id: String(application.id),
     applicant_email: String(application.email),
     approved_vehicle: String(application.approved_vehicle || DEFAULT_APPROVED_VEHICLE_LABEL),
-    car_id: String(carId),
     checkout_kind: 'vehicle',
     payment_type: 'vehicle_rental',
     approved_bond: billingBreakdown.bond.toFixed(2),
     approved_weekly_price: billingBreakdown.recurringAmount.toFixed(2),
     payment_link_version: String(Number(application.payment_link_version || 0)),
   };
+
+  if (carId) {
+    metadata.car_id = String(carId);
+  }
 
   return getStripe().checkout.sessions.create(
     {
@@ -382,7 +389,7 @@ export const resolvePendingCheckoutSession = async ({
   carId,
 }: {
   application: StripeApplication;
-  carId: number;
+  carId: number | null;
 }): Promise<PendingCheckoutSessionResolution> => {
   const pendingSessionId = application.pending_checkout_session_id;
   if (!pendingSessionId) {
@@ -396,7 +403,7 @@ export const resolvePendingCheckoutSession = async ({
     const session = await getStripe().checkout.sessions.retrieve(pendingSessionId);
     const sessionVersion = Number(session.metadata?.payment_link_version || 0);
     const sessionApplicationId = normalizeUuid(session.metadata?.application_id || '');
-    const sessionCarId = Number(session.metadata?.car_id || 0);
+    const sessionCarId = Number(session.metadata?.car_id || 0) || null;
     const isSameContext =
       sessionApplicationId === normalizeUuid(application.id) &&
       sessionVersion === Number(application.payment_link_version || 0) &&
@@ -438,8 +445,10 @@ export const getVehiclePaymentContext = async ({
     token: checkoutToken,
     version: Number(application.payment_link_version || 0),
   });
-  const carId = requireCheckoutTokenCarId(checkoutTokenPayload.carId);
-  await requireCheckoutVehicleAvailable(carId);
+  const carId = getCheckoutTokenCarId(checkoutTokenPayload.carId);
+  if (carId) {
+    await requireCheckoutVehicleAvailable(carId);
+  }
   requireApprovedPaymentContext({ application });
 
   return {
@@ -472,8 +481,10 @@ export const createVehicleCheckoutSession = async ({
       token: checkoutToken,
       version: Number(application.payment_link_version || 0),
     });
-    const carId = requireCheckoutTokenCarId(checkoutTokenPayload.carId);
-    await requireCheckoutVehicleAvailable(carId);
+    const carId = getCheckoutTokenCarId(checkoutTokenPayload.carId);
+    if (carId) {
+      await requireCheckoutVehicleAvailable(carId);
+    }
     requireApprovedPaymentContext({ application });
 
     const pendingSessionResolution = await resolvePendingCheckoutSession({
@@ -528,7 +539,7 @@ export const createVehicleCheckoutLink = async ({
   carId,
 }: {
   applicationId: string;
-  carId: number;
+  carId: number | null;
 }) => {
   const application = await fetchApplication(applicationId);
 
@@ -547,7 +558,9 @@ export const createVehicleCheckoutLink = async ({
   requireApprovedPaymentContext({
     application,
   });
-  await requireCheckoutVehicleAvailable(carId);
+  if (carId) {
+    await requireCheckoutVehicleAvailable(carId);
+  }
 
   const nextVersion = Number(application.payment_link_version || 0) + 1;
   await expirePendingCheckoutSession(application.pending_checkout_session_id);
@@ -651,11 +664,11 @@ export const getVehicleCheckoutSessionStatus = async ({
     token: checkoutToken,
     version: Number(application.payment_link_version || 0),
   });
-  const carId = requireCheckoutTokenCarId(checkoutTokenPayload.carId);
+  const carId = getCheckoutTokenCarId(checkoutTokenPayload.carId);
 
   const session = await getStripe().checkout.sessions.retrieve(sessionId);
   const metadataApplicationId = normalizeUuid(session.metadata?.application_id || '');
-  const metadataCarId = Number(session.metadata?.car_id || 0);
+  const metadataCarId = Number(session.metadata?.car_id || 0) || null;
   const metadataCheckoutKind = session.metadata?.checkout_kind || null;
   const metadataVersion = Number(session.metadata?.payment_link_version || 0);
   const subscriptionId =
@@ -679,15 +692,17 @@ export const getVehicleCheckoutSessionStatus = async ({
     throw new Error('Checkout session belongs to an outdated payment link.');
   }
 
-  const rentalStatus = await getConfirmedRentalStatus({
-    applicationId,
-    carId,
-    subscriptionId,
-  });
+  const rentalStatus = carId
+    ? await getConfirmedRentalStatus({
+        applicationId,
+        carId,
+        subscriptionId,
+      })
+    : null;
   const isStripePaidComplete =
     session.status === 'complete' && session.payment_status === 'paid';
   const internalStatus =
-    application.status === 'Paid' && rentalStatus
+    application.status === 'Paid' && (!carId || rentalStatus)
       ? 'complete'
       : isStripePaidComplete &&
           (application.status === 'Payment Review' || application.status === 'Paid')

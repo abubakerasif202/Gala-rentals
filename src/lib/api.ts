@@ -196,7 +196,7 @@ export interface ApprovedPaymentContextResponse {
     setupFees: number;
     upfrontDue: number;
   };
-  car_id: number;
+  car_id: number | null;
   vehicle_image: string;
 }
 
@@ -307,7 +307,7 @@ export interface LeaseAgreementPayload {
 
 export const createVehicleCheckoutLink = async (payload: {
   application_id: string;
-  car_id: number;
+  car_id?: number | null;
 }): Promise<VehicleCheckoutLinkResponse> => {
   const { data } = await api.post('/stripe/vehicle-checkout-link', payload);
   return data;
@@ -319,7 +319,7 @@ export const approveApplicationForPayment = async (
     approved_vehicle: string;
     approved_bond: number;
     approved_weekly_price: number;
-    car_id: number;
+    car_id?: number | null;
     send_payment_link?: boolean;
   }
 ): Promise<ApplicationApprovalResponse> => {
@@ -356,19 +356,21 @@ export const fetchStripeLeaseSettings = async (): Promise<StripeLeaseSettings> =
 export interface SavedLeaseAgreement {
   id: number;
   application_id: string;
-  car_id: number;
+  car_id?: number | null;
   content: string;
   status: string;
   created_at: string;
   applicant_name?: string;
   car_name?: string;
+  vehicle_label?: string | null;
 }
 
 export const saveLeaseAgreement = async (payload: {
   application_id: string;
-  car_id: number;
+  car_id?: number | null;
   content: string;
   status?: string;
+  vehicle_label?: string | null;
 }): Promise<{ id: string }> => {
   const { data } = await api.post('/agreements', payload);
   return data;

@@ -2,16 +2,12 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Loader2, RefreshCw, ExternalLink, FileText, Trash2 } from 'lucide-react';
 import { UseMutationResult } from '@tanstack/react-query';
-import { Application, Car } from '../../../types';
+import { Application } from '../../../types';
 
 interface AgreementsTabProps {
-  applications: Application[];
   approvedApplications: Application[];
-  cars: Car[];
   selected_agreement_application_id: string;
   set_selected_agreement_application_id: (val: string) => void;
-  selected_agreement_car_id: string;
-  set_selected_agreement_car_id: (val: string) => void;
   selectedAgreementApplication?: Application;
   isGeneratingAgreement: boolean;
   handleGenerateAgreement: () => void;
@@ -19,7 +15,7 @@ interface AgreementsTabProps {
   generateCheckoutLinkMutation: UseMutationResult<
     any,
     Error,
-    { application_id: string; car_id: number },
+    { application_id: string },
     unknown
   >;
   handleCopyVehicleCheckoutLink: () => void;
@@ -31,13 +27,9 @@ interface AgreementsTabProps {
 }
 
 export default function AgreementsTab({
-  applications,
   approvedApplications,
-  cars,
   selected_agreement_application_id,
   set_selected_agreement_application_id,
-  selected_agreement_car_id,
-  set_selected_agreement_car_id,
   selectedAgreementApplication,
   isGeneratingAgreement,
   handleGenerateAgreement,
@@ -50,6 +42,9 @@ export default function AgreementsTab({
   setIsAgreementModalOpen,
   deleteAgreementMutation,
 }: AgreementsTabProps) {
+  const approvedVehicleLabel =
+    selectedAgreementApplication?.approved_vehicle?.trim() || '';
+
   return (
     <motion.div
       key="agreements"
@@ -70,7 +65,7 @@ export default function AgreementsTab({
       </div>
 
       <div className="bg-white/5 border border-white/10 p-8 rounded-3xl">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
               Select Approved Application
@@ -80,7 +75,6 @@ export default function AgreementsTab({
               onChange={(e) => {
                 const applicationId = e.target.value;
                 set_selected_agreement_application_id(applicationId);
-                set_selected_agreement_car_id('');
               }}
               className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
             >
@@ -91,30 +85,17 @@ export default function AgreementsTab({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-              Select Fleet Vehicle
-            </label>
-            <select
-              value={selected_agreement_car_id}
-              onChange={(e) => set_selected_agreement_car_id(e.target.value)}
-              className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
-            >
-              <option value="">Select a car...</option>
-              {cars.map((car) => (
-                <option key={car.id} value={car.id}>
-                  {car.name} ({car.model_year}) - {car.status}
-                </option>
-              ))}
-            </select>
+            {approvedVehicleLabel && (
+              <p className="text-[11px] text-brand-grey font-light">
+                Approved vehicle: <span className="text-white">{approvedVehicleLabel}</span>
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-1 gap-3">
             <button
               disabled={
                 isGeneratingAgreement ||
                 !selected_agreement_application_id ||
-                !selected_agreement_car_id ||
                 selectedAgreementApplication?.status !== 'Paid'
               }
               onClick={handleGenerateAgreement}
@@ -191,7 +172,7 @@ export default function AgreementsTab({
                       {agreement.applicant_name}
                     </p>
                     <p className="text-[10px] text-brand-grey uppercase tracking-widest">
-                      {agreement.car_name}
+                      {agreement.car_name || agreement.vehicle_label || 'Approved vehicle'}
                     </p>
                   </div>
                 </td>

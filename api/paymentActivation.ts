@@ -350,13 +350,6 @@ const applyVehicleCheckoutActivationWrites = async ({
       throw new Error(`Application ${applicationId} disappeared while activating payment.`);
     }
 
-    const lockedAssignedCarId = Number(lockedApplicationRow.assigned_car_id || 0);
-    if (lockedAssignedCarId && lockedAssignedCarId !== carId) {
-      throw new Error(
-        `Application ${applicationId} is no longer assigned to car ${carId}; activation requires manual review.`
-      );
-    }
-
     const lockedPaymentLinkVersion = Number(lockedApplicationRow.payment_link_version || 0);
     if (lockedPaymentLinkVersion !== expectedPaymentLinkVersion) {
       throw new Error(
@@ -405,6 +398,98 @@ const applyVehicleCheckoutActivationWrites = async ({
       { status: 'Rented' },
       'Failed to mark car as rented'
     );
+
+    await updateRowByIdInTransaction(
+      client,
+      'applications',
+      applicationId,
+      applicationPaymentPayload,
+      'Failed to update application payment state'
+    );
+
+    await persistVehicleCheckoutFulfillmentMarkerInTransaction(
+      client,
+      fulfillmentSessionId,
+      Number(existingFulfillmentLedgerRow?.id || 0) || null
+    );
+
+    return 'fulfilled' as const;
+  });
+};
+
+const applyVehicleCheckoutPaymentOnlyWrites = async ({
+  applicationId,
+  expectedPaymentLinkVersion,
+  fulfillmentSessionId,
+  paidAt,
+}: {
+  applicationId: string;
+  expectedPaymentLinkVersion: number;
+  fulfillmentSessionId: string;
+  paidAt: string;
+}) => {
+  const applicationPaymentPayload = await toApplicationPaymentWritePayload({
+    paid_at: paidAt,
+    pending_checkout_session_id: null,
+    status: 'Paid',
+  });
+
+  if (!hasDirectDatabaseConnection()) {
+    const result = await db.from('applications').update(applicationPaymentPayload).eq('id', applicationId);
+    assertSupabaseWrite(result, 'Failed to update application payment state');
+    return 'fulfilled' as const;
+  }
+
+  return withPostgresTransaction(async (client) => {
+    const fulfillmentLedgerResult =
+      await readVehicleCheckoutFulfillmentMarkerInTransaction(
+        client,
+        fulfillmentSessionId
+      );
+    const existingFulfillmentLedgerRow =
+      (fulfillmentLedgerResult.rows[0] as
+        | { event_type?: string | null; id?: number | null }
+        | undefined) || undefined;
+
+    if (
+      existingFulfillmentLedgerRow?.event_type ===
+      VEHICLE_CHECKOUT_FULFILLMENT_EVENT_TYPE
+    ) {
+      return 'already_fulfilled' as const;
+    }
+
+    const applicationRes = await client.query(
+      await buildLockedApplicationSelectSql(),
+      [applicationId]
+    );
+    const lockedApplicationRow = applicationRes.rows[0] as
+      | {
+          payment_link_version?: number | string | null;
+          status?: string | null;
+        }
+      | undefined;
+
+    if (!lockedApplicationRow) {
+      throw new Error(`Application ${applicationId} disappeared while recording payment.`);
+    }
+
+    const lockedPaymentLinkVersion = Number(lockedApplicationRow.payment_link_version || 0);
+    if (lockedPaymentLinkVersion !== expectedPaymentLinkVersion) {
+      throw new Error(
+        `Application ${applicationId} payment link version changed from ${expectedPaymentLinkVersion} to ${lockedPaymentLinkVersion}.`
+      );
+    }
+
+    const lockedApplicationStatus = String(lockedApplicationRow.status || '');
+    if (
+      lockedApplicationStatus !== 'Approved' &&
+      lockedApplicationStatus !== 'Paid' &&
+      lockedApplicationStatus !== 'Payment Review'
+    ) {
+      throw new Error(
+        `Application ${applicationId} cannot be marked paid from status ${lockedApplicationStatus || 'Unknown'}.`
+      );
+    }
 
     await updateRowByIdInTransaction(
       client,
@@ -623,9 +708,20 @@ export const handleVehicleCheckoutCompletion = async (
     }
 
     if (!legacyCarId) {
-      return moveApplicationToPaymentReview(
-        'Paid Stripe vehicle checkout is missing car_id metadata and cannot be activated automatically.'
-      );
+      try {
+        return await applyVehicleCheckoutPaymentOnlyWrites({
+          applicationId,
+          expectedPaymentLinkVersion: sessionPaymentLinkVersion,
+          fulfillmentSessionId: session.id,
+          paidAt: recordedPaidAt,
+        });
+      } catch (error) {
+        return moveApplicationToPaymentReview(
+          error instanceof Error
+            ? error.message
+            : 'Payment was received but could not be recorded automatically.'
+        );
+      }
     }
 
     if (legacyCarId) {

@@ -277,9 +277,9 @@ describe('applicationApprovalSchema', () => {
     expect(() => applicationApprovalSchema.parse({ ...valid, application_id: 'bad-id' })).toThrow();
   });
 
-  it('rejects a missing car_id', () => {
+  it('accepts a missing car_id', () => {
     const { car_id: _carId, ...withoutCarId } = valid;
-    expect(() => applicationApprovalSchema.parse(withoutCarId)).toThrow();
+    expect(() => applicationApprovalSchema.parse(withoutCarId)).not.toThrow();
   });
 
   it('rejects an empty approved_vehicle', () => {
@@ -302,8 +302,8 @@ describe('vehicleCheckoutLinkSchema', () => {
     expect(() => vehicleCheckoutLinkSchema.parse(valid)).not.toThrow();
   });
 
-  it('rejects a missing car_id', () => {
+  it('accepts a missing car_id', () => {
     const { car_id: _carId, ...withoutCarId } = valid;
-    expect(() => vehicleCheckoutLinkSchema.parse(withoutCarId)).toThrow();
+    expect(() => vehicleCheckoutLinkSchema.parse(withoutCarId)).not.toThrow();
   });
 });

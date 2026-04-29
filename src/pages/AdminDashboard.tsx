@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus,
@@ -154,13 +154,11 @@ export default function AdminDashboard() {
     approved_vehicle: '',
     approved_bond: '',
     approved_weekly_price: '',
-    car_id: '',
   });
 
   // Agreement Management State
   const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
   const [selected_agreement_application_id, set_selected_agreement_application_id] = useState<string>('');
-  const [selected_agreement_car_id, set_selected_agreement_car_id] = useState<string>('');
   const [agreementContent, setAgreementContent] = useState<string>('');
   const [isAgreementModalOpen, setIsAgreementModalOpen] = useState(false);
   const [agreementForm, setAgreementForm] = useState({
@@ -414,7 +412,7 @@ export default function AdminDashboard() {
   };
 
   const shouldLoadStats = activeTab === 'dashboard' || activeTab === 'financials';
-  const shouldLoadCars = activeTab === 'dashboard' || activeTab === 'cars' || activeTab === 'agreements';
+  const shouldLoadCars = activeTab === 'dashboard' || activeTab === 'cars';
   const shouldLoadApplications =
     activeTab === 'dashboard' || activeTab === 'applications' || activeTab === 'agreements';
   const shouldLoadRentals = activeTab === 'rentals';
@@ -549,7 +547,8 @@ export default function AdminDashboard() {
   });
 
   const saveAgreementMutation = useMutation({
-    mutationFn: (payload: { application_id: string; car_id: number; content: string }) => api.saveLeaseAgreement(payload),
+    mutationFn: (payload: { application_id: string; content: string; vehicle_label?: string | null }) =>
+      api.saveLeaseAgreement(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agreements'] });
       setIsAgreementModalOpen(false);
@@ -569,7 +568,7 @@ export default function AdminDashboard() {
         approved_vehicle: string;
         approved_bond: number;
         approved_weekly_price: number;
-        car_id: number;
+        car_id?: number | null;
         send_payment_link?: boolean;
       };
     }) => api.approveApplicationForPayment(id, payload),
@@ -580,7 +579,7 @@ export default function AdminDashboard() {
   });
 
   const generateCheckoutLinkMutation = useMutation({
-    mutationFn: (payload: { application_id: string; car_id: number }) =>
+    mutationFn: (payload: { application_id: string }) =>
       api.createVehicleCheckoutLink(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
@@ -620,10 +619,9 @@ export default function AdminDashboard() {
   const handleGenerateAgreement = async () => {
     const application_id = selected_agreement_application_id;
     const selectedApplication = applications.find((a) => a.id === application_id);
-    const car_id = Number(selected_agreement_car_id);
 
-    if (!application_id || !selectedApplication || !car_id) {
-      showNotification('Please select both an application and a car', 'error');
+    if (!application_id || !selectedApplication) {
+      showNotification('Please select an application', 'error');
       return;
     }
 
@@ -634,12 +632,8 @@ export default function AdminDashboard() {
 
     setIsGeneratingAgreement(true);
     try {
-      const selectedCar = cars.find(c => c.id === car_id);
-
-      if (!selectedCar) {
-        showNotification('Select the fleet vehicle for the agreement.', 'error');
-        return;
-      }
+      const vehicleLabel =
+        selectedApplication.approved_vehicle?.trim() || 'Approved vehicle';
 
       const payload = {
         agreementDate: new Date().toLocaleDateString('en-AU'),
@@ -648,17 +642,16 @@ export default function AdminDashboard() {
         renteeContact: selectedApplication?.phone,
         renteeAddress: selectedApplication?.address,
         renteeLicenseNumber: selectedApplication?.license_number,
-        vehicleMake: 'Toyota',
-        vehicleModel: selectedCar?.name.includes('Camry') ? 'Camry Hybrid' : selectedCar?.name,
-        vehicleYear: selectedCar?.model_year.toString(),
-        weeklyRent: `$${Number(selectedApplication.approved_weekly_price ?? selectedCar?.weekly_price ?? 0).toFixed(2)}`,
+        vehicleMake: 'Not recorded',
+        vehicleModel: vehicleLabel,
+        vehicleYear: agreementForm.vehicleYear || 'Not recorded',
+        weeklyRent: `$${Number(selectedApplication.approved_weekly_price ?? 0).toFixed(2)}`,
         rentalStartDate: agreementForm.rentalStartDate,
       };
 
       const res = await api.renderCarLeaseAgreement(payload);
       setAgreementContent(res.agreement);
       setAgreementModalMode('draft');
-      set_selected_agreement_car_id(String(selectedCar.id));
       setIsAgreementModalOpen(true);
     } catch (err) {
       showNotification('Failed to generate agreement', 'error');
@@ -669,17 +662,15 @@ export default function AdminDashboard() {
 
   const handleCopyVehicleCheckoutLink = async () => {
     const application_id = selected_agreement_application_id;
-    const car_id = Number(selected_agreement_car_id);
 
-    if (!application_id || !car_id) {
-      showNotification('Please select an approved application and available vehicle', 'error');
+    if (!application_id) {
+      showNotification('Please select an approved application', 'error');
       return;
     }
 
     try {
       const response = await generateCheckoutLinkMutation.mutateAsync({
         application_id,
-        car_id,
       });
       const copied = await copyTextToClipboard(response.checkout_url);
 
@@ -710,10 +701,9 @@ export default function AdminDashboard() {
     const approvedVehicle = applicationApprovalForm.approved_vehicle.trim();
     const approvedBond = Number(applicationApprovalForm.approved_bond);
     const approvedWeeklyPrice = Number(applicationApprovalForm.approved_weekly_price);
-    const approvedCarId = Number(applicationApprovalForm.car_id);
 
-    if (!approvedVehicle || !approvedCarId || approvedBond < 0 || approvedWeeklyPrice <= 0) {
-      showNotification('Select the approved vehicle and enter valid bond and weekly payment amounts.', 'error');
+    if (!approvedVehicle || approvedBond < 0 || approvedWeeklyPrice <= 0) {
+      showNotification('Enter the approved vehicle, bond, and weekly payment amounts.', 'error');
       return;
     }
 
@@ -724,7 +714,6 @@ export default function AdminDashboard() {
           approved_vehicle: approvedVehicle,
           approved_bond: approvedBond,
           approved_weekly_price: approvedWeeklyPrice,
-          car_id: approvedCarId,
           send_payment_link: true,
         },
       });
@@ -755,7 +744,6 @@ export default function AdminDashboard() {
               approved_vehicle: approvedVehicle,
               approved_bond: approvedBond,
               approved_weekly_price: approvedWeeklyPrice,
-              car_id: approvedCarId,
               send_payment_link: false,
             },
           });
@@ -765,7 +753,6 @@ export default function AdminDashboard() {
           try {
             const generatedLink = await generateCheckoutLinkMutation.mutateAsync({
               application_id: applicationId,
-              car_id: approvedCarId,
             });
             checkoutUrl = generatedLink.checkout_url;
           } catch (generateLinkError) {
@@ -861,19 +848,12 @@ export default function AdminDashboard() {
   const invoiceDataset = invoiceDatasetQuery.data;
   const weeklyFinancials = weeklyFinancialsQuery.data;
   const savedAgreements = savedAgreementsQuery.data || [];
-  const availablePaymentCars = useMemo(
-    () => cars.filter((car) => car.status === 'Available' && !car.archived_at),
-    [cars]
-  );
 
   useEffect(() => {
     if (!selectedApplication) {
       return;
     }
 
-    const matchedCar = availablePaymentCars.find(
-      (car) => car.name === selectedApplication.approved_vehicle
-    );
     setApplicationApprovalForm({
       approved_vehicle: selectedApplication.approved_vehicle || '',
       approved_bond:
@@ -882,9 +862,8 @@ export default function AdminDashboard() {
         selectedApplication.approved_weekly_price != null
           ? String(selectedApplication.approved_weekly_price)
           : '',
-      car_id: matchedCar ? String(matchedCar.id) : '',
     });
-  }, [availablePaymentCars, selectedApplication]);
+  }, [selectedApplication]);
 
   const isLoadingCustomerDataset = shouldLoadCustomers && customerDatasetQuery.isPending && !customerDataset;
   const isLoadingInvoiceDataset = shouldLoadInvoices && invoiceDatasetQuery.isPending && !invoiceDataset;
@@ -916,14 +895,9 @@ export default function AdminDashboard() {
   const selectedAgreementApplication = applications.find(
     (app) => app.id === selected_agreement_application_id
   );
-  const selectedAgreementCar = cars.find(
-    (car) => String(car.id) === selected_agreement_car_id
-  );
   const canCopyVehicleCheckoutLink =
     Boolean(selectedAgreementApplication) &&
-    selectedAgreementApplication?.status === 'Approved' &&
-    selectedAgreementCar?.status === 'Available' &&
-    !selectedAgreementCar.archived_at;
+    selectedAgreementApplication?.status === 'Approved';
   const formatCurrency = (value?: number | string | null) => `$${Number(value ?? 0).toFixed(2)}`;
   const formatDate = (value?: string | null) => {
     if (!value) {
@@ -1130,13 +1104,9 @@ export default function AdminDashboard() {
 
           {activeTab === 'agreements' && (
             <AgreementsTab
-              applications={applications}
               approvedApplications={approvedApplications}
-              cars={activeCars}
               selected_agreement_application_id={selected_agreement_application_id}
               set_selected_agreement_application_id={set_selected_agreement_application_id}
-              selected_agreement_car_id={selected_agreement_car_id}
-              set_selected_agreement_car_id={set_selected_agreement_car_id}
               selectedAgreementApplication={selectedAgreementApplication}
               isGeneratingAgreement={isGeneratingAgreement}
               handleGenerateAgreement={handleGenerateAgreement}
@@ -1342,35 +1312,18 @@ export default function AdminDashboard() {
                         <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
                           Approved Vehicle
                         </label>
-                        <select
-                          value={applicationApprovalForm.car_id}
-                          onChange={(e) => {
-                            const selectedCar = availablePaymentCars.find(
-                              (car) => String(car.id) === e.target.value
-                            );
+                        <input
+                          type="text"
+                          value={applicationApprovalForm.approved_vehicle}
+                          onChange={(e) =>
                             setApplicationApprovalForm((current) => ({
                               ...current,
-                              car_id: e.target.value,
-                              approved_vehicle: selectedCar?.name || '',
-                              approved_bond:
-                                selectedCar?.bond != null
-                                  ? String(selectedCar.bond)
-                                  : current.approved_bond,
-                              approved_weekly_price:
-                                selectedCar?.weekly_price != null
-                                  ? String(selectedCar.weekly_price)
-                                  : current.approved_weekly_price,
-                            }));
-                          }}
-                          className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light appearance-none"
-                        >
-                          <option value="">Select an available vehicle</option>
-                          {availablePaymentCars.map((car) => (
-                            <option key={car.id} value={car.id}>
-                              {car.name}
-                            </option>
-                          ))}
-                        </select>
+                              approved_vehicle: e.target.value,
+                            }))
+                          }
+                          className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
+                          placeholder="e.g. Toyota Camry Hybrid"
+                        />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
@@ -1472,7 +1425,6 @@ export default function AdminDashboard() {
                   <button
                     onClick={() => {
                       set_selected_agreement_application_id(selectedApplication.id.toString());
-                      set_selected_agreement_car_id('');
                       setSelectedApplication(null);
                       setActiveTab('agreements');
                     }}
@@ -1580,12 +1532,13 @@ export default function AdminDashboard() {
                   <button
                     onClick={() => {
                       const application_id = selected_agreement_application_id;
-                      const car_id = Number(selected_agreement_car_id);
-                      if (application_id && car_id) {
+                      if (application_id) {
                         saveAgreementMutation.mutate({
                           application_id,
-                          car_id,
-                          content: agreementContent
+                          content: agreementContent,
+                          vehicle_label:
+                            selectedAgreementApplication?.approved_vehicle ||
+                            'Approved vehicle',
                         });
                       }
                     }}

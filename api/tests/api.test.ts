@@ -1925,30 +1925,29 @@ describe("Agreements API", () => {
     expect(mockState.lease_agreements).toHaveLength(0);
   });
 
-  it("POST /api/agreements allows admins to generate an agreement for an available fleet car after payment", async () => {
+  it("POST /api/agreements allows admins to generate an agreement with a vehicle label after payment", async () => {
     mockState.applications[1].status = "Paid";
-    mockState.cars[1].status = "Available";
-    mockState.cars[1].archived_at = null;
 
     const res = await request(app)
       .post("/api/agreements")
       .set("Authorization", "Bearer fake-token")
       .send({
         application_id: APPROVED_APPLICATION_ID,
-        car_id: 2,
         content: "# Draft agreement",
+        vehicle_label: "Any approved vehicle",
       });
 
     expect(res.status).toBe(201);
     expect(mockState.lease_agreements).toHaveLength(1);
     expect(mockState.lease_agreements[0]).toMatchObject({
       application_id: APPROVED_APPLICATION_ID,
-      car_id: 2,
+      car_id: null,
       status: "generated",
+      vehicle_label: "Any approved vehicle",
     });
   });
 
-  it("POST /api/agreements blocks unavailable fleet cars after payment", async () => {
+  it("POST /api/agreements does not require matching an available fleet car after payment", async () => {
     mockState.applications[1].status = "Paid";
     mockState.cars[1].status = "Maintenance";
 
@@ -1959,14 +1958,19 @@ describe("Agreements API", () => {
         application_id: APPROVED_APPLICATION_ID,
         car_id: 2,
         content: "# Draft agreement",
+        vehicle_label: "Maintenance-listed vehicle",
       });
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toContain("available vehicles");
-    expect(mockState.lease_agreements).toHaveLength(0);
+    expect(res.status).toBe(201);
+    expect(mockState.lease_agreements).toHaveLength(1);
+    expect(mockState.lease_agreements[0]).toMatchObject({
+      application_id: APPROVED_APPLICATION_ID,
+      car_id: 2,
+      vehicle_label: "Maintenance-listed vehicle",
+    });
   });
 
-  it("POST /api/agreements stores agreements only for paid applications and their assigned car", async () => {
+  it("POST /api/agreements stores agreements only for paid applications", async () => {
     mockState.applications[1].status = "Paid";
 
     const res = await request(app)
@@ -3024,6 +3028,31 @@ describe("Stripe API", () => {
     expect(res.body.email_reason).toContain("Provider rejected request");
   });
 
+  it("POST /api/applications/:id/approve-payment accepts an arbitrary approved vehicle without a car id", async () => {
+    const res = await request(app)
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        approved_vehicle: "Any admin approved vehicle",
+        approved_bond: 650,
+        approved_weekly_price: 285,
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockState.applications[0]).toMatchObject({
+      approved_vehicle: "Any admin approved vehicle",
+      status: "Approved",
+    });
+
+    const verified = verifyCheckoutToken({
+      applicationId: PENDING_APPLICATION_ID,
+      purpose: "vehicle",
+      token: res.body.checkout_token,
+      version: 1,
+    });
+    expect(verified.carId).toBeNull();
+  });
+
   it("POST /api/applications/:id/approve-payment does not let Payment Review cases send a new payment link", async () => {
     mockState.applications[0].status = "Payment Review";
 
@@ -3166,6 +3195,23 @@ describe("Stripe API", () => {
     expect(res.body.billing.initialRental).toBe(250);
     expect(res.body.approved_vehicle).toBe("Toyota Camry");
     expect(res.body.vehicle_image).toBeTruthy();
+  });
+
+  it("GET /api/stripe/payment-context returns the approved quote without a car id", async () => {
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      purpose: "vehicle",
+      version: 1,
+    });
+
+    const res = await request(app).get("/api/stripe/payment-context").query({
+      application_id: APPROVED_APPLICATION_ID,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.car_id).toBeNull();
+    expect(res.body.approved_vehicle).toBe("Toyota Camry");
   });
 
   it("GET /api/stripe/payment-context returns 409 when payment was already received", async () => {
@@ -3398,6 +3444,26 @@ describe("Stripe API", () => {
     );
   });
 
+  it("POST /api/stripe/vehicle-checkout-session creates a hosted session without car metadata", async () => {
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      purpose: "vehicle",
+      version: 1,
+    });
+
+    const res = await request(app)
+      .post("/api/stripe/vehicle-checkout-session")
+      .send({
+        application_id: APPROVED_APPLICATION_ID,
+        checkout_token: token.token,
+      });
+
+    expect(res.status).toBe(200);
+    const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
+    expect(payload.metadata.car_id).toBeUndefined();
+    expect(payload.subscription_data.metadata.car_id).toBeUndefined();
+  });
+
   it("POST /api/stripe/vehicle-checkout-session returns a retryable Stripe outage message", async () => {
     mockStripe.checkoutSessionsCreate.mockRejectedValueOnce({
       message: "Stripe upstream unavailable",
@@ -3576,6 +3642,26 @@ describe("Stripe API", () => {
     });
     expect(verified.applicationId).toBe(APPROVED_APPLICATION_ID);
     expect(verified.carId).toBe(1);
+  });
+
+  it("POST /api/stripe/vehicle-checkout-link returns a signed payment link without a car id", async () => {
+    const res = await request(app)
+      .post("/api/stripe/vehicle-checkout-link")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        application_id: APPROVED_APPLICATION_ID,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.checkout_url).toContain(`/checkout/${APPROVED_APPLICATION_ID}`);
+
+    const verified = verifyCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      purpose: "vehicle",
+      token: res.body.checkout_token,
+      version: 2,
+    });
+    expect(verified.carId).toBeNull();
   });
 
   it("POST /api/stripe/vehicle-checkout-link rejects approved applications that are missing pricing", async () => {
@@ -3900,7 +3986,7 @@ describe("Stripe API", () => {
     });
   });
 
-  it("POST /api/stripe/webhook moves paid checkouts with missing car_id to Payment Review", async () => {
+  it("POST /api/stripe/webhook records paid checkouts without car_id", async () => {
     mockStripe.webhooksConstructEvent.mockReturnValue({
       id: "evt_missing_car_id",
       type: "checkout.session.completed",
@@ -3929,10 +4015,8 @@ describe("Stripe API", () => {
 
     expect(res.status).toBe(200);
     expect(mockState.cars[0].status).toBe("Available");
-    expect(mockState.applications[1].status).toBe("Payment Review");
-    expect(mockState.applications[1].pending_checkout_session_id).toBe(
-      "cs_missing_car_id",
-    );
+    expect(mockState.applications[1].status).toBe("Paid");
+    expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
     expect(mockState.applications[1].paid_at).toBeTruthy();
     expect(mockState.rentals).toHaveLength(0);
   });

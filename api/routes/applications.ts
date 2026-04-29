@@ -34,6 +34,7 @@ import {
   sendDriverPaymentLinkEmail,
 } from "../paymentLinks.js";
 import { handleVehicleCheckoutCompletion } from "../paymentActivation.js";
+import { expirePendingCheckoutSession } from "../services/stripeCheckoutService.js";
 import {
   APPLICATION_IMAGE_CONTENT_TYPES,
   normalizeApplicationEmail,
@@ -777,18 +778,9 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
     const nextVersion = currentVersion + 1;
     const nowIso = new Date().toISOString();
 
-    if (applicationRecord.pending_checkout_session_id) {
-      try {
-        await getStripe().checkout.sessions.expire(
-          applicationRecord.pending_checkout_session_id,
-        );
-      } catch (expireError) {
-        console.warn(
-          `Unable to expire pending checkout session ${applicationRecord.pending_checkout_session_id}:`,
-          expireError,
-        );
-      }
-    }
+    await expirePendingCheckoutSession(
+      applicationRecord.pending_checkout_session_id,
+    );
 
     const updatedApplication =
       await updateApplicationPaymentStateIfCurrentVersion({

@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockCheckoutSessionRetrieve = vi.hoisted(() => vi.fn());
+const mockCheckoutSessionExpire = vi.hoisted(() => vi.fn());
 
 vi.mock('../stripeClient.js', () => ({
   getStripeClient: () => ({
     checkout: {
       sessions: {
+        expire: mockCheckoutSessionExpire,
         retrieve: mockCheckoutSessionRetrieve,
       },
     },
@@ -14,11 +16,13 @@ vi.mock('../stripeClient.js', () => ({
 
 import {
   buildHostedCheckoutSessionIdempotencyKey,
+  expirePendingCheckoutSession,
   resolvePendingCheckoutSession,
 } from './stripeCheckoutService.js';
 
 describe('stripeCheckoutService checkout helpers', () => {
   beforeEach(() => {
+    mockCheckoutSessionExpire.mockReset();
     mockCheckoutSessionRetrieve.mockReset();
   });
 
@@ -78,5 +82,33 @@ describe('stripeCheckoutService checkout helpers', () => {
         url: 'https://checkout.stripe.com/pay/cs_open_vehicle',
       },
     });
+  });
+
+  it('expires an open pending checkout session', async () => {
+    mockCheckoutSessionRetrieve.mockResolvedValueOnce({
+      id: 'cs_open_vehicle',
+      status: 'open',
+    });
+    mockCheckoutSessionExpire.mockResolvedValueOnce({
+      id: 'cs_open_vehicle',
+      status: 'expired',
+    });
+
+    await expirePendingCheckoutSession('cs_open_vehicle');
+
+    expect(mockCheckoutSessionRetrieve).toHaveBeenCalledWith('cs_open_vehicle');
+    expect(mockCheckoutSessionExpire).toHaveBeenCalledWith('cs_open_vehicle');
+  });
+
+  it('does not expire a completed pending checkout session', async () => {
+    mockCheckoutSessionRetrieve.mockResolvedValueOnce({
+      id: 'cs_complete_vehicle',
+      status: 'complete',
+    });
+
+    await expirePendingCheckoutSession('cs_complete_vehicle');
+
+    expect(mockCheckoutSessionRetrieve).toHaveBeenCalledWith('cs_complete_vehicle');
+    expect(mockCheckoutSessionExpire).not.toHaveBeenCalled();
   });
 });

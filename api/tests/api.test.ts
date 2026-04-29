@@ -2922,6 +2922,10 @@ describe("Stripe API", () => {
   it("POST /api/applications/:id/approve-payment stores the approved quote and returns a secure payment link", async () => {
     mockState.applications[0].pending_checkout_session_id = "cs_old_pending";
     mockState.applications[0].payment_link_version = 3;
+    mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+      id: "cs_old_pending",
+      status: "open",
+    });
 
     const res = await request(app)
       .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
@@ -2962,6 +2966,37 @@ describe("Stripe API", () => {
     });
     expect(verified.version).toBe(4);
     expect(verified.carId).toBe(1);
+  });
+
+  it("POST /api/applications/:id/approve-payment does not expire a completed pending checkout session", async () => {
+    mockState.applications[0].pending_checkout_session_id =
+      "cs_completed_pending";
+    mockState.applications[0].payment_link_version = 3;
+    mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+      id: "cs_completed_pending",
+      status: "complete",
+    });
+
+    const res = await request(app)
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        approved_vehicle: "Toyota Camry Hybrid",
+        approved_bond: 650,
+        approved_weekly_price: 285,
+        car_id: 1,
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockStripe.checkoutSessionsRetrieve).toHaveBeenCalledWith(
+      "cs_completed_pending",
+    );
+    expect(mockStripe.checkoutSessionsExpire).not.toHaveBeenCalled();
+    expect(mockState.applications[0]).toMatchObject({
+      payment_link_version: 4,
+      pending_checkout_session_id: null,
+      status: "Approved",
+    });
   });
 
   it("POST /api/applications/:id/approve-payment still sends a payment link without direct DB access", async () => {
@@ -3086,6 +3121,10 @@ describe("Stripe API", () => {
     mockState.applications[0].pending_checkout_session_id = "cs_old_pending";
     mockState.applications[0].payment_link_version = 3;
     mockState.applications[1].assigned_car_id = 2;
+    mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+      id: "cs_old_pending",
+      status: "open",
+    });
     mockStripe.checkoutSessionsExpire.mockImplementationOnce(async () => {
       mockState.applications[0].payment_link_version = 4;
       return { id: "cs_old_pending" };
@@ -3578,6 +3617,10 @@ describe("Stripe API", () => {
         id: "cs_superseded",
         url: "https://checkout.stripe.com/c/pay/cs_superseded",
       };
+    });
+    mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+      id: "cs_superseded",
+      status: "open",
     });
 
     const token = createCheckoutToken({

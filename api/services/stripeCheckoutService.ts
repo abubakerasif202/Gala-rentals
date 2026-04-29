@@ -349,12 +349,22 @@ const requireApprovedPaymentContext = ({
   }
 };
 
-const expirePendingCheckoutSession = async (sessionId: string | null | undefined) => {
+export const expirePendingCheckoutSession = async (sessionId: string | null | undefined) => {
   if (!sessionId) {
     return;
   }
 
   try {
+    const session = await getStripe().checkout.sessions.retrieve(sessionId);
+
+    if (session.status !== 'open') {
+      console.info('Skipped expiring non-open Stripe checkout session', {
+        checkoutSessionId: sessionId,
+        checkoutSessionStatus: session.status || null,
+      });
+      return;
+    }
+
     await getStripe().checkout.sessions.expire(sessionId);
   } catch (error) {
     console.warn(`Unable to expire checkout session ${sessionId}:`, error);

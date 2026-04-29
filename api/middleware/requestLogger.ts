@@ -16,6 +16,7 @@ const REDACTED_QUERY_KEYS = new Set([
 
 const shouldSkipLogging = (req: Request) =>
   TEST_MODE ||
+  req.path === '/api/live' ||
   req.path === '/api/health' ||
   req.path.startsWith('/assets/') ||
   req.path === '/favicon.ico' ||

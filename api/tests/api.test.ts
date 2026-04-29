@@ -2082,6 +2082,18 @@ describe("IndexNow admin route", () => {
 });
 
 describe("Applications API", () => {
+  it("GET /api/live reports process liveness without dependency checks", async () => {
+    const res = await request(app).get("/api/live");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: "ok",
+      environment: "test",
+    });
+    expect(mockCheckDBHealth).not.toHaveBeenCalled();
+    expect(mockCheckDirectDatabaseHealth).not.toHaveBeenCalled();
+  });
+
   it("GET /api/health reports database readiness", async () => {
     const res = await request(app).get("/api/health");
 

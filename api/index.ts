@@ -461,6 +461,14 @@ const registerCoreRoutes = (app: express.Express) => {
     );
   }
 
+  app.get('/api/live', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      status: 'ok',
+      environment: process.env.NODE_ENV || 'development',
+    });
+  });
+
   app.get('/api/health', async (_req, res) => {
     let database: 'ok' | 'not_configured' | 'unavailable' = 'ok';
     let directDatabase: DirectDatabaseHealthStatus = 'not_configured';

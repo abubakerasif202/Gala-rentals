@@ -10,6 +10,7 @@ import {
 } from '../types';
 import type { PublicRentalPlan } from './rentalPlans';
 import type { InquiryValues } from '../../shared/inquiry';
+import type { CheckoutSessionStatusState } from './checkoutSessionStatus';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -157,11 +158,29 @@ export interface HostedCheckoutSessionResponse {
 export interface CheckoutSessionStatusResponse {
   application_status: 'Pending' | 'Paid' | 'Approved' | 'Rejected' | 'Payment Review';
   checkout_kind: 'application' | 'vehicle' | null;
+  customer_id: string | null;
+  db_payment_activation_status: {
+    application_status: string;
+    activated: boolean;
+    pending_checkout_session_id: string | null;
+    rental_status: string | null;
+  };
   id: string;
-  internal_status: 'complete' | 'manual_review' | 'pending' | 'open';
+  internal_status: CheckoutSessionStatusState;
+  metadata_match: {
+    application_id: boolean;
+    car_id: boolean | null;
+    checkout_kind: boolean;
+    matched: boolean;
+    payment_link_version: boolean;
+  };
+  payment_method_type: string | null;
+  payment_method_types: string[];
   payment_status: string | null;
   rental_status: 'Active' | 'Completed' | 'Cancelled' | 'Overdue' | null;
+  state: CheckoutSessionStatusState;
   status: string | null;
+  subscription_id: string | null;
 }
 
 export interface VehicleCheckoutLinkResponse {

@@ -60,14 +60,43 @@ export type VehiclePaymentContextResponse = {
   vehicle_image: string;
 };
 
+export type VehicleCheckoutLifecycleState =
+  | 'complete_paid'
+  | 'processing'
+  | 'pending_webhook'
+  | 'manual_review'
+  | 'failed';
+
+export type CheckoutSessionMetadataMatch = {
+  application_id: boolean;
+  car_id: boolean | null;
+  checkout_kind: boolean;
+  matched: boolean;
+  payment_link_version: boolean;
+};
+
+export type DbPaymentActivationStatus = {
+  application_status: string;
+  activated: boolean;
+  pending_checkout_session_id: string | null;
+  rental_status: string | null;
+};
+
 export type VehicleCheckoutSessionStatusResponse = {
   application_status: string;
   checkout_kind: string | null;
+  customer_id: string | null;
+  db_payment_activation_status: DbPaymentActivationStatus;
   id: string;
-  internal_status: 'complete' | 'manual_review' | 'open' | 'pending';
+  internal_status: VehicleCheckoutLifecycleState;
+  metadata_match: CheckoutSessionMetadataMatch;
+  payment_method_type: string | null;
+  payment_method_types: string[];
   payment_status: string | null;
   rental_status: string | null;
-  status: string;
+  state: VehicleCheckoutLifecycleState;
+  status: string | null;
+  subscription_id: string | null;
 };
 
 type PendingCheckoutSessionResolution = {
@@ -77,6 +106,7 @@ type PendingCheckoutSessionResolution = {
 
 type VerifiedCheckoutSessionContext = {
   carId: number | null;
+  metadataMatch: CheckoutSessionMetadataMatch;
   session: Stripe.Checkout.Session;
   subscriptionId: string | null;
 };
@@ -388,6 +418,79 @@ const getSessionSubscriptionId = (session: Stripe.Checkout.Session) =>
     ? session.subscription
     : session.subscription?.id || null;
 
+const getSessionCustomerId = (session: Stripe.Checkout.Session) =>
+  typeof session.customer === 'string'
+    ? session.customer
+    : session.customer?.id || null;
+
+const getSessionPaymentMethodTypes = (session: Stripe.Checkout.Session) =>
+  Array.isArray(session.payment_method_types)
+    ? session.payment_method_types.map((paymentMethodType) => String(paymentMethodType))
+    : [];
+
+const isCheckoutFailureStatus = (status: string | null | undefined) =>
+  ['canceled', 'cancelled', 'expired', 'failed'].includes(
+    String(status || '').toLowerCase()
+  );
+
+const isPendingBankDebitPaymentStatus = (paymentStatus: string | null | undefined) =>
+  ['no_payment_required', 'pending', 'unpaid'].includes(
+    String(paymentStatus || '').toLowerCase()
+  );
+
+const isDirectDebitProcessingSession = (session: Stripe.Checkout.Session) => {
+  const paymentMethodTypes = getSessionPaymentMethodTypes(session);
+
+  return (
+    session.status === 'complete' &&
+    paymentMethodTypes.includes('au_becs_debit') &&
+    isPendingBankDebitPaymentStatus(session.payment_status)
+  );
+};
+
+const getVehicleCheckoutLifecycleState = ({
+  applicationStatus,
+  carId,
+  rentalStatus,
+  session,
+}: {
+  applicationStatus: string;
+  carId: number | null;
+  rentalStatus: string | null;
+  session: Stripe.Checkout.Session;
+}): VehicleCheckoutLifecycleState => {
+  if (
+    isCheckoutFailureStatus(session.status) ||
+    isCheckoutFailureStatus(session.payment_status)
+  ) {
+    return 'failed';
+  }
+
+  if (isDirectDebitProcessingSession(session)) {
+    return 'processing';
+  }
+
+  const isStripePaidComplete =
+    session.status === 'complete' && session.payment_status === 'paid';
+
+  if (isStripePaidComplete && applicationStatus === 'Paid' && (!carId || rentalStatus)) {
+    return 'complete_paid';
+  }
+
+  if (
+    isStripePaidComplete &&
+    (applicationStatus === 'Payment Review' || applicationStatus === 'Paid')
+  ) {
+    return 'manual_review';
+  }
+
+  if (isStripePaidComplete) {
+    return 'pending_webhook';
+  }
+
+  return 'processing';
+};
+
 const verifyCheckoutSessionContext = async ({
   application,
   applicationId,
@@ -405,16 +508,23 @@ const verifyCheckoutSessionContext = async ({
   const metadataCheckoutKind = session.metadata?.checkout_kind || null;
   const metadataVersion = Number(session.metadata?.payment_link_version || 0);
   const currentPaymentLinkVersion = Number(application.payment_link_version || 0);
+  const metadataMatch: CheckoutSessionMetadataMatch = {
+    application_id: metadataApplicationId === normalizeUuid(applicationId),
+    car_id: null,
+    checkout_kind: metadataCheckoutKind === 'vehicle',
+    matched: false,
+    payment_link_version: metadataVersion === currentPaymentLinkVersion,
+  };
 
-  if (metadataApplicationId !== normalizeUuid(applicationId)) {
+  if (!metadataMatch.application_id) {
     throw new Error('Checkout session does not match this application.');
   }
 
-  if (metadataCheckoutKind !== 'vehicle') {
+  if (!metadataMatch.checkout_kind) {
     throw new Error('Checkout session does not match this payment link.');
   }
 
-  if (metadataVersion !== currentPaymentLinkVersion) {
+  if (!metadataMatch.payment_link_version) {
     throw new Error('Checkout session belongs to an outdated payment link.');
   }
 
@@ -426,8 +536,9 @@ const verifyCheckoutSessionContext = async ({
       version: currentPaymentLinkVersion,
     });
     const tokenCarId = getCheckoutTokenCarId(checkoutTokenPayload.carId);
+    metadataMatch.car_id = metadataCarId === tokenCarId;
 
-    if (metadataCarId !== tokenCarId) {
+    if (!metadataMatch.car_id) {
       throw new Error('Checkout session vehicle does not match this payment link.');
     }
   } else {
@@ -438,14 +549,22 @@ const verifyCheckoutSessionContext = async ({
       (pendingCheckoutSessionId === session.id ||
         application.status === 'Paid' ||
         application.status === 'Payment Review');
+    const isRecoverableProcessingSession =
+      pendingCheckoutSessionId === session.id && isDirectDebitProcessingSession(session);
 
-    if (!isRecoverablePaidSession) {
+    if (!isRecoverablePaidSession && !isRecoverableProcessingSession) {
       throw new Error('Checkout token is required for this checkout session.');
     }
   }
+  metadataMatch.matched =
+    metadataMatch.application_id &&
+    metadataMatch.checkout_kind &&
+    metadataMatch.payment_link_version &&
+    metadataMatch.car_id !== false;
 
   return {
     carId: metadataCarId,
+    metadataMatch,
     session,
     subscriptionId: getSessionSubscriptionId(session),
   };
@@ -764,6 +883,7 @@ export const getVehicleCheckoutSessionStatus = async ({
 
   const {
     carId,
+    metadataMatch,
     session,
     subscriptionId,
   } = await verifyCheckoutSessionContext({
@@ -781,25 +901,33 @@ export const getVehicleCheckoutSessionStatus = async ({
         subscriptionId,
       })
     : null;
-  const isStripePaidComplete =
-    session.status === 'complete' && session.payment_status === 'paid';
-  const internalStatus =
-    application.status === 'Paid' && (!carId || rentalStatus)
-      ? 'complete'
-      : isStripePaidComplete &&
-          (application.status === 'Payment Review' || application.status === 'Paid')
-        ? 'manual_review'
-        : isStripePaidComplete
-          ? 'pending'
-          : 'open';
+  const internalStatus = getVehicleCheckoutLifecycleState({
+    applicationStatus: application.status,
+    carId,
+    rentalStatus,
+    session,
+  });
+  const paymentMethodTypes = getSessionPaymentMethodTypes(session);
 
   return {
     application_status: application.status,
     checkout_kind: metadataCheckoutKind,
+    customer_id: getSessionCustomerId(session),
+    db_payment_activation_status: {
+      application_status: application.status,
+      activated: internalStatus === 'complete_paid',
+      pending_checkout_session_id: application.pending_checkout_session_id || null,
+      rental_status: rentalStatus,
+    },
     id: session.id,
     internal_status: internalStatus,
+    metadata_match: metadataMatch,
+    payment_method_type: paymentMethodTypes[0] || null,
+    payment_method_types: paymentMethodTypes,
     payment_status: session.payment_status,
     rental_status: rentalStatus,
+    state: internalStatus,
     status: session.status,
+    subscription_id: subscriptionId,
   };
 };

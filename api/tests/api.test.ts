@@ -1474,6 +1474,7 @@ beforeEach(() => {
     url: "https://checkout.stripe.com/c/pay/cs_test_123",
     status: "complete",
     payment_status: "paid",
+    payment_method_types: ["card"],
     metadata: {
       application_id: APPROVED_APPLICATION_ID,
       approved_bond: "500.00",
@@ -3959,8 +3960,9 @@ describe("Stripe API", () => {
       application_status: "Approved",
       checkout_kind: "vehicle",
       id: "cs_test_123",
-      internal_status: "pending",
+      internal_status: "pending_webhook",
       payment_status: "paid",
+      state: "pending_webhook",
       status: "complete",
     });
   });
@@ -4008,14 +4010,155 @@ describe("Stripe API", () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
+    expect(res.body).toMatchObject({
       application_status: "Approved",
       checkout_kind: "vehicle",
       id: "cs_test_123",
-      internal_status: "pending",
+      internal_status: "pending_webhook",
+      customer_id: "cus_123",
+      metadata_match: {
+        application_id: true,
+        car_id: true,
+        checkout_kind: true,
+        matched: true,
+        payment_link_version: true,
+      },
+      payment_method_type: "card",
+      payment_method_types: ["card"],
       payment_status: "paid",
       rental_status: null,
+      state: "pending_webhook",
+      subscription_id: "sub_123",
       status: "complete",
+    });
+  });
+
+  it("GET /api/stripe/checkout-sessions/:id returns complete_paid after card activation exists", async () => {
+    mockState.applications[1].status = "Paid";
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        stripe_customer_id: "cus_123",
+        stripe_subscription_id: "sub_123",
+        weekly_price: 250,
+        bond_paid: 500,
+        start_date: "2026-03-01",
+      },
+    ];
+
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: "vehicle",
+      version: 1,
+    });
+    const res = await request(app)
+      .get("/api/stripe/checkout-sessions/cs_test_123")
+      .query({
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        checkout_token: token.token,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      internal_status: "complete_paid",
+      payment_method_type: "card",
+      payment_status: "paid",
+      rental_status: "Active",
+      state: "complete_paid",
+      status: "complete",
+    });
+  });
+
+  it.each(["unpaid", "pending", "no_payment_required"])(
+    "GET /api/stripe/checkout-sessions/:id returns processing for BECS checkout setup with %s payment status",
+    async (paymentStatus) => {
+      mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+        id: `cs_becs_${paymentStatus}`,
+        url: `https://checkout.stripe.com/c/pay/cs_becs_${paymentStatus}`,
+        status: "complete",
+        payment_status: paymentStatus,
+        payment_method_types: ["au_becs_debit"],
+        metadata: {
+          application_id: APPROVED_APPLICATION_ID,
+          approved_bond: "500.00",
+          approved_weekly_price: "250.00",
+          car_id: "1",
+          checkout_kind: "vehicle",
+          payment_link_version: "1",
+        },
+        customer: "cus_becs",
+        subscription: "sub_becs",
+      });
+
+      const token = createCheckoutToken({
+        applicationId: APPROVED_APPLICATION_ID,
+        carId: 1,
+        purpose: "vehicle",
+        version: 1,
+      });
+      const res = await request(app)
+        .get(`/api/stripe/checkout-sessions/cs_becs_${paymentStatus}`)
+        .query({
+          application_id: APPROVED_APPLICATION_ID,
+          car_id: 1,
+          checkout_token: token.token,
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        customer_id: "cus_becs",
+        internal_status: "processing",
+        payment_method_type: "au_becs_debit",
+        payment_method_types: ["au_becs_debit"],
+        payment_status: paymentStatus,
+        state: "processing",
+        subscription_id: "sub_becs",
+        status: "complete",
+      });
+    },
+  );
+
+  it("GET /api/stripe/checkout-sessions/:id returns failed for expired checkout sessions", async () => {
+    mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+      id: "cs_expired_vehicle",
+      url: null,
+      status: "expired",
+      payment_status: "unpaid",
+      payment_method_types: ["card"],
+      metadata: {
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: "1",
+        checkout_kind: "vehicle",
+        payment_link_version: "1",
+      },
+    });
+
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: "vehicle",
+      version: 1,
+    });
+    const res = await request(app)
+      .get("/api/stripe/checkout-sessions/cs_expired_vehicle")
+      .query({
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        checkout_token: token.token,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      internal_status: "failed",
+      payment_method_type: "card",
+      payment_status: "unpaid",
+      state: "failed",
+      status: "expired",
     });
   });
 
@@ -4038,6 +4181,7 @@ describe("Stripe API", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.internal_status).toBe("manual_review");
+    expect(res.body.state).toBe("manual_review");
     expect(res.body.application_status).toBe("Paid");
     expect(res.body.rental_status).toBeNull();
   });
@@ -4070,7 +4214,8 @@ describe("Stripe API", () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.internal_status).toBe("complete");
+    expect(res.body.internal_status).toBe("complete_paid");
+    expect(res.body.state).toBe("complete_paid");
     expect(res.body.application_status).toBe("Paid");
     expect(res.body.rental_status).toBe("Active");
   });
@@ -4098,7 +4243,8 @@ describe("Stripe API", () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.internal_status).toBe("complete");
+    expect(res.body.internal_status).toBe("complete_paid");
+    expect(res.body.state).toBe("complete_paid");
     expect(res.body.application_status).toBe("Paid");
     expect(res.body.rental_status).toBe("Active");
   });
@@ -4122,6 +4268,7 @@ describe("Stripe API", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.internal_status).toBe("manual_review");
+    expect(res.body.state).toBe("manual_review");
     expect(res.body.application_status).toBe("Payment Review");
   });
 
@@ -4130,6 +4277,7 @@ describe("Stripe API", () => {
       id: "cs_test_123",
       status: "complete",
       payment_status: "paid",
+      payment_method_types: ["card"],
       metadata: {
         application_id: APPROVED_APPLICATION_ID,
         car_id: "",
@@ -4155,6 +4303,13 @@ describe("Stripe API", () => {
     expect(res.body.error).toBe(
       "Checkout session does not match this payment link.",
     );
+    expect(res.body).toMatchObject({
+      metadata_match: {
+        matched: false,
+        reason: "Checkout session does not match this payment link.",
+      },
+      state: "failed",
+    });
   });
 
   it("GET /api/stripe/checkout-sessions/:id rejects mismatched car metadata", async () => {

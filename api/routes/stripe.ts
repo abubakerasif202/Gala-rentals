@@ -363,11 +363,19 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
 
     if (
       error instanceof Error &&
-      (error.message === 'Checkout session does not match this payment link.' ||
+      (error.message === 'Checkout session does not match this application.' ||
+        error.message === 'Checkout session does not match this payment link.' ||
         error.message === 'Checkout session vehicle does not match this payment link.' ||
         error.message === 'Checkout session belongs to an outdated payment link.')
     ) {
-      return res.status(403).json({ error: error.message });
+      return res.status(403).json({
+        error: error.message,
+        metadata_match: {
+          matched: false,
+          reason: error.message,
+        },
+        state: 'failed',
+      });
     }
 
     if (isStripeResourceMissingError(error)) {

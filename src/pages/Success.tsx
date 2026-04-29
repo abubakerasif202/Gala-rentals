@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CheckCircle, Home, Loader2 } from 'lucide-react';
 import Seo from '../components/Seo';
 import { fetchCheckoutSessionStatus } from '../lib/api';
+import { getCheckoutStatusPresentation } from '../lib/checkoutSessionStatus';
 import {
   buildCheckoutTokenHash,
   resolveCheckoutToken,
@@ -64,18 +65,27 @@ export default function Success() {
     retryDelay: (attempt) => attempt * 1500,
     refetchInterval: (query) =>
       query.state.data &&
-      ['pending', 'manual_review'].includes(query.state.data.internal_status)
+      getCheckoutStatusPresentation({
+        data: query.state.data,
+        hasVerificationContext,
+        isError: false,
+      }).shouldRefetch
         ? 3000
         : false,
     refetchOnWindowFocus: true,
   });
 
-  const isFullySuccessful = data?.internal_status === 'complete';
-  const requiresActivationReview = data?.internal_status === 'manual_review';
+  const presentation = getCheckoutStatusPresentation({
+    data,
+    hasVerificationContext,
+    isError,
+  });
+  const isFullySuccessful = presentation.tone === 'success';
+  const requiresActivationReview = presentation.tone === 'review';
   const isAwaitingFinalization =
-    data?.status === 'complete' &&
-    data?.payment_status === 'paid' &&
-    data?.internal_status === 'pending';
+    presentation.tone === 'processing' && presentation.state === 'pending_webhook';
+  const isProcessingSetup =
+    presentation.tone === 'processing' && presentation.state === 'processing';
   const retryHref =
     hasVerificationContext && checkoutToken
       ? `/checkout/${applicationId}${buildCheckoutTokenHash(checkoutToken)}`
@@ -102,10 +112,10 @@ export default function Success() {
             <>
               <CheckCircle className="mx-auto h-20 w-20 text-brand-gold mb-8" />
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
-                Payment Successful
+                {presentation.title}
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
-                Your payment has been confirmed. Weekly payments will now be managed through Stripe, and Maple Rentals will contact you to complete onboarding and handover details.
+                {presentation.body}
               </p>
               <Link
                 to="/"
@@ -116,17 +126,16 @@ export default function Success() {
             </>
           )}
 
-          {!isLoading && isAwaitingFinalization && (
+          {!isLoading && (isAwaitingFinalization || isProcessingSetup) && (
             <>
               <div className="flex justify-center py-6">
                 <Loader2 className="h-12 w-12 text-brand-gold animate-spin" />
               </div>
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
-                Payment Received
+                {presentation.title}
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
-                Stripe has confirmed your payment. We are finalizing your onboarding status now and
-                this page refreshes automatically while that completes.
+                {presentation.body}
               </p>
               <Link
                 to="/"
@@ -145,12 +154,10 @@ export default function Success() {
                 </svg>
               </div>
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
-                Activation Pending
+                {presentation.title}
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
-                Stripe has already confirmed your payment. We are waiting for Maple Rentals to
-                complete the final onboarding checks, and this page will keep checking automatically while
-                that finishes. Maple Rentals will contact you if any manual action is still needed.
+                {presentation.body}
               </p>
               <Link
                 to="/"
@@ -161,7 +168,7 @@ export default function Success() {
             </>
           )}
 
-          {!isLoading && !isFullySuccessful && !isAwaitingFinalization && !requiresActivationReview && (
+          {!isLoading && !isFullySuccessful && !isAwaitingFinalization && !isProcessingSetup && !requiresActivationReview && (
             <>
               <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-red-900/20 mb-8 border border-red-500/30">
                 <svg className="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -169,18 +176,16 @@ export default function Success() {
                 </svg>
               </div>
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
-                Payment Issue
+                {presentation.title}
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
-                {isError || !hasVerificationContext
-                  ? 'We could not verify this secure checkout session yet. If Stripe charged the payment, Maple Rentals can recover it from the checkout session.'
-                  : 'Stripe did not report a completed paid session for this checkout link. Retry from the original secure link or contact support.'}
+                {presentation.body}
               </p>
               <Link
-                to={retryHref}
+                to={presentation.showSecurePaymentLink ? retryHref : '/'}
                 className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
               >
-                Return to Secure Payment
+                {presentation.showSecurePaymentLink ? 'Return to Secure Payment' : 'Return Home'}
               </Link>
             </>
           )}

@@ -1,18 +1,20 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Search, Car as CarIcon } from 'lucide-react';
+import { FileText, Search, Car as CarIcon } from 'lucide-react';
 import { Rental } from '../../../types';
 
 interface RentalsTabProps {
   rentalSearch: string;
   setRentalSearch: (val: string) => void;
   filteredRentals: Rental[];
+  onCreateTollNotice?: (rental: Rental) => void;
 }
 
 export default function RentalsTab({
   rentalSearch,
   setRentalSearch,
   filteredRentals,
+  onCreateTollNotice,
 }: RentalsTabProps) {
   return (
     <motion.div
@@ -59,6 +61,9 @@ export default function RentalsTab({
               </th>
               <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
                 Status
+              </th>
+              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                Actions
               </th>
             </tr>
           </thead>
@@ -116,12 +121,24 @@ export default function RentalsTab({
                     {rental.status}
                   </span>
                 </td>
+                <td className="px-8 py-6">
+                  {onCreateTollNotice && (
+                    <button
+                      type="button"
+                      onClick={() => onCreateTollNotice(rental)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:border-brand-gold/50 hover:bg-white/10"
+                    >
+                      <FileText className="h-4 w-4 text-brand-gold" />
+                      Create Toll Transfer Notice
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {filteredRentals.length === 0 && (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={5}
                   className="px-8 py-12 text-center text-brand-grey text-xs font-light italic"
                 >
                   No rentals matched the current search.

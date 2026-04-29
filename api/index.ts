@@ -38,6 +38,7 @@ import inquiryRoutes from './routes/inquiries.js';
 import invoiceRoutes from './routes/invoices.js';
 import rentalRoutes from './routes/rentals.js';
 import stripeRoutes from './routes/stripe.js';
+import tollNoticeRoutes from './routes/tollNotices.js';
 import webhookRoutes from './routes/webhooks.js';
 import { buildContentSecurityPolicyDirectives } from './securityPolicy.js';
 import { indexNowConfig } from './services/indexNow.js';
@@ -550,6 +551,7 @@ const registerCoreRoutes = (app: express.Express) => {
   app.use('/api/stripe', stripeRoutes);
   app.use('/api/rentals', rentalRoutes);
   app.use('/api/agreements', agreementRoutes);
+  app.use('/api/toll-notices', tollNoticeRoutes);
   app.use('/api/financials', financialRoutes);
   app.use('/api/customers', customerRoutes);
   app.use('/api/invoices', invoiceRoutes);

@@ -47,6 +47,7 @@ function AppShell() {
             <Route path="/success" element={<Success />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/toll-notices" element={<AdminDashboard />} />
           </Routes>
         </Suspense>
       </main>

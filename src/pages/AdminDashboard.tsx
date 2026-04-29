@@ -27,7 +27,7 @@ import {
   Archive,
   RotateCcw
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import OverviewTab from '../components/admin/tabs/OverviewTab';
 import ApplicationsTab from '../components/admin/tabs/ApplicationsTab';
 import FleetTab from '../components/admin/tabs/FleetTab';
@@ -79,7 +79,7 @@ const adminTabLabels: Record<string, string> = {
   financials: 'Financials',
   invoices: 'Invoices',
   rentals: 'Rentals',
-  'toll-stat-dec': 'Toll Stat Dec',
+  'toll-notices': 'Toll Notices',
 };
 
 const matchesSearch = (searchTerm: string, fields: Array<string | number | null | undefined>) => {
@@ -129,6 +129,7 @@ const isRestrictedPaymentLinkError = (error: unknown) =>
     .includes('session-capable postgres connection');
 
 export default function AdminDashboard() {
+  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const notificationTimeoutRef = useRef<number | null>(null);
@@ -173,11 +174,29 @@ export default function AdminDashboard() {
   const [invoiceSearch, setInvoiceSearch] = useState('');
   const [applicationSearch, setApplicationSearch] = useState('');
   const [rentalSearch, setRentalSearch] = useState('');
+  const [tollNoticeInitialSearch, setTollNoticeInitialSearch] = useState('');
   const [customerPage, setCustomerPage] = useState(1);
   const [invoicePage, setInvoicePage] = useState(1);
   const [agreementModalMode, setAgreementModalMode] = useState<'draft' | 'saved'>('draft');
   const deferredCustomerSearch = useDeferredValue(customerSearch.trim());
   const deferredInvoiceSearch = useDeferredValue(invoiceSearch.trim());
+
+  useEffect(() => {
+    if (location.pathname === '/admin/toll-notices') {
+      setActiveTab('toll-notices');
+    }
+  }, [location.pathname]);
+
+  const openTollNotices = (searchValue = '') => {
+    setTollNoticeInitialSearch(searchValue);
+    setActiveTab('toll-notices');
+    navigate('/admin/toll-notices');
+  };
+
+  const handleAdminTabChange = (tab: string) => {
+    setActiveTab(tab);
+    navigate(tab === 'toll-notices' ? '/admin/toll-notices' : '/admin/dashboard');
+  };
   const deferredApplicationSearch = useDeferredValue(applicationSearch.trim());
   const deferredRentalSearch = useDeferredValue(rentalSearch.trim());
   const deferredVehicleSearch = useDeferredValue(vehicleSearch.trim());
@@ -418,9 +437,8 @@ export default function AdminDashboard() {
   const shouldLoadApplications =
     activeTab === 'dashboard' ||
     activeTab === 'applications' ||
-    activeTab === 'agreements' ||
-    activeTab === 'toll-stat-dec';
-  const shouldLoadRentals = activeTab === 'rentals';
+    activeTab === 'agreements';
+  const shouldLoadRentals = activeTab === 'rentals' || activeTab === 'toll-notices';
   const shouldLoadCustomers = activeTab === 'customers';
   const shouldLoadInvoices = activeTab === 'invoices';
   const shouldLoadWeeklyFinancials = activeTab === 'financials';
@@ -981,7 +999,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-brand-navy">
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleAdminTabChange}
         handleLogout={handleLogout}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -1055,6 +1073,11 @@ export default function AdminDashboard() {
               rentalSearch={rentalSearch}
               setRentalSearch={setRentalSearch}
               filteredRentals={filteredRentals}
+              onCreateTollNotice={(rental) =>
+                openTollNotices(
+                  String(rental.application_id || rental.applicant_name || rental.car_name || '')
+                )
+              }
             />
           )}
 
@@ -1126,8 +1149,8 @@ export default function AdminDashboard() {
             />
           )}
 
-          {activeTab === 'toll-stat-dec' && (
-            <TollStatDecTab applications={applications} />
+          {activeTab === 'toll-notices' && (
+            <TollStatDecTab initialSearch={tollNoticeInitialSearch} />
           )}
         </AnimatePresence>
       </div>
@@ -1431,16 +1454,27 @@ export default function AdminDashboard() {
                   </button>
                 )}
                 {selectedApplication.status === 'Paid' && (
-                  <button
-                    onClick={() => {
-                      set_selected_agreement_application_id(selectedApplication.id.toString());
-                      setSelectedApplication(null);
-                      setActiveTab('agreements');
-                    }}
-                    className="flex w-full items-center justify-center gap-3 bg-brand-gold py-5 text-xs font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light sm:flex-[2]"
-                  >
-                    <FileText className="w-4 h-4" /> Continue to Agreement
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        set_selected_agreement_application_id(selectedApplication.id.toString());
+                        setSelectedApplication(null);
+                        handleAdminTabChange('agreements');
+                      }}
+                      className="flex w-full items-center justify-center gap-3 bg-brand-gold py-5 text-xs font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light sm:flex-[2]"
+                    >
+                      <FileText className="w-4 h-4" /> Continue to Agreement
+                    </button>
+                    <button
+                      onClick={() => {
+                        openTollNotices(selectedApplication.id.toString());
+                        setSelectedApplication(null);
+                      }}
+                      className="flex w-full items-center justify-center gap-3 border border-brand-gold/40 bg-white/5 py-5 text-xs font-bold uppercase tracking-widest text-white shadow-lg transition-all hover:bg-white/10 sm:flex-[2]"
+                    >
+                      <FileText className="w-4 h-4 text-brand-gold" /> Create Toll Transfer Notice
+                    </button>
+                  </>
                 )}
                 {selectedApplication.status === 'Payment Review' && (
                   <button

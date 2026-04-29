@@ -1,722 +1,723 @@
-import React, { ChangeEvent, useMemo, useState } from 'react';
+import React, { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { AlertTriangle, Printer, RotateCcw } from 'lucide-react';
-import type { Application } from '../../../types';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  FileText,
+  Loader2,
+  Search,
+  Send,
+} from 'lucide-react';
+import * as api from '../../../lib/api';
+import { getApiErrorMessage } from '../../../lib/errorHandling';
+import { getTodayInAustralia } from '../../../../shared/applicationSubmission';
 
-type ResponsibilityType = 'responsible' | 'new-owner' | 'previous-owner';
-type WitnessQualification = 'Legal practitioner' | 'Justice of the Peace';
+type ResponsibleType = 'responsible' | 'new-owner' | 'previous-owner';
 
-interface TollStatDecForm {
-  declarantFullName: string;
-  organisationName: string;
-  organisationAddress: string;
-  organisationPhone: string;
-  tollNoticeNumber: string;
-  vehicleRegistration: string;
-  tollNoticeEnclosed: boolean;
-  nomineeSurnameOrOrganisation: string;
-  nomineeGivenNames: string;
-  nomineeDateOfBirth: string;
-  nomineeMailingAddress: string;
-  nomineeSuburb: string;
-  nomineeState: string;
-  nomineePostcode: string;
-  nomineeCountry: string;
-  nomineePhone: string;
-  nomineeOrganisationNumber: string;
-  responsibilityType: ResponsibilityType;
-  newOwnerFromDate: string;
-  previousOwnerUntilDate: string;
-  declaredAt: string;
-  declarationDate: string;
-  authorisedWitnessName: string;
-  witnessQualification: WitnessQualification;
-  jpNumber: string;
-  sawFace: boolean;
-  knownPerson12Months: boolean;
-  confirmedIdentityUsingId: boolean;
-  idDocumentReliedOn: string;
-  witnessDate: string;
+interface TollTransferForm extends api.TollTransferNoticePayload {
+  car_name: string;
 }
 
 interface TollStatDecTabProps {
-  applications: Application[];
+  initialSearch?: string;
 }
 
-const ownerDefaults = {
-  declarantFullName: 'SAFFARAZ ALI RAJABI',
-  organisationAddress: '1327-33 ADDLESTONE RD MERRYLANDS NSW 2160',
-  organisationName: 'MAPLE PAINTING PTY LTD',
-  organisationPhone: '0420 550 556',
+const COMPANY_DETAILS = {
+  address: '13/27-33 Adderstone Rd, Merrylands NSW 2160',
+  name: 'MAPLE PAINTING PTY LTD',
+  phone: '0420 550 566',
 };
 
-const emptyForm: TollStatDecForm = {
-  declarantFullName: ownerDefaults.declarantFullName,
-  organisationName: ownerDefaults.organisationName,
-  organisationAddress: ownerDefaults.organisationAddress,
-  organisationPhone: ownerDefaults.organisationPhone,
-  tollNoticeNumber: '',
-  vehicleRegistration: '',
-  tollNoticeEnclosed: true,
-  nomineeSurnameOrOrganisation: '',
-  nomineeGivenNames: '',
-  nomineeDateOfBirth: '',
-  nomineeMailingAddress: '',
-  nomineeSuburb: '',
-  nomineeState: 'NSW',
-  nomineePostcode: '',
-  nomineeCountry: 'Australia',
-  nomineePhone: '',
-  nomineeOrganisationNumber: '',
-  responsibilityType: 'responsible',
-  newOwnerFromDate: '',
-  previousOwnerUntilDate: '',
-  declaredAt: '',
-  declarationDate: '',
-  authorisedWitnessName: '',
-  witnessQualification: 'Justice of the Peace',
-  jpNumber: '',
-  sawFace: false,
-  knownPerson12Months: false,
-  confirmedIdentityUsingId: false,
-  idDocumentReliedOn: '',
-  witnessDate: '',
-};
+const createEmptyForm = (): TollTransferForm => ({
+  application_id: null,
+  authorised_officer_name: '',
+  car_id: null,
+  car_name: '',
+  customer_id: null,
+  declaration_date: getTodayInAustralia(),
+  declaration_place: 'Merrylands NSW',
+  nominee_address: '',
+  nominee_country: 'AUSTRALIA',
+  nominee_dob: null,
+  nominee_full_name: '',
+  nominee_phone: '',
+  nominee_postcode: '',
+  nominee_state: 'NSW',
+  nominee_suburb: '',
+  rental_id: null,
+  responsible_type: 'responsible',
+  toll_notice_number: '',
+  toll_trip_date: null,
+  vehicle_registration: '',
+  witness_jp_number: '',
+  witness_name: '',
+  witness_qualification: 'Justice of the Peace',
+});
 
-const requiredFields: Array<keyof TollStatDecForm> = [
-  'tollNoticeNumber',
-  'vehicleRegistration',
-  'declarantFullName',
-  'organisationName',
-  'nomineeSurnameOrOrganisation',
+const requiredFields: Array<keyof TollTransferForm> = [
+  'toll_notice_number',
+  'vehicle_registration',
+  'nominee_full_name',
+  'nominee_address',
+  'nominee_suburb',
+  'nominee_state',
+  'nominee_postcode',
+  'nominee_phone',
+  'declaration_place',
+  'declaration_date',
+  'authorised_officer_name',
 ];
 
-const fieldLabels: Partial<Record<keyof TollStatDecForm, string>> = {
-  tollNoticeNumber: 'Toll notice number',
-  vehicleRegistration: 'Vehicle registration',
-  declarantFullName: 'Declarant full name',
-  organisationName: 'Organisation name',
-  nomineeSurnameOrOrganisation: 'Nominee surname or organisation',
+const labels: Partial<Record<keyof TollTransferForm, string>> = {
+  authorised_officer_name: 'Authorised officer name',
+  declaration_date: 'Declaration date',
+  declaration_place: 'Declaration place',
+  nominee_address: 'Mailing address',
+  nominee_full_name: 'Customer full name',
+  nominee_phone: 'Phone',
+  nominee_postcode: 'Postcode',
+  nominee_state: 'State',
+  nominee_suburb: 'Suburb',
+  toll_notice_number: 'Toll notice number',
+  vehicle_registration: 'Vehicle registration',
 };
 
-const display = (value: string) => value.trim() || ' ';
+const display = (value: unknown) => String(value ?? '').trim() || '-';
 
-const checkbox = (checked: boolean) => (checked ? '[x]' : '[ ]');
+const boxText = (value: string, max = 12) =>
+  Array.from({ length: max }, (_, index) => value.trim().toUpperCase()[index] || '');
 
-export default function TollStatDecTab({ applications: _applications }: TollStatDecTabProps) {
-  const [form, setForm] = useState<TollStatDecForm>(emptyForm);
+export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabProps) {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState(initialSearch);
+  const [form, setForm] = useState<TollTransferForm>(createEmptyForm);
+  const [errors, setErrors] = useState<Partial<Record<keyof TollTransferForm, string>>>({});
+  const [lastGeneratedId, setLastGeneratedId] = useState<number | null>(null);
+  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+
+  useEffect(() => {
+    setSearch(initialSearch);
+  }, [initialSearch]);
+
+  const rentalOptionsQuery = useQuery({
+    queryKey: ['toll-notice-rental-options', search],
+    queryFn: () => api.fetchTollNoticeRentalOptions(search),
+    staleTime: 30_000,
+  });
+
+  const historyQuery = useQuery({
+    queryKey: ['toll-transfer-notices'],
+    queryFn: api.fetchTollTransferNotices,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: api.createTollTransferNotice,
+    onSuccess: async (notice) => {
+      setLastGeneratedId(notice.id);
+      setMessage({ type: 'success', text: 'Toll transfer notice generated and saved.' });
+      await queryClient.invalidateQueries({ queryKey: ['toll-transfer-notices'] });
+    },
+    onError: (error) => {
+      setMessage({
+        type: 'error',
+        text: getApiErrorMessage(error, 'Failed to generate toll transfer notice.'),
+      });
+    },
+  });
+
+  const markSentMutation = useMutation({
+    mutationFn: api.markTollTransferNoticeSent,
+    onSuccess: async () => {
+      setMessage({ type: 'success', text: 'Toll transfer notice marked as sent.' });
+      await queryClient.invalidateQueries({ queryKey: ['toll-transfer-notices'] });
+    },
+  });
 
   const missingRequiredFields = useMemo(
-    () => requiredFields.filter((field) => !String(form[field]).trim()),
+    () => requiredFields.filter((field) => !String(form[field] ?? '').trim()),
     [form]
   );
 
-  const updateField = <K extends keyof TollStatDecForm>(field: K, value: TollStatDecForm[K]) => {
+  const updateField = <K extends keyof TollTransferForm>(field: K, value: TollTransferForm[K]) => {
     setForm((current) => ({ ...current, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: undefined }));
   };
 
   const handleTextChange =
-    (field: keyof TollStatDecForm) =>
+    (field: keyof TollTransferForm) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       updateField(field, event.target.value as never);
     };
 
-  const handleReset = () => {
-    setForm(emptyForm);
+  const applyRentalOption = (option: api.TollNoticeRentalOption) => {
+    setForm((current) => ({
+      ...current,
+      application_id: option.application_id || null,
+      car_id: option.car_id,
+      car_name: option.car_name,
+      customer_id: option.customer_id,
+      nominee_address: option.nominee_address,
+      nominee_country: option.nominee_country || 'AUSTRALIA',
+      nominee_dob: option.nominee_dob || null,
+      nominee_full_name: option.nominee_full_name,
+      nominee_phone: option.nominee_phone,
+      nominee_postcode: option.nominee_postcode,
+      nominee_state: option.nominee_state || 'NSW',
+      nominee_suburb: option.nominee_suburb,
+      rental_id: option.rental_id,
+      vehicle_registration: option.vehicle_registration,
+    }));
+    setSearch(option.nominee_full_name || option.application_id);
+    setErrors({});
+    setLastGeneratedId(null);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const validate = () => {
+    const nextErrors: Partial<Record<keyof TollTransferForm, string>> = {};
+    for (const field of requiredFields) {
+      if (!String(form[field] ?? '').trim()) {
+        nextErrors[field] = `${labels[field] || field} is required`;
+      }
+    }
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
-  const isMissing = (field: keyof TollStatDecForm) => !String(form[field]).trim();
-  const inputClass = (field: keyof TollStatDecForm) =>
-    `w-full rounded-xl border bg-brand-navy px-4 py-3 text-sm text-white outline-none transition-all focus:border-brand-gold ${
-      isMissing(field) && requiredFields.includes(field)
-        ? 'border-amber-400/60'
-        : 'border-white/10'
+  const buildPayload = (): api.TollTransferNoticePayload => ({
+    application_id: form.application_id || null,
+    authorised_officer_name: form.authorised_officer_name.trim(),
+    car_id: form.car_id || null,
+    customer_id: form.customer_id || null,
+    declaration_date: form.declaration_date,
+    declaration_place: form.declaration_place.trim(),
+    nominee_address: form.nominee_address.trim(),
+    nominee_country: form.nominee_country.trim() || 'AUSTRALIA',
+    nominee_dob: form.nominee_dob || null,
+    nominee_full_name: form.nominee_full_name.trim(),
+    nominee_phone: form.nominee_phone.trim(),
+    nominee_postcode: form.nominee_postcode.trim(),
+    nominee_state: form.nominee_state.trim(),
+    nominee_suburb: form.nominee_suburb.trim(),
+    rental_id: form.rental_id || null,
+    responsible_type: form.responsible_type,
+    toll_notice_number: form.toll_notice_number.trim(),
+    toll_trip_date: form.toll_trip_date || null,
+    vehicle_registration: form.vehicle_registration.trim().toUpperCase(),
+    witness_jp_number: form.witness_jp_number?.trim() || null,
+    witness_name: form.witness_name?.trim() || null,
+    witness_qualification: form.witness_qualification?.trim() || null,
+  });
+
+  const handleGenerate = async () => {
+    setMessage(null);
+    if (!validate()) {
+      setMessage({ type: 'error', text: 'Complete the required fields before generating.' });
+      return;
+    }
+    await createMutation.mutateAsync(buildPayload());
+  };
+
+  const handleDownload = async (id: number) => {
+    try {
+      const blob = await api.fetchTollTransferNoticePdf(id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `toll-transfer-notice-${id}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: getApiErrorMessage(error, 'Failed to download toll transfer notice PDF.'),
+      });
+    }
+  };
+
+  const inputClass = (field: keyof TollTransferForm) =>
+    `w-full rounded-lg border bg-brand-navy px-4 py-3 text-sm text-white outline-none transition-all focus:border-brand-gold ${
+      errors[field] ? 'border-red-400/70' : 'border-white/10'
     }`;
 
   const Field = ({
-    label,
     field,
-    type = 'text',
+    label,
     placeholder,
+    type = 'text',
   }: {
+    field: keyof TollTransferForm;
     label: string;
-    field: keyof TollStatDecForm;
-    type?: string;
     placeholder?: string;
+    type?: string;
   }) => (
     <label className="space-y-2">
       <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
         {label}
       </span>
       <input
-        type={type}
-        value={String(form[field])}
+        className={inputClass(field)}
         onChange={handleTextChange(field)}
         placeholder={placeholder}
-        className={inputClass(field)}
+        type={type}
+        value={String(form[field] ?? '')}
       />
+      {errors[field] && <p className="text-xs text-red-300">{errors[field]}</p>}
     </label>
   );
 
-  const TextAreaField = ({
-    label,
-    field,
-    rows = 3,
-  }: {
-    label: string;
-    field: keyof TollStatDecForm;
-    rows?: number;
-  }) => (
+  const TextArea = ({ field, label }: { field: keyof TollTransferForm; label: string }) => (
     <label className="space-y-2">
       <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
         {label}
       </span>
       <textarea
-        value={String(form[field])}
+        className={`${inputClass(field)} min-h-24 resize-y`}
         onChange={handleTextChange(field)}
-        rows={rows}
-        className={`${inputClass(field)} resize-y`}
+        value={String(form[field] ?? '')}
       />
+      {errors[field] && <p className="text-xs text-red-300">{errors[field]}</p>}
     </label>
   );
 
   return (
     <motion.div
-      key="toll-stat-dec"
+      key="toll-notices"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className="space-y-8"
     >
-      <style>
-        {`
-          @media print {
-            @page {
-              size: A4;
-              margin: 10mm;
-            }
-
-            html,
-            body,
-            #root {
-              background: #fff !important;
-            }
-
-            body * {
-              visibility: hidden !important;
-            }
-
-            aside,
-            .no-print {
-              display: none !important;
-            }
-
-            .toll-print-area,
-            .toll-print-area * {
-              visibility: visible !important;
-            }
-
-            .toll-print-area {
-              position: absolute !important;
-              inset: 0 auto auto 0 !important;
-              width: 190mm !important;
-              min-height: auto !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #fff !important;
-              color: #000 !important;
-              box-shadow: none !important;
-              border: 0 !important;
-              font-size: 9.5pt !important;
-            }
-
-            .toll-print-section {
-              break-inside: avoid;
-              page-break-inside: avoid;
-            }
-          }
-        `}
-      </style>
-
-      <div className="no-print flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="mb-2 text-4xl font-bold uppercase tracking-tighter text-white">
-            Toll <span className="text-brand-gold italic">Stat Dec</span>
+            Toll <span className="text-brand-gold italic">Transfer Notices</span>
           </h2>
-          <p className="max-w-3xl font-light text-brand-grey">
-            Prepare NSW toll notice statutory declarations for company nominations. Owner
-            details are prefilled; enter the responsible person and vehicle registration before
-            printing.
+          <p className="max-w-3xl text-sm font-light text-brand-grey">
+            Generate NSW Tolling Notice Statutory Declaration – Companies forms from active rentals.
           </p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={handleReset}
-            className="inline-flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10"
-          >
-            <RotateCcw className="h-4 w-4 text-brand-gold" />
-            Clear / Reset
-          </button>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="inline-flex items-center justify-center gap-3 rounded-xl bg-brand-gold px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-navy transition-all hover:bg-brand-gold-light"
-          >
-            <Printer className="h-4 w-4" />
-            Print Declaration
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setForm(createEmptyForm());
+            setErrors({});
+            setLastGeneratedId(null);
+            setMessage(null);
+          }}
+          className="inline-flex items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10"
+        >
+          <FileText className="h-4 w-4 text-brand-gold" />
+          New Notice
+        </button>
       </div>
 
-      <div className="no-print rounded-3xl border border-amber-400/20 bg-amber-400/10 p-5 text-sm text-amber-100">
+      <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
         <div className="flex gap-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
           <div>
-            <p className="font-bold">
-              Check all details carefully before signing. A false or misleading declaration may
-              result in penalties or prosecution.
-            </p>
+            <p className="font-bold">Original toll notice or copy must be enclosed.</p>
+            {!form.nominee_dob && (
+              <p className="mt-1 text-xs text-amber-100/80">
+                Date of birth is missing. Continue only if it is not available in records.
+              </p>
+            )}
             {missingRequiredFields.length > 0 && (
-              <p className="mt-2 text-xs text-amber-100/80">
-                Missing key fields:{' '}
-                {missingRequiredFields.map((field) => fieldLabels[field]).join(', ')}.
-                Printing is still available.
+              <p className="mt-1 text-xs text-amber-100/80">
+                Missing required fields: {missingRequiredFields.map((field) => labels[field]).join(', ')}.
               </p>
             )}
           </div>
         </div>
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,0.9fr)_minmax(720px,1.1fr)]">
-        <div className="no-print space-y-8">
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h3 className="mb-5 text-sm font-bold uppercase tracking-widest text-white">
-              Quick Print Fields
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Responsible surname / organisation"
-                field="nomineeSurnameOrOrganisation"
-                placeholder="e.g. KHALIQ"
-              />
-              <Field
-                label="Responsible given name(s)"
-                field="nomineeGivenNames"
-                placeholder="e.g. AHMAD ABDUL"
-              />
-              <Field
-                label="Vehicle registration number"
-                field="vehicleRegistration"
-                placeholder="e.g. CZ55XY"
-              />
-              <Field label="Toll Notice number" field="tollNoticeNumber" />
-            </div>
-            <p className="mt-3 text-[11px] font-light text-brand-grey">
-              This tool no longer imports responsible person details from applications. Admin enters
-              the responsible person and car rego manually before printing.
-            </p>
-          </section>
+      {message && (
+        <div
+          className={`flex items-center gap-3 rounded-lg border p-4 text-sm ${
+            message.type === 'success'
+              ? 'border-green-400/30 bg-green-400/10 text-green-100'
+              : 'border-red-400/30 bg-red-400/10 text-red-100'
+          }`}
+        >
+          {message.type === 'success' ? (
+            <CheckCircle2 className="h-5 w-5 text-green-300" />
+          ) : (
+            <AlertTriangle className="h-5 w-5 text-red-300" />
+          )}
+          {message.text}
+        </div>
+      )}
 
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h3 className="mb-5 text-sm font-bold uppercase tracking-widest text-white">
-              Company / Declarant
+      <div className="grid gap-8 xl:grid-cols-[minmax(320px,0.85fr)_minmax(620px,1.15fr)]">
+        <div className="space-y-6">
+          <section className="rounded-lg border border-white/10 bg-white/5 p-6">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-white">
+              Select Rental
             </h3>
-            <div className="grid gap-4">
-              <Field label="Full name of person completing form" field="declarantFullName" />
-              <Field label="Organisation name" field="organisationName" />
-              <TextAreaField label="Organisation address" field="organisationAddress" rows={3} />
-              <Field label="Organisation phone number" field="organisationPhone" />
-            </div>
-          </section>
-
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h3 className="mb-5 text-sm font-bold uppercase tracking-widest text-white">
-              Toll Details
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Toll Notice number" field="tollNoticeNumber" />
-              <Field label="Vehicle registration number" field="vehicleRegistration" />
-            </div>
-            <label className="mt-5 flex items-start gap-3 text-sm text-white">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-grey" />
               <input
-                type="checkbox"
-                checked={form.tollNoticeEnclosed}
-                onChange={(event) => updateField('tollNoticeEnclosed', event.target.checked)}
-                className="mt-1 h-4 w-4 accent-brand-gold"
+                className="w-full rounded-lg border border-white/10 bg-brand-navy py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-brand-gold"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search name, phone, rego, application ID..."
+                value={search}
               />
-              Toll Notice has been enclosed
-            </label>
+            </div>
+            <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+              {rentalOptionsQuery.isLoading && (
+                <p className="text-xs text-brand-grey">Loading active rentals...</p>
+              )}
+              {rentalOptionsQuery.data?.map((option) => (
+                <button
+                  key={`${option.rental_id}-${option.application_id}`}
+                  type="button"
+                  onClick={() => applyRentalOption(option)}
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left transition-all hover:border-brand-gold/50 hover:bg-white/10"
+                >
+                  <p className="text-sm font-bold text-white">{display(option.nominee_full_name)}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-widest text-brand-grey">
+                    {display(option.car_name)} | Rego {display(option.vehicle_registration)}
+                  </p>
+                  <p className="mt-1 font-mono text-[10px] text-brand-grey">
+                    App {option.application_id} | Rental {option.rental_id}
+                  </p>
+                </button>
+              ))}
+              {!rentalOptionsQuery.isLoading && rentalOptionsQuery.data?.length === 0 && (
+                <p className="text-xs text-brand-grey">No active rentals matched.</p>
+              )}
+            </div>
           </section>
 
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h3 className="mb-5 text-sm font-bold uppercase tracking-widest text-white">
-              Responsible Person / Nominee
+          <section className="rounded-lg border border-white/10 bg-white/5 p-6">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-white">
+              Company Details
+            </h3>
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="text-[10px] uppercase tracking-widest text-brand-grey">Company</dt>
+                <dd className="font-bold text-white">{COMPANY_DETAILS.name}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-widest text-brand-grey">Address</dt>
+                <dd className="text-white">{COMPANY_DETAILS.address}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-widest text-brand-grey">Phone</dt>
+                <dd className="text-white">{COMPANY_DETAILS.phone}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-6">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-white">
+              Notice Details
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Surname or organisation name" field="nomineeSurnameOrOrganisation" />
-              <Field label="Given name(s)" field="nomineeGivenNames" />
-              <Field label="Date of birth" field="nomineeDateOfBirth" type="date" />
-              <Field label="Phone number" field="nomineePhone" />
-              <TextAreaField label="Mailing address" field="nomineeMailingAddress" rows={3} />
-              <div className="grid gap-4">
-                <Field label="Suburb" field="nomineeSuburb" />
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="State" field="nomineeState" />
-                  <Field label="Postcode" field="nomineePostcode" />
-                </div>
-              </div>
-              <Field label="Country" field="nomineeCountry" />
-              <Field label="Organisation ABN/ACN if applicable" field="nomineeOrganisationNumber" />
+              <Field field="toll_notice_number" label="Toll notice number" />
+              <Field field="vehicle_registration" label="Vehicle registration" />
+              <Field field="toll_trip_date" label="Toll trip date" type="date" />
+              <label className="space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                  Responsible type
+                </span>
+                <select
+                  className={inputClass('responsible_type')}
+                  onChange={(event) =>
+                    updateField('responsible_type', event.target.value as ResponsibleType)
+                  }
+                  value={form.responsible_type}
+                >
+                  <option value="responsible">Was responsible for toll</option>
+                  <option value="new-owner">Was the new owner</option>
+                  <option value="previous-owner">Was the previous owner</option>
+                </select>
+              </label>
             </div>
           </section>
 
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h3 className="mb-5 text-sm font-bold uppercase tracking-widest text-white">
-              Responsibility Type
+          <section className="rounded-lg border border-white/10 bg-white/5 p-6">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-white">
+              Customer / Driver
             </h3>
-            <div className="space-y-4 text-sm text-white">
-              <label className="flex items-start gap-3">
-                <input
-                  type="radio"
-                  checked={form.responsibilityType === 'responsible'}
-                  onChange={() => updateField('responsibilityType', 'responsible')}
-                  className="mt-1 accent-brand-gold"
-                />
-                Was the driver, person or organisation responsible for toll
-              </label>
-              <label className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <span className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    checked={form.responsibilityType === 'new-owner'}
-                    onChange={() => updateField('responsibilityType', 'new-owner')}
-                    className="mt-1 accent-brand-gold"
-                  />
-                  Was the new owner from
-                </span>
-                <input
-                  type="date"
-                  value={form.newOwnerFromDate}
-                  onChange={handleTextChange('newOwnerFromDate')}
-                  className="rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none transition-all focus:border-brand-gold"
-                />
-              </label>
-              <label className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <span className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    checked={form.responsibilityType === 'previous-owner'}
-                    onChange={() => updateField('responsibilityType', 'previous-owner')}
-                    className="mt-1 accent-brand-gold"
-                  />
-                  Was the previous owner until
-                </span>
-                <input
-                  type="date"
-                  value={form.previousOwnerUntilDate}
-                  onChange={handleTextChange('previousOwnerUntilDate')}
-                  className="rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none transition-all focus:border-brand-gold"
-                />
-              </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field field="nominee_full_name" label="Full name" />
+              <Field field="nominee_dob" label="Date of birth" type="date" />
+              <Field field="nominee_phone" label="Phone" />
+              <Field field="nominee_suburb" label="Suburb" />
+              <TextArea field="nominee_address" label="Mailing address" />
+              <div className="grid gap-4">
+                <Field field="nominee_state" label="State" />
+                <Field field="nominee_postcode" label="Postcode" />
+                <Field field="nominee_country" label="Country" />
+              </div>
             </div>
           </section>
 
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h3 className="mb-5 text-sm font-bold uppercase tracking-widest text-white">
+          <section className="rounded-lg border border-white/10 bg-white/5 p-6">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-white">
               Declaration & Witness
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Declared at place" field="declaredAt" />
-              <Field label="Declaration date" field="declarationDate" type="date" />
-              <Field label="Authorised witness name" field="authorisedWitnessName" />
-              <label className="space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
-                  Qualification
-                </span>
-                <select
-                  value={form.witnessQualification}
-                  onChange={handleTextChange('witnessQualification')}
-                  className="w-full appearance-none rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none transition-all focus:border-brand-gold"
-                >
-                  <option value="Legal practitioner">Legal practitioner</option>
-                  <option value="Justice of the Peace">Justice of the Peace</option>
-                </select>
-              </label>
-              <Field label="JP number" field="jpNumber" />
-              <Field label="Witness date" field="witnessDate" type="date" />
-              <TextAreaField label="ID document relied on" field="idDocumentReliedOn" rows={2} />
-            </div>
-            <div className="mt-5 grid gap-3 text-sm text-white">
-              <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={form.sawFace}
-                  onChange={(event) => updateField('sawFace', event.target.checked)}
-                  className="mt-1 h-4 w-4 accent-brand-gold"
-                />
-                Witness saw the face of the person making the declaration
-              </label>
-              <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={form.knownPerson12Months}
-                  onChange={(event) => updateField('knownPerson12Months', event.target.checked)}
-                  className="mt-1 h-4 w-4 accent-brand-gold"
-                />
-                Witness has known the person for at least 12 months
-              </label>
-              <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={form.confirmedIdentityUsingId}
-                  onChange={(event) => updateField('confirmedIdentityUsingId', event.target.checked)}
-                  className="mt-1 h-4 w-4 accent-brand-gold"
-                />
-                Witness confirmed identity using an identification document
-              </label>
+              <Field field="declaration_place" label="Declaration place" />
+              <Field field="declaration_date" label="Declaration date" type="date" />
+              <Field field="authorised_officer_name" label="Authorised officer name" />
+              <Field field="witness_name" label="Witness name" />
+              <Field field="witness_qualification" label="Witness qualification" />
+              <Field field="witness_jp_number" label="JP number if applicable" />
             </div>
           </section>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-black/20 p-4 shadow-2xl sm:p-6">
-          <article className="toll-print-area mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white p-8 text-black shadow-2xl">
-            <header className="border-b-2 border-black pb-3">
+        <div className="space-y-6">
+          <section className="rounded-lg border border-white/10 bg-white/5 p-6">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={createMutation.isPending}
+                className="inline-flex flex-1 items-center justify-center gap-3 rounded-lg bg-brand-gold px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-navy transition-all hover:bg-brand-gold-light disabled:opacity-50"
+              >
+                {createMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4" />
+                )}
+                Generate PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => lastGeneratedId && handleDownload(lastGeneratedId)}
+                disabled={!lastGeneratedId}
+                className="inline-flex flex-1 items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40"
+              >
+                <Download className="h-4 w-4 text-brand-gold" />
+                Download PDF
+              </button>
+            </div>
+          </section>
+
+          <article className="min-h-[297mm] bg-white p-8 text-black shadow-2xl">
+            <header className="border-b-2 border-black pb-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.24em]">
                 OFFICIAL: Sensitive - Personal (when completed)
               </p>
-              <div className="mt-4 flex items-start justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-black uppercase leading-tight">
-                    Tolling Notice Statutory Declaration - Companies
-                  </h1>
-                  <p className="mt-1 text-xs">
-                    Catalogue No. 45071726 | Form No. 1672
-                  </p>
-                </div>
-                <div className="w-36 border-2 border-black p-2 text-center text-[10px] font-bold uppercase">
-                  Office use only
-                  <div className="mt-8 border-t border-black pt-1 font-normal">Reference</div>
-                </div>
-              </div>
-              <div className="mt-4 grid gap-2 text-[11px] leading-snug">
-                <p>
-                  Use this declaration to nominate the person or organisation responsible for
-                  the toll trip. The original Toll Notice or a copy must be enclosed.
-                </p>
-                <p>
-                  The completed form must be received at least 7 days before the due date.
-                  False or misleading declarations may lead to penalty or criminal prosecution.
-                </p>
-              </div>
+              <h1 className="mt-4 text-2xl font-black uppercase leading-tight">
+                Tolling Notice Statutory Declaration – Companies
+              </h1>
+              <p className="mt-2 text-xs leading-snug">
+                Use this declaration to give notice of the name and address of the driver, person
+                or organisation responsible for the toll trip. The original Toll Notice or a copy
+                must be enclosed.
+              </p>
             </header>
 
-            <section className="toll-print-section mt-4 grid grid-cols-2 gap-3">
+            <section className="mt-4 grid grid-cols-2 gap-3 text-xs">
               <div className="border border-black p-2">
-                <p className="text-[9px] font-bold uppercase">Toll Notice number</p>
-                <p className="mt-2 min-h-6 text-sm font-bold">{display(form.tollNoticeNumber)}</p>
+                <p className="font-bold uppercase">Toll Notice number</p>
+                <div className="mt-2 flex">
+                  {boxText(form.toll_notice_number, 14).map((letter, index) => (
+                    <span key={index} className="h-7 w-7 border border-black text-center leading-7">
+                      {letter}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="border border-black p-2">
-                <p className="text-[9px] font-bold uppercase">Vehicle registration number</p>
-                <p className="mt-2 min-h-6 text-sm font-bold">{display(form.vehicleRegistration)}</p>
-              </div>
-              <div className="col-span-2 border border-black p-2 text-sm">
-                {checkbox(form.tollNoticeEnclosed)} Original Toll Notice or copy enclosed
+                <p className="font-bold uppercase">Vehicle registration number</p>
+                <div className="mt-2 flex">
+                  {boxText(form.vehicle_registration, 8).map((letter, index) => (
+                    <span key={index} className="h-7 w-7 border border-black text-center leading-7">
+                      {letter}
+                    </span>
+                  ))}
+                </div>
               </div>
             </section>
 
-            <section className="toll-print-section mt-4 border border-black">
-              <h2 className="bg-black px-3 py-1 text-xs font-bold uppercase text-white">
-                Company / Declarant
-              </h2>
-              <div className="grid grid-cols-2 gap-px bg-black text-xs">
+            <section className="mt-4 border border-black text-xs">
+              <h2 className="bg-black px-3 py-1 font-bold uppercase text-white">Company</h2>
+              <div className="grid grid-cols-2 gap-px bg-black">
                 <div className="bg-white p-2">
-                  <p className="font-bold uppercase">Full name</p>
-                  <p className="mt-1 min-h-5">{display(form.declarantFullName)}</p>
-                </div>
-                <div className="bg-white p-2">
-                  <p className="font-bold uppercase">Organisation</p>
-                  <p className="mt-1 min-h-5">{display(form.organisationName)}</p>
-                </div>
-                <div className="bg-white p-2">
-                  <p className="font-bold uppercase">Organisation address</p>
-                  <p className="mt-1 min-h-10 whitespace-pre-wrap">
-                    {display(form.organisationAddress)}
-                  </p>
+                  <p className="font-bold uppercase">Company / organisation name</p>
+                  <p className="mt-1 min-h-5">{COMPANY_DETAILS.name}</p>
                 </div>
                 <div className="bg-white p-2">
                   <p className="font-bold uppercase">Phone</p>
-                  <p className="mt-1 min-h-5">{display(form.organisationPhone)}</p>
+                  <p className="mt-1 min-h-5">{COMPANY_DETAILS.phone}</p>
+                </div>
+                <div className="col-span-2 bg-white p-2">
+                  <p className="font-bold uppercase">Company address</p>
+                  <p className="mt-1 min-h-5">{COMPANY_DETAILS.address}</p>
                 </div>
               </div>
             </section>
 
-            <section className="toll-print-section mt-4 border border-black">
-              <h2 className="bg-black px-3 py-1 text-xs font-bold uppercase text-white">
-                Responsible Person / Nominee
+            <section className="mt-4 border border-black text-xs">
+              <h2 className="bg-black px-3 py-1 font-bold uppercase text-white">
+                Nominated Responsible Person
               </h2>
-              <div className="grid grid-cols-4 gap-px bg-black text-xs">
+              <div className="grid grid-cols-4 gap-px bg-black">
                 <div className="col-span-2 bg-white p-2">
-                  <p className="font-bold uppercase">Surname or organisation name</p>
-                  <p className="mt-1 min-h-5">{display(form.nomineeSurnameOrOrganisation)}</p>
-                </div>
-                <div className="col-span-2 bg-white p-2">
-                  <p className="font-bold uppercase">Given name(s)</p>
-                  <p className="mt-1 min-h-5">{display(form.nomineeGivenNames)}</p>
+                  <p className="font-bold uppercase">Full name</p>
+                  <p className="mt-1 min-h-5">{display(form.nominee_full_name)}</p>
                 </div>
                 <div className="bg-white p-2">
                   <p className="font-bold uppercase">Date of birth</p>
-                  <p className="mt-1 min-h-5">{display(form.nomineeDateOfBirth)}</p>
+                  <p className="mt-1 min-h-5">{display(form.nominee_dob)}</p>
                 </div>
                 <div className="bg-white p-2">
                   <p className="font-bold uppercase">Phone</p>
-                  <p className="mt-1 min-h-5">{display(form.nomineePhone)}</p>
-                </div>
-                <div className="col-span-2 bg-white p-2">
-                  <p className="font-bold uppercase">ABN/ACN if applicable</p>
-                  <p className="mt-1 min-h-5">{display(form.nomineeOrganisationNumber)}</p>
+                  <p className="mt-1 min-h-5">{display(form.nominee_phone)}</p>
                 </div>
                 <div className="col-span-4 bg-white p-2">
                   <p className="font-bold uppercase">Mailing address</p>
-                  <p className="mt-1 min-h-8 whitespace-pre-wrap">
-                    {display(form.nomineeMailingAddress)}
-                  </p>
+                  <p className="mt-1 min-h-8">{display(form.nominee_address)}</p>
                 </div>
                 <div className="bg-white p-2">
                   <p className="font-bold uppercase">Suburb</p>
-                  <p className="mt-1 min-h-5">{display(form.nomineeSuburb)}</p>
+                  <p>{display(form.nominee_suburb)}</p>
                 </div>
                 <div className="bg-white p-2">
                   <p className="font-bold uppercase">State</p>
-                  <p className="mt-1 min-h-5">{display(form.nomineeState)}</p>
+                  <p>{display(form.nominee_state)}</p>
                 </div>
                 <div className="bg-white p-2">
                   <p className="font-bold uppercase">Postcode</p>
-                  <p className="mt-1 min-h-5">{display(form.nomineePostcode)}</p>
+                  <p>{display(form.nominee_postcode)}</p>
                 </div>
                 <div className="bg-white p-2">
                   <p className="font-bold uppercase">Country</p>
-                  <p className="mt-1 min-h-5">{display(form.nomineeCountry)}</p>
+                  <p>{display(form.nominee_country)}</p>
                 </div>
               </div>
             </section>
 
-            <section className="toll-print-section mt-4 border border-black p-3 text-xs">
-              <h2 className="mb-2 text-xs font-bold uppercase">Responsibility type</h2>
-              <div className="grid gap-1">
-                <p>
-                  {checkbox(form.responsibilityType === 'responsible')} Was the driver, person or
-                  organisation responsible for toll
-                </p>
-                <p>
-                  {checkbox(form.responsibilityType === 'new-owner')} Was the new owner from{' '}
-                  <span className="inline-block min-w-28 border-b border-black px-2">
-                    {display(form.newOwnerFromDate)}
-                  </span>
-                </p>
-                <p>
-                  {checkbox(form.responsibilityType === 'previous-owner')} Was the previous owner
-                  until{' '}
-                  <span className="inline-block min-w-28 border-b border-black px-2">
-                    {display(form.previousOwnerUntilDate)}
-                  </span>
-                </p>
-              </div>
+            <section className="mt-4 border border-black p-3 text-xs">
+              <h2 className="mb-2 font-bold uppercase">Responsible type</h2>
+              <p>
+                {form.responsible_type === 'responsible' ? '[x]' : '[ ]'} Was the driver, person
+                or organisation responsible for toll
+              </p>
+              <p>{form.responsible_type === 'new-owner' ? '[x]' : '[ ]'} Was the new owner</p>
+              <p>
+                {form.responsible_type === 'previous-owner' ? '[x]' : '[ ]'} Was the previous owner
+              </p>
             </section>
 
-            <section className="toll-print-section mt-4 border border-black p-3 text-xs">
-              <h2 className="mb-2 text-xs font-bold uppercase">Declaration</h2>
+            <section className="mt-4 border border-black p-3 text-xs">
+              <h2 className="mb-2 font-bold uppercase">Declaration</h2>
               <p className="leading-snug">
-                I, <span className="font-bold">{display(form.declarantFullName)}</span>, of{' '}
-                <span className="font-bold">{display(form.organisationName)}</span>, declare that
-                the information provided in this statutory declaration is true and correct and
-                nominates the person or organisation responsible for the toll trip.
+                I declare that the information in this statutory declaration is true and correct
+                and nominates the responsible person shown above.
               </p>
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                <div>
-                  <p className="font-bold uppercase">Declared at</p>
-                  <p className="mt-1 border-b border-black pb-1">{display(form.declaredAt)}</p>
-                </div>
-                <div>
-                  <p className="font-bold uppercase">Date</p>
-                  <p className="mt-1 border-b border-black pb-1">{display(form.declarationDate)}</p>
-                </div>
-                <div>
-                  <p className="font-bold uppercase">Declarant signature</p>
-                  <p className="mt-6 border-b border-black pb-1">&nbsp;</p>
-                </div>
+              <div className="mt-5 grid grid-cols-3 gap-4">
+                <p>
+                  Declared at
+                  <span className="mt-1 block border-b border-black pb-1">
+                    {display(form.declaration_place)}
+                  </span>
+                </p>
+                <p>
+                  Date
+                  <span className="mt-1 block border-b border-black pb-1">
+                    {display(form.declaration_date)}
+                  </span>
+                </p>
+                <p>
+                  Signature
+                  <span className="mt-6 block border-b border-black pb-1">&nbsp;</span>
+                </p>
               </div>
             </section>
 
-            <section className="toll-print-section mt-4 border border-black p-3 text-xs">
-              <h2 className="mb-2 text-xs font-bold uppercase">Authorised Witness</h2>
+            <section className="mt-4 border border-black p-3 text-xs">
+              <h2 className="mb-2 font-bold uppercase">Witness / JP</h2>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="font-bold uppercase">Witness name</p>
-                  <p className="mt-1 border-b border-black pb-1">
-                    {display(form.authorisedWitnessName)}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-bold uppercase">Qualification</p>
-                  <p className="mt-1 border-b border-black pb-1">
-                    {display(form.witnessQualification)}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-bold uppercase">JP number</p>
-                  <p className="mt-1 border-b border-black pb-1">{display(form.jpNumber)}</p>
-                </div>
-                <div>
-                  <p className="font-bold uppercase">Witness date</p>
-                  <p className="mt-1 border-b border-black pb-1">{display(form.witnessDate)}</p>
-                </div>
-              </div>
-              <div className="mt-3 grid gap-1">
-                <p>{checkbox(form.sawFace)} I saw the face of the person making the declaration.</p>
                 <p>
-                  {checkbox(form.knownPerson12Months)} I have known the person for at least 12
-                  months.
+                  Witness name
+                  <span className="mt-1 block border-b border-black pb-1">
+                    {display(form.witness_name)}
+                  </span>
                 </p>
                 <p>
-                  {checkbox(form.confirmedIdentityUsingId)} I confirmed the person's identity using
-                  an identification document.
+                  Qualification
+                  <span className="mt-1 block border-b border-black pb-1">
+                    {display(form.witness_qualification)}
+                  </span>
                 </p>
                 <p>
-                  ID document relied on:{' '}
-                  <span className="inline-block min-w-72 border-b border-black px-2">
-                    {display(form.idDocumentReliedOn)}
+                  JP number
+                  <span className="mt-1 block border-b border-black pb-1">
+                    {display(form.witness_jp_number)}
+                  </span>
+                </p>
+                <p>
+                  Authorised officer
+                  <span className="mt-1 block border-b border-black pb-1">
+                    {display(form.authorised_officer_name)}
                   </span>
                 </p>
               </div>
-              <div className="mt-5">
-                <p className="font-bold uppercase">Witness signature</p>
-                <p className="mt-6 border-b border-black pb-1">&nbsp;</p>
-              </div>
             </section>
 
-            <footer className="mt-4 grid grid-cols-[1fr_auto] gap-4 border-t-2 border-black pt-3 text-[10px] leading-snug">
-              <div>
-                <p className="font-bold uppercase">Return address</p>
-                <p>
-                  Toll Compliance Management
-                  <br />
-                  Locked Bag 5004
-                  <br />
-                  Parramatta NSW 2124
-                </p>
-              </div>
-              <p className="self-end text-right font-bold uppercase">
-                OFFICIAL: Sensitive - Personal
-                <br />
-                (when completed)
+            <footer className="mt-4 border-t-2 border-black pt-3 text-[10px] leading-snug">
+              <p className="font-bold uppercase">Privacy notice</p>
+              <p>
+                Personal information is collected to process this toll notice nomination and may be
+                disclosed to tolling authorities or enforcement agencies where required by law.
               </p>
+              <p className="mt-2 font-bold">The original Toll Notice or a copy must be enclosed.</p>
             </footer>
           </article>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-6">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-white">
+              Notice History
+            </h3>
+            <div className="space-y-3">
+              {historyQuery.data?.map((notice) => (
+                <div
+                  key={notice.id}
+                  className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      {notice.toll_notice_number} | {notice.vehicle_registration}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-widest text-brand-grey">
+                      {notice.nominee_full_name} | {notice.status} |{' '}
+                      {new Date(notice.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(notice.id)}
+                      className="rounded-lg border border-white/10 p-3 text-white hover:bg-white/10"
+                      title="Download PDF"
+                    >
+                      <Download className="h-4 w-4 text-brand-gold" />
+                    </button>
+                    {notice.status !== 'sent' && (
+                      <button
+                        type="button"
+                        onClick={() => markSentMutation.mutate(notice.id)}
+                        className="rounded-lg border border-white/10 p-3 text-white hover:bg-white/10"
+                        title="Mark as sent"
+                      >
+                        <Send className="h-4 w-4 text-brand-gold" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {!historyQuery.isLoading && historyQuery.data?.length === 0 && (
+                <p className="text-xs text-brand-grey">No toll transfer notices generated yet.</p>
+              )}
+            </div>
+          </section>
         </div>
       </div>
     </motion.div>

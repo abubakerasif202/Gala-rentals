@@ -179,6 +179,8 @@ const {
     customers: [] as Array<Record<string, any>>,
     invoices: [] as Array<Record<string, any>>,
     bookings: [] as Array<Record<string, any>>,
+    toll_transfer_notices: [] as Array<Record<string, any>>,
+    toll_transfer_notice_audit_events: [] as Array<Record<string, any>>,
     stripe_webhook_events: [] as Array<Record<string, any>>,
   },
   mockGetUser: vi.fn(),
@@ -335,6 +337,14 @@ vi.mock("../db/index.js", () => {
       return mockState.bookings;
     }
 
+    if (table === "toll_transfer_notices") {
+      return mockState.toll_transfer_notices;
+    }
+
+    if (table === "toll_transfer_notice_audit_events") {
+      return mockState.toll_transfer_notice_audit_events;
+    }
+
     if (table === "stripe_webhook_events") {
       return mockState.stripe_webhook_events;
     }
@@ -375,6 +385,16 @@ vi.mock("../db/index.js", () => {
 
     if (table === "bookings") {
       mockState.bookings = rows;
+      return;
+    }
+
+    if (table === "toll_transfer_notices") {
+      mockState.toll_transfer_notices = rows;
+      return;
+    }
+
+    if (table === "toll_transfer_notice_audit_events") {
+      mockState.toll_transfer_notice_audit_events = rows;
       return;
     }
 
@@ -893,6 +913,27 @@ vi.mock("../db/index.js", () => {
       mockState.bookings = [...mockState.bookings, insertedRow];
     }
 
+    if (table === "toll_transfer_notices") {
+      mockState.toll_transfer_notices = [
+        ...mockState.toll_transfer_notices,
+        {
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          ...insertedRow,
+        },
+      ];
+    }
+
+    if (table === "toll_transfer_notice_audit_events") {
+      mockState.toll_transfer_notice_audit_events = [
+        ...mockState.toll_transfer_notice_audit_events,
+        {
+          created_at: new Date().toISOString(),
+          ...insertedRow,
+        },
+      ];
+    }
+
     if (table === "stripe_webhook_events") {
       mockState.stripe_webhook_events = [
         ...mockState.stripe_webhook_events,
@@ -1269,6 +1310,8 @@ beforeEach(() => {
   mockState.rentals = [];
   mockState.lease_agreements = [];
   mockState.stripe_webhook_events = [];
+  mockState.toll_transfer_notices = [];
+  mockState.toll_transfer_notice_audit_events = [];
 
   mockState.customers = [
     {
@@ -2902,6 +2945,165 @@ describe("Operational history API", () => {
     expect(res.body.totalPages).toBe(1);
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0].external_invoice_number).toBe("1881");
+  });
+});
+
+describe("Toll Transfer Notices API", () => {
+  const validTollNoticePayload = () => ({
+    application_id: APPROVED_APPLICATION_ID,
+    authorised_officer_name: "Saffaraz Rajabi",
+    car_id: 1,
+    customer_id: 1,
+    declaration_date: "2026-04-30",
+    declaration_place: "Merrylands NSW",
+    nominee_address: "10 Driver Street",
+    nominee_country: "AUSTRALIA",
+    nominee_dob: "1999-09-24",
+    nominee_full_name: "Approved Driver",
+    nominee_phone: "0499999999",
+    nominee_postcode: "2160",
+    nominee_state: "NSW",
+    nominee_suburb: "MERRYLANDS",
+    rental_id: 20,
+    responsible_type: "responsible",
+    toll_notice_number: "TN123456789",
+    toll_trip_date: "2026-04-29",
+    vehicle_registration: "CZ55XY",
+    witness_jp_number: "123456",
+    witness_name: "Witness Person",
+    witness_qualification: "Justice of the Peace",
+  });
+
+  it("GET /api/toll-notices is admin protected", async () => {
+    const res = await request(app).get("/api/toll-notices");
+
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/toll-notices/rental-options prefills customer and vehicle details", async () => {
+    mockState.cars[0].name = "Toyota Camry (CZ55XY)";
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-03-01",
+        weekly_price: 250,
+      },
+    ];
+    mockState.customers[0] = {
+      ...mockState.customers[0],
+      city: "Merrylands",
+      date_of_birth: "1999-09-24",
+      email: "approved@example.com",
+      full_name: "Approved Driver",
+      phone: "0499999999",
+      postcode: "2160",
+      state: "NSW",
+      street: "10 Driver Street",
+    };
+
+    const res = await request(app)
+      .get("/api/toll-notices/rental-options?search=CZ55XY")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0]).toMatchObject({
+      application_id: APPROVED_APPLICATION_ID,
+      customer_id: 1,
+      nominee_dob: "1999-09-24",
+      nominee_full_name: "Approved Driver",
+      nominee_phone: "0499999999",
+      vehicle_registration: "CZ55XY",
+    });
+  });
+
+  it("POST /api/toll-notices rejects missing required fields", async () => {
+    const res = await request(app)
+      .post("/api/toll-notices")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        ...validTollNoticePayload(),
+        nominee_full_name: "",
+        toll_notice_number: "",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Validation failed");
+  });
+
+  it("POST /api/toll-notices saves generated records and audit events", async () => {
+    const res = await request(app)
+      .post("/api/toll-notices")
+      .set("Authorization", "Bearer fake-token")
+      .send(validTollNoticePayload());
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      id: 1,
+      pdf_url: "/api/toll-notices/1/pdf",
+      status: "generated",
+    });
+    expect(mockState.toll_transfer_notices).toHaveLength(1);
+    expect(mockState.toll_transfer_notices[0]).toMatchObject({
+      application_id: APPROVED_APPLICATION_ID,
+      nominee_full_name: "Approved Driver",
+      pdf_url: "/api/toll-notices/1/pdf",
+      toll_notice_number: "TN123456789",
+      vehicle_registration: "CZ55XY",
+    });
+    expect(mockState.toll_transfer_notice_audit_events[0]).toMatchObject({
+      action: "generate",
+      toll_transfer_notice_id: 1,
+    });
+  });
+
+  it("GET /api/toll-notices/:id/pdf returns a PDF for the saved toll notice", async () => {
+    await request(app)
+      .post("/api/toll-notices")
+      .set("Authorization", "Bearer fake-token")
+      .send(validTollNoticePayload());
+
+    const res = await request(app)
+      .get("/api/toll-notices/1/pdf")
+      .set("Authorization", "Bearer fake-token")
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        response.on("end", () => callback(null, Buffer.concat(chunks)));
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(1000);
+    expect(mockState.toll_transfer_notice_audit_events.at(-1)).toMatchObject({
+      action: "download",
+      toll_transfer_notice_id: 1,
+    });
+  });
+
+  it("PATCH /api/toll-notices/:id/status marks a notice as sent", async () => {
+    await request(app)
+      .post("/api/toll-notices")
+      .set("Authorization", "Bearer fake-token")
+      .send(validTollNoticePayload());
+
+    const res = await request(app)
+      .patch("/api/toll-notices/1/status")
+      .set("Authorization", "Bearer fake-token")
+      .send({ status: "sent" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: 1, status: "sent" });
+    expect(mockState.toll_transfer_notices[0].status).toBe("sent");
+    expect(mockState.toll_transfer_notice_audit_events.at(-1)).toMatchObject({
+      action: "send",
+      toll_transfer_notice_id: 1,
+    });
   });
 });
 

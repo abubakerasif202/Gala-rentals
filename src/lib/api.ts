@@ -406,4 +406,94 @@ export const fetchWeeklyFinancials = async (): Promise<WeeklyFinancials> => {
   return data;
 };
 
+export interface TollNoticeRentalOption {
+  application_id: string;
+  applicant_name: string;
+  car_id: number | null;
+  car_name: string;
+  customer_id: number | null;
+  nominee_address: string;
+  nominee_country: string;
+  nominee_dob: string | null;
+  nominee_full_name: string;
+  nominee_given_names: string;
+  nominee_phone: string;
+  nominee_postcode: string;
+  nominee_state: string;
+  nominee_suburb: string;
+  nominee_surname: string;
+  rental_id: number;
+  rental_status: string;
+  vehicle_registration: string;
+}
+
+export interface TollTransferNoticePayload {
+  application_id?: string | null;
+  authorised_officer_name: string;
+  car_id?: number | null;
+  customer_id?: number | null;
+  declaration_date: string;
+  declaration_place: string;
+  nominee_address: string;
+  nominee_country: string;
+  nominee_dob?: string | null;
+  nominee_full_name: string;
+  nominee_phone: string;
+  nominee_postcode: string;
+  nominee_state: string;
+  nominee_suburb: string;
+  rental_id?: number | null;
+  responsible_type: 'responsible' | 'new-owner' | 'previous-owner';
+  toll_notice_number: string;
+  toll_trip_date?: string | null;
+  vehicle_registration: string;
+  witness_jp_number?: string | null;
+  witness_name?: string | null;
+  witness_qualification?: string | null;
+}
+
+export interface TollTransferNoticeRecord extends TollTransferNoticePayload {
+  id: number;
+  created_at: string;
+  created_by?: string | null;
+  pdf_url?: string | null;
+  status: 'draft' | 'generated' | 'sent';
+  updated_at: string;
+}
+
+export const fetchTollNoticeRentalOptions = async (
+  search = ''
+): Promise<TollNoticeRentalOption[]> => {
+  const { data } = await api.get('/toll-notices/rental-options', {
+    params: { search },
+  });
+  return data.items || [];
+};
+
+export const fetchTollTransferNotices = async (): Promise<TollTransferNoticeRecord[]> => {
+  const { data } = await api.get('/toll-notices');
+  return data;
+};
+
+export const createTollTransferNotice = async (
+  payload: TollTransferNoticePayload
+): Promise<{ id: number; pdf_url: string; status: 'generated' }> => {
+  const { data } = await api.post('/toll-notices', payload);
+  return data;
+};
+
+export const fetchTollTransferNoticePdf = async (id: number): Promise<Blob> => {
+  const { data } = await api.get(`/toll-notices/${id}/pdf`, {
+    responseType: 'blob',
+  });
+  return data;
+};
+
+export const markTollTransferNoticeSent = async (
+  id: number
+): Promise<{ id: number; status: 'sent' }> => {
+  const { data } = await api.patch(`/toll-notices/${id}/status`, { status: 'sent' });
+  return data;
+};
+
 export default api;

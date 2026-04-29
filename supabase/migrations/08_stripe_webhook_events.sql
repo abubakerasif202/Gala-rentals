@@ -21,5 +21,17 @@ CREATE INDEX IF NOT EXISTS idx_stripe_webhook_events_status
 
 ALTER TABLE public.stripe_webhook_events ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY admin_full_access ON stripe_webhook_events
-  FOR ALL TO authenticated USING (is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'stripe_webhook_events'
+      AND policyname = 'admin_full_access'
+  ) THEN
+    CREATE POLICY admin_full_access ON public.stripe_webhook_events
+      FOR ALL TO authenticated
+      USING (is_admin());
+  END IF;
+END $$;

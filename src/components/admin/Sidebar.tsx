@@ -6,8 +6,9 @@ import {
   Calendar, 
   TrendingUp,
   DollarSign,
-  LogOut, 
+  LogOut,
   FileText,
+  ScrollText,
   X
 } from 'lucide-react';
 
@@ -35,6 +36,7 @@ export default function Sidebar({
     { id: 'financials', icon: TrendingUp, label: 'Financials' },
     { id: 'cars', icon: Car, label: 'Fleet' },
     { id: 'agreements', icon: FileText, label: 'Agreements' },
+    { id: 'toll-stat-dec', icon: ScrollText, label: 'Toll Stat Dec' },
   ];
 
   return (

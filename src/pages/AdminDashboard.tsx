@@ -36,6 +36,7 @@ import FinancialsTab from '../components/admin/tabs/FinancialsTab';
 import CustomersTab from '../components/admin/tabs/CustomersTab';
 import InvoicesTab from '../components/admin/tabs/InvoicesTab';
 import AgreementsTab from '../components/admin/tabs/AgreementsTab';
+import TollStatDecTab from '../components/admin/tabs/TollStatDecTab';
 import VehicleFormModal from '../components/admin/vehicles/VehicleFormModal';
 import VehicleActionDialog from '../components/admin/vehicles/VehicleActionDialog';
 
@@ -78,6 +79,7 @@ const adminTabLabels: Record<string, string> = {
   financials: 'Financials',
   invoices: 'Invoices',
   rentals: 'Rentals',
+  'toll-stat-dec': 'Toll Stat Dec',
 };
 
 const matchesSearch = (searchTerm: string, fields: Array<string | number | null | undefined>) => {
@@ -414,7 +416,10 @@ export default function AdminDashboard() {
   const shouldLoadStats = activeTab === 'dashboard' || activeTab === 'financials';
   const shouldLoadCars = activeTab === 'dashboard' || activeTab === 'cars';
   const shouldLoadApplications =
-    activeTab === 'dashboard' || activeTab === 'applications' || activeTab === 'agreements';
+    activeTab === 'dashboard' ||
+    activeTab === 'applications' ||
+    activeTab === 'agreements' ||
+    activeTab === 'toll-stat-dec';
   const shouldLoadRentals = activeTab === 'rentals';
   const shouldLoadCustomers = activeTab === 'customers';
   const shouldLoadInvoices = activeTab === 'invoices';
@@ -1119,6 +1124,10 @@ export default function AdminDashboard() {
               setIsAgreementModalOpen={setIsAgreementModalOpen}
               deleteAgreementMutation={deleteAgreementMutation}
             />
+          )}
+
+          {activeTab === 'toll-stat-dec' && (
+            <TollStatDecTab applications={applications} />
           )}
         </AnimatePresence>
       </div>

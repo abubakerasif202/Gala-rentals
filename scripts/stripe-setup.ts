@@ -32,9 +32,11 @@ const EXPECTED_WEBHOOK_EVENTS = [
   'checkout.session.async_payment_succeeded',
   'checkout.session.async_payment_failed',
   'checkout.session.expired',
-  'invoice.payment_failed',
+  'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
+  'invoice.payment_succeeded',
+  'invoice.payment_failed',
 ] as const;
 
 type CheckStatus = 'pass' | 'warn' | 'fail';

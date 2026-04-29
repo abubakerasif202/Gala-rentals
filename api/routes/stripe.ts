@@ -345,19 +345,6 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
       .parse(req.query);
     const resolvedCheckoutToken = getCheckoutTokenFromRequest(req, checkout_token);
 
-    if (!resolvedCheckoutToken) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: [
-          {
-            code: 'custom',
-            message: 'checkout_token is required',
-            path: ['checkout_token'],
-          },
-        ],
-      });
-    }
-
     const response = await getVehicleCheckoutSessionStatus({
       applicationId: application_id,
       checkoutToken: resolvedCheckoutToken,

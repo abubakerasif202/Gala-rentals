@@ -20,7 +20,7 @@ export default function Success() {
   const [checkoutToken, setCheckoutToken] = useState(
     () => resolveCheckoutToken(searchParams, window.location.hash)
   );
-  const hasVerificationContext = Boolean(sessionId && applicationId && checkoutToken);
+  const hasVerificationContext = Boolean(sessionId && applicationId);
 
   useEffect(() => {
     const syncCheckoutToken = () => {
@@ -53,7 +53,7 @@ export default function Success() {
     queryFn: () =>
       fetchCheckoutSessionStatus(sessionId, {
         application_id: applicationId,
-        checkout_token: checkoutToken,
+        checkout_token: checkoutToken || null,
       }),
     enabled: hasVerificationContext,
     retry: (failureCount, error) =>
@@ -77,7 +77,7 @@ export default function Success() {
     data?.payment_status === 'paid' &&
     data?.internal_status === 'pending';
   const retryHref =
-    hasVerificationContext
+    hasVerificationContext && checkoutToken
       ? `/checkout/${applicationId}${buildCheckoutTokenHash(checkoutToken)}`
       : '/apply';
 
@@ -173,7 +173,7 @@ export default function Success() {
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
                 {isError || !hasVerificationContext
-                  ? 'We could not verify this secure checkout session. Request a fresh checkout link if the amount has not been charged.'
+                  ? 'We could not verify this secure checkout session yet. If Stripe charged the payment, Maple Rentals can recover it from the checkout session.'
                   : 'Stripe did not report a completed paid session for this checkout link. Retry from the original secure link or contact support.'}
               </p>
               <Link

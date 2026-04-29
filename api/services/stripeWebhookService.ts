@@ -38,6 +38,8 @@ export type StripeWebhookWorkItem = {
   paymentLinkVersion: number | null;
   paymentStatus: string | null;
   processingSource: 'webhook-route' | 'queue-worker';
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
 };
 
 type ModernWebhookLedgerRow = {
@@ -89,6 +91,29 @@ export const buildStripeWebhookWorkItem = (
     Number.isFinite(paymentLinkVersionValue) && paymentLinkVersionValue > 0
       ? paymentLinkVersionValue
       : null;
+  const checkoutSessionSubscription = (payload as {
+    subscription?: string | Stripe.Subscription | null;
+  }).subscription;
+  const invoiceSubscription = (payload as {
+    subscription?: string | Stripe.Subscription | null;
+  }).subscription;
+  const stripeSubscriptionId =
+    event.type.startsWith('customer.subscription.') &&
+    typeof (payload as { id?: string }).id === 'string'
+      ? String((payload as { id: string }).id)
+      : typeof checkoutSessionSubscription === 'string'
+        ? checkoutSessionSubscription
+        : checkoutSessionSubscription?.id ||
+          (typeof invoiceSubscription === 'string'
+            ? invoiceSubscription
+            : invoiceSubscription?.id || null);
+  const customerReference = (payload as {
+    customer?: string | { id?: string } | null;
+  }).customer;
+  const stripeCustomerId =
+    typeof customerReference === 'string'
+      ? customerReference
+      : customerReference?.id || null;
 
   return {
     applicationId,
@@ -107,6 +132,8 @@ export const buildStripeWebhookWorkItem = (
         ? String((payload as { payment_status?: string }).payment_status)
         : null,
     processingSource,
+    stripeCustomerId,
+    stripeSubscriptionId,
   };
 };
 
@@ -686,6 +713,33 @@ export const processStripeWebhookWorkItem = async (
             subscriptionId,
             subscription.metadata,
             await getRentalStatusUpdatePayload('Overdue')
+          );
+        }
+        break;
+      }
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionReference = (invoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null }).subscription;
+        const subscriptionId = typeof subscriptionReference === 'string' ? subscriptionReference : subscriptionReference?.id || null;
+        if (subscriptionId) {
+          const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+          if (subscription.status === 'active') {
+            await updateRentalBySubscriptionIdentityOrSkip(
+              subscriptionId,
+              subscription.metadata,
+              await getRentalStatusUpdatePayload('Active')
+            );
+          }
+        }
+        break;
+      }
+      case 'customer.subscription.created': {
+        const subscription = event.data.object as Stripe.Subscription;
+        if (subscription.status === 'active') {
+          await updateRentalBySubscriptionIdentityOrSkip(
+            subscription.id,
+            subscription.metadata,
+            await getRentalStatusUpdatePayload('Active')
           );
         }
         break;

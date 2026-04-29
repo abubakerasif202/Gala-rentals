@@ -75,6 +75,12 @@ type PendingCheckoutSessionResolution = {
   session: Stripe.Checkout.Session | null;
 };
 
+type VerifiedCheckoutSessionContext = {
+  carId: number | null;
+  session: Stripe.Checkout.Session;
+  subscriptionId: string | null;
+};
+
 type StripeApplication = {
   approved_at?: string | null;
   approved_bond?: number | string | null;
@@ -236,6 +242,13 @@ const createHostedCheckoutSession = async ({
     metadata.car_id = String(carId);
   }
 
+  console.info('Creating Stripe vehicle checkout session', {
+    applicationId: application.id,
+    carId,
+    idempotencyKey,
+    paymentLinkVersion: application.payment_link_version,
+  });
+
   return getStripe().checkout.sessions.create(
     {
       billing_address_collection: 'auto',
@@ -358,6 +371,74 @@ const persistPendingCheckoutSessionId = async (
     expectedPaymentLinkVersion: paymentLinkVersion,
     sessionId,
   });
+};
+
+const getSessionSubscriptionId = (session: Stripe.Checkout.Session) =>
+  typeof session.subscription === 'string'
+    ? session.subscription
+    : session.subscription?.id || null;
+
+const verifyCheckoutSessionContext = async ({
+  application,
+  applicationId,
+  checkoutToken,
+  sessionId,
+}: {
+  application: StripeApplication;
+  applicationId: string;
+  checkoutToken?: string | null;
+  sessionId: string;
+}): Promise<VerifiedCheckoutSessionContext> => {
+  const session = await getStripe().checkout.sessions.retrieve(sessionId);
+  const metadataApplicationId = normalizeUuid(session.metadata?.application_id || '');
+  const metadataCarId = Number(session.metadata?.car_id || 0) || null;
+  const metadataCheckoutKind = session.metadata?.checkout_kind || null;
+  const metadataVersion = Number(session.metadata?.payment_link_version || 0);
+  const currentPaymentLinkVersion = Number(application.payment_link_version || 0);
+
+  if (metadataApplicationId !== normalizeUuid(applicationId)) {
+    throw new Error('Checkout session does not match this application.');
+  }
+
+  if (metadataCheckoutKind !== 'vehicle') {
+    throw new Error('Checkout session does not match this payment link.');
+  }
+
+  if (metadataVersion !== currentPaymentLinkVersion) {
+    throw new Error('Checkout session belongs to an outdated payment link.');
+  }
+
+  if (checkoutToken) {
+    const checkoutTokenPayload = verifyCheckoutToken({
+      applicationId,
+      purpose: 'vehicle',
+      token: checkoutToken,
+      version: currentPaymentLinkVersion,
+    });
+    const tokenCarId = getCheckoutTokenCarId(checkoutTokenPayload.carId);
+
+    if (metadataCarId !== tokenCarId) {
+      throw new Error('Checkout session vehicle does not match this payment link.');
+    }
+  } else {
+    const pendingCheckoutSessionId = application.pending_checkout_session_id || null;
+    const isRecoverablePaidSession =
+      session.status === 'complete' &&
+      session.payment_status === 'paid' &&
+      (pendingCheckoutSessionId === session.id ||
+        application.status === 'Paid' ||
+        application.status === 'Payment Review');
+
+    if (!isRecoverablePaidSession) {
+      throw new Error('Checkout token is required for this checkout session.');
+    }
+  }
+
+  return {
+    carId: metadataCarId,
+    session,
+    subscriptionId: getSessionSubscriptionId(session),
+  };
 };
 
 const withOptionalCheckoutSessionLock = async <T>(
@@ -523,9 +604,22 @@ export const createVehicleCheckoutSession = async ({
     );
 
     if (!didPersistSession) {
+      console.error('Failed to persist pending Stripe checkout session', {
+        applicationId,
+        checkoutSessionId: session.id,
+        paymentLinkVersion: application.payment_link_version,
+      });
       await expirePendingCheckoutSession(session.id);
       throw new Error('Payment link is no longer active. Please reload the latest link.');
     }
+
+    console.info('Persisted pending Stripe checkout session', {
+      applicationId,
+      checkoutSessionId: session.id,
+      stripeCustomerId:
+        typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
+      stripeSubscriptionId: getSessionSubscriptionId(session),
+    });
 
     return {
       checkout_url: session.url,
@@ -649,7 +743,7 @@ export const getVehicleCheckoutSessionStatus = async ({
   sessionId,
 }: {
   applicationId: string;
-  checkoutToken: string;
+  checkoutToken?: string | null;
   sessionId: string;
 }): Promise<VehicleCheckoutSessionStatusResponse> => {
   const application = await fetchApplication(applicationId);
@@ -658,39 +752,17 @@ export const getVehicleCheckoutSessionStatus = async ({
     throw new Error('Application not found');
   }
 
-  const checkoutTokenPayload = verifyCheckoutToken({
+  const {
+    carId,
+    session,
+    subscriptionId,
+  } = await verifyCheckoutSessionContext({
+    application,
     applicationId,
-    purpose: 'vehicle',
-    token: checkoutToken,
-    version: Number(application.payment_link_version || 0),
+    checkoutToken,
+    sessionId,
   });
-  const carId = getCheckoutTokenCarId(checkoutTokenPayload.carId);
-
-  const session = await getStripe().checkout.sessions.retrieve(sessionId);
-  const metadataApplicationId = normalizeUuid(session.metadata?.application_id || '');
-  const metadataCarId = Number(session.metadata?.car_id || 0) || null;
   const metadataCheckoutKind = session.metadata?.checkout_kind || null;
-  const metadataVersion = Number(session.metadata?.payment_link_version || 0);
-  const subscriptionId =
-    typeof session.subscription === 'string'
-      ? session.subscription
-      : session.subscription?.id || null;
-
-  if (metadataApplicationId !== normalizeUuid(applicationId)) {
-    throw new Error('Checkout session does not match this application.');
-  }
-
-  if (metadataCheckoutKind !== 'vehicle') {
-    throw new Error('Checkout session does not match this payment link.');
-  }
-
-  if (metadataCarId !== carId) {
-    throw new Error('Checkout session vehicle does not match this payment link.');
-  }
-
-  if (metadataVersion !== Number(application.payment_link_version || 0)) {
-    throw new Error('Checkout session belongs to an outdated payment link.');
-  }
 
   const rentalStatus = carId
     ? await getConfirmedRentalStatus({

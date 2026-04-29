@@ -18,6 +18,8 @@ describe('stripeWebhookService queue-ready boundaries', () => {
             payment_link_version: '4',
           },
           payment_status: 'paid',
+          customer: 'cus_test_123',
+          subscription: 'sub_test_123',
         },
       },
       id: 'evt_test_123',
@@ -34,6 +36,8 @@ describe('stripeWebhookService queue-ready boundaries', () => {
       paymentLinkVersion: 4,
       paymentStatus: 'paid',
       processingSource: 'webhook-route',
+      stripeCustomerId: 'cus_test_123',
+      stripeSubscriptionId: 'sub_test_123',
     });
   });
 

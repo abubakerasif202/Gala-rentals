@@ -246,15 +246,17 @@ export const fetchCheckoutSessionStatus = async (
   sessionId: string,
   options: {
     application_id: string;
-    checkout_token: string;
+    checkout_token?: string | null;
   }
 ): Promise<CheckoutSessionStatusResponse> => {
   const { checkout_token, ...params } = options;
   const { data } = await api.get(`/stripe/checkout-sessions/${sessionId}`, {
     params,
-    headers: {
-      'X-Checkout-Token': checkout_token,
-    },
+    headers: checkout_token
+      ? {
+          'X-Checkout-Token': checkout_token,
+        }
+      : undefined,
   });
   return data;
 };

@@ -5,6 +5,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, type Variants } from "motion/react";
 import {
   AlertCircle,
@@ -21,7 +22,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Seo from "../components/Seo";
-import { submitApplication } from "../lib/api";
+import {
+  fetchApplicationAgreementTemplate,
+  submitApplication,
+} from "../lib/api";
 import { getApiErrorMessage } from "../lib/errorHandling";
 import {
   APPLICATION_DOCUMENT_CONTENT_TYPES,
@@ -271,6 +275,10 @@ export default function Apply() {
   const [submittedApplicationId, setSubmittedApplicationId] = useState<
     string | null
   >(null);
+  const agreementTemplateQuery = useQuery({
+    queryKey: ["application-agreement-template"],
+    queryFn: fetchApplicationAgreementTemplate,
+  });
 
   const {
     register,
@@ -298,8 +306,18 @@ export default function Apply() {
   const passportDocument = watch("passport_or_uber_profile_screenshot");
   const agreementAccepted = watch("agreement_accepted");
   const agreementSignature = watch("agreement_signature");
+  const agreementTemplateVersion =
+    agreementTemplateQuery.data?.agreementTemplateVersion ?? null;
+  const agreementTemplateText = agreementTemplateQuery.data?.agreement?.trim() ?? "";
+  const agreementTemplateReady =
+    agreementTemplateQuery.isSuccess &&
+    agreementTemplateVersion !== null &&
+    agreementTemplateText.length > 0;
   const canSubmitApplication =
-    agreementAccepted && agreementSignature.trim().length >= 2 && !isSubmitting;
+    agreementTemplateReady &&
+    agreementAccepted &&
+    agreementSignature.trim().length >= 2 &&
+    !isSubmitting;
 
   const trustSignals = useMemo(
     () => [
@@ -395,6 +413,13 @@ export default function Apply() {
     setPageError(null);
 
     try {
+      if (!agreementTemplateReady) {
+        setPageError(
+          "The rental agreement is still loading. Please wait a moment and try again.",
+        );
+        return;
+      }
+
       if (
         !values.license_photo ||
         !values.license_back_photo ||
@@ -420,6 +445,10 @@ export default function Apply() {
       payload.set(
         "passport_or_uber_profile_screenshot",
         values.passport_or_uber_profile_screenshot,
+      );
+      payload.set(
+        "agreement_template_version",
+        String(agreementTemplateVersion),
       );
       payload.set("agreement_accepted", "true");
       payload.set("agreement_signature", values.agreement_signature.trim());
@@ -950,40 +979,39 @@ export default function Apply() {
                     <SectionShell
                       eyebrow="Step 3"
                       title="Agreement Review"
-                      description="Review the rental agreement, confirm you accept it, and sign with your full name before submitting."
+                      description="Review Maple Rentals' final legal rental agreement from the shared template, confirm you accept it, and sign with your full name before submitting."
                       icon={Loader2}
                     >
                       <div className="space-y-5">
                         <div className="rounded-3xl border border-white/10 bg-brand-navy/60 p-5">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold">
-                            Rental Agreement
-                          </p>
-                          <div className="mt-4 max-h-[320px] space-y-4 overflow-y-auto pr-2 text-sm leading-7 text-brand-grey">
-                            <p>
-                              By submitting this application, you confirm that
-                              the details you provided are accurate and that
-                              Maple Rentals may verify your identity,
-                              documents, and driving history.
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold">
+                                Final legal rental agreement
+                              </p>
+                              <p className="mt-2 text-[10px] uppercase tracking-[0.28em] text-brand-grey">
+                                Template version {agreementTemplateVersion ?? "loading..."}
+                              </p>
+                            </div>
+                            <p className="text-[10px] uppercase tracking-[0.3em] text-brand-grey">
+                              Shared source of truth
                             </p>
-                            <p>
-                              You agree to follow the approved vehicle and
-                              rental terms provided during onboarding,
-                              including payment obligations, vehicle care,
-                              return requirements, and any operational
-                              conditions communicated by Maple Rentals.
-                            </p>
-                            <p>
-                              You understand that submitting this application
-                              does not guarantee approval. If approved, your
-                              payment link, contract documents, and onboarding
-                              steps will be issued through Maple Rentals.
-                            </p>
-                            <p>
-                              If you cancel your application or Maple Rentals
-                              cancels it, payment activation may be stopped and
-                              stored Stripe resources may be invalidated for
-                              this application only.
-                            </p>
+                          </div>
+                          <div className="mt-4 max-h-[360px] overflow-y-auto rounded-2xl border border-white/5 bg-white/[0.02] p-5 text-sm leading-7 text-brand-grey">
+                            {agreementTemplateQuery.isLoading ? (
+                              <div className="flex items-center gap-3 text-brand-grey">
+                                <Loader2 className="h-4 w-4 animate-spin text-brand-gold" />
+                                Loading agreement text...
+                              </div>
+                            ) : agreementTemplateQuery.isError ? (
+                              <p className="text-red-300">
+                                We could not load the legal agreement text. Please refresh the page and try again.
+                              </p>
+                            ) : (
+                              <div className="whitespace-pre-wrap text-brand-grey">
+                                {agreementTemplateText}
+                              </div>
+                            )}
                           </div>
                         </div>
 

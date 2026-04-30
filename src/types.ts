@@ -16,6 +16,7 @@ export interface Application {
   approved_weekly_price?: number | null;
   agreement_accepted_at?: string | null;
   agreement_signature?: string | null;
+  agreement_template_version?: number | null;
   id: string;
   name: string;
   phone: string;

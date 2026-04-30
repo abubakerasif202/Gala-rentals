@@ -19,6 +19,10 @@ const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
       acceptable: ['agreement_signature', 'agreementSignature'],
     },
     {
+      label: 'agreement_template_version',
+      acceptable: ['agreement_template_version', 'agreementTemplateVersion'],
+    },
+    {
       label: 'approved_weekly_price',
       acceptable: ['approved_weekly_price', 'approvedWeeklyPrice'],
     },
@@ -184,6 +188,7 @@ export const verifyProductionSchemaContract = async () => {
         { table: 'applications', column: compat.applicationPaidAtColumn },
         { table: 'applications', column: compat.applicationPaymentLinkSentAtColumn },
         { table: 'applications', column: compat.applicationPaymentLinkVersionColumn },
+        { table: 'applications', column: compat.applicationAgreementTemplateVersionColumn },
         { table: 'applications', column: compat.applicationPendingCheckoutSessionColumn },
         { table: 'cars', column: compat.carCreatedAtColumn },
         { table: 'rentals', column: compat.rentalStripeCustomerColumn },

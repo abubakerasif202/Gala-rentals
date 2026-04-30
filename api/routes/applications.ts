@@ -46,6 +46,10 @@ import {
   MAX_APPLICATION_UPLOAD_BYTES,
 } from "../../shared/applicationSubmission.js";
 import {
+  CAR_LEASE_AGREEMENT_TEMPLATE_VERSION,
+  renderCarLeaseAgreement,
+} from "../templates/carLeaseAgreement.js";
+import {
   escapeHtml,
   getResend,
   sanitizeEmailHeaderValue,
@@ -121,6 +125,13 @@ const normalizeDeclaredDocumentType = (value: string) => {
   return normalized === "application/x-pdf" ? "application/pdf" : normalized;
 };
 const getStripe = () => getStripeClient();
+
+router.get("/agreement-template", (_req, res) => {
+  res.json({
+    agreement: renderCarLeaseAgreement(),
+    agreementTemplateVersion: CAR_LEASE_AGREEMENT_TEMPLATE_VERSION,
+  });
+});
 
 type ApplicationUploadField =
   | "license_photo"
@@ -594,11 +605,11 @@ router.post(
         "Passport or Uber profile screenshot",
       );
 
-        const normalizedApplicationData = {
-          ...data,
-          email,
-          phone,
-        };
+      const normalizedApplicationData = {
+        ...data,
+        email,
+        phone,
+      };
       let licensePhotoUrl = null;
       let licenseBackPhotoUrl = null;
       const existingApplicationSelectColumns =
@@ -680,19 +691,20 @@ router.post(
         uploadedPaths,
       });
 
-        const {
-          weekly_budget: _weeklyBudget,
-          ...submissionDataWithoutBudget
-        } = normalizedApplicationData;
-        const basePayload = await toApplicationWritePayload({
-          ...submissionDataWithoutBudget,
-          license_photo: licensePhotoUrl,
-          license_back_photo: licenseBackPhotoUrl,
-          passport_or_uber_profile_screenshot: passportDocumentUrl,
-          agreement_accepted_at: new Date().toISOString(),
-          agreement_signature: String(data.agreement_signature || "").trim(),
-          status: "Pending",
-        });
+      const {
+        weekly_budget: _weeklyBudget,
+        ...submissionDataWithoutBudget
+      } = normalizedApplicationData;
+      const basePayload = await toApplicationWritePayload({
+        ...submissionDataWithoutBudget,
+        license_photo: licensePhotoUrl,
+        license_back_photo: licenseBackPhotoUrl,
+        passport_or_uber_profile_screenshot: passportDocumentUrl,
+        agreement_accepted_at: new Date().toISOString(),
+        agreement_signature: String(data.agreement_signature || "").trim(),
+        agreement_template_version: CAR_LEASE_AGREEMENT_TEMPLATE_VERSION,
+        status: "Pending",
+      });
       const { data: inserted, error } = await db
         .from("applications")
         .insert([basePayload])

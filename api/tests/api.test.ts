@@ -1314,6 +1314,7 @@ beforeEach(() => {
       passport_or_uber_profile_screenshot: null,
       agreement_accepted_at: "2026-03-03T00:00:00.000Z",
       agreement_signature: "Jane Driver",
+      agreement_template_version: 1,
       cancelled_at: null,
       cancel_reason: null,
       paid_at: null,
@@ -1347,6 +1348,7 @@ beforeEach(() => {
         "https://project.supabase.co/storage/v1/object/public/applications/docs/passport-2.png",
       agreement_accepted_at: "2026-03-04T00:00:00.000Z",
       agreement_signature: "Approved Driver",
+      agreement_template_version: 1,
       cancelled_at: null,
       cancel_reason: null,
       paid_at: null,
@@ -2005,6 +2007,14 @@ describe("Agreements API", () => {
     expect(res.status).toBe(401);
   });
 
+  it("GET /api/applications/agreement-template returns the shared legal agreement text and version", async () => {
+    const res = await request(app).get("/api/applications/agreement-template");
+
+    expect(res.status).toBe(200);
+    expect(res.body.agreement).toContain("# Car Lease Agreement");
+    expect(res.body.agreementTemplateVersion).toBe(1);
+  });
+
   it("POST /api/agreements blocks creation before payment is completed", async () => {
     const res = await request(app)
       .post("/api/agreements")
@@ -2533,6 +2543,7 @@ describe("Applications API", () => {
       email: "newdriver@example.com",
       license_number: "NSW55555",
       status: "Pending",
+      agreement_template_version: 1,
     });
   });
 
@@ -2625,6 +2636,7 @@ describe("Applications API", () => {
     expect(mockState.lease_agreements).toHaveLength(0);
     expect(mockState.applications.at(-1)).toMatchObject({
       status: "Pending",
+      agreement_template_version: 1,
     });
   });
 

@@ -16,11 +16,16 @@ type ApplicationPassportDocumentColumn =
   | 'passport_or_uber_profile_screenshot'
   | 'passportOrUberProfileScreenshot';
 
+type ApplicationAgreementTemplateVersionColumn =
+  | 'agreement_template_version'
+  | 'agreementTemplateVersion';
+
 type SchemaCompat = {
   applicationApprovedAtColumn: string;
   applicationApprovedVehicleColumn: string;
   applicationAgreementAcceptedAtColumn: string;
   applicationAgreementSignatureColumn: string;
+  applicationAgreementTemplateVersionColumn: ApplicationAgreementTemplateVersionColumn;
   carArchivedAtColumn: string;
   carCreatedAtColumn: string;
   coreMode: SchemaMode;
@@ -44,6 +49,7 @@ const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationApprovedVehicleColumn: 'approved_vehicle',
   applicationAgreementAcceptedAtColumn: 'agreement_accepted_at',
   applicationAgreementSignatureColumn: 'agreement_signature',
+  applicationAgreementTemplateVersionColumn: 'agreement_template_version',
   carArchivedAtColumn: 'archived_at',
   carCreatedAtColumn: 'created_at',
   coreMode: 'snake',
@@ -232,6 +238,16 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
             : coreMode === 'camel'
               ? 'agreementSignature'
               : 'agreement_signature';
+        const applicationAgreementTemplateVersionColumn: ApplicationAgreementTemplateVersionColumn = hasProperty(
+          applicationsDefinition,
+          'agreementTemplateVersion'
+        )
+          ? 'agreementTemplateVersion'
+          : hasProperty(applicationsDefinition, 'agreement_template_version')
+            ? 'agreement_template_version'
+            : coreMode === 'camel'
+              ? 'agreementTemplateVersion'
+              : 'agreement_template_version';
         const applicationPaidAtColumn = hasProperty(applicationsDefinition, 'paidAt')
           ? 'paidAt'
           : hasProperty(applicationsDefinition, 'paid_at')
@@ -279,6 +295,7 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           applicationApprovedVehicleColumn,
           applicationAgreementAcceptedAtColumn,
           applicationAgreementSignatureColumn,
+          applicationAgreementTemplateVersionColumn,
           carArchivedAtColumn,
           carCreatedAtColumn,
           coreMode,
@@ -388,6 +405,7 @@ export const getApplicationSelectColumns = async () => {
     applicationApprovedVehicleColumn,
     applicationAgreementAcceptedAtColumn,
     applicationAgreementSignatureColumn,
+    applicationAgreementTemplateVersionColumn,
     applicationApprovedWeeklyPriceColumn,
     applicationPaymentLinkVersionColumn,
     applicationPaymentLinkSentAtColumn,
@@ -442,6 +460,10 @@ export const getApplicationSelectColumns = async () => {
     applicationAgreementSignatureColumn === 'agreement_signature'
       ? 'agreement_signature'
       : `agreement_signature:${applicationAgreementSignatureColumn}`;
+  const agreementTemplateVersionSelect =
+    applicationAgreementTemplateVersionColumn === 'agreement_template_version'
+      ? 'agreement_template_version'
+      : `agreement_template_version:${applicationAgreementTemplateVersionColumn}`;
   const paidAtSelect =
     applicationPaidAtColumn === 'paid_at'
       ? 'paid_at'
@@ -484,6 +506,7 @@ export const getApplicationSelectColumns = async () => {
         approvedAtSelect,
         agreementAcceptedAtSelect,
         agreementSignatureSelect,
+        agreementTemplateVersionSelect,
         paidAtSelect,
         pendingCheckoutSessionSelect,
         cancelledAtSelect,
@@ -515,6 +538,7 @@ export const getApplicationSelectColumns = async () => {
         approvedAtSelect,
         agreementAcceptedAtSelect,
         agreementSignatureSelect,
+        agreementTemplateVersionSelect,
         paidAtSelect,
         pendingCheckoutSessionSelect,
         cancelledAtSelect,
@@ -548,6 +572,7 @@ export const toApplicationWritePayload = async (application: {
   passport_or_uber_profile_screenshot?: string | null;
   agreement_accepted_at?: string | null;
   agreement_signature?: string | null;
+  agreement_template_version?: number | null;
   cancelled_at?: string | null;
   cancel_reason?: string | null;
   status?: string;
@@ -558,6 +583,7 @@ export const toApplicationWritePayload = async (application: {
     applicationPassportDocumentColumn,
     applicationAgreementAcceptedAtColumn,
     applicationAgreementSignatureColumn,
+    applicationAgreementTemplateVersionColumn,
     applicationCancelledAtColumn,
     applicationCancelReasonColumn,
   } = await getSchemaCompat();
@@ -581,6 +607,7 @@ export const toApplicationWritePayload = async (application: {
       licensePhoto: application.license_photo ?? null,
       agreementAcceptedAt: application.agreement_accepted_at ?? null,
       agreementSignature: application.agreement_signature ?? null,
+      agreementTemplateVersion: application.agreement_template_version ?? null,
       cancelledAt: application.cancelled_at ?? null,
       cancelReason: application.cancel_reason ?? null,
       ...statusPayload,
@@ -589,6 +616,8 @@ export const toApplicationWritePayload = async (application: {
     payload[applicationPassportDocumentColumn] = passportDocument;
     payload[applicationAgreementAcceptedAtColumn] = application.agreement_accepted_at ?? null;
     payload[applicationAgreementSignatureColumn] = application.agreement_signature ?? null;
+    payload[applicationAgreementTemplateVersionColumn] =
+      application.agreement_template_version ?? null;
     payload[applicationCancelledAtColumn] = application.cancelled_at ?? null;
     payload[applicationCancelReasonColumn] = application.cancel_reason ?? null;
     return payload;
@@ -608,6 +637,7 @@ export const toApplicationWritePayload = async (application: {
     license_photo: application.license_photo ?? null,
     agreement_accepted_at: application.agreement_accepted_at ?? null,
     agreement_signature: application.agreement_signature ?? null,
+    agreement_template_version: application.agreement_template_version ?? null,
     cancelled_at: application.cancelled_at ?? null,
     cancel_reason: application.cancel_reason ?? null,
     ...statusPayload,
@@ -616,6 +646,8 @@ export const toApplicationWritePayload = async (application: {
   payload[applicationPassportDocumentColumn] = passportDocument;
   payload[applicationAgreementAcceptedAtColumn] = application.agreement_accepted_at ?? null;
   payload[applicationAgreementSignatureColumn] = application.agreement_signature ?? null;
+  payload[applicationAgreementTemplateVersionColumn] =
+    application.agreement_template_version ?? null;
   payload[applicationCancelledAtColumn] = application.cancelled_at ?? null;
   payload[applicationCancelReasonColumn] = application.cancel_reason ?? null;
   return payload;

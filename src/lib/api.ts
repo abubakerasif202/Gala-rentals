@@ -97,6 +97,11 @@ export const fetchApplications = async (): Promise<Application[]> => {
   return data;
 };
 
+export interface ApplicationAgreementTemplateResponse {
+  agreement: string;
+  agreementTemplateVersion: number;
+}
+
 export const updateApplicationStatus = async (id: string, status: string): Promise<{ success: boolean }> => {
   const { data } = await api.put(`/applications/${id}/status`, { status });
   return data;
@@ -233,6 +238,11 @@ export const fetchApplicationDocumentUrl = async (
     | 'passport_or_uber_profile_screenshot'
 ): Promise<{ url: string }> => {
   const { data } = await api.get(`/applications/${applicationId}/documents/${document}`);
+  return data;
+};
+
+export const fetchApplicationAgreementTemplate = async (): Promise<ApplicationAgreementTemplateResponse> => {
+  const { data } = await api.get('/applications/agreement-template');
   return data;
 };
 

@@ -1336,7 +1336,7 @@ export default function AdminDashboard() {
                     <h4 className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
                       Rental Agreement Acceptance
                     </h4>
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-3">
                       <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                         <p className="text-[10px] uppercase tracking-widest text-brand-grey">
                           Accepted at
@@ -1351,6 +1351,14 @@ export default function AdminDashboard() {
                         </p>
                         <p className="mt-2 break-words text-sm text-white">
                           {selectedApplication.agreement_signature || 'Not recorded'}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                        <p className="text-[10px] uppercase tracking-widest text-brand-grey">
+                          Template version
+                        </p>
+                        <p className="mt-2 text-sm text-white">
+                          {selectedApplication.agreement_template_version ?? 'Not recorded'}
                         </p>
                       </div>
                     </div>

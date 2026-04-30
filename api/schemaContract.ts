@@ -11,9 +11,23 @@ const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
     { label: 'approved_bond', acceptable: ['approved_bond', 'approvedBond'] },
     { label: 'approved_vehicle', acceptable: ['approved_vehicle', 'approvedVehicle'] },
     {
+      label: 'agreement_accepted_at',
+      acceptable: ['agreement_accepted_at', 'agreementAcceptedAt'],
+    },
+    {
+      label: 'agreement_signature',
+      acceptable: ['agreement_signature', 'agreementSignature'],
+    },
+    {
+      label: 'agreement_template_version',
+      acceptable: ['agreement_template_version', 'agreementTemplateVersion'],
+    },
+    {
       label: 'approved_weekly_price',
       acceptable: ['approved_weekly_price', 'approvedWeeklyPrice'],
     },
+    { label: 'cancelled_at', acceptable: ['cancelled_at', 'cancelledAt'] },
+    { label: 'cancel_reason', acceptable: ['cancel_reason', 'cancelReason'] },
     { label: 'paid_at', acceptable: ['paid_at', 'paidAt'] },
     {
       label: 'payment_link_sent_at',
@@ -26,6 +40,13 @@ const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
     {
       label: 'pending_checkout_session_id',
       acceptable: ['pending_checkout_session_id', 'pendingCheckoutSessionId'],
+    },
+    {
+      label: 'passport_or_uber_profile_screenshot',
+      acceptable: [
+        'passport_or_uber_profile_screenshot',
+        'passportOrUberProfileScreenshot',
+      ],
     },
   ],
   cars: [{ label: 'created_at', acceptable: ['created_at', 'createdAt'] }],
@@ -167,6 +188,7 @@ export const verifyProductionSchemaContract = async () => {
         { table: 'applications', column: compat.applicationPaidAtColumn },
         { table: 'applications', column: compat.applicationPaymentLinkSentAtColumn },
         { table: 'applications', column: compat.applicationPaymentLinkVersionColumn },
+        { table: 'applications', column: compat.applicationAgreementTemplateVersionColumn },
         { table: 'applications', column: compat.applicationPendingCheckoutSessionColumn },
         { table: 'cars', column: compat.carCreatedAtColumn },
         { table: 'rentals', column: compat.rentalStripeCustomerColumn },

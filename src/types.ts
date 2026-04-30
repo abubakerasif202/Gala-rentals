@@ -14,6 +14,9 @@ export interface Application {
   approved_bond?: number | null;
   approved_vehicle?: string | null;
   approved_weekly_price?: number | null;
+  agreement_accepted_at?: string | null;
+  agreement_signature?: string | null;
+  agreement_template_version?: number | null;
   id: string;
   name: string;
   phone: string;
@@ -27,11 +30,14 @@ export interface Application {
   intended_start_date: string;
   license_photo?: string;
   license_back_photo?: string;
+  passport_or_uber_profile_screenshot?: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
   paid_at?: string | null;
   payment_link_sent_at?: string | null;
   payment_link_version?: number;
   pending_checkout_session_id?: string | null;
-  status: 'Pending' | 'Paid' | 'Approved' | 'Rejected' | 'Payment Review';
+  status: 'Pending' | 'Paid' | 'Approved' | 'Rejected' | 'Payment Review' | 'Cancelled';
   created_at: string;
 }
 

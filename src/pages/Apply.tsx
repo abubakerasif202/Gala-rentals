@@ -5,6 +5,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, type Variants } from "motion/react";
 import {
   AlertCircle,
@@ -21,9 +22,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Seo from "../components/Seo";
-import { submitApplication } from "../lib/api";
+import {
+  fetchApplicationAgreementTemplate,
+  submitApplication,
+} from "../lib/api";
 import { getApiErrorMessage } from "../lib/errorHandling";
 import {
+  APPLICATION_DOCUMENT_CONTENT_TYPES,
   APPLICATION_IMAGE_CONTENT_TYPES,
   AUSTRALIAN_MOBILE_REGEX,
   MAX_APPLICATION_UPLOAD_BYTES,
@@ -35,7 +40,10 @@ import {
   normalizeAustralianMobile,
 } from "../../shared/applicationSubmission";
 
-const ALLOWED_UPLOAD_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
+const ALLOWED_IMAGE_UPLOAD_TYPES = new Set<string>(APPLICATION_IMAGE_CONTENT_TYPES);
+const ALLOWED_DOCUMENT_UPLOAD_TYPES = new Set<string>(
+  APPLICATION_DOCUMENT_CONTENT_TYPES,
+);
 const MAX_UPLOAD_SIZE_MB = Math.floor(
   MAX_APPLICATION_UPLOAD_BYTES / (1024 * 1024),
 );
@@ -76,12 +84,26 @@ const applicationFileSchema = (label: string) =>
       message: `${label} is required`,
     })
     .refine(
-      (file) => ALLOWED_UPLOAD_TYPES.has(file.type),
+      (file) => ALLOWED_IMAGE_UPLOAD_TYPES.has(file.type),
       `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
     )
     .refine(
       (file) => file.size <= MAX_APPLICATION_UPLOAD_BYTES,
       `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
+    );
+
+const applicationDocumentFileSchema = (label: string) =>
+  z
+    .custom<File>((value) => value instanceof File, {
+      message: `${label} is required`,
+    })
+    .refine(
+      (file) => ALLOWED_DOCUMENT_UPLOAD_TYPES.has(file.type),
+      `Please upload a JPG, PNG, or PDF smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
+    )
+    .refine(
+      (file) => file.size <= MAX_APPLICATION_UPLOAD_BYTES,
+      `Please upload a JPG, PNG, or PDF smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
     );
 
 const applySchema = z.object({
@@ -112,7 +134,6 @@ const applySchema = z.object({
   ),
   uber_status: z.enum(["Active", "Applying", "Not Yet Registered"]),
   experience: z.string().trim().min(1, "Experience is required"),
-  weekly_budget: z.string().trim().optional(),
   intended_start_date: dateOnlySchema(
     "Start date is required",
     "Start date must be a valid date",
@@ -122,6 +143,13 @@ const applySchema = z.object({
   ),
   license_photo: applicationFileSchema("Driver licence front photo"),
   license_back_photo: applicationFileSchema("Driver licence back photo"),
+  passport_or_uber_profile_screenshot: applicationDocumentFileSchema(
+    "Passport or Uber profile screenshot",
+  ),
+  agreement_accepted: z
+    .boolean()
+    .refine((value) => value, "You must accept the rental agreement"),
+  agreement_signature: z.string().trim().min(2, "Signature is required"),
 });
 
 type ApplyValues = z.input<typeof applySchema>;
@@ -136,10 +164,12 @@ const defaultValues: ApplyValues = {
   license_expiry: "",
   uber_status: "Active",
   experience: "New Driver",
-  weekly_budget: "",
   intended_start_date: "",
   license_photo: null,
   license_back_photo: null,
+  passport_or_uber_profile_screenshot: null,
+  agreement_accepted: false,
+  agreement_signature: "",
 };
 
 function FieldError({ message }: { message?: string }) {
@@ -245,6 +275,10 @@ export default function Apply() {
   const [submittedApplicationId, setSubmittedApplicationId] = useState<
     string | null
   >(null);
+  const agreementTemplateQuery = useQuery({
+    queryKey: ["application-agreement-template"],
+    queryFn: fetchApplicationAgreementTemplate,
+  });
 
   const {
     register,
@@ -262,10 +296,28 @@ export default function Apply() {
   useEffect(() => {
     register("license_photo");
     register("license_back_photo");
+    register("passport_or_uber_profile_screenshot");
+    register("agreement_accepted");
+    register("agreement_signature");
   }, [register]);
 
   const licensePhoto = watch("license_photo");
   const licenseBackPhoto = watch("license_back_photo");
+  const passportDocument = watch("passport_or_uber_profile_screenshot");
+  const agreementAccepted = watch("agreement_accepted");
+  const agreementSignature = watch("agreement_signature");
+  const agreementTemplateVersion =
+    agreementTemplateQuery.data?.agreementTemplateVersion ?? null;
+  const agreementTemplateText = agreementTemplateQuery.data?.agreement?.trim() ?? "";
+  const agreementTemplateReady =
+    agreementTemplateQuery.isSuccess &&
+    agreementTemplateVersion !== null &&
+    agreementTemplateText.length > 0;
+  const canSubmitApplication =
+    agreementTemplateReady &&
+    agreementAccepted &&
+    agreementSignature.trim().length >= 2 &&
+    !isSubmitting;
 
   const trustSignals = useMemo(
     () => [
@@ -294,18 +346,28 @@ export default function Apply() {
 
   const handleFileUpload = (
     event: ChangeEvent<HTMLInputElement>,
-    field: "license_photo" | "license_back_photo",
+    field:
+      | "license_photo"
+      | "license_back_photo"
+      | "passport_or_uber_profile_screenshot",
   ) => {
     const file = event.target.files?.[0];
     if (!file) {
       setValue(field, null, { shouldValidate: true });
       return;
     }
-    if (!ALLOWED_UPLOAD_TYPES.has(file.type)) {
+    const allowedTypes =
+      field === "passport_or_uber_profile_screenshot"
+        ? ALLOWED_DOCUMENT_UPLOAD_TYPES
+        : ALLOWED_IMAGE_UPLOAD_TYPES;
+
+    if (!allowedTypes.has(file.type)) {
       event.target.value = "";
       setValue(field, null, { shouldValidate: true });
       setPageError(
-        `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
+        field === "passport_or_uber_profile_screenshot"
+          ? `Please upload a JPG, PNG, or PDF smaller than ${MAX_UPLOAD_SIZE_MB} MB.`
+          : `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
       );
       return;
     }
@@ -313,7 +375,9 @@ export default function Apply() {
       event.target.value = "";
       setValue(field, null, { shouldValidate: true });
       setPageError(
-        `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
+        field === "passport_or_uber_profile_screenshot"
+          ? `Please upload a JPG, PNG, or PDF smaller than ${MAX_UPLOAD_SIZE_MB} MB.`
+          : `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
       );
       return;
     }
@@ -323,19 +387,24 @@ export default function Apply() {
   };
 
   const goToNextStep = async () => {
-    const isValid = await trigger([
-      "name",
-      "phone",
-      "email",
-      "address",
-      "uber_status",
-      "experience",
-      "intended_start_date",
-    ]);
+    const fieldsToValidate =
+      step === 1
+        ? ["name", "phone", "email", "address", "intended_start_date"]
+        : [
+            "license_number",
+            "license_expiry",
+            "uber_status",
+            "experience",
+            "license_photo",
+            "license_back_photo",
+            "passport_or_uber_profile_screenshot",
+          ];
+
+    const isValid = await trigger(fieldsToValidate as any);
 
     if (isValid) {
       setPageError(null);
-      setStep(2);
+      setStep(step === 1 ? 2 : 3);
     }
   };
 
@@ -344,8 +413,19 @@ export default function Apply() {
     setPageError(null);
 
     try {
-      if (!values.license_photo || !values.license_back_photo) {
-        setPageError("Please attach both licence images before submitting.");
+      if (!agreementTemplateReady) {
+        setPageError(
+          "The rental agreement is still loading. Please wait a moment and try again.",
+        );
+        return;
+      }
+
+      if (
+        !values.license_photo ||
+        !values.license_back_photo ||
+        !values.passport_or_uber_profile_screenshot
+      ) {
+        setPageError("Please attach all required documents before submitting.");
         return;
       }
 
@@ -360,12 +440,18 @@ export default function Apply() {
       payload.set("experience", values.experience);
       payload.set("intended_start_date", values.intended_start_date);
 
-      if (values.weekly_budget?.trim()) {
-        payload.set("weekly_budget", values.weekly_budget.trim());
-      }
-
       payload.set("license_photo", values.license_photo);
       payload.set("license_back_photo", values.license_back_photo);
+      payload.set(
+        "passport_or_uber_profile_screenshot",
+        values.passport_or_uber_profile_screenshot,
+      );
+      payload.set(
+        "agreement_template_version",
+        String(agreementTemplateVersion),
+      );
+      payload.set("agreement_accepted", "true");
+      payload.set("agreement_signature", values.agreement_signature.trim());
 
       const submission = await submitApplication(payload);
       setSubmittedApplicationId(submission.application_id);
@@ -382,7 +468,7 @@ export default function Apply() {
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
-    if (step === 1) {
+    if (step < 3) {
       event.preventDefault();
       void goToNextStep();
       return;
@@ -636,9 +722,9 @@ export default function Apply() {
                 <div className="flex flex-wrap items-center gap-3">
                   <StepBadge step="1" label="Identity" active={step >= 1} />
                   <div className="hidden h-px flex-1 bg-white/10 sm:block" />
-                  <StepBadge step="2" label="Licence" active={step >= 2} />
+                  <StepBadge step="2" label="Docs" active={step >= 2} />
                   <div className="hidden h-px flex-1 bg-white/10 sm:block" />
-                  <StepBadge step="3" label="Experience" active={step >= 2} />
+                  <StepBadge step="3" label="Agreement" active={step >= 3} />
                 </div>
               </div>
 
@@ -723,10 +809,10 @@ export default function Apply() {
                     <SectionShell
                       eyebrow="Step 2"
                       title="Licence Details"
-                      description="Upload the front and back of your licence so we can verify your identity and keep approval moving."
+                      description="Upload your documents and share the driving information we need for review."
                       icon={ShieldCheck}
                     >
-                      <div className="grid gap-5 md:grid-cols-2">
+                      <div className="grid gap-5 lg:grid-cols-3">
                         <div className="space-y-2">
                           <FormLabel>Licence number</FormLabel>
                           <input
@@ -749,6 +835,35 @@ export default function Apply() {
                           <FieldError
                             message={errors.license_expiry?.message}
                           />
+                        </div>
+
+                        <div className="space-y-2">
+                          <FormLabel>Passport or Uber profile screenshot</FormLabel>
+                          <input
+                            type="file"
+                            accept={APPLICATION_DOCUMENT_CONTENT_TYPES.join(",")}
+                            onChange={(event) =>
+                              handleFileUpload(
+                                event,
+                                "passport_or_uber_profile_screenshot",
+                              )
+                            }
+                            className="w-full rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-5 py-4 text-xs text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.24em] file:text-brand-navy hover:border-brand-gold/40"
+                          />
+                          <p className="text-[11px] leading-6 text-brand-grey">
+                            JPG, PNG, or PDF. Maximum file size is{" "}
+                            {MAX_UPLOAD_SIZE_MB} MB.
+                          </p>
+                          <FieldError
+                            message={
+                              errors.passport_or_uber_profile_screenshot?.message
+                            }
+                          />
+                          {passportDocument && (
+                            <p className="text-[10px] uppercase tracking-[0.28em] text-brand-gold">
+                              {passportDocument.name}
+                            </p>
+                          )}
                         </div>
 
                         <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
@@ -820,21 +935,7 @@ export default function Apply() {
                         </div>
                       </div>
 
-                      <div className="mt-5 rounded-2xl border border-brand-gold/15 bg-brand-gold/8 px-5 py-4 text-sm leading-7 text-brand-grey">
-                        Complete uploads help us move faster and reduce
-                        back-and-forth after submission.
-                      </div>
-                    </SectionShell>
-                  )}
-
-                  {step === 2 && (
-                    <SectionShell
-                      eyebrow="Step 3"
-                      title="Driving Experience"
-                      description="Share your background and weekly budget so we can align the right rental setup during review."
-                      icon={Loader2}
-                    >
-                      <div className="grid gap-5 md:grid-cols-2">
+                      <div className="mt-6 grid gap-5 md:grid-cols-2">
                         <div className="space-y-2">
                           <FormLabel>Uber status</FormLabel>
                           <select
@@ -865,44 +966,120 @@ export default function Apply() {
                           </select>
                           <FieldError message={errors.experience?.message} />
                         </div>
+                      </div>
 
-                        <div className="space-y-2 md:col-span-2">
-                          <FormLabel>Weekly budget</FormLabel>
-                          <input
-                            {...register("weekly_budget")}
-                            className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold"
-                            placeholder="Optional: e.g. $350"
-                          />
-                          <FieldError message={errors.weekly_budget?.message} />
+                      <div className="mt-5 rounded-2xl border border-brand-gold/15 bg-brand-gold/8 px-5 py-4 text-sm leading-7 text-brand-grey">
+                        Complete uploads help us move faster and reduce
+                        back-and-forth after submission.
+                      </div>
+                    </SectionShell>
+                  )}
+
+                  {step === 3 && (
+                    <SectionShell
+                      eyebrow="Step 3"
+                      title="Agreement Review"
+                      description="Review Maple Rentals' final legal rental agreement from the shared template, confirm you accept it, and sign with your full name before submitting."
+                      icon={Loader2}
+                    >
+                      <div className="space-y-5">
+                        <div className="rounded-3xl border border-white/10 bg-brand-navy/60 p-5">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold">
+                                Final legal rental agreement
+                              </p>
+                              <p className="mt-2 text-[10px] uppercase tracking-[0.28em] text-brand-grey">
+                                Template version {agreementTemplateVersion ?? "loading..."}
+                              </p>
+                            </div>
+                            <p className="text-[10px] uppercase tracking-[0.3em] text-brand-grey">
+                              Shared source of truth
+                            </p>
+                          </div>
+                          <div className="mt-4 max-h-[360px] overflow-y-auto rounded-2xl border border-white/5 bg-white/[0.02] p-5 text-sm leading-7 text-brand-grey">
+                            {agreementTemplateQuery.isLoading ? (
+                              <div className="flex items-center gap-3 text-brand-grey">
+                                <Loader2 className="h-4 w-4 animate-spin text-brand-gold" />
+                                Loading agreement text...
+                              </div>
+                            ) : agreementTemplateQuery.isError ? (
+                              <p className="text-red-300">
+                                We could not load the legal agreement text. Please refresh the page and try again.
+                              </p>
+                            ) : (
+                              <div className="whitespace-pre-wrap text-brand-grey">
+                                {agreementTemplateText}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid gap-5 md:grid-cols-2">
+                          <label className="flex items-start gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+                            <input
+                              type="checkbox"
+                              {...register("agreement_accepted")}
+                              className="mt-1 h-5 w-5 rounded border-white/20 bg-brand-navy text-brand-gold focus:ring-brand-gold"
+                            />
+                            <span className="text-sm leading-7 text-white">
+                              I have read and agree to the rental agreement
+                            </span>
+                          </label>
+
+                          <div className="space-y-2">
+                            <FormLabel>Typed signature</FormLabel>
+                            <input
+                              {...register("agreement_signature")}
+                              className="w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold"
+                              placeholder="Type your full legal name"
+                            />
+                            <FieldError
+                              message={errors.agreement_signature?.message}
+                            />
+                          </div>
+                        </div>
+                        <FieldError
+                          message={errors.agreement_accepted?.message}
+                        />
+
+                        <div className="rounded-2xl border border-brand-gold/15 bg-brand-gold/8 px-5 py-4 text-sm leading-7 text-brand-grey">
+                          Your signature will be saved with the application.
+                          You cannot submit until the agreement is accepted and
+                          signed.
                         </div>
                       </div>
                     </SectionShell>
                   )}
 
                   <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (step === 2) {
-                          setStep(1);
+                    {step > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStep(step - 1);
                           setPageError(null);
-                          return;
-                        }
-
-                        void goToNextStep();
-                      }}
-                      className="inline-flex items-center justify-center gap-3 rounded-full border border-white/10 px-7 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-white/5"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                      {step === 2 ? "Back" : "Continue"}
-                    </button>
+                        }}
+                        className="inline-flex items-center justify-center gap-3 rounded-full border border-white/10 px-7 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-white/5"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
+                      </button>
+                    ) : (
+                      <span className="hidden sm:block" />
+                    )}
 
                     <button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={step === 3 ? !canSubmitApplication : isSubmitting}
                       className="inline-flex items-center justify-center gap-3 rounded-full bg-brand-gold px-8 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy transition-colors hover:bg-brand-gold-light disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isSubmitting ? (
+                      {step < 3 ? (
+                        <>
+                          Continue
+                          <ArrowRight className="h-4 w-4" />
+                        </>
+                      ) : isSubmitting ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
                           Submitting

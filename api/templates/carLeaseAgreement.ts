@@ -1,5 +1,7 @@
 import { getLeaseAgreementBusinessDetails } from '../agreementConfig.js';
 
+export const CAR_LEASE_AGREEMENT_TEMPLATE_VERSION = 1;
+
 export type LeaseFee = {
   code: string;
   title: string;

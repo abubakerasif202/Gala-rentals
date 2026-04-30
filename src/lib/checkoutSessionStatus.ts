@@ -6,7 +6,13 @@ export type CheckoutSessionStatusState =
   | 'failed';
 
 export interface CheckoutSessionStatusView {
-  application_status: 'Pending' | 'Paid' | 'Approved' | 'Rejected' | 'Payment Review';
+  application_status:
+    | 'Pending'
+    | 'Paid'
+    | 'Approved'
+    | 'Rejected'
+    | 'Payment Review'
+    | 'Cancelled';
   checkout_kind: 'application' | 'vehicle' | null;
   customer_id?: string | null;
   db_payment_activation_status?: {
@@ -90,6 +96,19 @@ export const getCheckoutStatusPresentation = ({
       state,
       title: 'Payment Successful',
       tone: 'success',
+    };
+  }
+
+  if (data.application_status === 'Cancelled') {
+    return {
+      body: 'This application has been cancelled by Maple Rentals. If you believe this is a mistake, contact support before trying the link again.',
+      isFailure: true,
+      shouldRefetch: false,
+      showSecurePaymentLink: false,
+      showSpinner: false,
+      state: 'failed',
+      title: 'Application Cancelled',
+      tone: 'failure',
     };
   }
 

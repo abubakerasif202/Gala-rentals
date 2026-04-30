@@ -12,6 +12,7 @@ import {
   getCarSelectColumns,
   getRentalApplicationIdColumn,
   getRentalCarIdColumn,
+  getRentalSelectColumns,
   getSchemaCompat,
 } from '../schemaCompat.js';
 import {
@@ -138,6 +139,25 @@ const toFloat = (value: number | string | null | undefined) =>
 const isLiveRentalStatus = (status: unknown) => {
   const normalized = String(status || '').toLowerCase();
   return normalized !== 'completed' && normalized !== 'cancelled';
+};
+
+const isVehicleCheckoutMetadataMatch = (
+  metadata: Record<string, string | undefined> | undefined,
+  applicationId: string,
+  paymentLinkVersion?: number | null
+) => {
+  if (!metadata) {
+    return false;
+  }
+
+  const matchesApplicationId = normalizeUuid(metadata.application_id || '') === normalizeUuid(applicationId);
+  const matchesCheckoutKind = metadata.checkout_kind === 'vehicle';
+  const matchesVersion =
+    typeof paymentLinkVersion === 'number'
+      ? Number(metadata.payment_link_version || 0) === paymentLinkVersion
+      : true;
+
+  return matchesApplicationId && matchesCheckoutKind && matchesVersion;
 };
 
 const getCheckoutTokenCarId = (carId: unknown) => {
@@ -362,6 +382,10 @@ const requireApprovedPaymentContext = ({
 }: {
   application: StripeApplication;
 }) => {
+  if (application.status === 'Cancelled') {
+    throw new Error('This application has been cancelled.');
+  }
+
   if (application.status === 'Paid') {
     throw new Error('Payment link has already been used.');
   }
@@ -398,6 +422,113 @@ export const expirePendingCheckoutSession = async (sessionId: string | null | un
     await getStripe().checkout.sessions.expire(sessionId);
   } catch (error) {
     console.warn(`Unable to expire checkout session ${sessionId}:`, error);
+  }
+};
+
+const cancelLinkedStripeSubscription = async ({
+  applicationId,
+  paymentLinkVersion,
+  subscriptionId,
+}: {
+  applicationId: string;
+  paymentLinkVersion?: number | null;
+  subscriptionId: string;
+}) => {
+  try {
+    const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+    if (
+      !isVehicleCheckoutMetadataMatch(
+        subscription.metadata as Record<string, string | undefined> | undefined,
+        applicationId,
+        paymentLinkVersion
+      )
+    ) {
+      console.warn('Skipped cancelling Stripe subscription that does not match the target application', {
+        applicationId,
+        paymentLinkVersion,
+        subscriptionId,
+      });
+      return false;
+    }
+
+    if (subscription.status === 'canceled') {
+      return true;
+    }
+
+    await getStripe().subscriptions.cancel(subscriptionId);
+    return true;
+  } catch (error) {
+    console.warn(`Unable to cancel subscription ${subscriptionId}:`, error);
+    return false;
+  }
+};
+
+const fetchApplicationLinkedSubscriptionIds = async (applicationId: string) => {
+  const selectColumns = await getRentalSelectColumns({ includeStripeFields: true });
+  const rentalApplicationIdColumn = await getRentalApplicationIdColumn();
+  const { data, error } = await db
+    .from('rentals')
+    .select(selectColumns)
+    .eq(rentalApplicationIdColumn, applicationId);
+
+  if (error) {
+    throw new Error(
+      `Failed to inspect linked rental subscriptions for cancellation: ${error.message || 'Unknown error'}`
+    );
+  }
+
+  const rows = ((data || []) as unknown) as Array<Record<string, unknown>>;
+  const compat = await getSchemaCompat();
+  const subscriptionColumn = compat.rentalStripeSubscriptionColumn;
+  if (!subscriptionColumn) {
+    return [];
+  }
+
+  return rows
+    .filter((row) => isLiveRentalStatus(row.status))
+    .map((row) => String(row[subscriptionColumn] || '').trim())
+    .filter((subscriptionId) => Boolean(subscriptionId));
+};
+
+export const cancelApplicationStripeResources = async ({
+  applicationId,
+  paymentLinkVersion,
+  pendingCheckoutSessionId,
+}: {
+  applicationId: string;
+  paymentLinkVersion?: number | null;
+  pendingCheckoutSessionId?: string | null;
+}) => {
+  if (pendingCheckoutSessionId) {
+    try {
+      const session = await getStripe().checkout.sessions.retrieve(pendingCheckoutSessionId);
+      if (
+        isVehicleCheckoutMetadataMatch(
+          session.metadata as Record<string, string | undefined> | undefined,
+          applicationId,
+          paymentLinkVersion
+        )
+      ) {
+        await expirePendingCheckoutSession(pendingCheckoutSessionId);
+      } else {
+        console.warn('Skipped expiring Stripe checkout session that does not match the target application', {
+          applicationId,
+          paymentLinkVersion,
+          pendingCheckoutSessionId,
+        });
+      }
+    } catch (error) {
+      console.warn(`Unable to inspect pending checkout session ${pendingCheckoutSessionId}:`, error);
+    }
+  }
+
+  const subscriptionIds = await fetchApplicationLinkedSubscriptionIds(applicationId);
+  for (const subscriptionId of subscriptionIds) {
+    await cancelLinkedStripeSubscription({
+      applicationId,
+      paymentLinkVersion,
+      subscriptionId,
+    });
   }
 };
 
@@ -649,6 +780,10 @@ export const getVehiclePaymentContext = async ({
     throw new Error('Application not found');
   }
 
+  if (application.status === 'Cancelled') {
+    throw new Error('This application has been cancelled.');
+  }
+
   const checkoutTokenPayload = verifyCheckoutToken({
     applicationId,
     purpose: 'vehicle',
@@ -683,6 +818,10 @@ export const createVehicleCheckoutSession = async ({
 
     if (!application) {
       throw new Error('Application not found');
+    }
+
+    if (application.status === 'Cancelled') {
+      throw new Error('This application has been cancelled.');
     }
 
     const checkoutTokenPayload = verifyCheckoutToken({
@@ -768,6 +907,10 @@ export const createVehicleCheckoutLink = async ({
 
   if (!application) {
     throw new Error('Application not found');
+  }
+
+  if (application.status === 'Cancelled') {
+    throw new Error('This application has been cancelled.');
   }
 
   if (application.status === 'Paid') {

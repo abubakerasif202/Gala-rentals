@@ -95,18 +95,20 @@ export default function ApplicationsTab({
                   </div>
                 </td>
                 <td className="px-8 py-6">
-                  <span
-                    className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
-                      app.status === 'Approved'
-                        ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                        : app.status === 'Paid'
-                        ? 'bg-brand-gold/10 text-brand-gold border-brand-gold/20'
-                        : app.status === 'Payment Review'
-                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                        : app.status === 'Rejected'
-                        ? 'bg-red-500/10 text-red-500 border-red-500/20'
-                        : 'bg-brand-navy text-brand-grey border-white/10'
-                    }`}
+                      <span
+                        className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
+                          app.status === 'Approved'
+                            ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                            : app.status === 'Paid'
+                            ? 'bg-brand-gold/10 text-brand-gold border-brand-gold/20'
+                            : app.status === 'Payment Review'
+                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                            : app.status === 'Cancelled'
+                            ? 'bg-red-500/10 text-red-300 border-red-500/20'
+                            : app.status === 'Rejected'
+                            ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                            : 'bg-brand-navy text-brand-grey border-white/10'
+                        }`}
                   >
                     {app.status}
                   </span>

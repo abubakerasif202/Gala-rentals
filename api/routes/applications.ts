@@ -34,9 +34,14 @@ import {
   sendDriverPaymentLinkEmail,
 } from "../paymentLinks.js";
 import { handleVehicleCheckoutCompletion } from "../paymentActivation.js";
-import { expirePendingCheckoutSession } from "../services/stripeCheckoutService.js";
+import {
+  cancelApplicationStripeResources,
+  expirePendingCheckoutSession,
+} from "../services/stripeCheckoutService.js";
+import { withVehicleCheckoutProcessingLock } from "../paymentActivation.js";
 import {
   APPLICATION_IMAGE_CONTENT_TYPES,
+  APPLICATION_DOCUMENT_CONTENT_TYPES,
   normalizeApplicationEmail,
   MAX_APPLICATION_UPLOAD_BYTES,
 } from "../../shared/applicationSubmission.js";
@@ -55,14 +60,19 @@ const APPLICATION_LIST_DOCUMENT_SIGNING_LIMIT = 100;
 const ALLOWED_APPLICATION_IMAGE_TYPES = new Set<string>(
   APPLICATION_IMAGE_CONTENT_TYPES,
 );
+const ALLOWED_APPLICATION_DOCUMENT_TYPES = new Set<string>(
+  APPLICATION_DOCUMENT_CONTENT_TYPES,
+);
 const APPLICATION_FILE_EXTENSION_BY_CONTENT_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
   "image/png": "png",
+  "application/pdf": "pdf",
 };
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+const PDF_MAGIC = Buffer.from("%PDF-");
 
 const detectImageMagicType = (
   buffer: Buffer,
@@ -84,13 +94,38 @@ const detectImageMagicType = (
   return null;
 };
 
+const detectDocumentMagicType = (
+  buffer: Buffer,
+): "image/png" | "image/jpeg" | "application/pdf" | null => {
+  const imageType = detectImageMagicType(buffer);
+  if (imageType) {
+    return imageType;
+  }
+
+  if (
+    buffer.length >= PDF_MAGIC.length &&
+    buffer.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC)
+  ) {
+    return "application/pdf";
+  }
+
+  return null;
+};
+
 const normalizeDeclaredImageType = (value: string) => {
   const normalized = value.toLowerCase();
   return normalized === "image/jpg" ? "image/jpeg" : normalized;
 };
+const normalizeDeclaredDocumentType = (value: string) => {
+  const normalized = normalizeDeclaredImageType(value);
+  return normalized === "application/x-pdf" ? "application/pdf" : normalized;
+};
 const getStripe = () => getStripeClient();
 
-type ApplicationUploadField = "license_photo" | "license_back_photo";
+type ApplicationUploadField =
+  | "license_photo"
+  | "license_back_photo"
+  | "passport_or_uber_profile_screenshot";
 type UploadedApplicationFiles = Partial<
   Record<ApplicationUploadField, Express.Multer.File[]>
 >;
@@ -98,7 +133,7 @@ type UploadedApplicationFiles = Partial<
 const applicationUpload = multer({
   limits: {
     fileSize: MAX_APPLICATION_UPLOAD_BYTES,
-    files: 2,
+    files: 3,
   },
   storage: multer.memoryStorage(),
 });
@@ -122,6 +157,7 @@ const applicationUploadMiddleware: express.RequestHandler = (
   applicationUpload.fields([
     { name: "license_photo", maxCount: 1 },
     { name: "license_back_photo", maxCount: 1 },
+    { name: "passport_or_uber_profile_screenshot", maxCount: 1 },
   ])(req, res, (error) => {
     if (!error) {
       next();
@@ -306,6 +342,11 @@ const getApplicationBackPhotoValue = (application: Record<string, any>) =>
   application.uberScreenshot ??
   null;
 
+const getApplicationPassportDocumentValue = (application: Record<string, any>) =>
+  application.passport_or_uber_profile_screenshot ??
+  application.passportOrUberProfileScreenshot ??
+  null;
+
 const createRequestError = (status: number, message: string) =>
   Object.assign(new Error(message), { status });
 
@@ -332,8 +373,19 @@ const getUploadedApplicationFile = (
     throw createRequestError(400, `${fieldLabel} is required.`);
   }
 
-  if (!ALLOWED_APPLICATION_IMAGE_TYPES.has(file.mimetype.toLowerCase())) {
-    throw createRequestError(400, `${fieldLabel} must be a JPG or PNG image.`);
+  const isPassportDocument =
+    field === "passport_or_uber_profile_screenshot";
+  const allowedTypes = isPassportDocument
+    ? ALLOWED_APPLICATION_DOCUMENT_TYPES
+    : ALLOWED_APPLICATION_IMAGE_TYPES;
+
+  if (!allowedTypes.has(file.mimetype.toLowerCase())) {
+    throw createRequestError(
+      400,
+      isPassportDocument
+        ? `${fieldLabel} must be a JPG, PNG, or PDF file.`
+        : `${fieldLabel} must be a JPG or PNG image.`,
+    );
   }
 
   if (!file.buffer || file.buffer.length === 0) {
@@ -347,12 +399,18 @@ const getUploadedApplicationFile = (
   // Header-only MIME checks are trivially spoofable. Require the file's magic
   // bytes to match the declared content type so an .exe renamed to .jpg can't
   // land in the applications bucket.
-  const detectedType = detectImageMagicType(file.buffer);
-  const declaredType = normalizeDeclaredImageType(file.mimetype);
+  const detectedType = isPassportDocument
+    ? detectDocumentMagicType(file.buffer)
+    : detectImageMagicType(file.buffer);
+  const declaredType = isPassportDocument
+    ? normalizeDeclaredDocumentType(file.mimetype)
+    : normalizeDeclaredImageType(file.mimetype);
   if (!detectedType || detectedType !== declaredType) {
     throw createRequestError(
       400,
-      `${fieldLabel} file contents do not match a JPG or PNG image.`,
+      isPassportDocument
+        ? `${fieldLabel} file contents do not match a JPG, PNG, or PDF file.`
+        : `${fieldLabel} file contents do not match a JPG or PNG image.`,
     );
   }
 
@@ -421,6 +479,7 @@ router.get("/", authenticateAdmin, async (_req, res) => {
             ...rest,
             license_photo: null,
             license_back_photo: null,
+            passport_or_uber_profile_screenshot: null,
           };
         }
 
@@ -431,6 +490,9 @@ router.get("/", authenticateAdmin, async (_req, res) => {
           ),
           license_back_photo: await createSignedDocumentUrl(
             getApplicationBackPhotoValue(application),
+          ),
+          passport_or_uber_profile_screenshot: await createSignedDocumentUrl(
+            getApplicationPassportDocumentValue(application),
           ),
         };
       }),
@@ -448,7 +510,11 @@ router.get("/:id/documents/:document", authenticateAdmin, async (req, res) => {
     const { id, document } = z
       .object({
         id: uuidSchema,
-        document: z.enum(["license_photo", "license_back_photo"]),
+        document: z.enum([
+          "license_photo",
+          "license_back_photo",
+          "passport_or_uber_profile_screenshot",
+        ]),
       })
       .parse(req.params);
 
@@ -470,6 +536,8 @@ router.get("/:id/documents/:document", authenticateAdmin, async (req, res) => {
       application[document] ??
       (document === "license_back_photo"
         ? getApplicationBackPhotoValue(application)
+        : document === "passport_or_uber_profile_screenshot"
+          ? getApplicationPassportDocumentValue(application)
         : null);
     const signedUrl = await createSignedDocumentUrl(documentValue);
     if (!signedUrl) {
@@ -520,12 +588,17 @@ router.post(
         "license_back_photo",
         "Driver licence back photo",
       );
+      const passportDocumentFile = getUploadedApplicationFile(
+        files,
+        "passport_or_uber_profile_screenshot",
+        "Passport or Uber profile screenshot",
+      );
 
-      const normalizedApplicationData = {
-        ...data,
-        email,
-        phone,
-      };
+        const normalizedApplicationData = {
+          ...data,
+          email,
+          phone,
+        };
       let licensePhotoUrl = null;
       let licenseBackPhotoUrl = null;
       const existingApplicationSelectColumns =
@@ -600,14 +673,26 @@ router.post(
         fieldLabel: "Driver licence back photo",
         uploadedPaths,
       });
-
-      const basePayload = await toApplicationWritePayload({
-        ...normalizedApplicationData,
-        weekly_budget: normalizedApplicationData.weekly_budget?.trim() || null,
-        license_photo: licensePhotoUrl,
-        license_back_photo: licenseBackPhotoUrl,
-        status: "Pending",
+      const passportDocumentUrl = await uploadApplicationFile({
+        file: passportDocumentFile,
+        filePrefix: "passport-or-uber-profile-screenshot",
+        fieldLabel: "Passport or Uber profile screenshot",
+        uploadedPaths,
       });
+
+        const {
+          weekly_budget: _weeklyBudget,
+          ...submissionDataWithoutBudget
+        } = normalizedApplicationData;
+        const basePayload = await toApplicationWritePayload({
+          ...submissionDataWithoutBudget,
+          license_photo: licensePhotoUrl,
+          license_back_photo: licenseBackPhotoUrl,
+          passport_or_uber_profile_screenshot: passportDocumentUrl,
+          agreement_accepted_at: new Date().toISOString(),
+          agreement_signature: String(data.agreement_signature || "").trim(),
+          status: "Pending",
+        });
       const { data: inserted, error } = await db
         .from("applications")
         .insert([basePayload])
@@ -770,6 +855,14 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
         });
     }
 
+    if (applicationRecord.status === "Cancelled") {
+      return res
+        .status(409)
+        .json({
+          error: "Cancelled applications cannot be approved for payment.",
+        });
+    }
+
     if (payload.car_id) {
       await requireAvailablePaymentVehicle(payload.car_id);
     }
@@ -889,6 +982,12 @@ router.post(
       const applicationRecord =
         application as unknown as ApplicationPaymentApprovalRecord;
 
+      if (applicationRecord.status === "Cancelled") {
+        return res.status(409).json({
+          error: "Cancelled applications cannot be retried.",
+        });
+      }
+
       if (applicationRecord.status !== "Payment Review") {
         return res.status(409).json({
           error: "Only paid applications awaiting onboarding follow-up can be retried.",
@@ -951,6 +1050,94 @@ router.post(
   },
 );
 
+router.post("/:id/cancel", authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = z.object({ id: uuidSchema }).parse(req.params);
+    const { cancel_reason } = z
+      .object({ cancel_reason: z.string().trim().max(500).optional() })
+      .parse(req.body ?? {});
+
+    const result = await withVehicleCheckoutProcessingLock(id, async () => {
+      const selectColumns = await getApplicationSelectColumns();
+      const { data: application, error: applicationError } = await db
+        .from("applications")
+        .select(selectColumns)
+        .eq("id", id)
+        .single();
+
+      if (applicationError || !application) {
+        return { error: createRequestError(404, "Application not found") } as const;
+      }
+
+      const applicationRecord =
+        application as unknown as ApplicationPaymentApprovalRecord & {
+          cancelled_at?: string | null;
+          cancel_reason?: string | null;
+        };
+
+      if (applicationRecord.status === "Cancelled") {
+        return {
+          success: true,
+          application_status: "Cancelled" as const,
+        } as const;
+      }
+
+      const currentVersion = Number(applicationRecord.payment_link_version || 0);
+      const nextVersion = currentVersion + 1;
+      const nowIso = new Date().toISOString();
+
+      const { error: updateError } = await db
+        .from("applications")
+        .update(
+          await toApplicationPaymentWritePayload({
+            payment_link_version: nextVersion,
+            pending_checkout_session_id: null,
+            cancelled_at: nowIso,
+            cancel_reason: cancel_reason || null,
+            status: "Cancelled",
+          }),
+        )
+        .eq("id", id)
+        .eq("payment_link_version", currentVersion);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+        await cancelApplicationStripeResources({
+          applicationId: id,
+          paymentLinkVersion: currentVersion,
+          pendingCheckoutSessionId:
+            applicationRecord.pending_checkout_session_id || null,
+        });
+
+      return {
+        success: true,
+        application_status: "Cancelled" as const,
+      } as const;
+    });
+
+    if ("error" in result) {
+      throw result.error;
+    }
+
+    res.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res
+        .status(400)
+        .json({ error: "Validation failed", details: error.issues });
+    }
+
+    if (error instanceof Error && "status" in error && error.status === 404) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    console.error("Application cancel error:", error);
+    res.status(500).json({ error: "Failed to cancel application" });
+  }
+});
+
 router.put("/:id/status", authenticateAdmin, async (req, res) => {
   try {
     const { id } = z.object({ id: uuidSchema }).parse(req.params);
@@ -971,11 +1158,12 @@ router.put("/:id/status", authenticateAdmin, async (req, res) => {
     if (
       status === "Approved" ||
       status === "Paid" ||
-      status === "Payment Review"
+      status === "Payment Review" ||
+      status === "Cancelled"
     ) {
       return res.status(400).json({
         error:
-          "Use the payment approval flow to approve applications. Paid and Payment Review statuses are set by Stripe processing.",
+          "Use the payment approval flow to approve applications. Paid, Payment Review, and Cancelled statuses are set by dedicated flows.",
       });
     }
     const { error } = await db

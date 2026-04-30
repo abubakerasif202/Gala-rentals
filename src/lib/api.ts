@@ -156,7 +156,13 @@ export interface HostedCheckoutSessionResponse {
 }
 
 export interface CheckoutSessionStatusResponse {
-  application_status: 'Pending' | 'Paid' | 'Approved' | 'Rejected' | 'Payment Review';
+  application_status:
+    | 'Pending'
+    | 'Paid'
+    | 'Approved'
+    | 'Rejected'
+    | 'Payment Review'
+    | 'Cancelled';
   checkout_kind: 'application' | 'vehicle' | null;
   customer_id: string | null;
   db_payment_activation_status: {
@@ -221,7 +227,10 @@ export interface ApprovedPaymentContextResponse {
 
 export const fetchApplicationDocumentUrl = async (
   applicationId: string,
-  document: 'license_photo' | 'license_back_photo'
+  document:
+    | 'license_photo'
+    | 'license_back_photo'
+    | 'passport_or_uber_profile_screenshot'
 ): Promise<{ url: string }> => {
   const { data } = await api.get(`/applications/${applicationId}/documents/${document}`);
   return data;
@@ -352,6 +361,14 @@ export const retryApplicationPaymentActivation = async (
   id: string
 ): Promise<ApplicationActivationRetryResponse> => {
   const { data } = await api.post(`/applications/${id}/retry-payment-activation`);
+  return data;
+};
+
+export const cancelApplication = async (
+  id: string,
+  payload: { cancel_reason?: string }
+): Promise<{ success: boolean; application_status: 'Cancelled' }> => {
+  const { data } = await api.post(`/applications/${id}/cancel`, payload);
   return data;
 };
 

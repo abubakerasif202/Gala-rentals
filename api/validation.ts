@@ -92,6 +92,8 @@ export const applicationSchema = z.object({
   experience: z.string().trim().min(1),
   address: z.string().trim().min(5),
   weekly_budget: z.string().trim().optional(),
+  agreement_accepted: z.enum(['true']),
+  agreement_signature: z.string().trim().min(2),
   intended_start_date: dateOnlySchema(
     "Start date is required",
     "Start date must be a valid date",
@@ -107,6 +109,7 @@ export const applicationStatusEnum = z.enum([
   "Approved",
   "Rejected",
   "Payment Review",
+  "Cancelled",
 ]);
 
 export const vehicleCheckoutSessionSchema = z.object({

@@ -32,8 +32,10 @@ type ApplicationSubmissionFields = {
   uber_status: string;
   experience: string;
   address: string;
-  weekly_budget: string;
+  weekly_budget?: string;
   intended_start_date: string;
+  agreement_accepted: string;
+  agreement_signature: string;
 };
 
 type ApplicationUploadFixture = {
@@ -46,6 +48,7 @@ type ApplicationSubmissionOverrides = Partial<
   ApplicationSubmissionFields & {
     license_photo: string | ApplicationUploadFixture;
     license_back_photo: string | ApplicationUploadFixture;
+    passport_or_uber_profile_screenshot: string | ApplicationUploadFixture;
   }
 >;
 
@@ -71,6 +74,12 @@ const DEFAULT_APPLICATION_UPLOAD: ApplicationUploadFixture = {
   buffer: buildValidImageBuffer("image/png", Buffer.from("fake-image")),
   contentType: "image/png",
   filename: "license.png",
+};
+
+const DEFAULT_PASSPORT_UPLOAD: ApplicationUploadFixture = {
+  buffer: buildValidImageBuffer("image/png", Buffer.from("passport-image")),
+  contentType: "image/png",
+  filename: "passport.png",
 };
 
 const buildApplicationUploadFixture = (
@@ -111,7 +120,12 @@ const buildApplicationUploadFixture = (
 const createApplicationSubmissionRequest = (
   overrides: ApplicationSubmissionOverrides = {},
 ) => {
-  const { license_photo, license_back_photo, ...fieldOverrides } = overrides;
+  const {
+    license_photo,
+    license_back_photo,
+    passport_or_uber_profile_screenshot,
+    ...fieldOverrides
+  } = overrides;
   const payload: ApplicationSubmissionFields = {
     selected_car_id: "1",
     name: "Jane Driver",
@@ -122,8 +136,9 @@ const createApplicationSubmissionRequest = (
     uber_status: "Active",
     experience: "New Driver",
     address: "1 Test Street",
-    weekly_budget: "$300/week",
     intended_start_date: getFutureDateOnly(7),
+    agreement_accepted: "true",
+    agreement_signature: "Jane Driver",
     ...fieldOverrides,
   };
 
@@ -140,6 +155,10 @@ const createApplicationSubmissionRequest = (
     license_back_photo,
     "license-back",
   );
+  const passportUpload = buildApplicationUploadFixture(
+    passport_or_uber_profile_screenshot ?? DEFAULT_PASSPORT_UPLOAD,
+    "passport",
+  );
 
   req = req.attach("license_photo", frontUpload.buffer, {
     contentType: frontUpload.contentType,
@@ -149,6 +168,14 @@ const createApplicationSubmissionRequest = (
     contentType: backUpload.contentType,
     filename: backUpload.filename,
   });
+  req = req.attach(
+    "passport_or_uber_profile_screenshot",
+    passportUpload.buffer,
+    {
+      contentType: passportUpload.contentType,
+      filename: passportUpload.filename,
+    },
+  );
 
   return req;
 };
@@ -207,6 +234,7 @@ const {
     checkoutSessionsList: vi.fn(),
     checkoutSessionsRetrieve: vi.fn(),
     subscriptionsRetrieve: vi.fn(),
+    subscriptionsCancel: vi.fn(),
     webhooksConstructEvent: vi.fn(),
   },
 }));
@@ -232,6 +260,7 @@ vi.mock("stripe", () => {
     subscriptions = {
       create: vi.fn(),
       retrieve: mockStripe.subscriptionsRetrieve,
+      cancel: mockStripe.subscriptionsCancel,
     };
     checkout = {
       sessions: {
@@ -292,6 +321,11 @@ vi.mock("../schemaCompat.js", async () => {
         "intended_start_date:intendedStartDate",
         "license_photo:licensePhoto",
         "license_back_photo:uberScreenshot",
+        "passport_or_uber_profile_screenshot:passportOrUberProfileScreenshot",
+        "agreement_accepted_at:agreementAcceptedAt",
+        "agreement_signature:agreementSignature",
+        "cancelled_at:cancelledAt",
+        "cancel_reason:cancelReason",
         "assigned_car_id:assignedCarId",
         "approved_bond:approvedBond",
         "approved_weekly_price:approvedWeeklyPrice",
@@ -546,6 +580,12 @@ vi.mock("../db/index.js", () => {
       license_expiry: "licenseExpiry",
       license_photo: "licensePhoto",
       license_back_photo: "licenseBackPhoto",
+      passport_or_uber_profile_screenshot:
+        "passportOrUberProfileScreenshot",
+      agreement_accepted_at: "agreementAcceptedAt",
+      agreement_signature: "agreementSignature",
+      cancelled_at: "cancelledAt",
+      cancel_reason: "cancelReason",
     };
 
     return {
@@ -1271,6 +1311,11 @@ beforeEach(() => {
       intended_start_date: getFutureDateOnly(1),
       license_photo: "docs/license-1.png",
       license_back_photo: "docs/license-back-1.png",
+      passport_or_uber_profile_screenshot: null,
+      agreement_accepted_at: "2026-03-03T00:00:00.000Z",
+      agreement_signature: "Jane Driver",
+      cancelled_at: null,
+      cancel_reason: null,
       paid_at: null,
       payment_link_sent_at: null,
       payment_link_version: 0,
@@ -1298,6 +1343,12 @@ beforeEach(() => {
       license_photo:
         "https://project.supabase.co/storage/v1/object/public/applications/docs/license-2.png",
       license_back_photo: null,
+      passport_or_uber_profile_screenshot:
+        "https://project.supabase.co/storage/v1/object/public/applications/docs/passport-2.png",
+      agreement_accepted_at: "2026-03-04T00:00:00.000Z",
+      agreement_signature: "Approved Driver",
+      cancelled_at: null,
+      cancel_reason: null,
       paid_at: null,
       payment_link_sent_at: "2026-03-05T00:00:00.000Z",
       payment_link_version: 1,
@@ -3427,14 +3478,127 @@ describe("Stripe API", () => {
       "could not recover the paid checkout session",
     );
     expect(mockState.applications[1].status).toBe("Payment Review");
-    expect(mockState.rentals).toHaveLength(0);
-    expect(mockStripe.checkoutSessionsList).not.toHaveBeenCalled();
-  });
-  it("GET /api/stripe/payment-context returns the approved quote for a valid payment link", async () => {
-    const token = createCheckoutToken({
-      applicationId: APPROVED_APPLICATION_ID,
-      carId: 1,
-      purpose: "vehicle",
+      expect(mockState.rentals).toHaveLength(0);
+      expect(mockStripe.checkoutSessionsList).not.toHaveBeenCalled();
+    });
+
+    it("POST /api/applications/:id/cancel soft-cancels the application and only expires linked Stripe resources", async () => {
+      mockState.applications[0].status = "Approved";
+      mockState.applications[0].payment_link_version = 3;
+      mockState.applications[0].pending_checkout_session_id = "cs_pending_cancel";
+      mockState.rentals = [
+        {
+          id: 201,
+          application_id: PENDING_APPLICATION_ID,
+          car_id: 1,
+          status: "Active",
+          stripe_subscription_id: "sub_cancel_linked",
+        },
+        {
+          id: 202,
+          application_id: APPROVED_APPLICATION_ID,
+          car_id: 2,
+          status: "Active",
+          stripe_subscription_id: "sub_other_application",
+        },
+      ];
+      mockStripe.checkoutSessionsRetrieve.mockResolvedValue({
+        id: "cs_pending_cancel",
+        status: "open",
+        metadata: {
+          application_id: PENDING_APPLICATION_ID,
+          checkout_kind: "vehicle",
+          payment_link_version: "3",
+        },
+      });
+      mockStripe.subscriptionsRetrieve.mockResolvedValueOnce({
+        id: "sub_cancel_linked",
+        status: "active",
+        metadata: {
+          application_id: PENDING_APPLICATION_ID,
+          checkout_kind: "vehicle",
+          payment_link_version: "3",
+        },
+      });
+      mockStripe.subscriptionsCancel.mockResolvedValueOnce({
+        id: "sub_cancel_linked",
+        status: "canceled",
+      });
+
+      const res = await request(app)
+        .post(`/api/applications/${PENDING_APPLICATION_ID}/cancel`)
+        .set("Authorization", "Bearer fake-token")
+        .send({ cancel_reason: "Driver withdrew" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        application_status: "Cancelled",
+      });
+      expect(mockStripe.checkoutSessionsRetrieve).toHaveBeenCalledWith(
+        "cs_pending_cancel",
+      );
+      expect(mockStripe.checkoutSessionsExpire).toHaveBeenCalledWith(
+        "cs_pending_cancel",
+      );
+      expect(mockStripe.subscriptionsRetrieve).toHaveBeenCalledWith(
+        "sub_cancel_linked",
+      );
+      expect(mockStripe.subscriptionsCancel).toHaveBeenCalledWith(
+        "sub_cancel_linked",
+      );
+      expect(mockStripe.subscriptionsCancel).toHaveBeenCalledTimes(1);
+      expect(mockState.applications[0]).toMatchObject({
+        cancelled_at: expect.any(String),
+        cancel_reason: "Driver withdrew",
+        payment_link_version: 4,
+        pending_checkout_session_id: null,
+        status: "Cancelled",
+      });
+    });
+
+    it("POST /api/stripe/webhook does not reactivate a cancelled application", async () => {
+      mockState.applications[0].status = "Cancelled";
+      mockState.applications[0].cancelled_at = "2026-03-10T00:00:00.000Z";
+      mockState.applications[0].cancel_reason = "Driver withdrew";
+      mockState.applications[0].payment_link_version = 4;
+      mockState.applications[0].pending_checkout_session_id = null;
+      mockState.rentals = [];
+      mockStripe.webhooksConstructEvent.mockReturnValue({
+        id: "evt_cancelled_replay",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_cancelled_replay",
+            payment_status: "paid",
+            metadata: {
+              application_id: PENDING_APPLICATION_ID,
+              car_id: "1",
+              checkout_kind: "vehicle",
+              payment_link_version: "3",
+            },
+            customer: "cus_cancelled",
+            subscription: "sub_cancelled",
+          },
+        },
+      });
+
+      const res = await request(app)
+        .post("/api/stripe/webhook")
+        .set("stripe-signature", "test-signature")
+        .send("test-webhook-body");
+
+      expect(res.status).toBe(200);
+      expect(mockState.applications[0].status).toBe("Cancelled");
+      expect(mockState.applications[0].pending_checkout_session_id).toBeNull();
+      expect(mockState.rentals).toHaveLength(0);
+    });
+
+    it("GET /api/stripe/payment-context returns the approved quote for a valid payment link", async () => {
+      const token = createCheckoutToken({
+        applicationId: APPROVED_APPLICATION_ID,
+        carId: 1,
+        purpose: "vehicle",
       version: 1,
     });
 

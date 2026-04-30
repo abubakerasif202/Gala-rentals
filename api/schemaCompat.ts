@@ -12,9 +12,15 @@ type ApplicationBackPhotoColumn =
   | 'uber_screenshot'
   | 'uberScreenshot';
 
+type ApplicationPassportDocumentColumn =
+  | 'passport_or_uber_profile_screenshot'
+  | 'passportOrUberProfileScreenshot';
+
 type SchemaCompat = {
   applicationApprovedAtColumn: string;
   applicationApprovedVehicleColumn: string;
+  applicationAgreementAcceptedAtColumn: string;
+  applicationAgreementSignatureColumn: string;
   carArchivedAtColumn: string;
   carCreatedAtColumn: string;
   coreMode: SchemaMode;
@@ -26,6 +32,9 @@ type SchemaCompat = {
   applicationPaymentLinkSentAtColumn: string;
   applicationPaymentLinkVersionColumn: string;
   applicationPendingCheckoutSessionColumn: string;
+  applicationCancelReasonColumn: string;
+  applicationCancelledAtColumn: string;
+  applicationPassportDocumentColumn: ApplicationPassportDocumentColumn;
   rentalStripeSubscriptionColumn: string | null;
   rentalStripeCustomerColumn: string | null;
 };
@@ -33,6 +42,8 @@ type SchemaCompat = {
 const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationApprovedAtColumn: 'approved_at',
   applicationApprovedVehicleColumn: 'approved_vehicle',
+  applicationAgreementAcceptedAtColumn: 'agreement_accepted_at',
+  applicationAgreementSignatureColumn: 'agreement_signature',
   carArchivedAtColumn: 'archived_at',
   carCreatedAtColumn: 'created_at',
   coreMode: 'snake',
@@ -47,6 +58,9 @@ const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationPaymentLinkSentAtColumn: 'payment_link_sent_at',
   applicationPaymentLinkVersionColumn: 'payment_link_version',
   applicationPendingCheckoutSessionColumn: 'pending_checkout_session_id',
+  applicationCancelReasonColumn: 'cancel_reason',
+  applicationCancelledAtColumn: 'cancelled_at',
+  applicationPassportDocumentColumn: 'passport_or_uber_profile_screenshot',
   rentalStripeSubscriptionColumn: 'stripe_subscription_id',
   rentalStripeCustomerColumn: 'stripe_customer_id',
 };
@@ -127,8 +141,18 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
               : hasProperty(applicationsDefinition, 'uber_screenshot')
                 ? 'uber_screenshot'
                 : coreMode === 'camel'
-                  ? 'uberScreenshot'
-                  : 'uber_screenshot';
+              ? 'uberScreenshot'
+              : 'uber_screenshot';
+        const applicationPassportDocumentColumn: ApplicationPassportDocumentColumn = hasProperty(
+          applicationsDefinition,
+          'passportOrUberProfileScreenshot'
+        )
+          ? 'passportOrUberProfileScreenshot'
+          : hasProperty(applicationsDefinition, 'passport_or_uber_profile_screenshot')
+            ? 'passport_or_uber_profile_screenshot'
+            : coreMode === 'camel'
+              ? 'passportOrUberProfileScreenshot'
+              : 'passport_or_uber_profile_screenshot';
         const applicationAssignedCarColumn = hasProperty(applicationsDefinition, 'assignedCarId')
           ? 'assignedCarId'
           : hasProperty(applicationsDefinition, 'assigned_car_id')
@@ -188,6 +212,26 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
             : coreMode === 'camel'
               ? 'approvedAt'
               : 'approved_at';
+        const applicationAgreementAcceptedAtColumn = hasProperty(
+          applicationsDefinition,
+          'agreementAcceptedAt'
+        )
+          ? 'agreementAcceptedAt'
+          : hasProperty(applicationsDefinition, 'agreement_accepted_at')
+            ? 'agreement_accepted_at'
+            : coreMode === 'camel'
+              ? 'agreementAcceptedAt'
+              : 'agreement_accepted_at';
+        const applicationAgreementSignatureColumn = hasProperty(
+          applicationsDefinition,
+          'agreementSignature'
+        )
+          ? 'agreementSignature'
+          : hasProperty(applicationsDefinition, 'agreement_signature')
+            ? 'agreement_signature'
+            : coreMode === 'camel'
+              ? 'agreementSignature'
+              : 'agreement_signature';
         const applicationPaidAtColumn = hasProperty(applicationsDefinition, 'paidAt')
           ? 'paidAt'
           : hasProperty(applicationsDefinition, 'paid_at')
@@ -200,11 +244,25 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           'pendingCheckoutSessionId'
         )
           ? 'pendingCheckoutSessionId'
-          : hasProperty(applicationsDefinition, 'pending_checkout_session_id')
+            : hasProperty(applicationsDefinition, 'pending_checkout_session_id')
             ? 'pending_checkout_session_id'
             : coreMode === 'camel'
               ? 'pendingCheckoutSessionId'
               : 'pending_checkout_session_id';
+        const applicationCancelledAtColumn = hasProperty(applicationsDefinition, 'cancelledAt')
+          ? 'cancelledAt'
+          : hasProperty(applicationsDefinition, 'cancelled_at')
+            ? 'cancelled_at'
+            : coreMode === 'camel'
+              ? 'cancelledAt'
+              : 'cancelled_at';
+        const applicationCancelReasonColumn = hasProperty(applicationsDefinition, 'cancelReason')
+          ? 'cancelReason'
+          : hasProperty(applicationsDefinition, 'cancel_reason')
+            ? 'cancel_reason'
+            : coreMode === 'camel'
+              ? 'cancelReason'
+              : 'cancel_reason';
         const rentalStripeSubscriptionColumn = hasProperty(rentalsDefinition, 'stripeSubscriptionId')
           ? 'stripeSubscriptionId'
           : hasProperty(rentalsDefinition, 'stripe_subscription_id')
@@ -219,6 +277,8 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
         const resolvedCompat = {
           applicationApprovedAtColumn,
           applicationApprovedVehicleColumn,
+          applicationAgreementAcceptedAtColumn,
+          applicationAgreementSignatureColumn,
           carArchivedAtColumn,
           carCreatedAtColumn,
           coreMode,
@@ -230,6 +290,9 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           applicationPaymentLinkSentAtColumn,
           applicationPaymentLinkVersionColumn,
           applicationPendingCheckoutSessionColumn,
+          applicationCancelReasonColumn,
+          applicationCancelledAtColumn,
+          applicationPassportDocumentColumn,
           rentalStripeSubscriptionColumn,
           rentalStripeCustomerColumn,
         };
@@ -319,20 +382,29 @@ export const getApplicationSelectColumns = async () => {
   const {
     coreMode,
     applicationBackPhotoColumn,
+    applicationPassportDocumentColumn,
     applicationAssignedCarColumn,
     applicationApprovedBondColumn,
     applicationApprovedVehicleColumn,
+    applicationAgreementAcceptedAtColumn,
+    applicationAgreementSignatureColumn,
     applicationApprovedWeeklyPriceColumn,
     applicationPaymentLinkVersionColumn,
     applicationPaymentLinkSentAtColumn,
     applicationApprovedAtColumn,
     applicationPaidAtColumn,
     applicationPendingCheckoutSessionColumn,
+    applicationCancelledAtColumn,
+    applicationCancelReasonColumn,
   } = await getSchemaCompat();
   const backPhotoSelect =
     applicationBackPhotoColumn === 'license_back_photo'
       ? 'license_back_photo'
       : `license_back_photo:${applicationBackPhotoColumn}`;
+  const passportDocumentSelect =
+    applicationPassportDocumentColumn === 'passport_or_uber_profile_screenshot'
+      ? 'passport_or_uber_profile_screenshot'
+      : `passport_or_uber_profile_screenshot:${applicationPassportDocumentColumn}`;
   const assignedCarSelect = applicationAssignedCarColumn
     ? applicationAssignedCarColumn === 'assigned_car_id'
       ? 'assigned_car_id'
@@ -362,6 +434,14 @@ export const getApplicationSelectColumns = async () => {
     applicationApprovedAtColumn === 'approved_at'
       ? 'approved_at'
       : `approved_at:${applicationApprovedAtColumn}`;
+  const agreementAcceptedAtSelect =
+    applicationAgreementAcceptedAtColumn === 'agreement_accepted_at'
+      ? 'agreement_accepted_at'
+      : `agreement_accepted_at:${applicationAgreementAcceptedAtColumn}`;
+  const agreementSignatureSelect =
+    applicationAgreementSignatureColumn === 'agreement_signature'
+      ? 'agreement_signature'
+      : `agreement_signature:${applicationAgreementSignatureColumn}`;
   const paidAtSelect =
     applicationPaidAtColumn === 'paid_at'
       ? 'paid_at'
@@ -370,6 +450,14 @@ export const getApplicationSelectColumns = async () => {
     applicationPendingCheckoutSessionColumn === 'pending_checkout_session_id'
       ? 'pending_checkout_session_id'
       : `pending_checkout_session_id:${applicationPendingCheckoutSessionColumn}`;
+  const cancelledAtSelect =
+    applicationCancelledAtColumn === 'cancelled_at'
+      ? 'cancelled_at'
+      : `cancelled_at:${applicationCancelledAtColumn}`;
+  const cancelReasonSelect =
+    applicationCancelReasonColumn === 'cancel_reason'
+      ? 'cancel_reason'
+      : `cancel_reason:${applicationCancelReasonColumn}`;
 
   return coreMode === 'camel'
     ? [
@@ -386,6 +474,7 @@ export const getApplicationSelectColumns = async () => {
         'intended_start_date:intendedStartDate',
         'license_photo:licensePhoto',
         backPhotoSelect,
+        passportDocumentSelect,
         ...(assignedCarSelect ? [assignedCarSelect] : []),
         approvedBondSelect,
         approvedVehicleSelect,
@@ -393,8 +482,12 @@ export const getApplicationSelectColumns = async () => {
         paymentLinkVersionSelect,
         paymentLinkSentAtSelect,
         approvedAtSelect,
+        agreementAcceptedAtSelect,
+        agreementSignatureSelect,
         paidAtSelect,
         pendingCheckoutSessionSelect,
+        cancelledAtSelect,
+        cancelReasonSelect,
         'status',
         'created_at:createdAt',
       ].join(', ')
@@ -412,6 +505,7 @@ export const getApplicationSelectColumns = async () => {
         'intended_start_date',
         'license_photo',
         backPhotoSelect,
+        passportDocumentSelect,
         ...(assignedCarSelect ? [assignedCarSelect] : []),
         approvedBondSelect,
         approvedVehicleSelect,
@@ -419,8 +513,12 @@ export const getApplicationSelectColumns = async () => {
         paymentLinkVersionSelect,
         paymentLinkSentAtSelect,
         approvedAtSelect,
+        agreementAcceptedAtSelect,
+        agreementSignatureSelect,
         paidAtSelect,
         pendingCheckoutSessionSelect,
+        cancelledAtSelect,
+        cancelReasonSelect,
         'status',
         'created_at',
       ].join(', ');
@@ -447,12 +545,26 @@ export const toApplicationWritePayload = async (application: {
   intended_start_date: string;
   license_photo?: string | null;
   license_back_photo?: string | null;
+  passport_or_uber_profile_screenshot?: string | null;
+  agreement_accepted_at?: string | null;
+  agreement_signature?: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
   status?: string;
 }) => {
-  const { coreMode, applicationBackPhotoColumn } = await getSchemaCompat();
+  const {
+    coreMode,
+    applicationBackPhotoColumn,
+    applicationPassportDocumentColumn,
+    applicationAgreementAcceptedAtColumn,
+    applicationAgreementSignatureColumn,
+    applicationCancelledAtColumn,
+    applicationCancelReasonColumn,
+  } = await getSchemaCompat();
 
   const statusPayload = application.status ? { status: application.status } : {};
   const licenseBackPhoto = application.license_back_photo ?? null;
+  const passportDocument = application.passport_or_uber_profile_screenshot ?? null;
 
   if (coreMode === 'camel') {
     const payload: Record<string, unknown> = {
@@ -467,9 +579,18 @@ export const toApplicationWritePayload = async (application: {
       weeklyBudget: application.weekly_budget ?? null,
       intendedStartDate: application.intended_start_date,
       licensePhoto: application.license_photo ?? null,
+      agreementAcceptedAt: application.agreement_accepted_at ?? null,
+      agreementSignature: application.agreement_signature ?? null,
+      cancelledAt: application.cancelled_at ?? null,
+      cancelReason: application.cancel_reason ?? null,
       ...statusPayload,
     };
     payload[applicationBackPhotoColumn] = licenseBackPhoto;
+    payload[applicationPassportDocumentColumn] = passportDocument;
+    payload[applicationAgreementAcceptedAtColumn] = application.agreement_accepted_at ?? null;
+    payload[applicationAgreementSignatureColumn] = application.agreement_signature ?? null;
+    payload[applicationCancelledAtColumn] = application.cancelled_at ?? null;
+    payload[applicationCancelReasonColumn] = application.cancel_reason ?? null;
     return payload;
   }
 
@@ -485,9 +606,18 @@ export const toApplicationWritePayload = async (application: {
     weekly_budget: application.weekly_budget ?? null,
     intended_start_date: application.intended_start_date,
     license_photo: application.license_photo ?? null,
+    agreement_accepted_at: application.agreement_accepted_at ?? null,
+    agreement_signature: application.agreement_signature ?? null,
+    cancelled_at: application.cancelled_at ?? null,
+    cancel_reason: application.cancel_reason ?? null,
     ...statusPayload,
   };
   payload[applicationBackPhotoColumn] = licenseBackPhoto;
+  payload[applicationPassportDocumentColumn] = passportDocument;
+  payload[applicationAgreementAcceptedAtColumn] = application.agreement_accepted_at ?? null;
+  payload[applicationAgreementSignatureColumn] = application.agreement_signature ?? null;
+  payload[applicationCancelledAtColumn] = application.cancelled_at ?? null;
+  payload[applicationCancelReasonColumn] = application.cancel_reason ?? null;
   return payload;
 };
 
@@ -511,6 +641,8 @@ export const toApplicationPaymentWritePayload = async (payload: {
   approved_at?: string | null;
   paid_at?: string | null;
   pending_checkout_session_id?: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
   status?: string;
 }) => {
   const compat = await getSchemaCompat();
@@ -556,6 +688,14 @@ export const toApplicationPaymentWritePayload = async (payload: {
       payload.pending_checkout_session_id ?? null;
   }
 
+  if ('cancelled_at' in payload) {
+    mappedPayload[compat.applicationCancelledAtColumn] = payload.cancelled_at ?? null;
+  }
+
+  if ('cancel_reason' in payload) {
+    mappedPayload[compat.applicationCancelReasonColumn] = payload.cancel_reason ?? null;
+  }
+
   if (payload.status) {
     mappedPayload.status = payload.status;
   }
@@ -564,12 +704,23 @@ export const toApplicationPaymentWritePayload = async (payload: {
 };
 
 export const getApplicationDocumentColumn = async (
-  column: 'license_photo' | 'license_back_photo'
+  column:
+    | 'license_photo'
+    | 'license_back_photo'
+    | 'passport_or_uber_profile_screenshot'
 ) => {
-  const { coreMode, applicationBackPhotoColumn } = await getSchemaCompat();
+  const {
+    coreMode,
+    applicationBackPhotoColumn,
+    applicationPassportDocumentColumn,
+  } = await getSchemaCompat();
 
   if (column === 'license_back_photo') {
     return applicationBackPhotoColumn;
+  }
+
+  if (column === 'passport_or_uber_profile_screenshot') {
+    return applicationPassportDocumentColumn;
   }
 
   return coreMode === 'camel' ? 'licensePhoto' : 'license_photo';

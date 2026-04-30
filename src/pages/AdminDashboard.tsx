@@ -152,7 +152,9 @@ export default function AdminDashboard() {
 
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
-  const [openingDocument, setOpeningDocument] = useState<'license_photo' | 'license_back_photo' | null>(null);
+  const [openingDocument, setOpeningDocument] = useState<'license_photo' | 'license_back_photo' | 'passport_or_uber_profile_screenshot' | null>(null);
+  const [isCancelApplicationModalOpen, setIsCancelApplicationModalOpen] = useState(false);
+  const [cancelApplicationReason, setCancelApplicationReason] = useState('');
   const [applicationApprovalForm, setApplicationApprovalForm] = useState({
     approved_vehicle: '',
     approved_bond: '',
@@ -569,6 +571,20 @@ export default function AdminDashboard() {
     onError: () => showNotification('Failed to update status', 'error'),
   });
 
+  const cancelApplicationMutation = useMutation({
+    mutationFn: ({ id, cancel_reason }: { id: string; cancel_reason?: string }) =>
+      api.cancelApplication(id, { cancel_reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['rentals'] });
+      setSelectedApplication(null);
+      setIsCancelApplicationModalOpen(false);
+      setCancelApplicationReason('');
+      showNotification('Application cancelled successfully', 'success');
+    },
+    onError: () => showNotification('Failed to cancel application', 'error'),
+  });
+
   const saveAgreementMutation = useMutation({
     mutationFn: (payload: { application_id: string; content: string; vehicle_label?: string | null }) =>
       api.saveLeaseAgreement(payload),
@@ -831,7 +847,7 @@ export default function AdminDashboard() {
   };
 
   const handleOpenApplicationDocument = async (
-    document: 'license_photo' | 'license_back_photo'
+    document: 'license_photo' | 'license_back_photo' | 'passport_or_uber_profile_screenshot'
   ) => {
     if (!selectedApplication) {
       return;
@@ -1286,6 +1302,81 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
+                    <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                      Passport or Uber Profile Screenshot
+                    </h4>
+                    {selectedApplication.passport_or_uber_profile_screenshot ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleOpenApplicationDocument(
+                            'passport_or_uber_profile_screenshot',
+                          )
+                        }
+                        disabled={openingDocument !== null}
+                        className="w-full inline-flex items-center justify-center gap-3 px-6 py-4 bg-brand-gold text-brand-navy font-bold uppercase tracking-widest text-[10px] hover:bg-brand-gold-light transition-all disabled:opacity-50"
+                      >
+                        {openingDocument === 'passport_or_uber_profile_screenshot' ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ExternalLink className="w-4 h-4" />
+                        )}
+                        Open Passport or Uber Screenshot
+                      </button>
+                    ) : (
+                      <div className="px-6 py-4 border border-white/10 rounded-2xl text-brand-grey text-xs font-light">
+                        No passport or Uber screenshot uploaded.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-brand-navy/60 border border-brand-gold/15 rounded-3xl p-6 space-y-3">
+                    <h4 className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
+                      Rental Agreement Acceptance
+                    </h4>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                        <p className="text-[10px] uppercase tracking-widest text-brand-grey">
+                          Accepted at
+                        </p>
+                        <p className="mt-2 text-sm text-white">
+                          {formatDate(selectedApplication.agreement_accepted_at)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                        <p className="text-[10px] uppercase tracking-widest text-brand-grey">
+                          Signature
+                        </p>
+                        <p className="mt-2 break-words text-sm text-white">
+                          {selectedApplication.agreement_signature || 'Not recorded'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedApplication.status === 'Cancelled' && (
+                  <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-6 space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-red-300">
+                      Application cancelled
+                    </p>
+                    <p className="text-sm text-brand-grey leading-relaxed">
+                      Cancelled at{' '}
+                      <span className="text-white">
+                        {formatDate(selectedApplication.cancelled_at)}
+                      </span>
+                    </p>
+                    <p className="text-sm text-brand-grey leading-relaxed">
+                      Reason:{' '}
+                      <span className="text-white">
+                        {selectedApplication.cancel_reason || 'No reason recorded'}
+                      </span>
+                    </p>
+                  </div>
+                )}
+
                 {selectedApplication.status === 'Payment Review' && (
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 space-y-3">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
@@ -1424,8 +1515,20 @@ export default function AdminDashboard() {
                 >
                   Close
                 </button>
+                {selectedApplication.status !== 'Cancelled' && (
+                  <button
+                    onClick={() => {
+                      setCancelApplicationReason('');
+                      setIsCancelApplicationModalOpen(true);
+                    }}
+                    className="w-full border border-red-500/30 py-5 text-xs font-bold uppercase tracking-widest text-red-300 transition-all hover:bg-red-500/10 sm:flex-1"
+                  >
+                    Cancel rental application
+                  </button>
+                )}
                 {selectedApplication.status !== 'Paid' &&
-                  selectedApplication.status !== 'Payment Review' && (
+                  selectedApplication.status !== 'Payment Review' &&
+                  selectedApplication.status !== 'Cancelled' && (
                   <button
                     onClick={() =>
                       updateStatusMutation.mutate({ id: selectedApplication.id, status: 'Rejected' })
@@ -1437,7 +1540,8 @@ export default function AdminDashboard() {
                 )}
                 {selectedApplication.status !== 'Paid' &&
                   selectedApplication.status !== 'Rejected' &&
-                  selectedApplication.status !== 'Payment Review' && (
+                  selectedApplication.status !== 'Payment Review' &&
+                  selectedApplication.status !== 'Cancelled' && (
                   <button
                     onClick={handleApproveSelectedApplication}
                     disabled={approveApplicationPaymentMutation.isPending}
@@ -1490,6 +1594,81 @@ export default function AdminDashboard() {
                     Retry Payment Finalization
                   </button>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isCancelApplicationModalOpen && selectedApplication && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-navy/60 backdrop-blur-xl sm:items-center sm:p-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl overflow-hidden rounded-t-3xl border border-white/10 bg-brand-navy shadow-2xl sm:rounded-3xl"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 bg-white/5 p-4 sm:p-6">
+                <div>
+                  <h3 className="text-xl font-bold tracking-tighter text-white">
+                    Cancel rental application
+                  </h3>
+                  <p className="mt-1 text-[10px] uppercase tracking-widest text-brand-grey">
+                    Soft cancel and clear application-specific Stripe resources
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsCancelApplicationModalOpen(false)}
+                  className="rounded-full bg-white/5 p-2 text-brand-grey hover:text-white"
+                >
+                  <XCircle />
+                </button>
+              </div>
+
+              <div className="space-y-4 p-4 sm:p-6">
+                <div className="rounded-3xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm leading-7 text-red-50">
+                  This will mark the application as cancelled, clear pending checkout state,
+                  and expire only the Stripe resources linked to this application.
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                    Cancellation reason
+                  </label>
+                  <textarea
+                    value={cancelApplicationReason}
+                    onChange={(event) => setCancelApplicationReason(event.target.value)}
+                    rows={4}
+                    className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none transition-all placeholder:text-brand-grey/60 focus:border-brand-gold"
+                    placeholder="Optional: add a short reason for the audit trail"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-white/10 bg-white/5 p-4 sm:flex-row sm:p-6">
+                <button
+                  onClick={() => setIsCancelApplicationModalOpen(false)}
+                  className="w-full rounded-full border border-white/10 px-6 py-4 text-xs font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5 sm:flex-1"
+                >
+                  Keep application
+                </button>
+                <button
+                  onClick={() =>
+                    cancelApplicationMutation.mutate({
+                      id: selectedApplication.id,
+                      cancel_reason: cancelApplicationReason.trim() || undefined,
+                    })
+                  }
+                  disabled={cancelApplicationMutation.isPending}
+                  className="flex w-full items-center justify-center gap-3 rounded-full border border-red-500/30 bg-red-500/10 px-6 py-4 text-xs font-bold uppercase tracking-widest text-red-200 transition-all hover:bg-red-500/20 disabled:opacity-50 sm:flex-[2]"
+                >
+                  {cancelApplicationMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4" />
+                  )}
+                  Cancel rental application
+                </button>
               </div>
             </motion.div>
           </div>

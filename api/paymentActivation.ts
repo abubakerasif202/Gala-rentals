@@ -357,11 +357,12 @@ const applyVehicleCheckoutActivationWrites = async ({
       );
     }
 
-    const lockedApplicationStatus = String(lockedApplicationRow.status || '');
+const lockedApplicationStatus = String(lockedApplicationRow.status || '');
     if (
       lockedApplicationStatus !== 'Approved' &&
       lockedApplicationStatus !== 'Paid' &&
-      lockedApplicationStatus !== 'Payment Review'
+      lockedApplicationStatus !== 'Payment Review' &&
+      lockedApplicationStatus !== 'Cancelled'
     ) {
       throw new Error(
         `Application ${applicationId} cannot be activated from status ${lockedApplicationStatus || 'Unknown'}.`
@@ -480,11 +481,12 @@ const applyVehicleCheckoutPaymentOnlyWrites = async ({
       );
     }
 
-    const lockedApplicationStatus = String(lockedApplicationRow.status || '');
+const lockedApplicationStatus = String(lockedApplicationRow.status || '');
     if (
       lockedApplicationStatus !== 'Approved' &&
       lockedApplicationStatus !== 'Paid' &&
-      lockedApplicationStatus !== 'Payment Review'
+      lockedApplicationStatus !== 'Payment Review' &&
+      lockedApplicationStatus !== 'Cancelled'
     ) {
       throw new Error(
         `Application ${applicationId} cannot be marked paid from status ${lockedApplicationStatus || 'Unknown'}.`
@@ -614,6 +616,10 @@ export const handleVehicleCheckoutCompletion = async (
       ? String(application.paid_at)
       : new Date().toISOString();
     const applicationStatus = String(application.status || '');
+
+    if (applicationStatus === 'Cancelled') {
+      return 'skipped' as const;
+    }
 
     const moveApplicationToPaymentReview = async (reason: string) => {
       console.warn('Vehicle checkout activation requires review', {

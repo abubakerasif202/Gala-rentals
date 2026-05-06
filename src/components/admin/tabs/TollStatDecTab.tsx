@@ -96,6 +96,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
   const [errors, setErrors] = useState<Partial<Record<keyof TollTransferForm, string>>>({});
   const [lastGeneratedId, setLastGeneratedId] = useState<number | null>(null);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [recipientEmail, setRecipientEmail] = useState('');
 
   useEffect(() => {
     setSearch(initialSearch);
@@ -132,6 +133,33 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     onSuccess: async () => {
       setMessage({ type: 'success', text: 'Toll transfer notice marked as sent.' });
       await queryClient.invalidateQueries({ queryKey: ['toll-transfer-notices'] });
+    },
+    onError: (error) => {
+      setMessage({
+        type: 'error',
+        text: getApiErrorMessage(error, 'Failed to mark toll transfer notice as sent.'),
+      });
+    },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: ({ id, recipient_email }: { id: number; recipient_email: string }) =>
+      api.sendTollTransferNotice(id, {
+        recipient_email,
+        recipient_name: 'Toll compliance team',
+      }),
+    onSuccess: async (notice) => {
+      setMessage({
+        type: 'success',
+        text: `Toll transfer notice sent to ${notice.sent_to}.`,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['toll-transfer-notices'] });
+    },
+    onError: (error) => {
+      setMessage({
+        type: 'error',
+        text: getApiErrorMessage(error, 'Failed to email toll transfer notice.'),
+      });
     },
   });
 
@@ -234,6 +262,17 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
         text: getApiErrorMessage(error, 'Failed to download toll transfer notice PDF.'),
       });
     }
+  };
+
+  const handleSendNotice = (id: number) => {
+    const trimmedRecipientEmail = recipientEmail.trim();
+    if (!trimmedRecipientEmail) {
+      setMessage({ type: 'error', text: 'Enter a recipient email before sending.' });
+      return;
+    }
+
+    setMessage(null);
+    sendMutation.mutate({ id, recipient_email: trimmedRecipientEmail });
   };
 
   const inputClass = (field: keyof TollTransferForm) =>
@@ -496,6 +535,34 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
                 Download PDF
               </button>
             </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+              <label className="space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                  Recipient email
+                </span>
+                <input
+                  className="w-full rounded-lg border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none transition-all focus:border-brand-gold"
+                  inputMode="email"
+                  onChange={(event) => setRecipientEmail(event.target.value)}
+                  placeholder="tolls@example.com"
+                  type="email"
+                  value={recipientEmail}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => lastGeneratedId && handleSendNotice(lastGeneratedId)}
+                disabled={!lastGeneratedId || !recipientEmail.trim() || sendMutation.isPending}
+                className="inline-flex items-center justify-center gap-3 self-end rounded-lg border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40"
+              >
+                {sendMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-brand-gold" />
+                ) : (
+                  <Send className="h-4 w-4 text-brand-gold" />
+                )}
+                Email PDF
+              </button>
+            </div>
           </section>
 
           <article className="min-h-[297mm] bg-white p-8 text-black shadow-2xl">
@@ -703,11 +770,20 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
                     {notice.status !== 'sent' && (
                       <button
                         type="button"
-                        onClick={() => markSentMutation.mutate(notice.id)}
+                        onClick={() =>
+                          recipientEmail.trim()
+                            ? handleSendNotice(notice.id)
+                            : markSentMutation.mutate(notice.id)
+                        }
+                        disabled={sendMutation.isPending || markSentMutation.isPending}
                         className="rounded-lg border border-white/10 p-3 text-white hover:bg-white/10"
-                        title="Mark as sent"
+                        title={recipientEmail.trim() ? 'Email PDF' : 'Mark as sent'}
                       >
-                        <Send className="h-4 w-4 text-brand-gold" />
+                        {sendMutation.isPending || markSentMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-brand-gold" />
+                        ) : (
+                          <Send className="h-4 w-4 text-brand-gold" />
+                        )}
                       </button>
                     )}
                   </div>

@@ -3169,6 +3169,48 @@ describe("Toll Transfer Notices API", () => {
       toll_transfer_notice_id: 1,
     });
   });
+
+  it("POST /api/toll-notices/:id/send emails the generated PDF and persists send metadata", async () => {
+    process.env.RESEND_API_KEY = "test-resend";
+    mockResendEmailsSend.mockClear();
+
+    await request(app)
+      .post("/api/toll-notices")
+      .set("Authorization", "Bearer fake-token")
+      .send(validTollNoticePayload());
+
+    const res = await request(app)
+      .post("/api/toll-notices/1/send")
+      .set("Authorization", "Bearer fake-token")
+      .send({ recipient_email: "tolls@example.invalid" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: 1,
+      sent_to: "tolls@example.invalid",
+      status: "sent",
+    });
+    expect(mockResendEmailsSend).toHaveBeenCalledTimes(1);
+    expect(mockResendEmailsSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachments: [
+          expect.objectContaining({
+            content: expect.any(Buffer),
+            filename: "toll-transfer-notice-1.pdf",
+          }),
+        ],
+        to: "tolls@example.invalid",
+      }),
+    );
+    expect(mockState.toll_transfer_notices[0]).toMatchObject({
+      sent_to: "tolls@example.invalid",
+      status: "sent",
+    });
+    expect(mockState.toll_transfer_notice_audit_events.at(-1)).toMatchObject({
+      action: "send_email",
+      toll_transfer_notice_id: 1,
+    });
+  });
 });
 
 describe("Stripe API", () => {

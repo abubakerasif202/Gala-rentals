@@ -64,7 +64,7 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
     test: {
-      exclude: [...configDefaults.exclude, 'server-dist/**', 'dist/**'],
+      exclude: [...configDefaults.exclude, 'server-dist/**', 'dist/**', 'tmp/**'],
     },
   };
 });

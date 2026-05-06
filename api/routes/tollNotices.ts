@@ -2,6 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 
 import { db } from '../db/index.js';
+import { escapeHtml, getResend, sanitizeEmailHeaderValue, sendResendEmail } from '../email.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { buildTollTransferNoticePdf } from '../templates/tollTransferNoticePdf.js';
 
@@ -58,6 +59,11 @@ const idParamSchema = z.object({
 
 const markSentSchema = z.object({
   status: z.literal('sent'),
+});
+
+const sendNoticeSchema = z.object({
+  recipient_email: z.string().trim().email('Recipient email is required'),
+  recipient_name: z.string().trim().max(120).optional().nullable(),
 });
 
 const normalizeSearch = (value: unknown) => String(value ?? '').trim().toLowerCase();
@@ -136,6 +142,9 @@ const auditNoticeAction = async ({
 
 const getAdminEmail = (req: express.Request) =>
   typeof req.admin?.email === 'string' ? req.admin.email : null;
+
+const getSafeNoticeValue = (notice: Record<string, unknown>, key: string) =>
+  String(notice[key] ?? '').trim();
 
 const fetchNoticeById = async (id: number) => {
   const { data, error } = await db
@@ -396,15 +405,110 @@ router.get('/:id/pdf', authenticateAdmin, async (req, res) => {
   }
 });
 
+router.post('/:id/send', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const payload = sendNoticeSchema.parse(req.body ?? {});
+
+    if (!process.env.RESEND_API_KEY) {
+      return res.status(503).json({ error: 'Toll notice email delivery is not configured' });
+    }
+
+    const notice = await fetchNoticeById(id);
+    if (!notice) {
+      return res.status(404).json({ error: 'Toll transfer notice not found' });
+    }
+
+    const pdf = await buildTollTransferNoticePdf(notice as any);
+    const resend = await getResend();
+    const tollNoticeNumber = getSafeNoticeValue(notice, 'toll_notice_number') || String(id);
+    const vehicleRegistration = getSafeNoticeValue(notice, 'vehicle_registration');
+    const nomineeName = getSafeNoticeValue(notice, 'nominee_full_name');
+    const safeRecipientName = escapeHtml(payload.recipient_name || 'Toll compliance team');
+    const safeTollNoticeNumber = escapeHtml(tollNoticeNumber);
+    const safeVehicleRegistration = escapeHtml(vehicleRegistration || 'not supplied');
+    const safeNomineeName = escapeHtml(nomineeName || 'not supplied');
+    const subjectNoticeNumber = sanitizeEmailHeaderValue(tollNoticeNumber);
+
+    await sendResendEmail(resend, {
+      attachments: [
+        {
+          content: pdf,
+          contentType: 'application/pdf',
+          filename: `toll-transfer-notice-${id}.pdf`,
+        },
+      ],
+      from: 'Maple Rentals <noreply@maplerentals.com.au>',
+      html: `
+        <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
+          <h2 style="color: #D4AF37;">Toll Transfer Notice</h2>
+          <p>Hi ${safeRecipientName},</p>
+          <p>Please find the attached toll transfer notice statutory declaration.</p>
+          <ul>
+            <li><strong>Toll notice number:</strong> ${safeTollNoticeNumber}</li>
+            <li><strong>Vehicle registration:</strong> ${safeVehicleRegistration}</li>
+            <li><strong>Nominated driver/customer:</strong> ${safeNomineeName}</li>
+          </ul>
+          <p>Regards,<br /><strong>Maple Rentals</strong></p>
+        </div>
+      `,
+      subject: `Toll Transfer Notice ${subjectNoticeNumber}`,
+      to: payload.recipient_email,
+    });
+
+    const sentAt = new Date().toISOString();
+    const { data, error } = await db
+      .from('toll_transfer_notices')
+      .update({
+        sent_at: sentAt,
+        sent_to: payload.recipient_email,
+        status: 'sent',
+        updated_at: sentAt,
+      })
+      .eq('id', id)
+      .select('id, status, sent_to, sent_at')
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({ error: 'Toll transfer notice not found' });
+    }
+
+    await auditNoticeAction({
+      action: 'send_email',
+      actor: getAdminEmail(req),
+      metadata: {
+        recipient_email: payload.recipient_email,
+        toll_notice_number: tollNoticeNumber,
+      },
+      noticeId: id,
+    });
+
+    res.json({
+      id: Number(data.id),
+      sent_at: data.sent_at,
+      sent_to: data.sent_to,
+      status: statusSchema.parse(data.status),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    console.error('Send toll transfer notice email error:', error);
+    res.status(502).json({ error: 'Failed to send toll transfer notice email' });
+  }
+});
+
 router.patch('/:id/status', authenticateAdmin, async (req, res) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const payload = markSentSchema.parse(req.body);
+    const sentAt = new Date().toISOString();
     const { data, error } = await db
       .from('toll_transfer_notices')
-      .update({ status: payload.status, updated_at: new Date().toISOString() })
+      .update({ sent_at: sentAt, status: payload.status, updated_at: sentAt })
       .eq('id', id)
-      .select('id, status')
+      .select('id, status, sent_at')
       .single();
 
     if (error || !data) {
@@ -417,7 +521,7 @@ router.patch('/:id/status', authenticateAdmin, async (req, res) => {
       noticeId: id,
     });
 
-    res.json({ id, status: statusSchema.parse(data.status) });
+    res.json({ id, sent_at: data.sent_at, status: statusSchema.parse(data.status) });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });

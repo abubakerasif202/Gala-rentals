@@ -93,4 +93,23 @@ describe('checkout session status presentation', () => {
     expect(presentation.showSecurePaymentLink).toBe(false);
     expect(presentation.shouldRefetch).toBe(true);
   });
+
+  it('stops automatic polling after repeated pending webhook checks without showing failure', () => {
+    const presentation = getCheckoutStatusPresentation({
+      data: {
+        ...baseStatus,
+        internal_status: 'pending_webhook',
+        state: 'pending_webhook',
+      },
+      hasVerificationContext: true,
+      isError: false,
+      pollingTimedOut: true,
+    });
+
+    expect(presentation.title).toBe('Payment Received');
+    expect(presentation.isFailure).toBe(false);
+    expect(presentation.shouldRefetch).toBe(false);
+    expect(presentation.showSpinner).toBe(false);
+    expect(presentation.body).toContain('stopped automatic checks');
+  });
 });

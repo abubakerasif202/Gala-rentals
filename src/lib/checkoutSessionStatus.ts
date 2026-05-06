@@ -66,10 +66,12 @@ export const getCheckoutStatusPresentation = ({
   data,
   hasVerificationContext,
   isError,
+  pollingTimedOut = false,
 }: {
   data?: CheckoutSessionStatusView | null;
   hasVerificationContext: boolean;
   isError: boolean;
+  pollingTimedOut?: boolean;
 }): CheckoutStatusPresentation => {
   if (isError || !hasVerificationContext || !data) {
     return {
@@ -85,6 +87,8 @@ export const getCheckoutStatusPresentation = ({
   }
 
   const state = data.state || data.internal_status;
+  const timeoutSuffix =
+    ' This page stopped automatic checks to avoid an endless loading state. Use retry to check the latest Stripe status again.';
 
   if (state === 'complete_paid') {
     return {
@@ -114,11 +118,13 @@ export const getCheckoutStatusPresentation = ({
 
   if (state === 'pending_webhook') {
     return {
-      body: 'Stripe has confirmed your payment. We are finalizing your onboarding status now and this page refreshes automatically while that completes.',
+      body:
+        'Stripe has confirmed your payment. We are finalizing your onboarding status now and this page refreshes automatically while that completes.' +
+        (pollingTimedOut ? timeoutSuffix : ''),
       isFailure: false,
-      shouldRefetch: true,
+      shouldRefetch: !pollingTimedOut,
       showSecurePaymentLink: false,
-      showSpinner: true,
+      showSpinner: !pollingTimedOut,
       state,
       title: 'Payment Received',
       tone: 'processing',
@@ -127,9 +133,11 @@ export const getCheckoutStatusPresentation = ({
 
   if (state === 'manual_review') {
     return {
-      body: 'Stripe has already confirmed your payment. We are waiting for Maple Rentals to complete the final onboarding checks, and this page will keep checking automatically while that finishes. Maple Rentals will contact you if any manual action is still needed.',
+      body:
+        'Stripe has already confirmed your payment. We are waiting for Maple Rentals to complete the final onboarding checks, and this page will keep checking automatically while that finishes. Maple Rentals will contact you if any manual action is still needed.' +
+        (pollingTimedOut ? timeoutSuffix : ''),
       isFailure: false,
-      shouldRefetch: true,
+      shouldRefetch: !pollingTimedOut,
       showSecurePaymentLink: false,
       showSpinner: false,
       state,
@@ -143,12 +151,14 @@ export const getCheckoutStatusPresentation = ({
 
     return {
       body: directDebit
-        ? "Your direct debit has been created. Bank payments can take a few business days to confirm. We'll update your rental status once Stripe confirms the payment."
-        : 'Stripe is still confirming this checkout session. This page refreshes automatically while the payment status updates.',
+        ? "Your direct debit has been created. Bank payments can take a few business days to confirm. We'll update your rental status once Stripe confirms the payment." +
+          (pollingTimedOut ? timeoutSuffix : '')
+        : 'Stripe is still confirming this checkout session. This page refreshes automatically while the payment status updates.' +
+          (pollingTimedOut ? timeoutSuffix : ''),
       isFailure: false,
-      shouldRefetch: true,
+      shouldRefetch: !pollingTimedOut,
       showSecurePaymentLink: false,
-      showSpinner: true,
+      showSpinner: !pollingTimedOut,
       state,
       title: directDebit ? 'Payment Setup Received' : 'Payment Processing',
       tone: 'processing',

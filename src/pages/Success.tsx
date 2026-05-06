@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle, Home, Loader2 } from 'lucide-react';
+import { CheckCircle, Home, Loader2, RefreshCw } from 'lucide-react';
 import Seo from '../components/Seo';
 import { fetchCheckoutSessionStatus } from '../lib/api';
 import { getCheckoutStatusPresentation } from '../lib/checkoutSessionStatus';
@@ -13,6 +13,8 @@ import {
 } from '../lib/checkoutTokenUrl';
 import { isUuid } from '../../shared/uuid';
 
+const MAX_CHECKOUT_STATUS_POLLS = 20;
+
 export default function Success() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
@@ -21,6 +23,7 @@ export default function Success() {
   const [checkoutToken, setCheckoutToken] = useState(
     () => resolveCheckoutToken(searchParams, window.location.hash)
   );
+  const [pollAttempts, setPollAttempts] = useState(0);
   const hasVerificationContext = Boolean(sessionId && applicationId);
 
   useEffect(() => {
@@ -49,7 +52,13 @@ export default function Success() {
     window.history.replaceState(window.history.state, '', scrubbedUrl.toString());
   }, [checkoutToken]);
 
-  const { data, isLoading, isError } = useQuery({
+  useEffect(() => {
+    setPollAttempts(0);
+  }, [applicationId, checkoutToken, sessionId]);
+
+  const pollingTimedOut = pollAttempts >= MAX_CHECKOUT_STATUS_POLLS;
+
+  const { data, dataUpdatedAt, isFetching, isLoading, isError, refetch } = useQuery({
     queryKey: ['stripe-checkout-session', sessionId, applicationId, checkoutToken],
     queryFn: () =>
       fetchCheckoutSessionStatus(sessionId, {
@@ -69,16 +78,36 @@ export default function Success() {
         data: query.state.data,
         hasVerificationContext,
         isError: false,
+        pollingTimedOut,
       }).shouldRefetch
         ? 3000
         : false,
     refetchOnWindowFocus: true,
   });
 
+  useEffect(() => {
+    if (!data || pollingTimedOut) {
+      return;
+    }
+
+    const nextPresentation = getCheckoutStatusPresentation({
+      data,
+      hasVerificationContext,
+      isError: false,
+    });
+
+    if (nextPresentation.shouldRefetch) {
+      setPollAttempts((current) =>
+        Math.min(current + 1, MAX_CHECKOUT_STATUS_POLLS)
+      );
+    }
+  }, [data, dataUpdatedAt, hasVerificationContext, pollingTimedOut]);
+
   const presentation = getCheckoutStatusPresentation({
     data,
     hasVerificationContext,
     isError,
+    pollingTimedOut,
   });
   const isFullySuccessful = presentation.tone === 'success';
   const requiresActivationReview = presentation.tone === 'review';
@@ -90,6 +119,28 @@ export default function Success() {
     hasVerificationContext && checkoutToken
       ? `/checkout/${applicationId}${buildCheckoutTokenHash(checkoutToken)}`
       : '/apply';
+  const canRetryStatusCheck =
+    hasVerificationContext &&
+    (pollingTimedOut || (isError && !isLoading));
+  const handleRetryStatusCheck = () => {
+    setPollAttempts(0);
+    void refetch();
+  };
+  const statusRetryButton = canRetryStatusCheck ? (
+    <button
+      type="button"
+      onClick={handleRetryStatusCheck}
+      disabled={isFetching}
+      className="mb-4 w-full flex justify-center items-center py-4 px-4 border border-white/10 text-white font-bold text-sm uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-60"
+    >
+      {isFetching ? (
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+      ) : (
+        <RefreshCw className="mr-2 h-5 w-5" />
+      )}
+      {isError ? 'Retry Status Check' : 'Check Status Again'}
+    </button>
+  ) : null;
 
   return (
     <div className="min-h-screen bg-brand-charcoal flex flex-col justify-center py-12 sm:px-6 lg:px-8 selection:bg-brand-gold selection:text-brand-charcoal">
@@ -128,15 +179,18 @@ export default function Success() {
 
           {!isLoading && (isAwaitingFinalization || isProcessingSetup) && (
             <>
-              <div className="flex justify-center py-6">
-                <Loader2 className="h-12 w-12 text-brand-gold animate-spin" />
-              </div>
+              {presentation.showSpinner && (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="h-12 w-12 text-brand-gold animate-spin" />
+                </div>
+              )}
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
                 {presentation.title}
               </h2>
               <p className="text-brand-grey font-light leading-relaxed mb-10">
                 {presentation.body}
               </p>
+              {statusRetryButton}
               <Link
                 to="/"
                 className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
@@ -159,6 +213,7 @@ export default function Success() {
               <p className="text-brand-grey font-light leading-relaxed mb-10">
                 {presentation.body}
               </p>
+              {statusRetryButton}
               <Link
                 to="/"
                 className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
@@ -181,6 +236,7 @@ export default function Success() {
               <p className="text-brand-grey font-light leading-relaxed mb-10">
                 {presentation.body}
               </p>
+              {statusRetryButton}
               <Link
                 to={presentation.showSecurePaymentLink ? retryHref : '/'}
                 className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"

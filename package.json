@@ -24,7 +24,7 @@
     "stripe:handoff": "tsx scripts/stripe-setup.ts --require-live",
     "stripe:reset": "tsx scripts/stripe-reset.ts",
     "lint": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "validate": "npm run lint && npm run test"
   },
   "dependencies": {

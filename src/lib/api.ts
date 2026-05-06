@@ -290,6 +290,7 @@ export const fetchCheckoutSessionStatus = async (
   const { checkout_token, ...params } = options;
   const { data } = await api.get(`/stripe/checkout-sessions/${sessionId}`, {
     params,
+    timeout: 15_000,
     headers: checkout_token
       ? {
           'X-Checkout-Token': checkout_token,
@@ -503,8 +504,17 @@ export interface TollTransferNoticeRecord extends TollTransferNoticePayload {
   created_at: string;
   created_by?: string | null;
   pdf_url?: string | null;
+  sent_at?: string | null;
+  sent_to?: string | null;
   status: 'draft' | 'generated' | 'sent';
   updated_at: string;
+}
+
+export interface SendTollTransferNoticeResponse {
+  id: number;
+  sent_at: string;
+  sent_to: string;
+  status: 'sent';
 }
 
 export const fetchTollNoticeRentalOptions = async (
@@ -537,8 +547,16 @@ export const fetchTollTransferNoticePdf = async (id: number): Promise<Blob> => {
 
 export const markTollTransferNoticeSent = async (
   id: number
-): Promise<{ id: number; status: 'sent' }> => {
+): Promise<{ id: number; sent_at?: string | null; status: 'sent' }> => {
   const { data } = await api.patch(`/toll-notices/${id}/status`, { status: 'sent' });
+  return data;
+};
+
+export const sendTollTransferNotice = async (
+  id: number,
+  payload: { recipient_email: string; recipient_name?: string | null }
+): Promise<SendTollTransferNoticeResponse> => {
+  const { data } = await api.post(`/toll-notices/${id}/send`, payload);
   return data;
 };
 

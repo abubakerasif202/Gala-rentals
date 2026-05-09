@@ -203,6 +203,7 @@ const {
     applications: [] as Array<Record<string, any>>,
     rentals: [] as Array<Record<string, any>>,
     lease_agreements: [] as Array<Record<string, any>>,
+    agreement_templates: [] as Array<Record<string, any>>,
     customers: [] as Array<Record<string, any>>,
     invoices: [] as Array<Record<string, any>>,
     bookings: [] as Array<Record<string, any>>,
@@ -359,6 +360,10 @@ vi.mock("../db/index.js", () => {
       return mockState.lease_agreements;
     }
 
+    if (table === "agreement_templates") {
+      return mockState.agreement_templates;
+    }
+
     if (table === "customers") {
       return mockState.customers;
     }
@@ -404,6 +409,11 @@ vi.mock("../db/index.js", () => {
 
     if (table === "lease_agreements") {
       mockState.lease_agreements = rows;
+      return;
+    }
+
+    if (table === "agreement_templates") {
+      mockState.agreement_templates = rows;
       return;
     }
 
@@ -941,6 +951,17 @@ vi.mock("../db/index.js", () => {
       mockState.lease_agreements = [...mockState.lease_agreements, insertedRow];
     }
 
+    if (table === "agreement_templates") {
+      mockState.agreement_templates = [
+        ...mockState.agreement_templates,
+        {
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          ...insertedRow,
+        },
+      ];
+    }
+
     if (table === "customers") {
       mockState.customers = [...mockState.customers, insertedRow];
     }
@@ -1362,6 +1383,19 @@ beforeEach(() => {
 
   mockState.rentals = [];
   mockState.lease_agreements = [];
+  mockState.agreement_templates = [
+    {
+      active: true,
+      content: "# Car Lease Agreement\n\nDriver: {{renteeName}}\n\n{{feeSchedule}}",
+      created_at: "2026-03-01T00:00:00.000Z",
+      id: 1,
+      name: "Car Lease Agreement",
+      template_key: "car-lease",
+      updated_at: "2026-03-01T00:00:00.000Z",
+      updated_by: "test",
+      version: 2,
+    },
+  ];
   mockState.stripe_webhook_events = [];
   mockState.toll_transfer_notices = [];
   mockState.toll_transfer_notice_audit_events = [];
@@ -2012,7 +2046,66 @@ describe("Agreements API", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.agreement).toContain("# Car Lease Agreement");
-    expect(res.body.agreementTemplateVersion).toBe(1);
+    expect(res.body.agreementTemplateVersion).toBe(2);
+  });
+
+  it("GET /api/admin/agreements requires admin auth", async () => {
+    const res = await request(app).get("/api/admin/agreements");
+
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/admin/agreements returns versioned agreement templates", async () => {
+    const res = await request(app)
+      .get("/api/admin/agreements")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toMatchObject({
+      active: true,
+      name: "Car Lease Agreement",
+      version: 2,
+    });
+  });
+
+  it("PUT /api/admin/agreements/:id creates a new template version", async () => {
+    const res = await request(app)
+      .put("/api/admin/agreements/1")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        content: "# Car Lease Agreement\n\nUpdated {{renteeName}}",
+        name: "Car Lease Agreement",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockState.agreement_templates).toHaveLength(2);
+    expect(mockState.agreement_templates.at(-1)).toMatchObject({
+      active: true,
+      content: "# Car Lease Agreement\n\nUpdated {{renteeName}}",
+      version: 3,
+    });
+  });
+
+  it("POST /api/admin/agreements/:id/activate selects the active template version", async () => {
+    mockState.agreement_templates.push({
+      active: false,
+      content: "# Car Lease Agreement\n\nVersion three",
+      created_at: "2026-03-02T00:00:00.000Z",
+      id: 2,
+      name: "Car Lease Agreement",
+      template_key: "car-lease",
+      updated_at: "2026-03-02T00:00:00.000Z",
+      updated_by: "test",
+      version: 3,
+    });
+
+    const res = await request(app)
+      .post("/api/admin/agreements/2/activate")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(mockState.agreement_templates.find((template) => template.id === 1)?.active).toBe(false);
+    expect(mockState.agreement_templates.find((template) => template.id === 2)?.active).toBe(true);
   });
 
   it("POST /api/agreements blocks creation before payment is completed", async () => {
@@ -2543,7 +2636,7 @@ describe("Applications API", () => {
       email: "newdriver@example.com",
       license_number: "NSW55555",
       status: "Pending",
-      agreement_template_version: 1,
+      agreement_template_version: 2,
     });
   });
 
@@ -2636,7 +2729,7 @@ describe("Applications API", () => {
     expect(mockState.lease_agreements).toHaveLength(0);
     expect(mockState.applications.at(-1)).toMatchObject({
       status: "Pending",
-      agreement_template_version: 1,
+      agreement_template_version: 2,
     });
   });
 

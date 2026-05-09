@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Loader2, RefreshCw, ExternalLink, FileText, Trash2 } from 'lucide-react';
-import { UseMutationResult } from '@tanstack/react-query';
+import { Loader2, RefreshCw, ExternalLink, FileText, Trash2, Save, Eye, CheckCircle2, AlertCircle, Power } from 'lucide-react';
+import { UseMutationResult, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Application } from '../../../types';
+import * as api from '../../../lib/api';
 
 interface AgreementsTabProps {
   approvedApplications: Application[];
@@ -42,8 +43,155 @@ export default function AgreementsTab({
   setIsAgreementModalOpen,
   deleteAgreementMutation,
 }: AgreementsTabProps) {
+  const queryClient = useQueryClient();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [editorContent, setEditorContent] = useState('');
+  const [editorStatus, setEditorStatus] = useState<{
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+
   const approvedVehicleLabel =
     selectedAgreementApplication?.approved_vehicle?.trim() || '';
+  const templatesQuery = useQuery({
+    queryKey: ['agreement-templates'],
+    queryFn: () => api.fetchAgreementTemplates(),
+  });
+  const templates = templatesQuery.data || [];
+  const selectedTemplate = useMemo(
+    () =>
+      templates.find((template) => template.id === selectedTemplateId) ||
+      templates.find((template) => template.active) ||
+      templates[0],
+    [selectedTemplateId, templates]
+  );
+  const activeTemplate = templates.find((template) => template.active);
+  const templateVersions = selectedTemplate
+    ? templates.filter((template) => template.template_key === selectedTemplate.template_key)
+    : [];
+  const hasTemplateChanges = Boolean(
+    selectedTemplate && editorContent !== selectedTemplate.content
+  );
+
+  useEffect(() => {
+    if (!selectedTemplate) {
+      return;
+    }
+
+    if (selectedTemplateId !== selectedTemplate.id) {
+      setSelectedTemplateId(selectedTemplate.id);
+    }
+
+    setEditorContent(selectedTemplate.content);
+  }, [selectedTemplate?.id]);
+
+  const saveTemplateMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedTemplate) {
+        throw new Error('No agreement template selected');
+      }
+
+      if (selectedTemplate.id === 0) {
+        return api.createAgreementTemplate({
+          content: editorContent,
+          name: selectedTemplate.name,
+          template_key: selectedTemplate.template_key,
+        });
+      }
+
+      return api.updateAgreementTemplate(selectedTemplate.id, {
+        content: editorContent,
+        name: selectedTemplate.name,
+      });
+    },
+    onMutate: async () => {
+      if (!selectedTemplate) {
+        return undefined;
+      }
+
+      await queryClient.cancelQueries({ queryKey: ['agreement-templates'] });
+      const previousTemplates = queryClient.getQueryData<api.AgreementTemplate[]>([
+        'agreement-templates',
+      ]);
+
+      queryClient.setQueryData<api.AgreementTemplate[]>(['agreement-templates'], (current) =>
+        (current || []).map((template) =>
+          template.id === selectedTemplate.id
+            ? { ...template, content: editorContent, updated_at: new Date().toISOString() }
+            : template
+        )
+      );
+
+      return { previousTemplates };
+    },
+    onSuccess: (template) => {
+      setSelectedTemplateId(template.id);
+      setEditorContent(template.content);
+      setEditorStatus({ message: `Saved version ${template.version}`, type: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['agreement-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['application-agreement-template'] });
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousTemplates) {
+        queryClient.setQueryData(['agreement-templates'], context.previousTemplates);
+      }
+
+      setEditorStatus({ message: 'Failed to save agreement template', type: 'error' });
+    },
+  });
+
+  const activateTemplateMutation = useMutation({
+    mutationFn: (id: number) => api.activateAgreementTemplate(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['agreement-templates'] });
+      const previousTemplates = queryClient.getQueryData<api.AgreementTemplate[]>([
+        'agreement-templates',
+      ]);
+      const target = previousTemplates?.find((template) => template.id === id);
+
+      queryClient.setQueryData<api.AgreementTemplate[]>(['agreement-templates'], (current) =>
+        (current || []).map((template) =>
+          target && template.template_key === target.template_key
+            ? { ...template, active: template.id === id }
+            : template
+        )
+      );
+
+      return { previousTemplates };
+    },
+    onSuccess: (template) => {
+      setSelectedTemplateId(template.id);
+      setEditorStatus({ message: `Version ${template.version} is active`, type: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['agreement-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['application-agreement-template'] });
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousTemplates) {
+        queryClient.setQueryData(['agreement-templates'], context.previousTemplates);
+      }
+
+      setEditorStatus({ message: 'Failed to activate agreement template', type: 'error' });
+    },
+  });
+
+  const previewTemplateMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedTemplate) {
+        throw new Error('No agreement template selected');
+      }
+
+      return api.previewAgreementTemplate(selectedTemplate.id, {
+        content: editorContent,
+      } as api.LeaseAgreementPayload);
+    },
+    onSuccess: (response) => {
+      setPreviewContent(response.agreement);
+    },
+    onError: () => {
+      setEditorStatus({ message: 'Failed to preview agreement template', type: 'error' });
+    },
+  });
 
   return (
     <motion.div
@@ -59,8 +207,162 @@ export default function AgreementsTab({
             Lease <span className="text-brand-gold italic">Agreements</span>
           </h2>
           <p className="text-brand-grey font-light">
-            Generate and manage legally binding rental contracts.
+            Edit active agreement templates and generate legally binding rental contracts.
           </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-widest text-white">
+                Templates
+              </h3>
+              <p className="mt-1 text-[11px] text-brand-grey">
+                Active version: {activeTemplate ? `v${activeTemplate.version}` : 'Loading'}
+              </p>
+            </div>
+            {templatesQuery.isFetching && <Loader2 className="h-4 w-4 animate-spin text-brand-gold" />}
+          </div>
+
+          {templatesQuery.isError && (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-xs text-red-100">
+              Failed to load agreement templates.
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => setSelectedTemplateId(template.id)}
+                className={`w-full rounded-2xl border p-4 text-left transition-all ${
+                  selectedTemplate?.id === template.id
+                    ? 'border-brand-gold bg-brand-gold/10'
+                    : 'border-white/10 bg-brand-navy/40 hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-bold text-white">{template.name}</p>
+                  <span
+                    className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                      template.active
+                        ? 'bg-green-500/20 text-green-200'
+                        : 'bg-white/5 text-brand-grey'
+                    }`}
+                  >
+                    {template.active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <p className="mt-2 text-[11px] uppercase tracking-widest text-brand-grey">
+                  Version {template.version}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-white/10 bg-white/5">
+          <div className="flex flex-col gap-4 border-b border-white/10 p-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-widest text-white">
+                Agreement Editor
+              </h3>
+              <p className="mt-1 text-[11px] text-brand-grey">
+                Last updated:{' '}
+                {selectedTemplate?.updated_at
+                  ? new Date(selectedTemplate.updated_at).toLocaleString()
+                  : 'Not saved yet'}
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <select
+                value={selectedTemplate?.id ?? ''}
+                onChange={(event) => setSelectedTemplateId(Number(event.target.value))}
+                className="h-11 rounded-xl border border-white/10 bg-brand-navy px-4 text-xs font-bold uppercase tracking-widest text-white outline-none focus:border-brand-gold"
+              >
+                {templateVersions.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    Version {template.version} {template.active ? '(Active)' : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!selectedTemplate || selectedTemplate.active || activateTemplateMutation.isPending}
+                onClick={() => selectedTemplate && activateTemplateMutation.mutate(selectedTemplate.id)}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-50"
+              >
+                <Power className="h-4 w-4 text-brand-gold" />
+                Activate
+              </button>
+              <button
+                type="button"
+                disabled={!selectedTemplate || previewTemplateMutation.isPending}
+                onClick={() => previewTemplateMutation.mutate()}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-50"
+              >
+                {previewTemplateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Eye className="h-4 w-4 text-brand-gold" />
+                )}
+                Preview
+              </button>
+              <button
+                type="button"
+                disabled={!selectedTemplate || !hasTemplateChanges || saveTemplateMutation.isPending}
+                onClick={() => saveTemplateMutation.mutate()}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-brand-gold px-4 text-[10px] font-bold uppercase tracking-widest text-brand-navy transition-all hover:bg-brand-gold-light disabled:opacity-50"
+              >
+                {saveTemplateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Save
+              </button>
+            </div>
+          </div>
+
+          <div className="p-5">
+            {editorStatus && (
+              <div
+                className={`mb-4 flex items-center gap-3 rounded-2xl border px-4 py-3 text-xs ${
+                  editorStatus.type === 'success'
+                    ? 'border-green-500/20 bg-green-500/10 text-green-100'
+                    : 'border-red-500/20 bg-red-500/10 text-red-100'
+                }`}
+              >
+                {editorStatus.type === 'success' ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <AlertCircle className="h-4 w-4" />
+                )}
+                {editorStatus.message}
+              </div>
+            )}
+            <textarea
+              value={editorContent}
+              onChange={(event) => setEditorContent(event.target.value)}
+              spellCheck={false}
+              className="min-h-[440px] w-full resize-y rounded-2xl border border-white/10 bg-brand-navy/70 p-5 font-mono text-xs leading-6 text-white outline-none transition-all placeholder:text-brand-grey/60 focus:border-brand-gold"
+              placeholder="Agreement template markdown"
+            />
+            <div className="mt-4 grid grid-cols-1 gap-3 text-[11px] text-brand-grey sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-4 py-3">
+                Status: <span className="text-white">{selectedTemplate?.active ? 'Active' : 'Inactive'}</span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-4 py-3">
+                Version: <span className="text-white">{selectedTemplate?.version ?? '-'}</span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-4 py-3">
+                Characters: <span className="text-white">{editorContent.length}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -218,6 +520,35 @@ export default function AgreementsTab({
           </tbody>
         </table>
       </div>
+
+      {previewContent && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-navy/60 backdrop-blur-xl sm:items-center sm:p-6">
+          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-brand-navy shadow-2xl sm:rounded-3xl">
+            <div className="flex items-center justify-between border-b border-white/10 bg-white/5 p-5 sm:p-7">
+              <div>
+                <h3 className="text-xl font-bold uppercase tracking-tighter text-white">
+                  Agreement Preview
+                </h3>
+                <p className="mt-1 text-[10px] uppercase tracking-widest text-brand-grey">
+                  Rendered with sample rental data
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewContent(null)}
+                className="rounded-full bg-white/5 p-2 text-brand-grey hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 sm:p-8">
+              <pre className="whitespace-pre-wrap rounded-2xl border border-white/10 bg-white/[0.02] p-5 font-sans text-sm leading-7 text-brand-grey">
+                {previewContent}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

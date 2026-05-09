@@ -28,6 +28,7 @@ import { apiNotFoundHandler, errorHandler } from './middleware/errors.js';
 import { requestContext, requestLogger } from './middleware/requestLogger.js';
 
 import agreementRoutes from './routes/agreements.js';
+import adminAgreementRoutes from './routes/adminAgreements.js';
 import applicationRoutes from './routes/applications.js';
 import authRoutes from './routes/auth.js';
 import carRoutes from './routes/cars.js';
@@ -550,6 +551,7 @@ const registerCoreRoutes = (app: express.Express) => {
   app.use('/api/inquiries', inquiryRoutes);
   app.use('/api/stripe', stripeRoutes);
   app.use('/api/rentals', rentalRoutes);
+  app.use('/api/admin/agreements', adminAgreementRoutes);
   app.use('/api/agreements', agreementRoutes);
   app.use('/api/toll-notices', tollNoticeRoutes);
   app.use('/api/financials', financialRoutes);

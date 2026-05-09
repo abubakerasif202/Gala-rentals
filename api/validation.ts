@@ -172,3 +172,25 @@ export const createLeaseAgreementSchema = z.object({
   status: z.string().optional().default("generated"),
   vehicle_label: z.string().trim().optional(),
 });
+
+const agreementTemplateContentSchema = z
+  .string()
+  .trim()
+  .min(1, "Agreement content is required")
+  .max(50000, "Agreement content must be 50,000 characters or less")
+  .refine(
+    (value) => !/<\s*script\b/i.test(value),
+    "Agreement content cannot include script tags",
+  )
+  .transform((value) => value.replace(/\0/g, ""));
+
+export const agreementTemplateSchema = z.object({
+  content: agreementTemplateContentSchema,
+  name: z.string().trim().min(1).max(120).default("Car Lease Agreement"),
+  template_key: z.string().trim().min(1).max(80).default("car-lease"),
+});
+
+export const updateAgreementTemplateSchema = z.object({
+  content: agreementTemplateContentSchema,
+  name: z.string().trim().min(1).max(120).optional(),
+});

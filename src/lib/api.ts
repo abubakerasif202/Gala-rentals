@@ -414,6 +414,53 @@ export interface SavedLeaseAgreement {
   vehicle_label?: string | null;
 }
 
+export interface AgreementTemplate {
+  active: boolean;
+  content: string;
+  created_at?: string | null;
+  id: number;
+  name: string;
+  template_key: string;
+  updated_at: string;
+  updated_by?: string | null;
+  version: number;
+}
+
+export const fetchAgreementTemplates = async (): Promise<AgreementTemplate[]> => {
+  const { data } = await api.get('/admin/agreements');
+  return data;
+};
+
+export const updateAgreementTemplate = async (
+  id: number,
+  payload: { content: string; name?: string }
+): Promise<AgreementTemplate> => {
+  const { data } = await api.put(`/admin/agreements/${id}`, payload);
+  return data;
+};
+
+export const createAgreementTemplate = async (payload: {
+  content: string;
+  name: string;
+  template_key?: string;
+}): Promise<AgreementTemplate> => {
+  const { data } = await api.post('/admin/agreements', payload);
+  return data;
+};
+
+export const activateAgreementTemplate = async (id: number): Promise<AgreementTemplate> => {
+  const { data } = await api.post(`/admin/agreements/${id}/activate`);
+  return data;
+};
+
+export const previewAgreementTemplate = async (
+  id: number,
+  payload: LeaseAgreementPayload = {}
+): Promise<{ agreement: string; agreementTemplateVersion: number }> => {
+  const { data } = await api.post(`/admin/agreements/${id}/preview`, payload);
+  return data;
+};
+
 export const saveLeaseAgreement = async (payload: {
   application_id: string;
   car_id?: number | null;

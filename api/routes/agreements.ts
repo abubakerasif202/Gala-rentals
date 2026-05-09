@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db/index.js';
 import { authenticateAdmin } from '../middleware/auth.js';
-import { renderCarLeaseAgreement } from '../templates/carLeaseAgreement.js';
+import { renderActiveAgreementTemplate } from '../agreementTemplates.js';
 import { leaseAgreementSchema, createLeaseAgreementSchema } from '../validation.js';
 import { z } from 'zod';
 import { getApplicationSelectColumns } from '../schemaCompat.js';
@@ -73,16 +73,16 @@ const enrichLeaseAgreements = async (
   }));
 };
 
-router.get('/car-lease/template', authenticateAdmin, (_req, res) => {
-  const template = renderCarLeaseAgreement();
+router.get('/car-lease/template', authenticateAdmin, async (_req, res) => {
+  const { agreement: template } = await renderActiveAgreementTemplate();
   res.type('text/markdown').send(template);
 });
 
 router.post('/car-lease/render', authenticateAdmin, async (req, res) => {
   try {
     const payload = leaseAgreementSchema.parse(req.body ?? {});
-    const rendered = renderCarLeaseAgreement(payload);
-    res.json({ agreement: rendered });
+    const rendered = await renderActiveAgreementTemplate(payload);
+    res.json({ agreement: rendered.agreement });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: error.issues });

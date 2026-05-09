@@ -46,9 +46,8 @@ import {
   MAX_APPLICATION_UPLOAD_BYTES,
 } from "../../shared/applicationSubmission.js";
 import {
-  CAR_LEASE_AGREEMENT_TEMPLATE_VERSION,
-  renderCarLeaseAgreement,
-} from "../templates/carLeaseAgreement.js";
+  renderActiveAgreementTemplate,
+} from "../agreementTemplates.js";
 import {
   escapeHtml,
   getResend,
@@ -126,11 +125,8 @@ const normalizeDeclaredDocumentType = (value: string) => {
 };
 const getStripe = () => getStripeClient();
 
-router.get("/agreement-template", (_req, res) => {
-  res.json({
-    agreement: renderCarLeaseAgreement(),
-    agreementTemplateVersion: CAR_LEASE_AGREEMENT_TEMPLATE_VERSION,
-  });
+router.get("/agreement-template", async (_req, res) => {
+  res.json(await renderActiveAgreementTemplate());
 });
 
 type ApplicationUploadField =
@@ -702,7 +698,7 @@ router.post(
         passport_or_uber_profile_screenshot: passportDocumentUrl,
         agreement_accepted_at: new Date().toISOString(),
         agreement_signature: String(data.agreement_signature || "").trim(),
-        agreement_template_version: CAR_LEASE_AGREEMENT_TEMPLATE_VERSION,
+        agreement_template_version: (await renderActiveAgreementTemplate()).agreementTemplateVersion,
         status: "Pending",
       });
       const { data: inserted, error } = await db

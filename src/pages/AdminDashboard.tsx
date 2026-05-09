@@ -184,6 +184,11 @@ export default function AdminDashboard() {
   const deferredInvoiceSearch = useDeferredValue(invoiceSearch.trim());
 
   useEffect(() => {
+    if (location.pathname === '/admin/agreements') {
+      setActiveTab('agreements');
+      return;
+    }
+
     if (location.pathname === '/admin/toll-notices') {
       setActiveTab('toll-notices');
     }
@@ -197,7 +202,13 @@ export default function AdminDashboard() {
 
   const handleAdminTabChange = (tab: string) => {
     setActiveTab(tab);
-    navigate(tab === 'toll-notices' ? '/admin/toll-notices' : '/admin/dashboard');
+    navigate(
+      tab === 'toll-notices'
+        ? '/admin/toll-notices'
+        : tab === 'agreements'
+          ? '/admin/agreements'
+          : '/admin/dashboard'
+    );
   };
   const deferredApplicationSearch = useDeferredValue(applicationSearch.trim());
   const deferredRentalSearch = useDeferredValue(rentalSearch.trim());

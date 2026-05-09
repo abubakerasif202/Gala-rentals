@@ -1,6 +1,6 @@
 import { getLeaseAgreementBusinessDetails } from '../agreementConfig.js';
 
-export const CAR_LEASE_AGREEMENT_TEMPLATE_VERSION = 1;
+export const CAR_LEASE_AGREEMENT_TEMPLATE_VERSION = 2;
 
 export type LeaseFee = {
   code: string;
@@ -38,7 +38,7 @@ export type CarLeaseAgreementInput = {
 
 export const buildCarLeaseAgreementFees = (bondAmount = 0): LeaseFee[] => [
   { code: '4.1', title: 'Security Bond', amount: `$${Number(bondAmount || 0).toFixed(2)}` },
-  { code: '4.2', title: 'Standard Excess For Rentee', amount: '$1000.00' },
+  { code: '4.2', title: 'Standard Accident Excess For Rentee', amount: '$1250.00' },
   { code: '4.3', title: 'Additional to 4.2 - Second accident within 6 months', amount: '$500' },
   { code: '4.4', title: 'Additional to 4.2 - Unlisted Drivers Excess', amount: '$5000' },
   { code: '4.5', title: 'Additional to 4.2 - Age Excess if under 25 years', amount: '$500' },
@@ -68,41 +68,29 @@ export const buildDefaultCarLeaseAgreement = (): CarLeaseAgreementInput => ({
   fees: buildCarLeaseAgreementFees(),
 });
 
-export const renderCarLeaseAgreement = (input: Partial<CarLeaseAgreementInput> = {}) => {
-  const defaultCarLeaseAgreement = buildDefaultCarLeaseAgreement();
-  const agreement: CarLeaseAgreementInput = {
-    ...defaultCarLeaseAgreement,
-    ...input,
-    fees: input.fees ?? defaultCarLeaseAgreement.fees,
-  };
-
-  const feeLines = agreement.fees
-    .map((fee) => `${fee.code} ${fee.title}: ${fee.amount}`)
-    .join('\n');
-
-  return `# Car Lease Agreement
+export const DEFAULT_CAR_LEASE_AGREEMENT_TEMPLATE = `# Car Lease Agreement
 
 ## 1. Registered Owner Details
-- Name: ${agreement.registeredOwnerName}
-- Address: ${agreement.registeredOwnerAddress}
-- Contact: ${agreement.registeredOwnerContact}
-- Email: ${agreement.registeredOwnerEmail}
+- Name: {{registeredOwnerName}}
+- Address: {{registeredOwnerAddress}}
+- Contact: {{registeredOwnerContact}}
+- Email: {{registeredOwnerEmail}}
 
 ## 2. Rentee Details
-- Name: ${agreement.renteeName}
-- Date of Birth: ${agreement.renteeDob}
-- License Number: ${agreement.renteeLicenseNumber}
-- License State: ${agreement.renteeLicenseState}
-- Address: ${agreement.renteeAddress}
-- Contact: ${agreement.renteeContact}
-- Email: ${agreement.renteeEmail}
+- Name: {{renteeName}}
+- Date of Birth: {{renteeDob}}
+- License Number: {{renteeLicenseNumber}}
+- License State: {{renteeLicenseState}}
+- Address: {{renteeAddress}}
+- Contact: {{renteeContact}}
+- Email: {{renteeEmail}}
 
 ## 3. Vehicle Details
-- Make: ${agreement.vehicleMake}
-- Model: ${agreement.vehicleModel}
-- Year: ${agreement.vehicleYear}
-- VIN: ${agreement.vehicleVin}
-- KM Allowance: ${agreement.kmAllowance}
+- Make: {{vehicleMake}}
+- Model: {{vehicleModel}}
+- Year: {{vehicleYear}}
+- VIN: {{vehicleVin}}
+- KM Allowance: {{kmAllowance}}
 
 ## 4. Rental Fee / Cost
 Your invoice is issued weekly and may include:
@@ -114,26 +102,63 @@ Your invoice is issued weekly and may include:
 - Other additional charges
 
 Rentee agrees to pay:
-- Weekly Rent: ${agreement.weeklyRent}
-- Fuel Policy: ${agreement.fuelPolicy}
+- Weekly Rent: {{weeklyRent}}
+- Fuel Policy: {{fuelPolicy}}
 
 ### Fee Schedule
-${feeLines}
+{{feeSchedule}}
 
-${agreement.insuranceCoverage}
+{{insuranceCoverage}}
 
 ## 5. Rental Period
-- Starting Date: ${agreement.rentalStartDate}
-- Ending Date: ${agreement.rentalEndDate}
-- Minimum Rental Period: ${agreement.minimumRentalPeriod}
+- Starting Date: {{rentalStartDate}}
+- Ending Date: {{rentalEndDate}}
+- Minimum Rental Period: {{minimumRentalPeriod}}
 
 ## 6. Return Of Vehicle
-${agreement.returnPolicy}
+{{returnPolicy}}
 
 ## 7. Legal Notice
 The parties choose the addresses above as their physical addresses where legal proceedings may be instituted.
 
-Date: ${agreement.agreementDate}
+Date: {{agreementDate}}
 
 Rentee Signature: _______________________________`;
+
+export const resolveCarLeaseAgreementInput = (
+  input: Partial<CarLeaseAgreementInput> = {}
+) => {
+  const defaultCarLeaseAgreement = buildDefaultCarLeaseAgreement();
+  return {
+    ...defaultCarLeaseAgreement,
+    ...input,
+    fees: input.fees ?? defaultCarLeaseAgreement.fees,
+  };
 };
+
+export const renderCarLeaseAgreementTemplate = (
+  template: string,
+  input: Partial<CarLeaseAgreementInput> = {}
+) => {
+  const agreement: CarLeaseAgreementInput = resolveCarLeaseAgreementInput(input);
+  const feeLines = agreement.fees
+    .map((fee) => `${fee.code} ${fee.title}: ${fee.amount}`)
+    .join('\n');
+
+  const values: Record<string, string> = {
+    ...Object.fromEntries(
+      Object.entries(agreement).map(([key, value]) => [
+        key,
+        Array.isArray(value) ? '' : String(value ?? ''),
+      ])
+    ),
+    feeSchedule: feeLines,
+  };
+
+  return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) =>
+    Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match
+  );
+};
+
+export const renderCarLeaseAgreement = (input: Partial<CarLeaseAgreementInput> = {}) =>
+  renderCarLeaseAgreementTemplate(DEFAULT_CAR_LEASE_AGREEMENT_TEMPLATE, input);

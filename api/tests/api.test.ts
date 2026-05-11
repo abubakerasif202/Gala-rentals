@@ -194,6 +194,7 @@ const {
   mockGetSupabaseConfigurationIssues,
   mockHasDirectDatabaseConnection,
   mockWithPostgresAdvisoryLock,
+  mockBeforeApplicationsUpdate,
   mockMutationErrors,
   mockResendEmailsSend,
   mockStripe,
@@ -225,6 +226,7 @@ const {
   mockWithPostgresAdvisoryLock: vi.fn(
     async (_lockKey: string, callback: () => Promise<unknown>) => callback(),
   ),
+  mockBeforeApplicationsUpdate: vi.fn(() => undefined),
   mockMutationErrors: {
     applicationsUpdate: null as Record<string, any> | null,
   },
@@ -799,6 +801,10 @@ vi.mock("../db/index.js", () => {
           data: null,
           error,
         };
+      }
+
+      if (action === "update" && table === "applications") {
+        mockBeforeApplicationsUpdate();
       }
 
       const rows = getTableRows(table);
@@ -1578,6 +1584,7 @@ beforeEach(() => {
     metadata: { application_id: APPROVED_APPLICATION_ID, car_id: "1" },
   });
   mockStripe.webhooksConstructEvent.mockReset();
+  mockBeforeApplicationsUpdate.mockReset();
 
   vi.clearAllMocks();
 });
@@ -3701,6 +3708,33 @@ describe("Stripe API", () => {
         payment_link_version: 4,
         pending_checkout_session_id: null,
         status: "Cancelled",
+      });
+    });
+
+    it("POST /api/applications/:id/cancel returns conflict when payment details change mid-cancel", async () => {
+      mockState.applications[0].status = "Approved";
+      mockState.applications[0].payment_link_version = 3;
+      mockState.applications[0].pending_checkout_session_id = "cs_pending_cancel";
+      mockBeforeApplicationsUpdate.mockImplementationOnce(() => {
+        mockState.applications[0].payment_link_version = 4;
+      });
+
+      const res = await request(app)
+        .post(`/api/applications/${PENDING_APPLICATION_ID}/cancel`)
+        .set("Authorization", "Bearer fake-token")
+        .send({ cancel_reason: "Driver withdrew" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain("changed while cancelling");
+      expect(mockStripe.checkoutSessionsRetrieve).not.toHaveBeenCalled();
+      expect(mockStripe.checkoutSessionsExpire).not.toHaveBeenCalled();
+      expect(mockStripe.subscriptionsCancel).not.toHaveBeenCalled();
+      expect(mockState.applications[0]).toMatchObject({
+        cancelled_at: null,
+        cancel_reason: null,
+        payment_link_version: 4,
+        pending_checkout_session_id: "cs_pending_cancel",
+        status: "Approved",
       });
     });
 

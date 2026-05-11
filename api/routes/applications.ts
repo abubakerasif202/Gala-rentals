@@ -22,7 +22,6 @@ import {
   getApplicationDocumentColumn,
   getApplicationSelectColumns,
   getCarSelectColumns,
-  toApplicationPaymentWritePayload,
   toApplicationWritePayload,
 } from "../schemaCompat.js";
 import {
@@ -1094,30 +1093,34 @@ router.post("/:id/cancel", authenticateAdmin, async (req, res) => {
       const nextVersion = currentVersion + 1;
       const nowIso = new Date().toISOString();
 
-      const { error: updateError } = await db
-        .from("applications")
-        .update(
-          await toApplicationPaymentWritePayload({
+      const updatedApplication =
+        await updateApplicationPaymentStateIfCurrentVersion({
+          applicationId: id,
+          expectedPaymentLinkVersion: currentVersion,
+          payload: {
             payment_link_version: nextVersion,
             pending_checkout_session_id: null,
             cancelled_at: nowIso,
             cancel_reason: cancel_reason || null,
             status: "Cancelled",
-          }),
-        )
-        .eq("id", id)
-        .eq("payment_link_version", currentVersion);
+          },
+        });
 
-      if (updateError) {
-        throw updateError;
+      if (!updatedApplication) {
+        return {
+          error: createRequestError(
+            409,
+            "Application payment details changed while cancelling. Refresh and try again.",
+          ),
+        } as const;
       }
 
-        await cancelApplicationStripeResources({
-          applicationId: id,
-          paymentLinkVersion: currentVersion,
-          pendingCheckoutSessionId:
-            applicationRecord.pending_checkout_session_id || null,
-        });
+      await cancelApplicationStripeResources({
+        applicationId: id,
+        paymentLinkVersion: currentVersion,
+        pendingCheckoutSessionId:
+          applicationRecord.pending_checkout_session_id || null,
+      });
 
       return {
         success: true,
@@ -1137,8 +1140,12 @@ router.post("/:id/cancel", authenticateAdmin, async (req, res) => {
         .json({ error: "Validation failed", details: error.issues });
     }
 
-    if (error instanceof Error && "status" in error && error.status === 404) {
-      return res.status(404).json({ error: error.message });
+    if (
+      error instanceof Error &&
+      "status" in error &&
+      typeof error.status === "number"
+    ) {
+      return res.status(error.status).json({ error: error.message });
     }
 
     console.error("Application cancel error:", error);

@@ -11,6 +11,8 @@ type ApplicationPaymentWritePayload = {
   approved_vehicle?: string | null;
   approved_weekly_price?: number | null;
   assigned_car_id?: number | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
   paid_at?: string | null;
   payment_link_sent_at?: string | null;
   payment_link_version?: number;

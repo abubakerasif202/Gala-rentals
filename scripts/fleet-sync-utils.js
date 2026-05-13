@@ -43,16 +43,59 @@ export const getCoreSchemaMode = async ({ supabaseUrl, supabaseServiceRoleKey })
   const definitions = spec?.definitions || {};
   const getTableMode = (table, camelProperty) =>
     definitions?.[table]?.properties?.[camelProperty] ? 'camel' : 'snake';
+  const applicationProperties = definitions?.applications?.properties || {};
+  const applicationAssignedCarColumn = applicationProperties.assignedCarId
+    ? 'assignedCarId'
+    : applicationProperties.assigned_car_id
+      ? 'assigned_car_id'
+      : null;
 
   return {
-    applications: getTableMode('applications', 'assignedCarId'),
+    applications: {
+      assignedCarColumn: applicationAssignedCarColumn,
+      approvedVehicleColumn: applicationProperties.approvedVehicle
+        ? 'approvedVehicle'
+        : applicationProperties.approved_vehicle
+          ? 'approved_vehicle'
+          : null,
+      mode: getTableMode('applications', 'licenseNumber'),
+    },
     cars: getTableMode('cars', 'modelYear'),
     rentals: getTableMode('rentals', 'carId'),
   };
 };
 
+const getTableSchema = (schemaMode, table) => {
+  if (typeof schemaMode === 'string') {
+    return {
+      assignedCarColumn:
+        table === 'applications'
+          ? schemaMode === 'camel'
+            ? 'assignedCarId'
+            : 'assigned_car_id'
+          : null,
+      mode: schemaMode,
+    };
+  }
+
+  const tableSchema = schemaMode?.[table];
+  if (typeof tableSchema === 'string') {
+    return {
+      assignedCarColumn:
+        table === 'applications'
+          ? tableSchema === 'camel'
+            ? 'assignedCarId'
+            : 'assigned_car_id'
+          : null,
+      mode: tableSchema,
+    };
+  }
+
+  return tableSchema || { mode: 'snake' };
+};
+
 const getSchemaMode = (schemaMode, table) =>
-  typeof schemaMode === 'string' ? schemaMode : schemaMode?.[table] || 'snake';
+  getTableSchema(schemaMode, table).mode || 'snake';
 
 export const mapCarPayloadForSchema = (car, coreMode) =>
   getSchemaMode(coreMode, 'cars') === 'camel'
@@ -73,9 +116,11 @@ export const mapCarPayloadForSchema = (car, coreMode) =>
         image: car.image,
       };
 
-export const mapApplicationPayloadForSchema = (application, coreMode) =>
-  getSchemaMode(coreMode, 'applications') === 'camel'
-    ? {
+export const mapApplicationPayloadForSchema = (application, coreMode) => {
+  const applicationSchema = getTableSchema(coreMode, 'applications');
+  const payload =
+    getSchemaMode(coreMode, 'applications') === 'camel'
+      ? {
         name: application.name,
         phone: application.phone,
         email: application.email,
@@ -87,7 +132,6 @@ export const mapApplicationPayloadForSchema = (application, coreMode) =>
         weeklyBudget: application.weekly_budget,
         intendedStartDate: application.intended_start_date,
         status: application.status,
-        assignedCarId: application.assigned_car_id,
         approvedBond: application.approved_bond,
         approvedWeeklyPrice: application.approved_weekly_price,
         approvedAt: application.approved_at,
@@ -98,7 +142,7 @@ export const mapApplicationPayloadForSchema = (application, coreMode) =>
         licensePhoto: null,
         uberScreenshot: null,
       }
-    : {
+      : {
         name: application.name,
         phone: application.phone,
         email: application.email,
@@ -110,7 +154,6 @@ export const mapApplicationPayloadForSchema = (application, coreMode) =>
         weekly_budget: application.weekly_budget,
         intended_start_date: application.intended_start_date,
         status: application.status,
-        assigned_car_id: application.assigned_car_id,
         approved_bond: application.approved_bond,
         approved_weekly_price: application.approved_weekly_price,
         approved_at: application.approved_at,
@@ -121,6 +164,17 @@ export const mapApplicationPayloadForSchema = (application, coreMode) =>
         license_photo: null,
         license_back_photo: null,
       };
+
+  if (applicationSchema.assignedCarColumn) {
+    payload[applicationSchema.assignedCarColumn] = application.assigned_car_id;
+  }
+
+  if (applicationSchema.approvedVehicleColumn) {
+    payload[applicationSchema.approvedVehicleColumn] = application.approved_vehicle ?? null;
+  }
+
+  return payload;
+};
 
 export const mapRentalPayloadForSchema = (rental, coreMode) =>
   getSchemaMode(coreMode, 'rentals') === 'camel'
@@ -148,10 +202,23 @@ export const getCarSelectList = (coreMode) =>
     ? 'id, name, modelYear, weeklyPrice, bond, status, image, created_at'
     : 'id, name, model_year, weekly_price, bond, status, image, created_at';
 
-export const getApplicationSelectList = (coreMode) =>
-  getSchemaMode(coreMode, 'applications') === 'camel'
-    ? 'id, name, email, experience, licenseNumber, assignedCarId, status'
-    : 'id, name, email, experience, license_number, assigned_car_id, status';
+export const getApplicationSelectList = (coreMode) => {
+  const applicationSchema = getTableSchema(coreMode, 'applications');
+  const baseSelect =
+    getSchemaMode(coreMode, 'applications') === 'camel'
+      ? ['id', 'name', 'email', 'experience', 'licenseNumber', 'status']
+      : ['id', 'name', 'email', 'experience', 'license_number', 'status'];
+
+  if (applicationSchema.assignedCarColumn) {
+    baseSelect.push(applicationSchema.assignedCarColumn);
+  }
+
+  if (applicationSchema.approvedVehicleColumn) {
+    baseSelect.push(applicationSchema.approvedVehicleColumn);
+  }
+
+  return baseSelect.join(', ');
+};
 
 export const getRentalSelectList = (coreMode) =>
   getSchemaMode(coreMode, 'rentals') === 'camel'
@@ -165,9 +232,21 @@ export const extractRegistrationFromCar = (car) => {
 };
 
 export const getApplicationAssignedCarId = (application, coreMode) =>
-  getSchemaMode(coreMode, 'applications') === 'camel'
-    ? application.assignedCarId ?? null
-    : application.assigned_car_id ?? null;
+  getTableSchema(coreMode, 'applications').assignedCarColumn
+    ? getSchemaMode(coreMode, 'applications') === 'camel'
+      ? application.assignedCarId ?? null
+      : application.assigned_car_id ?? null
+    : null;
+
+export const getApplicationApprovedVehicle = (application, coreMode) => {
+  const approvedVehicleColumn = getTableSchema(coreMode, 'applications').approvedVehicleColumn;
+
+  if (!approvedVehicleColumn) {
+    return '';
+  }
+
+  return String(application[approvedVehicleColumn] || '');
+};
 
 export const getApplicationLicenseNumber = (application, coreMode) =>
   getSchemaMode(coreMode, 'applications') === 'camel'

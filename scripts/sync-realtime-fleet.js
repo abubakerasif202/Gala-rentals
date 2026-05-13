@@ -11,6 +11,7 @@ import {
   createSupabaseAdminClient,
   extractRegistrationFromCar,
   getApplicationAssignedCarId,
+  getApplicationApprovedVehicle,
   getApplicationLicenseNumber,
   getApplicationSelectList,
   getCarSelectList,
@@ -365,14 +366,29 @@ export async function runRealtimeFleetSync(syncSource) {
     importedRentals = rentals.length;
   }
 
-  const protectedCarIds = new Set(
-    currentApplications
-      .filter((application) =>
-        syncSource.source === 'snapshot' ? !legacyApplicationIdSet.has(application.id) : true
-      )
-      .map((application) => getApplicationAssignedCarId(application, coreMode))
-      .filter(Boolean)
-  );
+  const protectedCarIds = new Set();
+  for (const application of currentApplications) {
+    if (syncSource.source === 'snapshot' && legacyApplicationIdSet.has(application.id)) {
+      continue;
+    }
+
+    const assignedCarId = getApplicationAssignedCarId(application, coreMode);
+    if (assignedCarId) {
+      protectedCarIds.add(assignedCarId);
+      continue;
+    }
+
+    const approvedVehicleRegistration = canonicalizeRegistration(
+      getApplicationApprovedVehicle(application, coreMode)
+    );
+    const approvedVehicleCarId = approvedVehicleRegistration
+      ? carIdByRegistration.get(approvedVehicleRegistration)
+      : null;
+
+    if (approvedVehicleCarId) {
+      protectedCarIds.add(approvedVehicleCarId);
+    }
+  }
 
   const protectedRentalCarIds = new Set(
     currentRentals

@@ -40,11 +40,22 @@ export const getCoreSchemaMode = async ({ supabaseUrl, supabaseServiceRoleKey })
   }
 
   const spec = await response.json();
-  return spec?.definitions?.cars?.properties?.modelYear ? 'camel' : 'snake';
+  const definitions = spec?.definitions || {};
+  const getTableMode = (table, camelProperty) =>
+    definitions?.[table]?.properties?.[camelProperty] ? 'camel' : 'snake';
+
+  return {
+    applications: getTableMode('applications', 'assignedCarId'),
+    cars: getTableMode('cars', 'modelYear'),
+    rentals: getTableMode('rentals', 'carId'),
+  };
 };
 
+const getSchemaMode = (schemaMode, table) =>
+  typeof schemaMode === 'string' ? schemaMode : schemaMode?.[table] || 'snake';
+
 export const mapCarPayloadForSchema = (car, coreMode) =>
-  coreMode === 'camel'
+  getSchemaMode(coreMode, 'cars') === 'camel'
     ? {
         name: car.name,
         modelYear: car.model_year,
@@ -63,7 +74,7 @@ export const mapCarPayloadForSchema = (car, coreMode) =>
       };
 
 export const mapApplicationPayloadForSchema = (application, coreMode) =>
-  coreMode === 'camel'
+  getSchemaMode(coreMode, 'applications') === 'camel'
     ? {
         name: application.name,
         phone: application.phone,
@@ -112,7 +123,7 @@ export const mapApplicationPayloadForSchema = (application, coreMode) =>
       };
 
 export const mapRentalPayloadForSchema = (rental, coreMode) =>
-  coreMode === 'camel'
+  getSchemaMode(coreMode, 'rentals') === 'camel'
     ? {
         carId: rental.car_id,
         applicationId: rental.application_id,
@@ -133,17 +144,17 @@ export const mapRentalPayloadForSchema = (rental, coreMode) =>
       };
 
 export const getCarSelectList = (coreMode) =>
-  coreMode === 'camel'
+  getSchemaMode(coreMode, 'cars') === 'camel'
     ? 'id, name, modelYear, weeklyPrice, bond, status, image, created_at'
     : 'id, name, model_year, weekly_price, bond, status, image, created_at';
 
 export const getApplicationSelectList = (coreMode) =>
-  coreMode === 'camel'
+  getSchemaMode(coreMode, 'applications') === 'camel'
     ? 'id, name, email, experience, licenseNumber, assignedCarId, status'
     : 'id, name, email, experience, license_number, assigned_car_id, status';
 
 export const getRentalSelectList = (coreMode) =>
-  coreMode === 'camel'
+  getSchemaMode(coreMode, 'rentals') === 'camel'
     ? 'id, carId, applicationId, startDate, weeklyPrice, status'
     : 'id, car_id, application_id, start_date, weekly_price, status';
 
@@ -154,10 +165,17 @@ export const extractRegistrationFromCar = (car) => {
 };
 
 export const getApplicationAssignedCarId = (application, coreMode) =>
-  coreMode === 'camel' ? application.assignedCarId ?? null : application.assigned_car_id ?? null;
+  getSchemaMode(coreMode, 'applications') === 'camel'
+    ? application.assignedCarId ?? null
+    : application.assigned_car_id ?? null;
 
 export const getApplicationLicenseNumber = (application, coreMode) =>
-  coreMode === 'camel' ? application.licenseNumber ?? '' : application.license_number ?? '';
+  getSchemaMode(coreMode, 'applications') === 'camel'
+    ? application.licenseNumber ?? ''
+    : application.license_number ?? '';
 
 export const getRentalCarId = (rental, coreMode) =>
-  coreMode === 'camel' ? rental.carId : rental.car_id;
+  getSchemaMode(coreMode, 'rentals') === 'camel' ? rental.carId : rental.car_id;
+
+export const getRentalApplicationId = (rental, coreMode) =>
+  getSchemaMode(coreMode, 'rentals') === 'camel' ? rental.applicationId : rental.application_id;

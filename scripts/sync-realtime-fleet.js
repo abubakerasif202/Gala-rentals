@@ -15,6 +15,7 @@ import {
   getApplicationSelectList,
   getCarSelectList,
   getCoreSchemaMode,
+  getRentalApplicationId,
   getRentalCarId,
   getRentalSelectList,
   mapApplicationPayloadForSchema,
@@ -221,9 +222,7 @@ export async function runRealtimeFleetSync(syncSource) {
 
     legacyApplicationIdSet = new Set(legacyApplicationIds);
     legacyRentalIds = currentRentals
-      .filter((rental) =>
-        legacyApplicationIdSet.has(coreMode === 'camel' ? rental.applicationId : rental.application_id)
-      )
+      .filter((rental) => legacyApplicationIdSet.has(getRentalApplicationId(rental, coreMode)))
       .map((rental) => rental.id);
 
     if (legacyRentalIds.length > 0) {
@@ -255,7 +254,7 @@ export async function runRealtimeFleetSync(syncSource) {
     if (existingCar) {
       const carUpdatePayload =
         syncSource.source === 'workbook'
-          ? coreMode === 'camel'
+          ? 'weeklyPrice' in carPayload
             ? {
                 bond: carPayload.bond,
                 status: carPayload.status,

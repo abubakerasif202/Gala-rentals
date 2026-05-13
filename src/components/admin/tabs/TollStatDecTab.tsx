@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Download,
+  ExternalLink,
   FileText,
   Loader2,
   MapPin,
@@ -33,6 +34,8 @@ const COMPANY_DETAILS = {
   name: 'MAPLE PAINTING PTY LTD',
   phone: '0420 550 556',
 };
+
+const TOLL_NOTICE_TEMPLATE_URL = '/forms/tolling-notice-statutory-declaration-companies.pdf';
 
 const createEmptyForm = (): TollTransferForm => ({
   application_id: null,
@@ -89,38 +92,6 @@ const labels: Partial<Record<keyof TollTransferForm, string>> = {
 };
 
 const display = (value: unknown) => String(value ?? '').trim() || '-';
-
-const normaliseBoxValue = (value: string | null | undefined, preserveSpaces = false) =>
-  String(value || '')
-    .toUpperCase()
-    .replace(/\s+/g, preserveSpaces ? ' ' : '')
-    .trim();
-
-const boxText = (value: string | null | undefined, max = 12, preserveSpaces = false) => {
-  const normalised = normaliseBoxValue(value, preserveSpaces);
-  return Array.from({ length: max }, (_, index) => normalised[index] || '');
-};
-
-const splitNomineeName = (value: string) => {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (parts.length <= 1) {
-    return { givenNames: '', surname: parts[0] || '' };
-  }
-
-  return {
-    givenNames: parts.slice(0, -1).join(' '),
-    surname: parts[parts.length - 1],
-  };
-};
-
-const getDateParts = (value: string | null | undefined) => {
-  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return {
-    day: match?.[3] || '',
-    month: match?.[2] || '',
-    year: match?.[1] || '',
-  };
-};
 
 export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabProps) {
   const queryClient = useQueryClient();
@@ -200,9 +171,6 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     () => requiredFields.filter((field) => !String(form[field] ?? '').trim()),
     [form]
   );
-  const nomineeNameParts = useMemo(() => splitNomineeName(form.nominee_full_name), [
-    form.nominee_full_name,
-  ]);
   const selectedRentalSummary = useMemo(() => {
     if (!form.rental_id && !form.application_id && !form.car_name) {
       return null;
@@ -383,82 +351,6 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
       />
       {errors[field] && <p className="text-xs text-red-300">{errors[field]}</p>}
     </label>
-  );
-
-  const LetterBoxes = ({
-    className = '',
-    count,
-    preserveSpaces = false,
-    value,
-  }: {
-    className?: string;
-    count: number;
-    preserveSpaces?: boolean;
-    value: string | null | undefined;
-  }) => (
-    <div className={`flex min-w-0 ${className}`}>
-      {boxText(value, count, preserveSpaces).map((letter, index) => (
-        <span
-          key={index}
-          className="flex h-6 w-3.5 shrink-0 items-center justify-center border border-black text-[9px] font-medium leading-none"
-        >
-          {letter === ' ' ? '' : letter}
-        </span>
-      ))}
-    </div>
-  );
-
-  const DateBoxes = ({ value }: { value: string | null | undefined }) => {
-    const date = getDateParts(value);
-
-    return (
-      <div className="inline-flex flex-col items-start">
-        <div className="flex items-center gap-1">
-          <LetterBoxes count={2} value={date.day} />
-          <span className="text-xs">/</span>
-          <LetterBoxes count={2} value={date.month} />
-          <span className="text-xs">/</span>
-          <LetterBoxes count={4} value={date.year} />
-        </div>
-        <div className="mt-0.5 grid w-full grid-cols-[2.6rem_2.6rem_4.4rem] text-center text-[8px] leading-none">
-          <span>day</span>
-          <span>month</span>
-          <span>year</span>
-        </div>
-      </div>
-    );
-  };
-
-  const PreviewLine = ({
-    label,
-    value,
-    width = 'w-full',
-  }: {
-    label: string;
-    value?: string | null;
-    width?: string;
-  }) => (
-    <div className={`flex items-end gap-2 ${width}`}>
-      <span className="shrink-0 text-[11px] leading-none">{label}</span>
-      <span className="min-h-5 flex-1 border-b border-dotted border-black px-2 text-[10px] leading-5">
-        {String(value || '').toUpperCase()}
-      </span>
-    </div>
-  );
-
-  const PreviewCheckbox = ({
-    checked,
-    label,
-  }: {
-    checked: boolean;
-    label: React.ReactNode;
-  }) => (
-    <div className="flex items-start gap-2 text-[11px] leading-tight">
-      <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center border border-black text-[10px]">
-        {checked ? 'X' : ''}
-      </span>
-      <span>{label}</span>
-    </div>
   );
 
   return (
@@ -739,244 +631,30 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
             </div>
           </section>
 
-          <article className="min-h-[297mm] bg-white p-5 text-black shadow-2xl [font-family:Arial,sans-serif]">
-            <header>
-              <h1 className="text-[25px] font-bold leading-tight">
-                Tolling Notice Statutory Declaration – Companies
-              </h1>
-              <p className="mt-3 text-[11px] leading-tight">
-                Use this form to give notice of the name and address of the driver who was in
-                charge of the vehicle at the time of the trip.
-              </p>
-              <div className="mt-2 grid grid-cols-2 gap-6 text-[11px] leading-tight">
-                <div className="space-y-1">
-                  <p>&bull; Print clearly in CAPITAL letters using black pen.</p>
-                  <p>&bull; The original Toll Notice or a copy must be enclosed.</p>
-                </div>
-                <p>
-                  &bull; Completed form must be received at least 7 days before the due date on the
-                  toll notice. You must provide the name and address of the organisation you wish
-                  to nominate
-                </p>
-              </div>
-            </header>
-
-            <div className="mt-3 border border-black bg-neutral-200 px-2 py-1 text-[13px] font-bold">
-              OFFICE USE ONLY
+          <section className="rounded-lg border border-white/10 bg-white/5 p-6">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-white">
+                <FileText className="h-4 w-4 text-brand-gold" />
+                Original Notice
+              </h3>
+              <a
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10"
+                href={TOLL_NOTICE_TEMPLATE_URL}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <ExternalLink className="h-4 w-4 text-brand-gold" />
+                Open Original
+              </a>
             </div>
-
-            <section className="mt-3 space-y-2 text-[11px]">
-              <div className="flex flex-wrap items-start gap-x-8 gap-y-2">
-                <div className="flex items-center gap-2">
-                  <span>Toll Notice number</span>
-                  <LetterBoxes count={14} value={form.toll_notice_number} />
-                  <span>-</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>Vehicle registration number:</span>
-                  <LetterBoxes count={7} value={form.vehicle_registration} />
-                </div>
-              </div>
-              <p className="text-[10px] italic leading-tight">
-                If multiple Toll Notice numbers for the same vehicle registration number above,
-                please write 'as attached', and list the numbers on a separate page attached to
-                this form.
-              </p>
-            </section>
-
-            <section className="mt-3 space-y-2 text-[11px]">
-              <PreviewLine
-                label="I, [full name of person completing this form on behalf of the Company/organisation named on the toll notice]"
-                value={form.authorised_officer_name}
+            <div className="aspect-[210/297] overflow-hidden rounded-lg bg-white shadow-2xl">
+              <iframe
+                className="h-full w-full border-0"
+                src={`${TOLL_NOTICE_TEMPLATE_URL}#toolbar=0&navpanes=0&view=FitH`}
+                title="Original tolling notice statutory declaration"
               />
-              <p className="font-bold">am an authorised officer of</p>
-              <PreviewLine label="Organisation name:" value={COMPANY_DETAILS.name} />
-              <PreviewLine label="Organisation address:" value={COMPANY_DETAILS.address} />
-              <div className="flex flex-wrap items-center gap-5">
-                <PreviewLine label="Phone number:" value={COMPANY_DETAILS.phone} width="w-72" />
-                <PreviewCheckbox checked label="Toll Notice has been enclosed" />
-              </div>
-            </section>
-
-            <section className="mt-3 space-y-2 text-[11px]">
-              <p className="font-bold">
-                give notice that the person named below was responsible for the trip:
-              </p>
-              <div className="flex items-center gap-2">
-                <span className="w-32 shrink-0">Surname or organisation name:</span>
-                <LetterBoxes count={28} preserveSpaces value={nomineeNameParts.surname} />
-              </div>
-              <div className="flex flex-wrap items-start gap-x-6 gap-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-32 shrink-0">Given name(s):</span>
-                  <LetterBoxes count={22} preserveSpaces value={nomineeNameParts.givenNames} />
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="mt-1">Date of birth:</span>
-                  <DateBoxes value={form.nominee_dob} />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-32 shrink-0">Mailing address:</span>
-                <LetterBoxes count={34} preserveSpaces value={form.nominee_address} />
-              </div>
-              <div className="flex flex-wrap items-start gap-x-5 gap-y-2">
-                <div className="flex items-center gap-2">
-                  <span>Suburb:</span>
-                  <LetterBoxes count={18} preserveSpaces value={form.nominee_suburb} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>State:</span>
-                  <LetterBoxes count={3} value={form.nominee_state} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>Postcode:</span>
-                  <LetterBoxes count={4} value={form.nominee_postcode} />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
-                <div className="flex items-center gap-2">
-                  <span>Country:</span>
-                  <LetterBoxes count={12} preserveSpaces value={form.nominee_country} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>Phone number:</span>
-                  <LetterBoxes count={10} value={form.nominee_phone} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>Organisation ABN/ACN:</span>
-                  <LetterBoxes count={11} value="" />
-                </div>
-              </div>
-            </section>
-
-            <section className="mt-3 text-[11px] leading-tight">
-              <p>
-                <span className="font-bold">person</span>{' '}
-                <span className="italic">
-                  (Please tick ONE of the following three boxes as appropriate)
-                </span>
-              </p>
-              <div className="mt-2 grid grid-cols-3 gap-4">
-                <PreviewCheckbox
-                  checked={form.responsible_type === 'responsible'}
-                  label="was the driver, person or organisation responsible for toll"
-                />
-                <div>
-                  <PreviewCheckbox
-                    checked={form.responsible_type === 'new-owner'}
-                    label="Was the new owner from:"
-                  />
-                  <DateBoxes value={null} />
-                </div>
-                <div>
-                  <PreviewCheckbox
-                    checked={form.responsible_type === 'previous-owner'}
-                    label="Was the previous owner until:"
-                  />
-                  <DateBoxes value={null} />
-                </div>
-              </div>
-            </section>
-
-            <div className="mt-3 bg-neutral-200 px-3 py-1 text-center text-[11px]">
-              <span className="font-bold">Note:</span> A person who makes a false statement or
-              misleading declaration is liable to a penalty or criminal prosecution.
             </div>
-
-            <section className="mt-3 space-y-2 text-[11px] leading-tight">
-              <p>
-                I make this solemn declaration conscientiously believing the same to be true, and
-                by virtue of the provisions of the <span className="italic">Oaths Act 1900.</span>
-              </p>
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                <PreviewLine label="Declared at [place]" value={form.declaration_place} />
-                <div className="flex items-start gap-2">
-                  <span className="mt-1">on [date]</span>
-                  <DateBoxes value={form.declaration_date} />
-                </div>
-              </div>
-              <PreviewLine label="Signature of declarant:" value="" />
-            </section>
-
-            <section className="mt-3 space-y-2 text-[11px] leading-tight">
-              <p className="font-bold">in the presence of an authorised witness, who states:</p>
-              <PreviewLine label="I, [name of authorised witness]" value={form.witness_name} />
-              <div className="flex flex-wrap items-start gap-3">
-                <span>a [qualification of authorised witness] :</span>
-                <PreviewCheckbox
-                  checked={String(form.witness_qualification || '')
-                    .toLowerCase()
-                    .includes('legal')}
-                  label="Legal practitioner /"
-                />
-                <PreviewCheckbox
-                  checked={String(form.witness_qualification || '')
-                    .toLowerCase()
-                    .includes('justice')}
-                  label="Justice of the Peace"
-                />
-                <span className="italic">[supply JP number]</span>
-                <span className="min-w-24 border-b border-dotted border-black px-2">
-                  {form.witness_jp_number}
-                </span>
-              </div>
-              <p>
-                certify the following matters concerning the making of this statutory declaration
-                by the person who made it:
-              </p>
-              <p className="text-center italic">[* please cross out any text that does not apply]</p>
-              <div className="grid grid-cols-[1rem_1fr_1.5rem_2fr] gap-2">
-                <span>1.</span>
-                <span>*I saw the face of the person</span>
-                <span className="font-bold">OR</span>
-                <span>
-                  *I did not see the face of the person because the person was wearing a face
-                  covering, but I am satisfied that the person had a special justification for not
-                  removing the covering, and
-                </span>
-                <span>2.</span>
-                <span>*I have known the person for at least 12 months</span>
-                <span className="font-bold">OR</span>
-                <span>
-                  *I have not known the person for at least 12 months, but I have confirmed the
-                  person's identity using an identification document and the document I relied on
-                  was:
-                </span>
-              </div>
-              <PreviewLine label="[describe identification document relied on]" value="" />
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                <PreviewLine label="Signature of authorised witness:" value="" />
-                <div className="flex items-start gap-2">
-                  <span className="mt-1">Date:</span>
-                  <DateBoxes value={form.declaration_date} />
-                </div>
-              </div>
-            </section>
-
-            <footer className="mt-3 text-[10px] leading-tight">
-              <p className="font-bold">Personal Information Collection Notice</p>
-              <p>
-                Transport for NSW is committed to protecting your privacy and ensuring your
-                personal and health information is managed according to law. Find out why we
-                collect your personal information and how we use and manage it by reading our
-                privacy statement at www.transport.nsw.gov.au/privacy-statement or phone 13 22 13
-                to request a copy.
-              </p>
-              <p className="mt-1">
-                <span className="font-bold">Please return this form to:</span> Toll Compliance
-                Management, Locked Bag 5004, Parramatta NSW 2124
-              </p>
-              <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-end text-[10px]">
-                <span>Catalogue No. 45071726&nbsp;&nbsp;Form No. 1672 (04/2022)</span>
-                <span className="text-center text-sm font-bold">
-                  OFFICIAL: Sensitive - Personal
-                  <span className="block text-[10px] font-normal">(when completed)</span>
-                </span>
-                <span className="text-right">Page 1 of 1</span>
-              </div>
-            </footer>
-          </article>
+          </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-6">
             <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-white">

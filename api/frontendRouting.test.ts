@@ -27,6 +27,9 @@ describe('shouldServeSpaEntry', () => {
     expect(
       shouldServeSpaEntry(createRequest({ path: '/admin/dashboard' }))
     ).toBe(true);
+    expect(
+      shouldServeSpaEntry(createRequest({ path: '/admin/toll-notices' }))
+    ).toBe(true);
   });
 
   it('allows root path regardless of accept header', () => {

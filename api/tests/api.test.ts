@@ -1949,13 +1949,15 @@ describe("Auth API", () => {
       .send({ username: "admin@maplerentals.com.au", password: "password" });
 
     expect(loginRes.status).toBe(200);
+    const adminCookie = loginRes.headers["set-cookie"]?.[0]?.split(";")[0];
+    expect(adminCookie).toBeTruthy();
 
     mockGetUser.mockResolvedValueOnce({
       data: { user: null },
       error: { message: "JWT expired" },
     });
 
-    const verifyRes = await agent.get("/api/auth/verify");
+    const verifyRes = await agent.get("/api/auth/verify").set("Cookie", adminCookie);
 
     expect(verifyRes.status).toBe(200);
     expect(verifyRes.body.user.username).toBe("admin@maplerentals.com.au");
@@ -1972,8 +1974,10 @@ describe("Auth API", () => {
       .send({ username: "admin@maplerentals.com.au", password: "password" });
 
     expect(loginRes.status).toBe(200);
+    const adminCookie = loginRes.headers["set-cookie"]?.[0]?.split(";")[0];
+    expect(adminCookie).toBeTruthy();
 
-    const rejectedRes = await agent.post("/api/auth/logout");
+    const rejectedRes = await agent.post("/api/auth/logout").set("Cookie", adminCookie);
     expect(rejectedRes.status).toBe(403);
     expect(rejectedRes.body.error).toContain(
       "Cross-site admin request rejected",
@@ -1981,6 +1985,7 @@ describe("Auth API", () => {
 
     const allowedRes = await agent
       .post("/api/auth/logout")
+      .set("Cookie", adminCookie)
       .set("Origin", "http://localhost:3000");
 
     expect(allowedRes.status).toBe(200);

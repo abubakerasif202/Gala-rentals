@@ -1,21 +1,26 @@
 # Security Policy
 
-## Supported Versions
+## Supported Deployments
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+Maple Rentals supports only the latest deployment from the `main` branch.
+Older branches, forks, local development builds, and superseded deployments are
+not supported for security updates.
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+If you believe you have found a security vulnerability in Maple Rentals, please
+email the details to admin@maplerentals.com.au.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Include enough information for us to reproduce and assess the issue, such as:
+
+- Affected URL, endpoint, or workflow
+- Steps to reproduce
+- Potential impact
+- Any proof-of-concept details, screenshots, or logs that are safe to share
+
+We aim to acknowledge valid vulnerability reports within 48 hours. We may
+follow up for additional technical detail while we investigate, validate impact,
+and prepare a fix.
+
+Please do not publicly disclose the vulnerability until we have had a
+reasonable opportunity to remediate it.

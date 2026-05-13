@@ -46,30 +46,10 @@ import { indexNowConfig } from './services/indexNow.js';
 import { getPaymentProcessingMode } from './paymentProcessing.js';
 import { verifyProductionSchemaContract } from './schemaContract.js';
 
-import { syncRealtimeFleet } from '../scripts/sync-realtime-fleet.js';
-
 const isVitest = process.env.VITEST === 'true';
 const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
 const shouldListen = process.env.VITEST !== 'true';
 const PORT = Number(process.env.PORT) || 3000;
-const FLEET_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
-let fleetSyncIntervalId: NodeJS.Timeout | null = null;
-
-const startFleetSyncInterval = () => {
-  if (isVitest) return;
-  
-  // Initial sync on startup
-  void syncRealtimeFleet().catch((error) => {
-    console.error('[fleet-sync] Startup sync failed:', error);
-  });
-
-  // Periodic sync
-  fleetSyncIntervalId = setInterval(() => {
-    void syncRealtimeFleet().catch((error) => {
-      console.error('[fleet-sync] Periodic sync failed:', error);
-    });
-  }, FLEET_SYNC_INTERVAL_MS);
-};
 const HOST = '0.0.0.0';
 const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '100kb';
 const DB_CHECK_TIMEOUT_MS = 8000;
@@ -673,9 +653,6 @@ export const startServer = async (): Promise<RunningResources> => {
     createdServer.on('error', reject);
   });
 
-  // Start background fleet synchronization
-  startFleetSyncInterval();
-
   // Render only needs the port to open quickly; keep DB warmup asynchronous and
   // surface readiness through the healthcheck and API middleware instead.
   void ensureDB().catch((error) => {
@@ -701,11 +678,6 @@ const shutdown = async (reason: string, error?: unknown) => {
       console.error(`Shutting down after ${reason}:`, error);
     } else {
       console.info(`Received ${reason}. Shutting down gracefully...`);
-    }
-
-    if (fleetSyncIntervalId) {
-      clearInterval(fleetSyncIntervalId);
-      fleetSyncIntervalId = null;
     }
 
     const resources = runningResources;

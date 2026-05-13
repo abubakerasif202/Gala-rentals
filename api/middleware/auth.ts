@@ -114,38 +114,13 @@ const hasTrustedWriteOrigin = (req: express.Request) => {
   return false;
 };
 
-const isCrossSiteCookieRequest = (req: express.Request) => {
-  const requestOrigin = getRequestOrigin(req);
-  const originHeader = req.get('origin');
-
-  if (!requestOrigin || !originHeader) {
-    return false;
-  }
-
-  try {
-    const requestUrl = new URL(requestOrigin);
-    const originUrl = new URL(originHeader);
-
-    return (
-      requestUrl.protocol !== originUrl.protocol ||
-      requestUrl.hostname !== originUrl.hostname
-    );
-  } catch {
-    return false;
-  }
-};
-
-export const createCookieOptions = (req: express.Request) => {
-  const requiresCrossSiteCookie = isCrossSiteCookieRequest(req);
-
+export const createCookieOptions = () => {
   return {
     httpOnly: true,
     maxAge: LOCAL_ADMIN_SESSION_TTL_MS,
     path: '/',
-    sameSite: (requiresCrossSiteCookie ? 'none' : 'strict') as
-      | 'none'
-      | 'strict',
-    secure: isProduction || requiresCrossSiteCookie,
+    sameSite: (isProduction ? 'strict' : 'none') as 'none' | 'strict',
+    secure: true,
   };
 };
 
@@ -375,7 +350,7 @@ const refreshSupabaseAdminSession = async (
       email: data.user.email || effectiveAdminEmail,
       refreshToken: data.session.refresh_token,
     }),
-    createCookieOptions(req)
+    createCookieOptions()
   );
 
   return { accessDenied: false as const, user: data.user };

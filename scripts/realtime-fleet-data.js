@@ -121,7 +121,7 @@ export const buildFleetDriverSeedRows = ({ carIdByRegistration, importDate, impo
   const applications = [];
   const rentals = [];
 
-  for (const row of REALTIME_FLEET_ROWS) {
+  for (const [index, row] of REALTIME_FLEET_ROWS.entries()) {
     if (!isAssignedFleetRow(row)) {
       continue;
     }
@@ -137,6 +137,7 @@ export const buildFleetDriverSeedRows = ({ carIdByRegistration, importDate, impo
     const experience = `Imported from live fleet data on ${importDate}.${noteSuffix}`;
 
     applications.push({
+      legacy_id: 900000000000 + index,
       name: normalizeText(row.driverName),
       phone: LEGACY_IMPORT_PHONE,
       email: getFleetApplicationEmail(row),
@@ -159,6 +160,7 @@ export const buildFleetDriverSeedRows = ({ carIdByRegistration, importDate, impo
     });
 
     rentals.push({
+      legacy_application_id: 900000000000 + index,
       registration,
       start_date: importDate,
       weekly_price: row.weeklyRate,

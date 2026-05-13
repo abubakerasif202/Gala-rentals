@@ -6,6 +6,7 @@ import {
   getRentalApplicationId,
   getRentalSelectList,
   mapApplicationPayloadForSchema,
+  mapRentalPayloadForSchema,
 } from './fleet-sync-utils.js';
 
 describe('fleet sync schema utilities', () => {
@@ -30,6 +31,7 @@ describe('fleet sync schema utilities', () => {
           email: 'driver@example.invalid',
           experience: 'Imported',
           intended_start_date: '2026-05-01',
+          legacy_id: 900000000001,
           license_expiry: '2027-05-01',
           license_number: 'LEGACY-123',
           name: 'Driver',
@@ -56,10 +58,14 @@ describe('fleet sync schema utilities', () => {
       applications: {
         assignedCarColumn: null,
         approvedVehicleColumn: 'approved_vehicle',
+        legacyIdColumn: 'legacy_id',
         mode: 'snake',
       },
       cars: 'snake',
-      rentals: 'snake',
+      rentals: {
+        legacyApplicationColumn: 'legacy_application_id',
+        mode: 'snake',
+      },
     };
 
     const selectList = getApplicationSelectList(schemaMode);
@@ -80,6 +86,7 @@ describe('fleet sync schema utilities', () => {
           email: 'driver@example.invalid',
           experience: 'Imported',
           intended_start_date: '2026-05-01',
+          legacy_id: 900000000001,
           license_expiry: '2027-05-01',
           license_number: 'LEGACY-123',
           name: 'Driver',
@@ -97,7 +104,25 @@ describe('fleet sync schema utilities', () => {
     ).toMatchObject({
       approved_vehicle: 'YNU51C',
       approved_bond: 500,
+      legacy_id: 900000000001,
       license_number: 'LEGACY-123',
+    });
+    expect(
+      mapRentalPayloadForSchema(
+        {
+          application_id: '00000000-0000-4000-8000-000000000001',
+          bond_paid: 0,
+          car_id: 3,
+          legacy_application_id: 900000000001,
+          start_date: '2026-05-01',
+          status: 'Active',
+          weekly_price: 350,
+        },
+        schemaMode
+      )
+    ).toMatchObject({
+      application_id: '00000000-0000-4000-8000-000000000001',
+      legacy_application_id: 900000000001,
     });
   });
 });

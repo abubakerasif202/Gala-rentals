@@ -346,6 +346,7 @@ export async function runRealtimeFleetSync(syncSource) {
         {
           application_id: applicationId,
           car_id: carId,
+          legacy_application_id: rental.legacy_application_id,
           start_date: rental.start_date,
           weekly_price: rental.weekly_price,
           bond_paid: rental.bond_paid,

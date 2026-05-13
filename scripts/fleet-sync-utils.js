@@ -58,10 +58,22 @@ export const getCoreSchemaMode = async ({ supabaseUrl, supabaseServiceRoleKey })
         : applicationProperties.approved_vehicle
           ? 'approved_vehicle'
           : null,
+      legacyIdColumn: applicationProperties.legacyId
+        ? 'legacyId'
+        : applicationProperties.legacy_id
+          ? 'legacy_id'
+          : null,
       mode: getTableMode('applications', 'licenseNumber'),
     },
     cars: getTableMode('cars', 'modelYear'),
-    rentals: getTableMode('rentals', 'carId'),
+    rentals: {
+      legacyApplicationColumn: definitions?.rentals?.properties?.legacyApplicationId
+        ? 'legacyApplicationId'
+        : definitions?.rentals?.properties?.legacy_application_id
+          ? 'legacy_application_id'
+          : null,
+      mode: getTableMode('rentals', 'carId'),
+    },
   };
 };
 
@@ -73,6 +85,18 @@ const getTableSchema = (schemaMode, table) => {
           ? schemaMode === 'camel'
             ? 'assignedCarId'
             : 'assigned_car_id'
+          : null,
+      legacyApplicationColumn:
+        table === 'rentals'
+          ? schemaMode === 'camel'
+            ? 'legacyApplicationId'
+            : 'legacy_application_id'
+          : null,
+      legacyIdColumn:
+        table === 'applications'
+          ? schemaMode === 'camel'
+            ? 'legacyId'
+            : 'legacy_id'
           : null,
       mode: schemaMode,
     };
@@ -86,6 +110,18 @@ const getTableSchema = (schemaMode, table) => {
           ? tableSchema === 'camel'
             ? 'assignedCarId'
             : 'assigned_car_id'
+          : null,
+      legacyApplicationColumn:
+        table === 'rentals'
+          ? tableSchema === 'camel'
+            ? 'legacyApplicationId'
+            : 'legacy_application_id'
+          : null,
+      legacyIdColumn:
+        table === 'applications'
+          ? tableSchema === 'camel'
+            ? 'legacyId'
+            : 'legacy_id'
           : null,
       mode: tableSchema,
     };
@@ -169,6 +205,10 @@ export const mapApplicationPayloadForSchema = (application, coreMode) => {
     payload[applicationSchema.assignedCarColumn] = application.assigned_car_id;
   }
 
+  if (applicationSchema.legacyIdColumn && application.legacy_id != null) {
+    payload[applicationSchema.legacyIdColumn] = application.legacy_id;
+  }
+
   if (applicationSchema.approvedVehicleColumn) {
     payload[applicationSchema.approvedVehicleColumn] = application.approved_vehicle ?? null;
   }
@@ -177,8 +217,11 @@ export const mapApplicationPayloadForSchema = (application, coreMode) => {
 };
 
 export const mapRentalPayloadForSchema = (rental, coreMode) =>
-  getSchemaMode(coreMode, 'rentals') === 'camel'
-    ? {
+  {
+    const rentalSchema = getTableSchema(coreMode, 'rentals');
+    const payload =
+      getSchemaMode(coreMode, 'rentals') === 'camel'
+        ? {
         carId: rental.car_id,
         applicationId: rental.application_id,
         startDate: rental.start_date,
@@ -187,7 +230,7 @@ export const mapRentalPayloadForSchema = (rental, coreMode) =>
         bondPaid: rental.bond_paid ?? 0,
         status: rental.status,
       }
-    : {
+        : {
         car_id: rental.car_id,
         application_id: rental.application_id,
         start_date: rental.start_date,
@@ -196,6 +239,13 @@ export const mapRentalPayloadForSchema = (rental, coreMode) =>
         bond_paid: rental.bond_paid ?? 0,
         status: rental.status,
       };
+
+    if (rentalSchema.legacyApplicationColumn && rental.legacy_application_id != null) {
+      payload[rentalSchema.legacyApplicationColumn] = rental.legacy_application_id;
+    }
+
+    return payload;
+  };
 
 export const getCarSelectList = (coreMode) =>
   getSchemaMode(coreMode, 'cars') === 'camel'

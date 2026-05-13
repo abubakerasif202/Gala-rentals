@@ -7,7 +7,29 @@ import { getOptionalStripeClient } from '../stripeClient.js';
 
 const router = express.Router();
 
-router.get('/weekly', authenticateAdmin, async (_req, res) => {
+const parseDateOnlyToStripeTimestamp = (value: unknown, endOfDay = false) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(
+    Date.UTC(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0)
+  );
+
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return Math.floor(date.getTime() / 1000);
+};
+
+router.get('/weekly', authenticateAdmin, async (req, res) => {
   try {
     const stripe = getOptionalStripeClient();
 
@@ -35,9 +57,19 @@ router.get('/weekly', authenticateAdmin, async (_req, res) => {
       rentals.length * (Number(LEASE_SETTINGS.fees.account_management_weekly) || 0);
     const projected_net_weekly = projected_gross_weekly - estimated_platform_fees;
 
+    const requestedStart = parseDateOnlyToStripeTimestamp(req.query.startDate);
+    const requestedEnd = parseDateOnlyToStripeTimestamp(req.query.endDate, true);
     const sevenDaysAgo = Math.floor(Date.now() / 1000) - (7 * 24 * 60 * 60);
+    const created: { gte: number; lte?: number } = {
+      gte: requestedStart ?? sevenDaysAgo,
+    };
+
+    if (requestedEnd) {
+      created.lte = requestedEnd;
+    }
+
     const payouts = await stripe.payouts.list({
-      created: { gte: sevenDaysAgo },
+      created,
       limit: 10,
     });
 

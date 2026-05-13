@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Search, Loader2, AlertCircle, FileText, DollarSign } from 'lucide-react';
+import { Search, Loader2, AlertCircle, FileText, DollarSign, Download } from 'lucide-react';
 import { OperationalInvoice } from '../../../types';
+import DataTable, { type DataTableColumn } from '../DataTable';
+import MetricCard from '../MetricCard';
 
 interface InvoicesTabProps {
   invoiceSearch: string;
@@ -18,8 +20,10 @@ interface InvoicesTabProps {
   invoiceRecords: OperationalInvoice[];
   invoiceCurrentPage: number;
   invoiceTotalPages: number;
+  invoicePageSize: number;
   isFetching: boolean;
   setInvoicePage: React.Dispatch<React.SetStateAction<number>>;
+  setInvoicePageSize: React.Dispatch<React.SetStateAction<number>>;
   formatCurrency: (value?: number | string | null) => string;
   formatDate: (value?: string | null) => string;
   operationalHistoryMessage: string;
@@ -66,12 +70,149 @@ export default function InvoicesTab({
   invoiceRecords,
   invoiceCurrentPage,
   invoiceTotalPages,
+  invoicePageSize,
   isFetching,
   setInvoicePage,
+  setInvoicePageSize,
   formatCurrency,
   formatDate,
   operationalHistoryMessage,
 }: InvoicesTabProps) {
+  const exportInvoices = (invoices: OperationalInvoice[]) => {
+    const headers = [
+      'Invoice Number',
+      'Customer',
+      'Email',
+      'Vehicle',
+      'Amount',
+      'Balance',
+      'Invoice Date',
+      'Status',
+    ];
+    const rows = invoices.map((invoice) => [
+      invoice.external_invoice_number,
+      invoice.customer_name,
+      invoice.customer_email || '',
+      invoice.car_registration || '',
+      invoice.amount,
+      invoice.balance,
+      invoice.invoice_date,
+      invoice.status,
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) =>
+        row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')
+      )
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'maple-invoices.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const columns = useMemo<Array<DataTableColumn<OperationalInvoice>>>(
+    () => [
+      {
+        header: 'Invoice',
+        id: 'invoice',
+        minWidth: '170px',
+        sortValue: (invoice) => invoice.external_invoice_number,
+        cell: (invoice) => (
+          <div>
+            <p className="text-sm font-bold text-white">
+              #{invoice.external_invoice_number}
+            </p>
+            <p className="text-[10px] uppercase tracking-widest text-slate-400">
+              {invoice.due_label || 'No due label'}
+            </p>
+          </div>
+        ),
+      },
+      {
+        header: 'Customer',
+        id: 'customer',
+        minWidth: '240px',
+        sortValue: (invoice) => invoice.customer_name,
+        cell: (invoice) => (
+          <div>
+            <p className="text-sm font-bold text-white">{invoice.customer_name}</p>
+            <p className="text-[10px] text-slate-400">
+              {invoice.customer_email || 'No linked email'}
+            </p>
+          </div>
+        ),
+      },
+      {
+        header: 'Vehicle',
+        id: 'vehicle',
+        minWidth: '130px',
+        sortValue: (invoice) => invoice.car_registration || '',
+        cell: (invoice) => (
+          <span className="text-xs text-slate-400">
+            {invoice.car_registration || 'N/A'}
+          </span>
+        ),
+      },
+      {
+        align: 'right',
+        header: 'Amount',
+        id: 'amount',
+        minWidth: '130px',
+        sortValue: (invoice) => invoice.amount,
+        cell: (invoice) => (
+          <span className="text-sm font-bold text-white">
+            {formatCurrency(invoice.amount)}
+          </span>
+        ),
+      },
+      {
+        align: 'right',
+        header: 'Balance',
+        id: 'balance',
+        minWidth: '130px',
+        sortValue: (invoice) => invoice.balance,
+        cell: (invoice) => (
+          <span className="text-sm font-bold text-slate-300">
+            {formatCurrency(invoice.balance)}
+          </span>
+        ),
+      },
+      {
+        header: 'Invoice Date',
+        id: 'date',
+        minWidth: '150px',
+        sortValue: (invoice) => new Date(invoice.invoice_date),
+        cell: (invoice) => (
+          <span className="text-xs text-slate-400">
+            {formatDate(invoice.invoice_date)}
+          </span>
+        ),
+      },
+      {
+        header: 'Status',
+        id: 'status',
+        minWidth: '130px',
+        sortValue: (invoice) => invoice.status,
+        cell: (invoice) => (
+          <span
+            className={`rounded-full border px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest ${
+              invoice.status === 'Paid'
+                ? 'border-green-500/20 bg-green-500/10 text-green-400'
+                : 'border-[#dfb125]/20 bg-[#dfb125]/10 text-[#dfb125]'
+            }`}
+          >
+            {invoice.status}
+          </span>
+        ),
+      },
+    ],
+    [formatCurrency, formatDate]
+  );
+
   return (
     <motion.div
       key="invoices"
@@ -112,174 +253,78 @@ export default function InvoicesTab({
         )
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                label: deferredInvoiceSearch
-                  ? 'Matching Invoices'
-                  : 'Imported Invoices',
-                value: invoiceTotalItems,
-                helper: deferredInvoiceSearch
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+            <MetricCard
+              helper={
+                deferredInvoiceSearch
                   ? 'Invoices matching the current search'
-                  : 'Rows imported from the workbook export',
-                icon: FileText,
-              },
-              {
-                label: 'Visible Balance',
-                value: formatCurrency(invoiceTotals.outstanding_balance),
-                helper: 'Outstanding balance on the current page',
-                icon: AlertCircle,
-              },
-              {
-                label: 'Open on Page',
-                value: invoiceTotals.open_count,
-                helper: 'Invoices with remaining balance on this page',
-                icon: DollarSign,
-              },
-            ].map((card) => (
-              <div
-                key={card.label}
-                className="bg-white/5 border border-white/10 p-8 rounded-3xl"
-              >
-                <div className="flex items-start justify-between gap-4 mb-6">
-                  <div>
-                    <p className="text-[10px] text-brand-grey font-bold uppercase tracking-[0.2em] mb-3">
-                      {card.label}
-                    </p>
-                    <h3 className="text-3xl font-bold text-white tracking-tighter">
-                      {card.value}
-                    </h3>
-                  </div>
-                  <div className="w-12 h-12 bg-brand-gold/10 rounded-2xl flex items-center justify-center border border-brand-gold/20">
-                    <card.icon className="w-5 h-5 text-brand-gold" />
-                  </div>
-                </div>
-                <p className="text-xs text-brand-grey font-light">
-                  {card.helper}
-                </p>
-              </div>
-            ))}
+                  : 'Rows imported from the workbook export'
+              }
+              icon={FileText}
+              label={deferredInvoiceSearch ? 'Matching Invoices' : 'Imported Invoices'}
+              numericValue={invoiceTotalItems}
+              value={invoiceTotalItems}
+            />
+            <MetricCard
+              helper="Outstanding balance on the current page"
+              icon={AlertCircle}
+              label="Visible Balance"
+              numericValue={invoiceTotals.outstanding_balance}
+              value={formatCurrency(invoiceTotals.outstanding_balance)}
+            />
+            <MetricCard
+              helper="Invoices with remaining balance on this page"
+              icon={DollarSign}
+              label="Open on Page"
+              numericValue={invoiceTotals.open_count}
+              value={invoiceTotals.open_count}
+            />
           </div>
 
-          <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
-            <table className="w-full min-w-[980px] text-left">
-              <thead>
-                <tr className="bg-white/5 border-b border-white/10">
-                  <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                    Invoice
-                  </th>
-                  <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                    Customer
-                  </th>
-                  <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                    Vehicle
-                  </th>
-                  <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                    Amount / Balance
-                  </th>
-                  <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                    Invoice Date
-                  </th>
-                  <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {invoiceRecords.map((invoice) => (
-                  <tr
-                    key={invoice.id}
-                    className="hover:bg-white/5 transition-all"
-                  >
-                    <td className="px-8 py-6">
-                      <div>
-                        <p className="text-sm font-bold text-white">
-                          #{invoice.external_invoice_number}
-                        </p>
-                        <p className="text-[10px] text-brand-grey uppercase tracking-widest">
-                          {invoice.due_label || 'No due label'}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div>
-                        <p className="text-sm font-bold text-white">
-                          {invoice.customer_name}
-                        </p>
-                        <p className="text-[10px] text-brand-grey">
-                          {invoice.customer_email || 'No linked email'}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-xs text-brand-grey">
-                      {invoice.car_registration || 'N/A'}
-                    </td>
-                    <td className="px-8 py-6">
-                      <div>
-                        <p className="text-sm font-bold text-white">
-                          {formatCurrency(invoice.amount)}
-                        </p>
-                        <p className="text-[10px] text-brand-grey uppercase tracking-widest">
-                          Balance {formatCurrency(invoice.balance)}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-xs text-brand-grey">
-                      {formatDate(invoice.invoice_date)}
-                    </td>
-                    <td className="px-8 py-6">
-                      <span
-                        className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
-                          invoice.status === 'Paid'
-                            ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                            : 'bg-brand-gold/10 text-brand-gold border-brand-gold/20'
-                        }`}
-                      >
-                        {invoice.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {invoiceRecords.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-8 py-12 text-center text-brand-grey text-xs font-light italic"
-                    >
-                      No invoice records matched the current search.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            <div className="flex flex-col gap-3 border-t border-white/10 px-8 py-6 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-[11px] text-brand-grey">
-                Page {invoiceCurrentPage} of {invoiceTotalPages} •{' '}
-                {invoiceTotalItems} records
-                {isFetching ? ' • Updating...' : ''}
-              </p>
-              <div className="flex w-full gap-3 sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setInvoicePage((page) => Math.max(1, page - 1))}
-                  disabled={invoiceCurrentPage <= 1 || isFetching}
-                  className="flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setInvoicePage((page) => Math.min(invoiceTotalPages, page + 1))
-                  }
-                  disabled={invoiceCurrentPage >= invoiceTotalPages || isFetching}
-                  className="flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
+          <DataTable
+            rows={invoiceRecords}
+            columns={columns}
+            getRowId={(invoice) => invoice.id}
+            minWidth="1120px"
+            filters={[
+              {
+                id: 'status',
+                label: 'Status',
+                getValue: (invoice) => invoice.status,
+                options: ['Open', 'Paid'].map((status) => ({ label: status, value: status })),
+              },
+            ]}
+            bulkActions={[
+              {
+                icon: Download,
+                label: 'Export Selected',
+                onClick: exportInvoices,
+              },
+            ]}
+            pagination={{
+              isFetching,
+              mode: 'server',
+              onPageChange: setInvoicePage,
+              onPageSizeChange: (pageSize) => {
+                setInvoicePageSize(pageSize);
+                setInvoicePage(1);
+              },
+              page: invoiceCurrentPage,
+              pageSize: invoicePageSize,
+              pageSizeOptions: [10, 25, 50, 100],
+              totalItems: invoiceTotalItems,
+              totalPages: invoiceTotalPages,
+            }}
+            emptyState={{
+              actionLabel: invoiceSearch ? 'Clear Search' : undefined,
+              description: invoiceSearch
+                ? 'No invoice records match the current search and status filters.'
+                : 'Imported invoice history will appear here after operational history is loaded.',
+              icon: FileText,
+              onAction: invoiceSearch ? () => setInvoiceSearch('') : undefined,
+              title: invoiceSearch ? 'No matching invoices' : 'No invoices yet',
+            }}
+          />
         </>
       )}
     </motion.div>

@@ -2,10 +2,15 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { RefreshCw, DollarSign, TrendingUp, AlertCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import { WeeklyFinancials } from '../../../lib/api';
+import DateRangePicker, { type DateRangeValue } from '../DateRangePicker';
+import EmptyState from '../EmptyState';
+import MetricCard from '../MetricCard';
 
 interface FinancialsTabProps {
+  dateRange: DateRangeValue;
   isLoadingWeeklyFinancials: boolean;
   weeklyFinancials?: WeeklyFinancials;
+  onDateRangeChange: (value: DateRangeValue) => void;
   onRefresh: () => void;
   formatCurrency: (value?: number | string | null) => string;
 }
@@ -18,11 +23,21 @@ const renderLoadingPanel = (message: string) => (
 );
 
 export default function FinancialsTab({
+  dateRange,
   isLoadingWeeklyFinancials,
   weeklyFinancials,
+  onDateRangeChange,
   onRefresh,
   formatCurrency,
 }: FinancialsTabProps) {
+  const payoutSparkline = (weeklyFinancials?.recent_payouts || [])
+    .slice()
+    .reverse()
+    .map((payout) => ({
+      label: payout.arrival_date,
+      value: payout.amount,
+    }));
+
   return (
     <motion.div
       key="financials"
@@ -40,70 +55,52 @@ export default function FinancialsTab({
             Projected revenue, payout performance, and recent transfers.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="flex w-full items-center justify-center gap-3 border border-white/10 bg-white/5 px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 md:w-auto"
-        >
-          <RefreshCw className="w-4 h-4 text-brand-gold" /> Refresh Data
-        </button>
+        <div className="flex w-full flex-col gap-3 md:w-auto md:items-end">
+          <DateRangePicker value={dateRange} onChange={onDateRangeChange} />
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#1e3a5f] bg-[#061425] px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:border-[#dfb125]/60 md:w-auto"
+          >
+            <RefreshCw className="w-4 h-4 text-[#dfb125]" /> Refresh Data
+          </button>
+        </div>
       </div>
 
       {isLoadingWeeklyFinancials ? (
         renderLoadingPanel('Loading weekly financials...')
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-            {[
-              {
-                label: 'Projected Gross',
-                value: formatCurrency(weeklyFinancials?.projected_gross_weekly),
-                helper: 'Total billed weekly',
-                icon: DollarSign,
-              },
-              {
-                label: 'Projected Net',
-                value: formatCurrency(weeklyFinancials?.projected_net_weekly),
-                helper: 'After estimated fees',
-                icon: TrendingUp,
-              },
-              {
-                label: 'Platform Fees',
-                value: formatCurrency(
-                  weeklyFinancials?.estimated_platform_fees
-                ),
-                helper: 'Estimated weekly costs',
-                icon: AlertCircle,
-              },
-              {
-                label: 'Recent Payouts',
-                value: formatCurrency(weeklyFinancials?.actual_payouts_weekly),
-                helper: 'Paid out this week',
-                icon: ShieldCheck,
-              },
-            ].map((card) => (
-              <div
-                key={card.label}
-                className="bg-white/5 border border-white/10 p-8 rounded-3xl"
-              >
-                <div className="flex items-start justify-between gap-4 mb-6">
-                  <div>
-                    <p className="text-[10px] text-brand-grey font-bold uppercase tracking-[0.2em] mb-3">
-                      {card.label}
-                    </p>
-                    <h3 className="text-3xl font-bold text-white tracking-tighter">
-                      {card.value}
-                    </h3>
-                  </div>
-                  <div className="w-12 h-12 bg-brand-gold/10 rounded-2xl flex items-center justify-center border border-brand-gold/20">
-                    <card.icon className="w-5 h-5 text-brand-gold" />
-                  </div>
-                </div>
-                <p className="text-xs text-brand-grey font-light">
-                  {card.helper}
-                </p>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              helper="Total billed weekly"
+              icon={DollarSign}
+              label="Projected Gross"
+              numericValue={weeklyFinancials?.projected_gross_weekly}
+              value={formatCurrency(weeklyFinancials?.projected_gross_weekly)}
+            />
+            <MetricCard
+              helper="After estimated fees"
+              icon={TrendingUp}
+              label="Projected Net"
+              numericValue={weeklyFinancials?.projected_net_weekly}
+              value={formatCurrency(weeklyFinancials?.projected_net_weekly)}
+            />
+            <MetricCard
+              helper="Estimated weekly costs"
+              icon={AlertCircle}
+              label="Platform Fees"
+              numericValue={weeklyFinancials?.estimated_platform_fees}
+              value={formatCurrency(weeklyFinancials?.estimated_platform_fees)}
+            />
+            <MetricCard
+              helper="Paid out for the selected payout range"
+              icon={ShieldCheck}
+              label="Recent Payouts"
+              numericValue={weeklyFinancials?.actual_payouts_weekly}
+              sparklineData={payoutSparkline}
+              value={formatCurrency(weeklyFinancials?.actual_payouts_weekly)}
+            />
           </div>
 
           <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
@@ -160,11 +157,12 @@ export default function FinancialsTab({
                 {(!weeklyFinancials?.recent_payouts ||
                   weeklyFinancials.recent_payouts.length === 0) && (
                   <tr>
-                    <td
-                      colSpan={4}
-                      className="px-8 py-12 text-center text-brand-grey text-xs font-light italic"
-                    >
-                      No payout data available yet.
+                    <td colSpan={4}>
+                      <EmptyState
+                        description="Stripe has not returned any payouts for the selected date range."
+                        icon={ShieldCheck}
+                        title="No payout data"
+                      />
                     </td>
                   </tr>
                 )}

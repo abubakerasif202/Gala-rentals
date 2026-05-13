@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Search, FileText } from 'lucide-react';
+import { Download, FileText, Search, Users } from 'lucide-react';
 import { Application } from '../../../types';
+import DataTable, { type DataTableColumn } from '../DataTable';
 
 interface ApplicationsTabProps {
   applicationSearch: string;
@@ -16,6 +17,128 @@ export default function ApplicationsTab({
   filteredApplications,
   setSelectedApplication,
 }: ApplicationsTabProps) {
+  const exportApplications = (applications: Application[]) => {
+    const headers = ['Driver', 'Email', 'Phone', 'Status', 'Experience', 'Date'];
+    const rows = applications.map((app) => [
+      app.name,
+      app.email,
+      app.phone,
+      app.status,
+      app.experience,
+      new Date(app.created_at).toLocaleDateString(),
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) =>
+        row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')
+      )
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'maple-applications.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const columns = useMemo<Array<DataTableColumn<Application>>>(
+    () => [
+      {
+        header: 'Driver',
+        id: 'driver',
+        minWidth: '240px',
+        sortValue: (app) => app.name,
+        cell: (app) => (
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#dfb125]/10 text-sm font-bold text-[#dfb125]">
+              {app.name.charAt(0)}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">{app.name}</p>
+              <p className="text-[10px] text-slate-400">{app.email}</p>
+            </div>
+          </div>
+        ),
+      },
+      {
+        header: 'Phone',
+        id: 'phone',
+        minWidth: '140px',
+        sortValue: (app) => app.phone,
+        cell: (app) => <span className="text-xs text-slate-400">{app.phone}</span>,
+      },
+      {
+        header: 'Experience',
+        id: 'experience',
+        minWidth: '180px',
+        sortValue: (app) => app.experience,
+        cell: (app) => <span className="text-xs text-white">{app.experience}</span>,
+      },
+      {
+        header: 'Uber Status',
+        id: 'uber_status',
+        minWidth: '180px',
+        sortValue: (app) => app.uber_status,
+        cell: (app) => (
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            {app.uber_status}
+          </span>
+        ),
+      },
+      {
+        header: 'Status',
+        id: 'status',
+        minWidth: '160px',
+        sortValue: (app) => app.status,
+        cell: (app) => (
+          <span
+            className={`rounded-full border px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest ${
+              app.status === 'Approved'
+                ? 'border-green-500/20 bg-green-500/10 text-green-400'
+                : app.status === 'Paid'
+                  ? 'border-[#dfb125]/20 bg-[#dfb125]/10 text-[#dfb125]'
+                  : app.status === 'Payment Review'
+                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+                    : app.status === 'Cancelled' || app.status === 'Rejected'
+                      ? 'border-red-500/20 bg-red-500/10 text-red-300'
+                      : 'border-[#1e3a5f] bg-[#061425] text-slate-400'
+            }`}
+          >
+            {app.status}
+          </span>
+        ),
+      },
+      {
+        header: 'Date',
+        id: 'date',
+        minWidth: '130px',
+        sortValue: (app) => new Date(app.created_at),
+        cell: (app) => (
+          <span className="text-xs text-slate-400">
+            {new Date(app.created_at).toLocaleDateString()}
+          </span>
+        ),
+      },
+      {
+        align: 'right',
+        header: 'Actions',
+        id: 'actions',
+        sortable: false,
+        cell: (app) => (
+          <button
+            className="inline-flex rounded-lg bg-white/5 p-2 text-slate-400 transition-all hover:bg-[#dfb125] hover:text-[#061425]"
+            title="Review Application"
+            onClick={() => setSelectedApplication(app)}
+          >
+            <FileText className="h-4 w-4" />
+          </button>
+        ),
+      },
+    ],
+    [setSelectedApplication]
+  );
+
   return (
     <motion.div
       key="applications"
@@ -46,102 +169,43 @@ export default function ApplicationsTab({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
-        <table className="w-full min-w-[720px] text-left">
-          <thead>
-            <tr className="bg-white/5 border-b border-white/10">
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                Driver
-              </th>
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                Experience
-              </th>
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                Status
-              </th>
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                Date
-              </th>
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest text-right">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {filteredApplications.map((app) => (
-              <tr
-                key={app.id}
-                className="hover:bg-white/5 transition-all group"
-              >
-                <td className="px-8 py-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-brand-gold/10 rounded-full flex items-center justify-center text-brand-gold font-bold text-sm">
-                      {app.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">{app.name}</p>
-                      <p className="text-[10px] text-brand-grey">
-                        {app.email}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-8 py-6">
-                  <div>
-                    <p className="text-xs text-white">{app.experience}</p>
-                    <p className="text-[10px] text-brand-grey uppercase tracking-widest">
-                      {app.uber_status}
-                    </p>
-                  </div>
-                </td>
-                <td className="px-8 py-6">
-                      <span
-                        className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
-                          app.status === 'Approved'
-                            ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                            : app.status === 'Paid'
-                            ? 'bg-brand-gold/10 text-brand-gold border-brand-gold/20'
-                            : app.status === 'Payment Review'
-                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                            : app.status === 'Cancelled'
-                            ? 'bg-red-500/10 text-red-300 border-red-500/20'
-                            : app.status === 'Rejected'
-                            ? 'bg-red-500/10 text-red-500 border-red-500/20'
-                            : 'bg-brand-navy text-brand-grey border-white/10'
-                        }`}
-                  >
-                    {app.status}
-                  </span>
-                </td>
-                <td className="px-8 py-6 text-xs text-brand-grey">
-                  {new Date(app.created_at).toLocaleDateString()}
-                </td>
-                <td className="px-8 py-6 text-right">
-                  <div className="flex justify-end gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                    <button
-                      className="p-2 bg-white/5 text-brand-grey rounded-lg hover:bg-brand-gold hover:text-brand-navy transition-all"
-                      title="Review Application"
-                      onClick={() => setSelectedApplication(app)}
-                    >
-                      <FileText className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {filteredApplications.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-8 py-12 text-center text-brand-grey text-xs font-light italic"
-                >
-                  No applications matched the current search.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={filteredApplications}
+        columns={columns}
+        getRowId={(app) => app.id}
+        minWidth="1040px"
+        filters={[
+          {
+            id: 'status',
+            label: 'Status',
+            getValue: (app) => app.status,
+            options: ['Pending', 'Payment Review', 'Approved', 'Paid', 'Rejected', 'Cancelled'].map(
+              (status) => ({ label: status, value: status })
+            ),
+          },
+        ]}
+        bulkActions={[
+          {
+            icon: FileText,
+            label: 'Review Selected',
+            onClick: (rows) => rows[0] && setSelectedApplication(rows[0]),
+          },
+          {
+            icon: Download,
+            label: 'Export Selected',
+            onClick: exportApplications,
+          },
+        ]}
+        emptyState={{
+          actionLabel: applicationSearch ? 'Clear Search' : undefined,
+          description: applicationSearch
+            ? 'No driver applications match the current search and status filters.'
+            : 'New driver applications will appear here as soon as renters submit the application form.',
+          icon: Users,
+          onAction: applicationSearch ? () => setApplicationSearch('') : undefined,
+          title: applicationSearch ? 'No matching applications' : 'No applications yet',
+        }}
+      />
     </motion.div>
   );
 }

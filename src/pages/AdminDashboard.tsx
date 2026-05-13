@@ -37,6 +37,10 @@ import CustomersTab from '../components/admin/tabs/CustomersTab';
 import InvoicesTab from '../components/admin/tabs/InvoicesTab';
 import AgreementsTab from '../components/admin/tabs/AgreementsTab';
 import TollStatDecTab from '../components/admin/tabs/TollStatDecTab';
+import {
+  getDateRangeForPreset,
+  type DateRangeValue,
+} from '../components/admin/DateRangePicker';
 import VehicleFormModal from '../components/admin/vehicles/VehicleFormModal';
 import VehicleActionDialog from '../components/admin/vehicles/VehicleActionDialog';
 
@@ -179,6 +183,10 @@ export default function AdminDashboard() {
   const [tollNoticeInitialSearch, setTollNoticeInitialSearch] = useState('');
   const [customerPage, setCustomerPage] = useState(1);
   const [invoicePage, setInvoicePage] = useState(1);
+  const [invoicePageSize, setInvoicePageSize] = useState(OPERATIONAL_PAGE_SIZE);
+  const [financialDateRange, setFinancialDateRange] = useState<DateRangeValue>(() =>
+    getDateRangeForPreset('last7')
+  );
   const [agreementModalMode, setAgreementModalMode] = useState<'draft' | 'saved'>('draft');
   const deferredCustomerSearch = useDeferredValue(customerSearch.trim());
   const deferredInvoiceSearch = useDeferredValue(invoiceSearch.trim());
@@ -220,7 +228,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     setInvoicePage(1);
-  }, [deferredInvoiceSearch]);
+  }, [deferredInvoiceSearch, invoicePageSize]);
 
   useEffect(() => {
     return () => {
@@ -495,11 +503,11 @@ export default function AdminDashboard() {
   });
 
   const invoiceDatasetQuery = useQuery<AdminDatasetResponse<OperationalInvoice>>({
-    queryKey: ['operational-invoices', deferredInvoiceSearch, invoicePage, OPERATIONAL_PAGE_SIZE],
+    queryKey: ['operational-invoices', deferredInvoiceSearch, invoicePage, invoicePageSize],
     queryFn: () =>
       api.fetchOperationalInvoices({
         page: invoicePage,
-        pageSize: OPERATIONAL_PAGE_SIZE,
+        pageSize: invoicePageSize,
         search: deferredInvoiceSearch,
       }),
     enabled: shouldLoadInvoices,
@@ -507,8 +515,12 @@ export default function AdminDashboard() {
   });
 
   const weeklyFinancialsQuery = useQuery<api.WeeklyFinancials>({
-    queryKey: ['weekly-financials'],
-    queryFn: () => api.fetchWeeklyFinancials(),
+    queryKey: ['weekly-financials', financialDateRange.startDate, financialDateRange.endDate],
+    queryFn: () =>
+      api.fetchWeeklyFinancials({
+        endDate: financialDateRange.endDate,
+        startDate: financialDateRange.startDate,
+      }),
     enabled: shouldLoadWeeklyFinancials,
   });
 
@@ -1110,8 +1122,10 @@ export default function AdminDashboard() {
 
           {activeTab === 'financials' && (
             <FinancialsTab
+              dateRange={financialDateRange}
               isLoadingWeeklyFinancials={isLoadingWeeklyFinancials}
               weeklyFinancials={weeklyFinancials}
+              onDateRangeChange={setFinancialDateRange}
               onRefresh={() => weeklyFinancialsQuery.refetch()}
               formatCurrency={formatCurrency}
             />
@@ -1149,8 +1163,10 @@ export default function AdminDashboard() {
               invoiceRecords={invoiceRecords}
               invoiceCurrentPage={invoiceCurrentPage}
               invoiceTotalPages={invoiceTotalPages}
+              invoicePageSize={invoicePageSize}
               isFetching={invoiceDatasetQuery.isFetching}
               setInvoicePage={setInvoicePage}
+              setInvoicePageSize={setInvoicePageSize}
               formatCurrency={formatCurrency}
               formatDate={formatDate}
               operationalHistoryMessage={operationalHistoryMessage}

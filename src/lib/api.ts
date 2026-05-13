@@ -495,8 +495,15 @@ export interface WeeklyFinancials {
   }>;
 }
 
-export const fetchWeeklyFinancials = async (): Promise<WeeklyFinancials> => {
-  const { data } = await api.get('/financials/weekly');
+export interface WeeklyFinancialsRequest {
+  endDate?: string;
+  startDate?: string;
+}
+
+export const fetchWeeklyFinancials = async (
+  params: WeeklyFinancialsRequest = {}
+): Promise<WeeklyFinancials> => {
+  const { data } = await api.get('/financials/weekly', { params });
   return data;
 };
 

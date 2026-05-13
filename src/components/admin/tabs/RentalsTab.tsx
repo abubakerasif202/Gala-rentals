@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
-import { FileText, Search, Car as CarIcon } from 'lucide-react';
+import { Download, FileText, Search, Car as CarIcon } from 'lucide-react';
 import { Rental } from '../../../types';
+import DataTable, { type DataTableColumn } from '../DataTable';
 
 interface RentalsTabProps {
   rentalSearch: string;
@@ -16,6 +17,145 @@ export default function RentalsTab({
   filteredRentals,
   onCreateTollNotice,
 }: RentalsTabProps) {
+  const exportRentals = (rentals: Rental[]) => {
+    const headers = ['Driver', 'Vehicle', 'Start Date', 'Weekly Rate', 'Status', 'Subscription ID'];
+    const rows = rentals.map((rental) => [
+      rental.applicant_name || '',
+      rental.car_name || '',
+      new Date(rental.start_date).toLocaleDateString(),
+      rental.weekly_price,
+      rental.status,
+      rental.stripe_subscription_id || '',
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) =>
+        row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')
+      )
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'maple-rentals.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const columns = useMemo<Array<DataTableColumn<Rental>>>(
+    () => [
+      {
+        header: 'Driver',
+        id: 'driver',
+        minWidth: '220px',
+        sortValue: (rental) => rental.applicant_name || '',
+        cell: (rental) => (
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#dfb125]/10 text-[#dfb125]">
+              <CarIcon className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">
+                {rental.applicant_name || 'Unknown driver'}
+              </p>
+              <p className="text-[10px] uppercase tracking-widest text-slate-400">
+                Rental #{rental.id}
+              </p>
+            </div>
+          </div>
+        ),
+      },
+      {
+        header: 'Vehicle',
+        id: 'vehicle',
+        minWidth: '180px',
+        sortValue: (rental) => rental.car_name || '',
+        cell: (rental) => (
+          <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            {rental.car_name || 'No vehicle linked'}
+          </span>
+        ),
+      },
+      {
+        header: 'Start Date',
+        id: 'start_date',
+        minWidth: '130px',
+        sortValue: (rental) => new Date(rental.start_date),
+        cell: (rental) => (
+          <span className="text-xs text-slate-400">
+            {new Date(rental.start_date).toLocaleDateString()}
+          </span>
+        ),
+      },
+      {
+        align: 'right',
+        header: 'Weekly Rate',
+        id: 'weekly_price',
+        minWidth: '140px',
+        sortValue: (rental) => rental.weekly_price,
+        cell: (rental) => (
+          <div>
+            <p className="text-sm font-bold text-white">${rental.weekly_price}/wk</p>
+            <p className="text-[10px] uppercase tracking-widest text-slate-400">
+              Incl. Insurance
+            </p>
+          </div>
+        ),
+      },
+      {
+        header: 'Status',
+        id: 'status',
+        minWidth: '140px',
+        sortValue: (rental) => rental.status,
+        cell: (rental) => (
+          <span
+            className={`rounded-full border px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest ${
+              rental.status === 'Active'
+                ? 'border-green-500/20 bg-green-500/10 text-green-400'
+                : 'border-red-500/20 bg-red-500/10 text-red-300'
+            }`}
+          >
+            {rental.status}
+          </span>
+        ),
+      },
+      {
+        header: 'Stripe IDs',
+        id: 'stripe',
+        minWidth: '260px',
+        sortable: false,
+        cell: (rental) => (
+          <div className="space-y-1">
+            <p className="break-all font-mono text-[10px] text-slate-400">
+              sub: {rental.stripe_subscription_id || 'Not linked'}
+            </p>
+            <p className="break-all font-mono text-[10px] text-slate-400">
+              cus: {rental.stripe_customer_id || 'Not linked'}
+            </p>
+          </div>
+        ),
+      },
+      {
+        header: 'Actions',
+        id: 'actions',
+        minWidth: '220px',
+        sortable: false,
+        cell: (rental) =>
+          onCreateTollNotice ? (
+            <button
+              type="button"
+              onClick={() => onCreateTollNotice(rental)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#1e3a5f] bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:border-[#dfb125]/50 hover:bg-white/10"
+            >
+              <FileText className="h-4 w-4 text-[#dfb125]" />
+              Create Toll Notice
+            </button>
+          ) : null,
+      },
+    ],
+    [onCreateTollNotice]
+  );
+
   return (
     <motion.div
       key="rentals"
@@ -46,108 +186,48 @@ export default function RentalsTab({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
-        <table className="w-full min-w-[680px] text-left">
-          <thead>
-            <tr className="bg-white/5 border-b border-white/10">
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                Driver & Vehicle
-              </th>
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                Start Date
-              </th>
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                Rate
-              </th>
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                Status
-              </th>
-              <th className="px-8 py-6 text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {filteredRentals.map((rental) => (
-              <tr key={rental.id} className="hover:bg-white/5 transition-all group">
-                <td className="px-8 py-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-brand-gold/10 rounded-xl flex items-center justify-center text-brand-gold font-bold text-xs">
-                      <CarIcon className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">
-                        {rental.applicant_name}
-                      </p>
-                      <p className="text-[10px] text-brand-grey uppercase tracking-widest">
-                        {rental.car_name}
-                      </p>
-                      {(rental.stripe_subscription_id || rental.stripe_customer_id) && (
-                        <div className="mt-1 space-y-0.5">
-                          {rental.stripe_subscription_id && (
-                            <p className="text-[9px] text-brand-grey/80 font-mono break-all">
-                              sub: {rental.stripe_subscription_id}
-                            </p>
-                          )}
-                          {rental.stripe_customer_id && (
-                            <p className="text-[9px] text-brand-grey/80 font-mono break-all">
-                              cus: {rental.stripe_customer_id}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-8 py-6 text-xs text-brand-grey">
-                  {new Date(rental.start_date).toLocaleDateString()}
-                </td>
-                <td className="px-8 py-6">
-                  <div className="text-sm font-bold text-white">
-                    ${rental.weekly_price}/wk
-                  </div>
-                  <div className="text-[8px] text-brand-grey uppercase tracking-widest">
-                    Incl. Insurance
-                  </div>
-                </td>
-                <td className="px-8 py-6">
-                  <span
-                    className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
-                      rental.status === 'Active'
-                        ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                        : 'bg-red-500/10 text-red-500 border-red-500/20'
-                    }`}
-                  >
-                    {rental.status}
-                  </span>
-                </td>
-                <td className="px-8 py-6">
-                  {onCreateTollNotice && (
-                    <button
-                      type="button"
-                      onClick={() => onCreateTollNotice(rental)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:border-brand-gold/50 hover:bg-white/10"
-                    >
-                      <FileText className="h-4 w-4 text-brand-gold" />
-                      Create Toll Transfer Notice
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {filteredRentals.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-8 py-12 text-center text-brand-grey text-xs font-light italic"
-                >
-                  No rentals matched the current search.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={filteredRentals}
+        columns={columns}
+        getRowId={(rental) => String(rental.id)}
+        minWidth="1180px"
+        filters={[
+          {
+            id: 'status',
+            label: 'Status',
+            getValue: (rental) => rental.status,
+            options: ['Active', 'Completed', 'Cancelled', 'Overdue'].map((status) => ({
+              label: status,
+              value: status,
+            })),
+          },
+        ]}
+        bulkActions={[
+          ...(onCreateTollNotice
+            ? [
+                {
+                  icon: FileText,
+                  label: 'Create Toll Notice',
+                  onClick: (rows: Rental[]) => rows[0] && onCreateTollNotice(rows[0]),
+                },
+              ]
+            : []),
+          {
+            icon: Download,
+            label: 'Export Selected',
+            onClick: exportRentals,
+          },
+        ]}
+        emptyState={{
+          actionLabel: rentalSearch ? 'Clear Search' : undefined,
+          description: rentalSearch
+            ? 'No active rentals match the current search and status filters.'
+            : 'Active rentals will appear here after a paid application is finalized.',
+          icon: CarIcon,
+          onAction: rentalSearch ? () => setRentalSearch('') : undefined,
+          title: rentalSearch ? 'No matching rentals' : 'No rentals yet',
+        }}
+      />
     </motion.div>
   );
 }

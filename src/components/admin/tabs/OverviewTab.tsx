@@ -9,6 +9,8 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { Application, Car, DashboardStats } from '../../../types';
+import EmptyState from '../EmptyState';
+import MetricCard from '../MetricCard';
 
 interface OverviewTabProps {
   stats?: DashboardStats;
@@ -52,47 +54,28 @@ export default function OverviewTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {[
-          {
-            label: 'Total Applications',
-            value: stats?.total_applications || 0,
-            icon: Users,
-            color: 'text-blue-500',
-          },
-          {
-            label: 'Active Rentals',
-            value: stats?.active_rentals || 0,
-            icon: CarIcon,
-            color: 'text-green-500',
-          },
-          {
-            label: 'Weekly Revenue',
-            value: `$${stats?.total_weekly_income || 0}`,
-            icon: DollarSign,
-            color: 'text-brand-gold',
-          },
-        ].map((stat, i) => (
-          <div
-            key={i}
-            className="bg-white/5 border border-white/10 p-8 rounded-3xl relative overflow-hidden group"
-          >
-            <div className="relative z-10">
-              <p className="text-[10px] text-brand-grey font-bold uppercase tracking-[0.2em] mb-4">
-                {stat.label}
-              </p>
-              <div className="flex items-baseline gap-4">
-                <h3 className="text-4xl font-bold text-white tracking-tighter">
-                  {stat.value}
-                </h3>
-                <stat.icon className={`w-6 h-6 ${stat.color} opacity-50`} />
-              </div>
-            </div>
-            <div className="absolute -right-4 -bottom-4 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
-              <stat.icon size={120} />
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+        <MetricCard
+          helper="Submitted renter applications"
+          icon={Users}
+          label="Total Applications"
+          numericValue={stats?.total_applications || 0}
+          value={stats?.total_applications || 0}
+        />
+        <MetricCard
+          helper="Drivers currently in a rental"
+          icon={CarIcon}
+          label="Active Rentals"
+          numericValue={stats?.active_rentals || 0}
+          value={stats?.active_rentals || 0}
+        />
+        <MetricCard
+          helper="Projected weekly rental revenue"
+          icon={DollarSign}
+          label="Weekly Revenue"
+          numericValue={stats?.total_weekly_income || 0}
+          value={`$${stats?.total_weekly_income || 0}`}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -129,9 +112,13 @@ export default function OverviewTab({
                 </div>
               ))}
             {applications.filter((a) => a.status === 'Pending').length === 0 && (
-              <p className="text-center py-8 text-brand-grey text-xs font-light italic">
-                No pending applications
-              </p>
+              <EmptyState
+                actionLabel="View Applications"
+                description="There are no pending driver applications waiting for review."
+                icon={Clock}
+                onAction={() => setActiveTab('applications')}
+                title="No pending applications"
+              />
             )}
           </div>
         </div>
@@ -170,6 +157,15 @@ export default function OverviewTab({
                 </span>
               </div>
             ))}
+            {cars.length === 0 && (
+              <EmptyState
+                actionLabel="Open Fleet"
+                description="Fleet availability appears here after vehicles are added."
+                icon={CarIcon}
+                onAction={() => setActiveTab('cars')}
+                title="No fleet vehicles"
+              />
+            )}
           </div>
         </div>
       </div>

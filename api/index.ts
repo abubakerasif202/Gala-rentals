@@ -53,6 +53,7 @@ const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
 const shouldListen = process.env.VITEST !== 'true';
 const PORT = Number(process.env.PORT) || 3000;
 const FLEET_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+let fleetSyncIntervalId: NodeJS.Timeout | null = null;
 
 const startFleetSyncInterval = () => {
   if (isVitest) return;
@@ -63,7 +64,7 @@ const startFleetSyncInterval = () => {
   });
 
   // Periodic sync
-  setInterval(() => {
+  fleetSyncIntervalId = setInterval(() => {
     void syncRealtimeFleet().catch((error) => {
       console.error('[fleet-sync] Periodic sync failed:', error);
     });
@@ -199,7 +200,7 @@ const logRuntimeConfigurationSummary = () => {
 
 const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 1000,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   skip: () => process.env.VITEST === 'true',
@@ -700,6 +701,11 @@ const shutdown = async (reason: string, error?: unknown) => {
       console.error(`Shutting down after ${reason}:`, error);
     } else {
       console.info(`Received ${reason}. Shutting down gracefully...`);
+    }
+
+    if (fleetSyncIntervalId) {
+      clearInterval(fleetSyncIntervalId);
+      fleetSyncIntervalId = null;
     }
 
     const resources = runningResources;

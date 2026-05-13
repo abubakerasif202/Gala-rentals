@@ -4,6 +4,8 @@ import { Loader2, RefreshCw, ExternalLink, FileText, Trash2, Save, Eye, CheckCir
 import { UseMutationResult, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Application } from '../../../types';
 import * as api from '../../../lib/api';
+import EmptyState from '../EmptyState';
+import MarkdownTemplateEditor from '../MarkdownTemplateEditor';
 
 interface AgreementsTabProps {
   approvedApplications: Application[];
@@ -344,12 +346,9 @@ export default function AgreementsTab({
                 {editorStatus.message}
               </div>
             )}
-            <textarea
+            <MarkdownTemplateEditor
               value={editorContent}
-              onChange={(event) => setEditorContent(event.target.value)}
-              spellCheck={false}
-              className="min-h-[440px] w-full resize-y rounded-2xl border border-white/10 bg-brand-navy/70 p-5 font-mono text-xs leading-6 text-white outline-none transition-all placeholder:text-brand-grey/60 focus:border-brand-gold"
-              placeholder="Agreement template markdown"
+              onChange={setEditorContent}
             />
             <div className="mt-4 grid grid-cols-1 gap-3 text-[11px] text-brand-grey sm:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-4 py-3">
@@ -509,11 +508,12 @@ export default function AgreementsTab({
             ))}
             {savedAgreements.length === 0 && (
               <tr>
-                <td
-                  colSpan={4}
-                  className="px-8 py-12 text-center text-brand-grey text-xs font-light italic"
-                >
-                  No agreements generated yet
+                <td colSpan={4}>
+                  <EmptyState
+                    description="Finalized lease agreements will appear here after a paid application is selected and generated."
+                    icon={FileText}
+                    title="No agreements generated"
+                  />
                 </td>
               </tr>
             )}

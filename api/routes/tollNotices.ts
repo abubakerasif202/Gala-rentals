@@ -9,9 +9,9 @@ import { buildTollTransferNoticePdf } from '../templates/tollTransferNoticePdf.j
 const router = express.Router();
 
 const COMPANY_DETAILS = {
-  organisation_address: '13/27-33 Adderstone Rd, Merrylands NSW 2160',
+  organisation_address: '13/27-33 Addlestone Rd, Merrylands NSW 2160',
   organisation_name: 'MAPLE PAINTING PTY LTD',
-  organisation_phone: '0420 550 566',
+  organisation_phone: '0420 550 556',
 };
 
 const responsibleTypeSchema = z

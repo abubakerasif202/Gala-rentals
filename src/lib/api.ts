@@ -614,4 +614,23 @@ export const sendTollTransferNotice = async (
   return data;
 };
 
+export interface ResetOldApplicantsResponse {
+  success: boolean;
+  dryRun?: boolean;
+  applicationsMatched?: number;
+  rentalsMatched?: number;
+  deletedApplications?: number;
+  deletedRentals?: number;
+  preservedCars?: number;
+  message: string;
+}
+
+export const resetOldApplicants = async (payload: {
+  confirm: string;
+  dryRun?: boolean;
+}): Promise<ResetOldApplicantsResponse> => {
+  const { data } = await api.post('/admin/maintenance/reset-old-applicants', payload);
+  return data;
+};
+
 export default api;

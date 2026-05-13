@@ -9,6 +9,7 @@ import {
   LogOut,
   FileText,
   ScrollText,
+  Settings,
   X
 } from 'lucide-react';
 
@@ -37,6 +38,7 @@ export default function Sidebar({
     { id: 'cars', icon: Car, label: 'Fleet' },
     { id: 'agreements', icon: FileText, label: 'Agreements' },
     { id: 'toll-notices', icon: ScrollText, label: 'Toll Notices' },
+    { id: 'maintenance', icon: Settings, label: 'Maintenance' },
   ];
 
   return (

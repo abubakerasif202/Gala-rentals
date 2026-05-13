@@ -37,6 +37,7 @@ import CustomersTab from '../components/admin/tabs/CustomersTab';
 import InvoicesTab from '../components/admin/tabs/InvoicesTab';
 import AgreementsTab from '../components/admin/tabs/AgreementsTab';
 import TollStatDecTab from '../components/admin/tabs/TollStatDecTab';
+import MaintenanceTab from '../components/admin/tabs/MaintenanceTab';
 import {
   getDateRangeForPreset,
   type DateRangeValue,
@@ -84,6 +85,7 @@ const adminTabLabels: Record<string, string> = {
   invoices: 'Invoices',
   rentals: 'Rentals',
   'toll-notices': 'Toll Notices',
+  maintenance: 'Maintenance',
 };
 
 const matchesSearch = (searchTerm: string, fields: Array<string | number | null | undefined>) => {
@@ -1194,6 +1196,10 @@ export default function AdminDashboard() {
 
           {activeTab === 'toll-notices' && (
             <TollStatDecTab initialSearch={tollNoticeInitialSearch} />
+          )}
+
+          {activeTab === 'maintenance' && (
+            <MaintenanceTab />
           )}
         </AnimatePresence>
       </div>

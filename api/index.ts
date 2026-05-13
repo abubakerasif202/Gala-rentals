@@ -29,6 +29,7 @@ import { requestContext, requestLogger } from './middleware/requestLogger.js';
 
 import agreementRoutes from './routes/agreements.js';
 import adminAgreementRoutes from './routes/adminAgreements.js';
+import adminMaintenanceRoutes from './routes/adminMaintenance.js';
 import applicationRoutes from './routes/applications.js';
 import authRoutes from './routes/auth.js';
 import carRoutes from './routes/cars.js';
@@ -538,6 +539,7 @@ const registerCoreRoutes = (app: express.Express) => {
   app.use('/api/financials', financialRoutes);
   app.use('/api/customers', customerRoutes);
   app.use('/api/invoices', invoiceRoutes);
+  app.use('/api/admin/maintenance', adminMaintenanceRoutes);
   app.use('/admin', indexNowAdminRoutes);
 
   app.get('/api/stats', (_req, res) =>

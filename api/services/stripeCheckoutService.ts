@@ -207,22 +207,6 @@ const buildSubscriptionLineItems = async ({
     {
       price_data: {
         currency: LEASE_SETTINGS.currency,
-        product: stripeCatalog.securityBond.productId,
-        unit_amount: toCents(billingBreakdown.bond),
-      },
-      quantity: 1,
-    },
-    {
-      price_data: {
-        currency: LEASE_SETTINGS.currency,
-        product: stripeCatalog.onboardingSetup.productId,
-        unit_amount: toCents(billingBreakdown.setupFees),
-      },
-      quantity: 1,
-    },
-    {
-      price_data: {
-        currency: LEASE_SETTINGS.currency,
         product: stripeCatalog.weeklyRental.productId,
         recurring: {
           interval: billingBreakdown.recurringInterval,

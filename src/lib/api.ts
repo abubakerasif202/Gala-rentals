@@ -7,6 +7,9 @@ import {
   AdminDatasetResponse,
   OperationalCustomer,
   OperationalInvoice,
+  ManualInvoice,
+  ManualInvoiceItem,
+  ManualInvoiceStatus,
 } from '../types';
 import type { PublicRentalPlan } from './rentalPlans';
 import type { InquiryValues } from '../../shared/inquiry';
@@ -117,6 +120,30 @@ export const fetchRentals = async (): Promise<Rental[]> => {
   return data;
 };
 
+export interface CancelSubscriptionResponse {
+  success: boolean;
+  rentalId: string;
+  stripeSubscriptionId: string;
+  cancelAtPeriodEnd: boolean;
+  stripeStatus: string;
+  message: string;
+}
+
+export const cancelRentalStripeSubscription = async (
+  rentalId: number,
+  payload: {
+    cancelAtPeriodEnd: boolean;
+    confirm: 'CANCEL SUBSCRIPTION';
+    reason?: string;
+  }
+): Promise<CancelSubscriptionResponse> => {
+  const { data } = await api.post(
+    `/admin/rentals/${rentalId}/cancel-subscription`,
+    payload
+  );
+  return data;
+};
+
 export interface AdminDatasetRequest {
   page?: number;
   pageSize?: number;
@@ -138,6 +165,39 @@ export const fetchOperationalInvoices = async (
   AdminDatasetResponse<OperationalInvoice>
 > => {
   const { data } = await api.get('/invoices', { params });
+  return data;
+};
+
+export interface ManualInvoicePayload {
+  invoice_number?: string;
+  status: ManualInvoiceStatus;
+  issue_date: string;
+  due_date?: string | null;
+  bill_to_name: string;
+  bill_to_abn_mobile?: string | null;
+  vehicle_reference?: string | null;
+  rental_period_reference?: string | null;
+  notes?: string | null;
+  additional_details?: string | null;
+  items: ManualInvoiceItem[];
+}
+
+export const fetchManualInvoices = async (): Promise<ManualInvoice[]> => {
+  const { data } = await api.get('/admin/manual-invoices');
+  return data;
+};
+
+export const createManualInvoice = async (
+  payload: ManualInvoicePayload
+): Promise<ManualInvoice> => {
+  const { data } = await api.post('/admin/manual-invoices', payload);
+  return data;
+};
+
+export const fetchManualInvoicePdf = async (id: string): Promise<Blob> => {
+  const { data } = await api.get(`/admin/manual-invoices/${id}/pdf`, {
+    responseType: 'blob',
+  });
   return data;
 };
 

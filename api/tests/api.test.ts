@@ -210,6 +210,8 @@ const {
     bookings: [] as Array<Record<string, any>>,
     toll_transfer_notices: [] as Array<Record<string, any>>,
     toll_transfer_notice_audit_events: [] as Array<Record<string, any>>,
+    manual_invoices: [] as Array<Record<string, any>>,
+    manual_invoice_items: [] as Array<Record<string, any>>,
     stripe_webhook_events: [] as Array<Record<string, any>>,
   },
   mockGetUser: vi.fn(),
@@ -237,6 +239,7 @@ const {
     checkoutSessionsList: vi.fn(),
     checkoutSessionsRetrieve: vi.fn(),
     subscriptionsRetrieve: vi.fn(),
+    subscriptionsUpdate: vi.fn(),
     subscriptionsCancel: vi.fn(),
     webhooksConstructEvent: vi.fn(),
   },
@@ -263,6 +266,7 @@ vi.mock("stripe", () => {
     subscriptions = {
       create: vi.fn(),
       retrieve: mockStripe.subscriptionsRetrieve,
+      update: mockStripe.subscriptionsUpdate,
       cancel: mockStripe.subscriptionsCancel,
     };
     checkout = {
@@ -386,6 +390,14 @@ vi.mock("../db/index.js", () => {
       return mockState.toll_transfer_notice_audit_events;
     }
 
+    if (table === "manual_invoices") {
+      return mockState.manual_invoices;
+    }
+
+    if (table === "manual_invoice_items") {
+      return mockState.manual_invoice_items;
+    }
+
     if (table === "stripe_webhook_events") {
       return mockState.stripe_webhook_events;
     }
@@ -441,6 +453,16 @@ vi.mock("../db/index.js", () => {
 
     if (table === "toll_transfer_notice_audit_events") {
       mockState.toll_transfer_notice_audit_events = rows;
+      return;
+    }
+
+    if (table === "manual_invoices") {
+      mockState.manual_invoices = rows;
+      return;
+    }
+
+    if (table === "manual_invoice_items") {
+      mockState.manual_invoice_items = rows;
       return;
     }
 
@@ -906,14 +928,14 @@ vi.mock("../db/index.js", () => {
   ) => {
     const currentRows = getTableRows(table);
     const nextSequence =
-      table === "applications" || table === "invoices"
+      table === "applications" || table === "invoices" || table === "manual_invoices" || table === "manual_invoice_items"
         ? currentRows.length + 1
         : currentRows.reduce(
             (max, row) => Math.max(max, Number(row.id) || 0),
             0,
           ) + 1;
     const nextId =
-      table === "applications" || table === "invoices"
+      table === "applications" || table === "invoices" || table === "manual_invoices" || table === "manual_invoice_items"
         ? buildUuidFromSequence(nextSequence)
         : nextSequence;
     const insertedRow: Record<string, any> = { ...records[0], id: nextId };
@@ -998,6 +1020,27 @@ vi.mock("../db/index.js", () => {
           created_at: new Date().toISOString(),
           ...insertedRow,
         },
+      ];
+    }
+
+    if (table === "manual_invoices") {
+      mockState.manual_invoices = [
+        ...mockState.manual_invoices,
+        {
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          ...insertedRow,
+        },
+      ];
+    }
+
+    if (table === "manual_invoice_items") {
+      mockState.manual_invoice_items = [
+        ...mockState.manual_invoice_items,
+        ...records.map((record, index) => ({
+          ...record,
+          id: buildUuidFromSequence(currentRows.length + index + 1),
+        })),
       ];
     }
 
@@ -1405,6 +1448,8 @@ beforeEach(() => {
   mockState.stripe_webhook_events = [];
   mockState.toll_transfer_notices = [];
   mockState.toll_transfer_notice_audit_events = [];
+  mockState.manual_invoices = [];
+  mockState.manual_invoice_items = [];
 
   mockState.customers = [
     {
@@ -1582,6 +1627,16 @@ beforeEach(() => {
   mockStripe.subscriptionsRetrieve.mockResolvedValue({
     id: "sub_test_123",
     metadata: { application_id: APPROVED_APPLICATION_ID, car_id: "1" },
+    status: "active",
+  });
+  mockStripe.subscriptionsUpdate.mockResolvedValue({
+    id: "sub_test_123",
+    cancel_at_period_end: true,
+    status: "active",
+  });
+  mockStripe.subscriptionsCancel.mockResolvedValue({
+    id: "sub_test_123",
+    status: "canceled",
   });
   mockStripe.webhooksConstructEvent.mockReset();
   mockBeforeApplicationsUpdate.mockReset();
@@ -3115,6 +3170,266 @@ describe("Operational history API", () => {
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0].external_invoice_number).toBe("1881");
   });
+
+  it("POST /api/admin/rentals/:id/cancel-subscription requires admin auth", async () => {
+    const res = await request(app)
+      .post("/api/admin/rentals/20/cancel-subscription")
+      .send({ confirm: "CANCEL SUBSCRIPTION", cancelAtPeriodEnd: true });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/admin/rentals/:id/cancel-subscription rejects the wrong confirmation phrase", async () => {
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-03-01",
+        weekly_price: 250,
+        stripe_subscription_id: "sub_active",
+      },
+    ];
+
+    const res = await request(app)
+      .post("/api/admin/rentals/20/cancel-subscription")
+      .set("Authorization", "Bearer fake-token")
+      .send({ confirm: "cancel", cancelAtPeriodEnd: true });
+
+    expect(res.status).toBe(400);
+    expect(mockStripe.subscriptionsUpdate).not.toHaveBeenCalled();
+    expect(mockStripe.subscriptionsCancel).not.toHaveBeenCalled();
+  });
+
+  it("POST /api/admin/rentals/:id/cancel-subscription returns 400 when no subscription is linked", async () => {
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-03-01",
+        weekly_price: 250,
+        stripe_subscription_id: null,
+      },
+    ];
+
+    const res = await request(app)
+      .post("/api/admin/rentals/20/cancel-subscription")
+      .set("Authorization", "Bearer fake-token")
+      .send({ confirm: "CANCEL SUBSCRIPTION", cancelAtPeriodEnd: true });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("No Stripe subscription");
+  });
+
+  it("POST /api/admin/rentals/:id/cancel-subscription schedules period-end cancellation", async () => {
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-03-01",
+        weekly_price: 250,
+        stripe_subscription_id: "sub_active",
+      },
+    ];
+    mockStripe.subscriptionsUpdate.mockResolvedValueOnce({
+      id: "sub_active",
+      cancel_at_period_end: true,
+      status: "active",
+    });
+
+    const res = await request(app)
+      .post("/api/admin/rentals/20/cancel-subscription")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        confirm: "CANCEL SUBSCRIPTION",
+        cancelAtPeriodEnd: true,
+        reason: "Driver returning vehicle",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockStripe.subscriptionsUpdate).toHaveBeenCalledWith(
+      "sub_active",
+      expect.objectContaining({
+        cancel_at_period_end: true,
+        metadata: expect.objectContaining({
+          admin_cancellation_reason: "Driver returning vehicle",
+        }),
+      }),
+      expect.objectContaining({ idempotencyKey: expect.stringContaining("20") }),
+    );
+    expect(mockState.rentals[0].status).toBe("Active");
+    expect(res.body).toMatchObject({
+      success: true,
+      rentalId: "20",
+      stripeSubscriptionId: "sub_active",
+      cancelAtPeriodEnd: true,
+      stripeStatus: "active",
+    });
+  });
+
+  it("POST /api/admin/rentals/:id/cancel-subscription cancels immediately and updates local rental", async () => {
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-03-01",
+        weekly_price: 250,
+        stripe_subscription_id: "sub_active",
+      },
+    ];
+    mockStripe.subscriptionsCancel.mockResolvedValueOnce({
+      id: "sub_active",
+      status: "canceled",
+    });
+
+    const res = await request(app)
+      .post("/api/admin/rentals/20/cancel-subscription")
+      .set("Authorization", "Bearer fake-token")
+      .send({ confirm: "CANCEL SUBSCRIPTION", cancelAtPeriodEnd: false });
+
+    expect(res.status).toBe(200);
+    expect(mockStripe.subscriptionsCancel).toHaveBeenCalledWith(
+      "sub_active",
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining("20"),
+      }),
+    );
+    expect(mockState.rentals[0].status).toBe("Cancelled");
+    expect(res.body.stripeStatus).toBe("canceled");
+  });
+
+  it("POST /api/admin/manual-invoices creates a manual invoice with calculated totals", async () => {
+    const res = await request(app)
+      .post("/api/admin/manual-invoices")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        invoice_number: "MR-INV-TEST-0001",
+        status: "issued",
+        issue_date: "2026-05-14",
+        due_date: "2026-05-21",
+        bill_to_name: "Approved Driver",
+        bill_to_abn_mobile: "0499999999",
+        vehicle_reference: "Toyota Camry / CZ55XY / Rental 20",
+        rental_period_reference: "14 May 2026 - 21 May 2026",
+        notes: "Payment due by due date.",
+        additional_details: "Manual bond tracking only.",
+        items: [
+          {
+            description: "Weekly rental subscription",
+            quantity: 1,
+            unit_price: 250,
+            gst: 25,
+          },
+          {
+            description: "Manual bond",
+            quantity: 1,
+            unit_price: 500,
+            gst: 0,
+          },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.invoice_number).toBe("MR-INV-TEST-0001");
+    expect(res.body.subtotal).toBe(750);
+    expect(res.body.gst).toBe(25);
+    expect(res.body.total_inc_gst).toBe(775);
+    expect(mockState.manual_invoice_items).toHaveLength(2);
+  });
+
+  it("POST /api/admin/manual-invoices rejects invalid invoice data", async () => {
+    const res = await request(app)
+      .post("/api/admin/manual-invoices")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        bill_to_name: "",
+        issue_date: "not-a-date",
+        items: [],
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Validation failed");
+  });
+
+  it("POST /api/admin/manual-invoices rejects duplicate invoice numbers", async () => {
+    mockState.manual_invoices = [
+      {
+        id: "invoice-1",
+        invoice_number: "MR-INV-DUP",
+        status: "draft",
+        issue_date: "2026-05-14",
+        bill_to_name: "Existing Driver",
+        subtotal: 10,
+        gst: 1,
+        total_inc_gst: 11,
+      },
+    ];
+
+    const res = await request(app)
+      .post("/api/admin/manual-invoices")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        invoice_number: "MR-INV-DUP",
+        status: "draft",
+        issue_date: "2026-05-14",
+        bill_to_name: "Approved Driver",
+        items: [{ description: "Weekly rental", quantity: 1, unit_price: 250, gst: 25 }],
+      });
+
+    expect(res.status).toBe(409);
+  });
+
+  it("GET /api/admin/manual-invoices/:id/pdf returns a Maple Rentals PDF", async () => {
+    mockState.manual_invoices = [
+      {
+        id: "invoice-1",
+        invoice_number: "MR-INV-PDF",
+        status: "issued",
+        issue_date: "2026-05-14",
+        due_date: "2026-05-21",
+        bill_to_name: "Approved Driver",
+        bill_to_abn_mobile: "0499999999",
+        vehicle_reference: "Toyota Camry",
+        rental_period_reference: "14 May - 21 May",
+        notes: "Thanks",
+        additional_details: "Manual invoice",
+        subtotal: 250,
+        gst: 25,
+        total_inc_gst: 275,
+      },
+    ];
+    mockState.manual_invoice_items = [
+      {
+        id: "item-1",
+        invoice_id: "invoice-1",
+        description: "Weekly rental subscription",
+        quantity: 1,
+        unit_price: 250,
+        gst: 25,
+        amount: 275,
+        sort_order: 0,
+      },
+    ];
+
+    const res = await request(app)
+      .get("/api/admin/manual-invoices/invoice-1/pdf")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+    expect(res.headers["content-disposition"]).toContain(
+      "maple-rentals-invoice-MR-INV-PDF.pdf",
+    );
+    expect(res.text || res.body.toString("latin1")).toContain("MAPLE RENTALS");
+    expect(res.text || res.body.toString("latin1")).toContain("062202");
+  });
 });
 
 describe("Toll Transfer Notices API", () => {
@@ -4019,7 +4334,8 @@ describe("Stripe API", () => {
     );
 
     const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
-    expect(payload.line_items).toHaveLength(2);
+    expect(payload.mode).toBe("subscription");
+    expect(payload.line_items).toHaveLength(1);
     expect(payload.metadata.checkout_kind).toBe("vehicle");
     expect(payload.metadata.application_id).toBe(APPROVED_APPLICATION_ID);
     expect(payload.metadata.approved_vehicle).toBe("Toyota Camry");
@@ -4033,8 +4349,16 @@ describe("Stripe API", () => {
     const recurringItem = payload.line_items.find(
       (item: any) => item.price_data.recurring,
     );
+    expect(recurringItem).toBeTruthy();
     expect(recurringItem.price_data.unit_amount).toBe(25000);
     expect(recurringItem.price_data.product).toBe("prod_weekly_rental");
+    expect(
+      payload.line_items.some((item: any) =>
+        ["prod_security_bond", "prod_onboarding_setup"].includes(
+          item.price_data.product,
+        ),
+      ),
+    ).toBe(false);
     expect(payload.cancel_url).toContain(`/checkout/${APPROVED_APPLICATION_ID}`);
     expect(payload.cancel_url).toContain("resume_payment=1");
     expect(payload.cancel_url).toContain(

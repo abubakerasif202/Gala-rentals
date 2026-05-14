@@ -1,9 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Search, Loader2, AlertCircle, FileText, DollarSign, Download } from 'lucide-react';
-import { OperationalInvoice } from '../../../types';
+import { Search, Loader2, AlertCircle, FileText, DollarSign, Download, Plus, Trash2 } from 'lucide-react';
+import {
+  ManualInvoice,
+  ManualInvoiceItem,
+  ManualInvoiceStatus,
+  OperationalInvoice,
+} from '../../../types';
 import DataTable, { type DataTableColumn } from '../DataTable';
 import MetricCard from '../MetricCard';
+import * as api from '../../../lib/api';
 
 interface InvoicesTabProps {
   invoiceSearch: string;
@@ -59,6 +65,16 @@ const renderOperationalUnavailable = (title: string, operationalHistoryMessage: 
   </div>
 );
 
+const today = () => new Date().toISOString().slice(0, 10);
+
+const createBlankManualInvoiceItem = (): ManualInvoiceItem => ({
+  description: '',
+  quantity: 1,
+  unit_price: 0,
+  gst: 0,
+  amount: 0,
+});
+
 export default function InvoicesTab({
   invoiceSearch,
   setInvoiceSearch,
@@ -78,6 +94,131 @@ export default function InvoicesTab({
   formatDate,
   operationalHistoryMessage,
 }: InvoicesTabProps) {
+  const [manualInvoiceForm, setManualInvoiceForm] = useState({
+    additional_details: '',
+    bill_to_abn_mobile: '',
+    bill_to_name: '',
+    due_date: '',
+    invoice_number: '',
+    issue_date: today(),
+    notes: '',
+    rental_period_reference: '',
+    status: 'draft' as ManualInvoiceStatus,
+    vehicle_reference: '',
+  });
+  const [manualInvoiceItems, setManualInvoiceItems] = useState<ManualInvoiceItem[]>([
+    createBlankManualInvoiceItem(),
+  ]);
+  const [manualInvoiceError, setManualInvoiceError] = useState('');
+  const [manualInvoiceSuccess, setManualInvoiceSuccess] = useState('');
+  const [isCreatingManualInvoice, setIsCreatingManualInvoice] = useState(false);
+  const [isDownloadingManualInvoice, setIsDownloadingManualInvoice] = useState(false);
+  const [createdManualInvoice, setCreatedManualInvoice] = useState<ManualInvoice | null>(null);
+
+  const manualInvoiceTotals = useMemo(() => {
+    const subtotal = manualInvoiceItems.reduce(
+      (sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0),
+      0
+    );
+    const gst = manualInvoiceItems.reduce((sum, item) => sum + Number(item.gst || 0), 0);
+    const total = manualInvoiceItems.reduce((sum, item) => {
+      const computed =
+        Number(item.amount || 0) ||
+        Number(item.quantity || 0) * Number(item.unit_price || 0) + Number(item.gst || 0);
+      return sum + computed;
+    }, 0);
+
+    return {
+      gst,
+      subtotal,
+      total,
+    };
+  }, [manualInvoiceItems]);
+
+  const updateManualInvoiceItem = (
+    index: number,
+    field: keyof ManualInvoiceItem,
+    value: string
+  ) => {
+    setManualInvoiceItems((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex !== index) {
+          return item;
+        }
+
+        if (field === 'description') {
+          return { ...item, description: value };
+        }
+
+        const numericValue = Number(value || 0);
+        const nextItem = { ...item, [field]: numericValue };
+        const computedAmount =
+          Number(nextItem.quantity || 0) * Number(nextItem.unit_price || 0) +
+          Number(nextItem.gst || 0);
+        return { ...nextItem, amount: field === 'amount' ? numericValue : computedAmount };
+      })
+    );
+  };
+
+  const downloadManualInvoicePdf = async (invoice: ManualInvoice) => {
+    setIsDownloadingManualInvoice(true);
+    setManualInvoiceError('');
+    try {
+      const pdf = await api.fetchManualInvoicePdf(invoice.id);
+      const url = URL.createObjectURL(pdf);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `maple-rentals-invoice-${invoice.invoice_number}.pdf`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setManualInvoiceSuccess('Manual invoice PDF generated.');
+    } catch (error) {
+      setManualInvoiceError('Failed to generate manual invoice PDF.');
+    } finally {
+      setIsDownloadingManualInvoice(false);
+    }
+  };
+
+  const createManualInvoice = async () => {
+    setManualInvoiceError('');
+    setManualInvoiceSuccess('');
+
+    if (!manualInvoiceForm.bill_to_name.trim()) {
+      setManualInvoiceError('Customer / company is required.');
+      return;
+    }
+
+    if (!manualInvoiceItems.some((item) => item.description.trim())) {
+      setManualInvoiceError('At least one line item description is required.');
+      return;
+    }
+
+    setIsCreatingManualInvoice(true);
+    try {
+      const invoice = await api.createManualInvoice({
+        ...manualInvoiceForm,
+        due_date: manualInvoiceForm.due_date || null,
+        invoice_number: manualInvoiceForm.invoice_number || undefined,
+        items: manualInvoiceItems.map((item) => ({
+          description: item.description.trim(),
+          quantity: Number(item.quantity || 0),
+          unit_price: Number(item.unit_price || 0),
+          gst: Number(item.gst || 0),
+          amount:
+            Number(item.amount || 0) ||
+            Number(item.quantity || 0) * Number(item.unit_price || 0) + Number(item.gst || 0),
+        })),
+      });
+      setCreatedManualInvoice(invoice);
+      setManualInvoiceSuccess(`Manual invoice ${invoice.invoice_number} created.`);
+    } catch (error) {
+      setManualInvoiceError('Failed to create manual invoice.');
+    } finally {
+      setIsCreatingManualInvoice(false);
+    }
+  };
+
   const exportInvoices = (invoices: OperationalInvoice[]) => {
     const headers = [
       'Invoice Number',
@@ -327,6 +468,172 @@ export default function InvoicesTab({
           />
         </>
       )}
+
+      <div className="space-y-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h3 className="text-2xl font-bold tracking-tight text-white">
+              Manual Invoices
+            </h3>
+            <p className="mt-1 text-sm text-brand-grey">
+              Create Maple Rentals tax invoices for manual admin billing, including
+              bond tracking outside Stripe.
+            </p>
+          </div>
+          <div className="text-right text-sm text-brand-grey">
+            <p>Subtotal: <span className="font-bold text-white">{formatCurrency(manualInvoiceTotals.subtotal)}</span></p>
+            <p>GST: <span className="font-bold text-white">{formatCurrency(manualInvoiceTotals.gst)}</span></p>
+            <p>Total Inc GST: <span className="font-bold text-brand-gold">{formatCurrency(manualInvoiceTotals.total)}</span></p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-4">
+          {[
+            ['invoice_number', 'Invoice no'],
+            ['issue_date', 'Date'],
+            ['due_date', 'Due date'],
+            ['bill_to_name', 'Customer / company'],
+            ['bill_to_abn_mobile', 'ABN / mobile'],
+            ['vehicle_reference', 'Vehicle / rego / rental ID'],
+            ['rental_period_reference', 'Rental period / reference'],
+            ['additional_details', 'Additional details'],
+          ].map(([field, label]) => (
+            <label key={field} className="space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                {label}
+              </span>
+              <input
+                type={field.includes('date') ? 'date' : 'text'}
+                value={manualInvoiceForm[field as keyof typeof manualInvoiceForm]}
+                onChange={(event) =>
+                  setManualInvoiceForm((current) => ({
+                    ...current,
+                    [field]: event.target.value,
+                  }))
+                }
+                className="w-full rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none focus:border-brand-gold"
+              />
+            </label>
+          ))}
+          <label className="space-y-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+              Status
+            </span>
+            <select
+              value={manualInvoiceForm.status}
+              onChange={(event) =>
+                setManualInvoiceForm((current) => ({
+                  ...current,
+                  status: event.target.value as ManualInvoiceStatus,
+                }))
+              }
+              className="w-full rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none focus:border-brand-gold"
+            >
+              {['draft', 'issued', 'paid', 'overdue', 'cancelled'].map((status) => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="space-y-3">
+          {manualInvoiceItems.map((item, index) => (
+            <div key={index} className="grid gap-3 md:grid-cols-[1fr_90px_130px_110px_130px_44px]">
+              <input
+                value={item.description}
+                onChange={(event) => updateManualInvoiceItem(index, 'description', event.target.value)}
+                placeholder="Description"
+                className="rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none focus:border-brand-gold"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={item.quantity}
+                onChange={(event) => updateManualInvoiceItem(index, 'quantity', event.target.value)}
+                className="rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none focus:border-brand-gold"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={item.unit_price}
+                onChange={(event) => updateManualInvoiceItem(index, 'unit_price', event.target.value)}
+                className="rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none focus:border-brand-gold"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={item.gst}
+                onChange={(event) => updateManualInvoiceItem(index, 'gst', event.target.value)}
+                className="rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none focus:border-brand-gold"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={item.amount || 0}
+                onChange={(event) => updateManualInvoiceItem(index, 'amount', event.target.value)}
+                className="rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none focus:border-brand-gold"
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setManualInvoiceItems((current) =>
+                    current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index)
+                  )
+                }
+                className="flex h-11 items-center justify-center rounded-xl border border-red-500/30 text-red-300 hover:bg-red-500/10"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setManualInvoiceItems((current) => [...current, createBlankManualInvoiceItem()])}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-xs font-bold uppercase tracking-widest text-white hover:bg-white/5"
+          >
+            <Plus className="h-4 w-4 text-brand-gold" />
+            Add line item
+          </button>
+        </div>
+
+        <textarea
+          value={manualInvoiceForm.notes}
+          onChange={(event) =>
+            setManualInvoiceForm((current) => ({ ...current, notes: event.target.value }))
+          }
+          rows={3}
+          placeholder="Notes / terms"
+          className="w-full resize-none rounded-xl border border-white/10 bg-brand-navy px-4 py-3 text-sm text-white outline-none focus:border-brand-gold"
+        />
+
+        {manualInvoiceError && <p className="text-sm text-red-300">{manualInvoiceError}</p>}
+        {manualInvoiceSuccess && <p className="text-sm text-green-300">{manualInvoiceSuccess}</p>}
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={createManualInvoice}
+            disabled={isCreatingManualInvoice}
+            className="inline-flex items-center gap-2 rounded-full bg-brand-gold px-6 py-4 text-xs font-bold uppercase tracking-widest text-brand-navy disabled:opacity-50"
+          >
+            {isCreatingManualInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            Create Invoice
+          </button>
+          <button
+            type="button"
+            onClick={() => createdManualInvoice && downloadManualInvoicePdf(createdManualInvoice)}
+            disabled={!createdManualInvoice || isDownloadingManualInvoice}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 px-6 py-4 text-xs font-bold uppercase tracking-widest text-white hover:bg-white/5 disabled:opacity-50"
+          >
+            {isDownloadingManualInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Preview / Download PDF
+          </button>
+        </div>
+      </div>
     </motion.div>
   );
 }

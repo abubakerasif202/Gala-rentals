@@ -56,6 +56,41 @@ export interface Rental {
   created_at: string;
 }
 
+export type BondStatus = 'unpaid' | 'paid_manually' | 'waived' | 'refunded';
+
+export type ManualInvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
+
+export interface ManualInvoiceItem {
+  id?: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  gst: number;
+  amount?: number;
+  sort_order?: number;
+}
+
+export interface ManualInvoice {
+  id: string;
+  invoice_number: string;
+  status: ManualInvoiceStatus;
+  issue_date: string;
+  due_date?: string | null;
+  bill_to_name: string;
+  bill_to_abn_mobile?: string | null;
+  vehicle_reference?: string | null;
+  rental_period_reference?: string | null;
+  notes?: string | null;
+  additional_details?: string | null;
+  subtotal: number;
+  gst: number;
+  total_inc_gst: number;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  items: ManualInvoiceItem[];
+}
+
 export interface DashboardStats {
   total_applications: number;
   active_rentals: number;

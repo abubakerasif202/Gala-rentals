@@ -660,6 +660,34 @@ export default function AdminDashboard() {
     },
   });
 
+  const cancelRentalSubscriptionMutation = useMutation({
+    mutationFn: ({
+      cancelAtPeriodEnd,
+      confirm,
+      reason,
+      rentalId,
+    }: {
+      cancelAtPeriodEnd: boolean;
+      confirm: 'CANCEL SUBSCRIPTION';
+      reason?: string;
+      rentalId: number;
+    }) =>
+      api.cancelRentalStripeSubscription(rentalId, {
+        cancelAtPeriodEnd,
+        confirm,
+        reason,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rentals'] });
+      showNotification('Stripe subscription cancellation updated.', 'success');
+    },
+    onError: (error) =>
+      showNotification(
+        getApiErrorMessage(error, 'Failed to cancel Stripe subscription'),
+        'error'
+      ),
+  });
+
   const deleteAgreementMutation = useMutation({
     mutationFn: (id: number) => api.deleteSavedLeaseAgreement(id),
     onSuccess: () => {
@@ -1114,6 +1142,9 @@ export default function AdminDashboard() {
               rentalSearch={rentalSearch}
               setRentalSearch={setRentalSearch}
               filteredRentals={filteredRentals}
+              onCancelSubscription={(payload) =>
+                cancelRentalSubscriptionMutation.mutateAsync(payload)
+              }
               onCreateTollNotice={(rental) =>
                 openTollNotices(
                   String(rental.application_id || rental.applicant_name || rental.car_name || '')

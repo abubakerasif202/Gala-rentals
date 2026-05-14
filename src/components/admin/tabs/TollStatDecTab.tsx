@@ -1,4 +1,4 @@
-import React, { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import React, { ChangeEvent, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import {
@@ -93,6 +93,220 @@ const labels: Partial<Record<keyof TollTransferForm, string>> = {
 
 const display = (value: unknown) => String(value ?? '').trim() || '-';
 
+type FieldProps = {
+  error?: string;
+  field: keyof TollTransferForm;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  label: string;
+  maxLength?: number;
+  onChange: (field: keyof TollTransferForm) => (
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => void;
+  required: boolean;
+  type?: string;
+  value: string;
+};
+
+const baseInputClass = (hasError?: boolean) =>
+  `w-full rounded-lg border bg-brand-navy px-4 py-3 text-sm text-white outline-none transition-all focus:border-brand-gold ${
+    hasError ? 'border-red-400/70' : 'border-white/10'
+  }`;
+
+const Field = memo(
+  ({
+    error,
+    field,
+    inputMode,
+    label,
+    maxLength,
+    onChange,
+    required,
+    type = 'text',
+    value,
+  }: FieldProps) => (
+    <label className="space-y-2">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+        {label}
+        {required && <span className="text-brand-gold"> *</span>}
+      </span>
+      <input
+        className={baseInputClass(Boolean(error))}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        onChange={onChange(field)}
+        type={type}
+        value={value}
+      />
+      {error && <p className="text-xs text-red-300">{error}</p>}
+    </label>
+  )
+);
+
+Field.displayName = 'Field';
+
+const TextArea = memo(
+  ({
+    error,
+    field,
+    label,
+    onChange,
+    required,
+    value,
+  }: Omit<FieldProps, 'inputMode' | 'maxLength' | 'type'>) => (
+    <label className="space-y-2">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+        {label}
+        {required && <span className="text-brand-gold"> *</span>}
+      </span>
+      <textarea
+        className={`${baseInputClass(Boolean(error))} min-h-24 resize-y`}
+        onChange={onChange(field)}
+        value={value}
+      />
+      {error && <p className="text-xs text-red-300">{error}</p>}
+    </label>
+  )
+);
+
+TextArea.displayName = 'TextArea';
+
+type OriginalNoticePreviewProps = {
+  fileName?: string;
+  fileUrl: string;
+  mimeType?: string;
+};
+
+const getOriginalNoticeType = (mimeType: string, fileName: string, fileUrl: string) => {
+  const normalizedMime = mimeType.toLowerCase();
+  const source = `${fileName} ${fileUrl}`.toLowerCase().split(/[?#]/)[0];
+
+  if (normalizedMime.includes('application/pdf') || source.endsWith('.pdf')) {
+    return 'pdf';
+  }
+
+  if (normalizedMime.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(source)) {
+    return 'image';
+  }
+
+  return 'unsupported';
+};
+
+const OriginalNoticePreview = memo(
+  ({ fileName = 'Original toll notice', fileUrl, mimeType = '' }: OriginalNoticePreviewProps) => {
+    const [preview, setPreview] = useState<{
+      error: boolean;
+      objectUrl: string | null;
+      status: 'idle' | 'loading' | 'ready';
+      type: 'image' | 'pdf' | 'unsupported';
+    }>({
+      error: false,
+      objectUrl: null,
+      status: 'idle',
+      type: getOriginalNoticeType(mimeType, fileName, fileUrl),
+    });
+
+    useEffect(() => {
+      const controller = new AbortController();
+      let objectUrl: string | null = null;
+
+      setPreview({
+        error: false,
+        objectUrl: null,
+        status: 'loading',
+        type: getOriginalNoticeType(mimeType, fileName, fileUrl),
+      });
+
+      const loadPreview = async () => {
+        try {
+          const response = await fetch(fileUrl, {
+            credentials: 'include',
+            signal: controller.signal,
+          });
+
+          if (!response.ok) {
+            console.error('Original notice preview failed to load', {
+              status: response.status,
+              url: fileUrl,
+            });
+            setPreview((current) => ({ ...current, error: true, status: 'ready' }));
+            return;
+          }
+
+          const responseMimeType = response.headers.get('Content-Type') || mimeType;
+          const type = getOriginalNoticeType(responseMimeType, fileName, fileUrl);
+          if (type === 'unsupported') {
+            setPreview({ error: false, objectUrl: null, status: 'ready', type });
+            return;
+          }
+
+          const blob = await response.blob();
+          objectUrl = URL.createObjectURL(blob);
+          setPreview({ error: false, objectUrl, status: 'ready', type });
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            console.error('Original notice preview failed to load', error);
+            setPreview((current) => ({ ...current, error: true, status: 'ready' }));
+          }
+        }
+      };
+
+      void loadPreview();
+
+      return () => {
+        controller.abort();
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+    }, [fileName, fileUrl, mimeType]);
+
+    if (preview.status === 'loading') {
+      return (
+        <div className="flex h-full w-full items-center justify-center bg-white text-sm text-brand-navy">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Loading original notice...
+        </div>
+      );
+    }
+
+    if (preview.error) {
+      return (
+        <div className="flex h-full w-full items-center justify-center bg-white p-6 text-center text-sm font-semibold text-brand-navy">
+          Original notice could not be loaded
+        </div>
+      );
+    }
+
+    if (preview.type === 'unsupported' || !preview.objectUrl) {
+      return (
+        <div className="flex h-full w-full items-center justify-center bg-white p-6 text-center text-sm font-semibold text-brand-navy">
+          Original notice file type is not supported for preview
+        </div>
+      );
+    }
+
+    if (preview.type === 'image') {
+      return (
+        <img
+          alt={fileName}
+          className="h-full w-full object-contain"
+          src={preview.objectUrl}
+        />
+      );
+    }
+
+    return (
+      <iframe
+        className="h-full w-full border-0"
+        src={`${preview.objectUrl}#toolbar=0&navpanes=0&view=FitH`}
+        title={fileName}
+      />
+    );
+  }
+);
+
+OriginalNoticePreview.displayName = 'OriginalNoticePreview';
+
 export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState(initialSearch);
@@ -183,12 +397,15 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     };
   }, [form.application_id, form.car_name, form.rental_id]);
 
-  const updateField = <K extends keyof TollTransferForm>(field: K, value: TollTransferForm[K]) => {
+  const updateField = useCallback(<K extends keyof TollTransferForm>(
+    field: K,
+    value: TollTransferForm[K]
+  ) => {
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
-  };
+  }, []);
 
-  const handleTextChange =
+  const handleTextChange = useCallback(
     (field: keyof TollTransferForm) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const rawValue = event.target.value;
@@ -202,7 +419,9 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
       ) as never;
 
       updateField(field, value);
-    };
+    },
+    [updateField]
+  );
 
   const applyRentalOption = (option: api.TollNoticeRentalOption) => {
     setForm((current) => ({
@@ -301,57 +520,15 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
   };
 
   const inputClass = (field: keyof TollTransferForm) =>
-    `w-full rounded-lg border bg-brand-navy px-4 py-3 text-sm text-white outline-none transition-all focus:border-brand-gold ${
-      errors[field] ? 'border-red-400/70' : 'border-white/10'
-    }`;
+    baseInputClass(Boolean(errors[field]));
 
-  const Field = ({
+  const fieldProps = (field: keyof TollTransferForm) => ({
+    error: errors[field],
     field,
-    inputMode,
-    label,
-    maxLength,
-    placeholder,
-    type = 'text',
-  }: {
-    field: keyof TollTransferForm;
-    inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
-    label: string;
-    maxLength?: number;
-    placeholder?: string;
-    type?: string;
-  }) => (
-    <label className="space-y-2">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
-        {label}
-        {requiredFields.includes(field) && <span className="text-brand-gold"> *</span>}
-      </span>
-      <input
-        className={inputClass(field)}
-        inputMode={inputMode}
-        maxLength={maxLength}
-        onChange={handleTextChange(field)}
-        placeholder={placeholder}
-        type={type}
-        value={String(form[field] ?? '')}
-      />
-      {errors[field] && <p className="text-xs text-red-300">{errors[field]}</p>}
-    </label>
-  );
-
-  const TextArea = ({ field, label }: { field: keyof TollTransferForm; label: string }) => (
-    <label className="space-y-2">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
-        {label}
-        {requiredFields.includes(field) && <span className="text-brand-gold"> *</span>}
-      </span>
-      <textarea
-        className={`${inputClass(field)} min-h-24 resize-y`}
-        onChange={handleTextChange(field)}
-        value={String(form[field] ?? '')}
-      />
-      {errors[field] && <p className="text-xs text-red-300">{errors[field]}</p>}
-    </label>
-  );
+    onChange: handleTextChange,
+    required: requiredFields.includes(field),
+    value: String(form[field] ?? ''),
+  });
 
   return (
     <motion.div
@@ -508,9 +685,9 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
               Notice Details
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field field="toll_notice_number" label="Toll notice number" maxLength={20} />
-              <Field field="vehicle_registration" label="Vehicle registration" maxLength={8} />
-              <Field field="toll_trip_date" label="Toll trip date" type="date" />
+              <Field {...fieldProps('toll_notice_number')} label="Toll notice number" maxLength={20} />
+              <Field {...fieldProps('vehicle_registration')} label="Vehicle registration" maxLength={8} />
+              <Field {...fieldProps('toll_trip_date')} label="Toll trip date" type="date" />
               <label className="space-y-2">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
                   Responsible type
@@ -536,15 +713,15 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
               Customer / Driver
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field field="nominee_full_name" label="Full name" />
-              <Field field="nominee_dob" label="Date of birth" type="date" />
-              <Field field="nominee_phone" inputMode="tel" label="Phone" />
-              <Field field="nominee_suburb" label="Suburb" />
-              <TextArea field="nominee_address" label="Mailing address" />
+              <Field {...fieldProps('nominee_full_name')} label="Full name" />
+              <Field {...fieldProps('nominee_dob')} label="Date of birth" type="date" />
+              <Field {...fieldProps('nominee_phone')} inputMode="tel" label="Phone" />
+              <Field {...fieldProps('nominee_suburb')} label="Suburb" />
+              <TextArea {...fieldProps('nominee_address')} label="Mailing address" />
               <div className="grid gap-4">
-                <Field field="nominee_state" label="State" maxLength={3} />
-                <Field field="nominee_postcode" inputMode="numeric" label="Postcode" maxLength={4} />
-                <Field field="nominee_country" label="Country" />
+                <Field {...fieldProps('nominee_state')} label="State" maxLength={3} />
+                <Field {...fieldProps('nominee_postcode')} inputMode="numeric" label="Postcode" maxLength={4} />
+                <Field {...fieldProps('nominee_country')} label="Country" />
               </div>
             </div>
           </section>
@@ -555,12 +732,12 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
               Declaration & Witness
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field field="declaration_place" label="Declaration place" />
-              <Field field="declaration_date" label="Declaration date" type="date" />
-              <Field field="authorised_officer_name" label="Authorised officer name" />
-              <Field field="witness_name" label="Witness name" />
-              <Field field="witness_qualification" label="Witness qualification" />
-              <Field field="witness_jp_number" label="JP number if applicable" />
+              <Field {...fieldProps('declaration_place')} label="Declaration place" />
+              <Field {...fieldProps('declaration_date')} label="Declaration date" type="date" />
+              <Field {...fieldProps('authorised_officer_name')} label="Authorised officer name" />
+              <Field {...fieldProps('witness_name')} label="Witness name" />
+              <Field {...fieldProps('witness_qualification')} label="Witness qualification" />
+              <Field {...fieldProps('witness_jp_number')} label="JP number if applicable" />
             </div>
           </section>
         </div>
@@ -648,10 +825,10 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
               </a>
             </div>
             <div className="aspect-[210/297] overflow-hidden rounded-lg bg-white shadow-2xl">
-              <iframe
-                className="h-full w-full border-0"
-                src={`${TOLL_NOTICE_TEMPLATE_URL}#toolbar=0&navpanes=0&view=FitH`}
-                title="Original tolling notice statutory declaration"
+              <OriginalNoticePreview
+                fileName="Original tolling notice statutory declaration"
+                fileUrl={TOLL_NOTICE_TEMPLATE_URL}
+                mimeType="application/pdf"
               />
             </div>
           </section>

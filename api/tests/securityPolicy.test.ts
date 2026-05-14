@@ -20,4 +20,13 @@ describe('buildContentSecurityPolicyDirectives', () => {
 
     expect(directives.connectSrc).toContain('https://project-ref.supabase.co');
   });
+
+  it('allows same-origin and blob previews in frames', () => {
+    const directives = buildContentSecurityPolicyDirectives({
+      cspReportingEnabled: false,
+    });
+
+    expect(directives.frameSrc).toContain("'self'");
+    expect(directives.frameSrc).toContain('blob:');
+  });
 });

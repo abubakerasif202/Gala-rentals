@@ -40,6 +40,8 @@ export const buildContentSecurityPolicyDirectives = ({
       'https://*.supabase.in',
     ],
     frameSrc: [
+      "'self'",
+      'blob:',
       'https://js.stripe.com',
       'https://hooks.stripe.com',
       'https://checkout.stripe.com',

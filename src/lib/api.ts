@@ -674,22 +674,39 @@ export const sendTollTransferNotice = async (
   return data;
 };
 
-export interface ResetOldApplicantsResponse {
+export interface ImportedDataResetResponse {
   success: boolean;
   dryRun?: boolean;
-  applicationsMatched?: number;
-  rentalsMatched?: number;
-  deletedApplications?: number;
-  deletedRentals?: number;
-  preservedCars?: number;
+  criteria?: Record<string, string>;
+  counts?: Record<string, number>;
+  deleted?: Record<string, number>;
+  preserved?: {
+    adminUsers: true;
+    cars: true;
+    stripeExternalRecords: true;
+  };
+  dryRunToken?: string;
   message: string;
 }
 
-export const resetOldApplicants = async (payload: {
+export const resetImportedDataDryRun = async (payload: {
   confirm: string;
-  dryRun?: boolean;
-}): Promise<ResetOldApplicantsResponse> => {
-  const { data } = await api.post('/admin/maintenance/reset-old-applicants', payload);
+}): Promise<ImportedDataResetResponse> => {
+  const { data } = await api.post('/admin/maintenance/reset-imported-data/dry-run', payload);
+  return data;
+};
+
+export const resetImportedDataAndFinancials = async (payload: {
+  confirm: string;
+  dryRunToken?: string;
+  reason?: string;
+}): Promise<ImportedDataResetResponse> => {
+  const { data } = await api.post('/admin/maintenance/reset-imported-data', payload);
+  return data;
+};
+
+export const exportImportedDataReset = async (): Promise<Record<string, unknown>> => {
+  const { data } = await api.get('/admin/maintenance/reset-imported-data/export');
   return data;
 };
 

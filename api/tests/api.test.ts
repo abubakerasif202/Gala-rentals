@@ -473,6 +473,7 @@ vi.mock("../db/index.js", () => {
 
   type QueryFilter =
     | { type: "eq"; column: string; value: unknown }
+    | { type: "not"; column: string; value: unknown }
     | { type: "gte"; column: string; value: unknown }
     | { type: "ilike"; column: string; pattern: string }
     | { type: "in"; column: string; values: unknown[] }
@@ -513,6 +514,14 @@ vi.mock("../db/index.js", () => {
           }
 
           return String(left) >= String(right);
+        }
+
+        if (filter.type === "not") {
+          if (filter.value == null) {
+            return row[filter.column] != null;
+          }
+
+          return String(row[filter.column]) !== String(filter.value);
         }
 
         if (filter.type === "ilike") {
@@ -737,6 +746,16 @@ vi.mock("../db/index.js", () => {
           columns,
           options,
           [...filters, { type: "in", column, values }],
+          order,
+          range,
+        ),
+      ),
+      not: vi.fn((column: string, _operator: string, value: unknown) =>
+        createSelectQuery(
+          table,
+          columns,
+          options,
+          [...filters, { type: "not", column, value }],
           order,
           range,
         ),
@@ -3303,6 +3322,120 @@ describe("Operational history API", () => {
     );
     expect(mockState.rentals[0].status).toBe("Cancelled");
     expect(res.body.stripeStatus).toBe("canceled");
+  });
+
+  it("POST /api/admin/maintenance/reset-imported-data/dry-run rejects missing confirmation", async () => {
+    const res = await request(app)
+      .post("/api/admin/maintenance/reset-imported-data/dry-run")
+      .set("Authorization", "Bearer fake-token")
+      .send({ confirm: "wrong" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/admin/maintenance/reset-imported-data/dry-run reports imported rows without mutating data", async () => {
+    mockState.applications[0].legacy_id = 101;
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: PENDING_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-03-01",
+        weekly_price: 250,
+        legacy_application_id: 101,
+        stripe_subscription_id: null,
+      },
+    ];
+    const beforeApplications = structuredClone(mockState.applications);
+    const beforeRentals = structuredClone(mockState.rentals);
+    const beforeCustomers = structuredClone(mockState.customers);
+    const beforeInvoices = structuredClone(mockState.invoices);
+    const beforeManualInvoices = structuredClone(mockState.manual_invoices);
+    const beforeManualInvoiceItems = structuredClone(mockState.manual_invoice_items);
+
+    const res = await request(app)
+      .post("/api/admin/maintenance/reset-imported-data/dry-run")
+      .set("Authorization", "Bearer fake-token")
+      .send({ confirm: "RESET IMPORTED DATA AND FINANCIALS" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.dryRun).toBe(true);
+    expect(res.body.counts.applications).toBeGreaterThan(0);
+    expect(res.body.counts.rentals).toBeGreaterThan(0);
+    expect(res.body.counts.customers).toBeGreaterThan(0);
+    expect(mockState.applications).toEqual(beforeApplications);
+    expect(mockState.rentals).toEqual(beforeRentals);
+    expect(mockState.customers).toEqual(beforeCustomers);
+    expect(mockState.invoices).toEqual(beforeInvoices);
+    expect(mockState.manual_invoices).toEqual(beforeManualInvoices);
+    expect(mockState.manual_invoice_items).toEqual(beforeManualInvoiceItems);
+  });
+
+  it("POST /api/admin/maintenance/reset-imported-data deletes imported rows and preserves live rentals", async () => {
+    mockState.applications[0].legacy_id = 101;
+    mockState.applications = [
+      {
+        ...mockState.applications[0],
+        legacy_id: 101,
+        id: APPROVED_APPLICATION_ID,
+      },
+      {
+        ...mockState.applications[1],
+        legacy_id: null,
+        id: BLOCKING_APPLICATION_ID,
+      },
+    ];
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-03-01",
+        weekly_price: 250,
+        legacy_application_id: 101,
+        stripe_subscription_id: null,
+      },
+      {
+        id: 21,
+        application_id: BLOCKING_APPLICATION_ID,
+        car_id: 2,
+        status: "Active",
+        start_date: "2026-03-02",
+        weekly_price: 260,
+        legacy_application_id: null,
+        stripe_subscription_id: "sub_live",
+      },
+    ];
+    mockState.customers = [
+      { id: 1, full_name: "Legacy Customer", source: "legacy-import" },
+      { id: 2, full_name: "Live Customer", source: "current" },
+    ];
+    mockState.invoices = [
+      { id: 1, customer_id: 1, source: "legacy-import" },
+      { id: 2, customer_id: 2, source: "current" },
+    ];
+    mockState.manual_invoices = [{ id: "m1" }, { id: "m2" }];
+    mockState.manual_invoice_items = [{ id: "i1", invoice_id: "m1" }];
+
+    const res = await request(app)
+      .post("/api/admin/maintenance/reset-imported-data")
+      .set("Authorization", "Bearer fake-token")
+      .send({ confirm: "RESET IMPORTED DATA AND FINANCIALS" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockState.applications).toHaveLength(1);
+    expect(mockState.applications[0].id).toBe(BLOCKING_APPLICATION_ID);
+    expect(mockState.rentals).toHaveLength(1);
+    expect(mockState.rentals[0].id).toBe(21);
+    expect(mockState.customers).toHaveLength(1);
+    expect(mockState.customers[0].id).toBe(2);
+    expect(mockState.invoices).toHaveLength(1);
+    expect(mockState.invoices[0].id).toBe(2);
+    expect(mockState.manual_invoices).toHaveLength(0);
+    expect(mockState.manual_invoice_items).toHaveLength(0);
   });
 
   it("POST /api/admin/manual-invoices creates a manual invoice with calculated totals", async () => {

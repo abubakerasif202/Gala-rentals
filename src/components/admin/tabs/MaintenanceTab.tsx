@@ -1,193 +1,148 @@
-import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { 
-  AlertTriangle, 
-  Trash2, 
-  ShieldAlert, 
-  Loader2, 
-  CheckCircle2, 
-  Info,
-  Database
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { AlertTriangle, Database, Download, Loader2, Trash2 } from 'lucide-react';
 import * as api from '../../../lib/api';
 import { getApiErrorMessage } from '../../../lib/errorHandling';
 
+const CONFIRMATION_PHRASE = 'RESET IMPORTED DATA AND FINANCIALS';
+
 export default function MaintenanceTab() {
   const [confirmText, setConfirmText] = useState('');
-  const [lastResult, setLastResult] = useState<api.ResetOldApplicantsResponse | null>(null);
-  
-  const resetMutation = useMutation({
-    mutationFn: (options: { dryRun: boolean }) => 
-      api.resetOldApplicants({ 
-        confirm: confirmText, 
-        dryRun: options.dryRun 
-      }),
+  const [dryRunToken, setDryRunToken] = useState<string | undefined>();
+  const [dryRunResult, setDryRunResult] = useState<api.ImportedDataResetResponse | null>(null);
+  const [exportPayload, setExportPayload] = useState<Record<string, unknown> | null>(null);
+
+  const dryRunMutation = useMutation({
+    mutationFn: () => api.resetImportedDataDryRun({ confirm: CONFIRMATION_PHRASE }),
     onSuccess: (data) => {
-      setLastResult(data);
-      if (!data.dryRun) {
-        setConfirmText('');
-      }
-    }
+      setDryRunResult(data);
+      setDryRunToken(data.dryRunToken);
+    },
   });
 
-  const handleReset = (dryRun: boolean) => {
-    resetMutation.mutate({ dryRun });
-  };
+  const resetMutation = useMutation({
+    mutationFn: () =>
+      api.resetImportedDataAndFinancials({
+        confirm: CONFIRMATION_PHRASE,
+        dryRunToken,
+        reason: 'Admin maintenance reset',
+      }),
+    onSuccess: (data) => {
+      setDryRunResult(data);
+      setConfirmText('');
+      setDryRunToken(undefined);
+    },
+  });
 
-  const CONFIRMATION_PHRASE = "RESET OLD APPLICANTS";
+  const exportMutation = useMutation({
+    mutationFn: () => api.exportImportedDataReset(),
+    onSuccess: (data) => setExportPayload(data),
+  });
+
   const isConfirmed = confirmText === CONFIRMATION_PHRASE;
+  const canReset = Boolean(dryRunResult?.dryRun && isConfirmed && dryRunToken);
+
+  const counts = useMemo(
+    () => dryRunResult?.counts || dryRunResult?.deleted || null,
+    [dryRunResult],
+  );
 
   return (
-    <div className="max-w-4xl space-y-8">
+    <div className="max-w-4xl space-y-6">
       <div>
-        <h2 className="text-3xl font-bold text-white mb-2">System Maintenance</h2>
-        <p className="text-brand-grey">Manage dangerous system-wide operations and data cleanup.</p>
+        <h2 className="text-3xl font-bold text-white">Reset Imported Data & Financials</h2>
+        <p className="mt-2 text-brand-grey">
+          Reset imported/legacy customers, applications, linked rentals, and local invoice data.
+        </p>
       </div>
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-red-500/5 border border-red-500/20 rounded-3xl p-8 space-y-6"
-      >
-        <div className="flex items-start gap-5">
-          <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20 shrink-0">
-            <ShieldAlert className="w-6 h-6 text-red-500" />
-          </div>
+      <div className="rounded-2xl border border-red-500/25 bg-red-500/10 p-6">
+        <div className="flex items-start gap-4">
+          <AlertTriangle className="mt-1 h-5 w-5 text-red-400" />
           <div className="space-y-2">
-            <h3 className="text-xl font-bold text-white">Danger Zone: Reset Old Applicant Data</h3>
-            <p className="text-brand-grey text-sm leading-relaxed">
-              This action identifies and permanently deletes "Old" or "Imported" applicant records and their 
-              associated rental history. This is typically used to clear out legacy data from initial imports 
-              or fleet synchronization snapshots.
+            <p className="font-semibold text-white">Danger zone</p>
+            <p className="text-sm text-brand-grey">
+              This removes imported/legacy customers, imported applications, linked imported rentals,
+              and local invoice/financial records. Cars, admin users, and Stripe records are preserved.
             </p>
           </div>
         </div>
+      </div>
 
-        <div className="bg-brand-navy/40 border border-white/5 rounded-2xl p-6 space-y-4">
-          <div className="flex items-center gap-3 text-brand-gold">
-            <Info className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Safe Record Retention</span>
-          </div>
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-brand-grey">
-            <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-brand-gold/40" />
-              Preserves all Car and Fleet records
-            </li>
-            <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-brand-gold/40" />
-              Preserves Stripe Payment history
-            </li>
-            <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-brand-gold/40" />
-              Preserves Admin user accounts
-            </li>
-            <li className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-brand-gold/40" />
-              Preserves active/manually created data
-            </li>
-          </ul>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={() => dryRunMutation.mutate()}
+          disabled={dryRunMutation.isPending}
+          className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {dryRunMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+          Dry Run
+        </button>
+        <button
+          type="button"
+          onClick={() => exportMutation.mutate()}
+          disabled={exportMutation.isPending}
+          className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {exportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          Export Backup
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        <label className="block text-xs font-semibold uppercase tracking-widest text-brand-grey">
+          Confirmation phrase
+        </label>
+        <input
+          value={confirmText}
+          onChange={(event) => setConfirmText(event.target.value)}
+          className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
+          placeholder={CONFIRMATION_PHRASE}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => resetMutation.mutate()}
+        disabled={!canReset || resetMutation.isPending}
+        className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+      >
+        {resetMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+        Reset Imported Data
+      </button>
+
+      {(dryRunMutation.isError || resetMutation.isError || exportMutation.isError) && (
+        <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-200">
+          {getApiErrorMessage(
+            dryRunMutation.error || resetMutation.error || exportMutation.error,
+            'Request failed',
+          )}
         </div>
+      )}
 
-        <div className="space-y-4">
-          <p className="text-xs font-bold text-brand-grey uppercase tracking-widest">
-            To proceed, please type <span className="text-red-500 underline">{CONFIRMATION_PHRASE}</span>
-          </p>
-          <input
-            type="text"
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            placeholder="Type confirmation phrase here..."
-            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-red-500/50 transition-colors"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-4 pt-2">
-          <button
-            onClick={() => handleReset(true)}
-            disabled={!isConfirmed || resetMutation.isPending}
-            className="px-8 py-4 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl font-bold uppercase tracking-widest text-xs transition-all flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {resetMutation.isPending && resetMutation.variables?.dryRun ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Database className="w-4 h-4" />
-            )}
-            Dry Run (Safety Check)
-          </button>
-          
-          <button
-            onClick={() => handleReset(false)}
-            disabled={!isConfirmed || resetMutation.isPending}
-            className="px-8 py-4 bg-red-500 text-white hover:bg-red-600 rounded-2xl font-bold uppercase tracking-widest text-xs transition-all shadow-lg shadow-red-500/20 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {resetMutation.isPending && !resetMutation.variables?.dryRun ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Trash2 className="w-4 h-4" />
-            )}
-            Permanently Delete Data
-          </button>
-        </div>
-
-        {resetMutation.isError && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center gap-3 text-red-500 text-sm">
-            <AlertTriangle className="w-5 h-5" />
-            {getApiErrorMessage(resetMutation.error, 'Operation failed')}
-          </div>
-        )}
-
-        {lastResult && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className={`rounded-2xl p-6 space-y-4 border ${
-              lastResult.dryRun 
-                ? 'bg-brand-gold/10 border-brand-gold/20' 
-                : 'bg-green-500/10 border-green-500/20'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {lastResult.dryRun ? (
-                  <Database className="w-5 h-5 text-brand-gold" />
-                ) : (
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                )}
-                <h4 className={`font-bold ${lastResult.dryRun ? 'text-brand-gold' : 'text-green-500'}`}>
-                  {lastResult.dryRun ? 'Dry Run Results' : 'Reset Completed'}
-                </h4>
-              </div>
-              <span className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                {new Date().toLocaleTimeString()}
-              </span>
+      {counts && (
+        <div className="grid grid-cols-2 gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-4">
+          {Object.entries(counts).map(([key, value]) => (
+            <div key={key}>
+              <p className="text-xs uppercase tracking-widest text-brand-grey">{key}</p>
+              <p className="text-2xl font-bold text-white">{String(value)}</p>
             </div>
+          ))}
+        </div>
+      )}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <p className="text-brand-grey text-[10px] uppercase tracking-wider">Applications</p>
-                <p className="text-white text-xl font-bold">
-                  {lastResult.dryRun ? lastResult.applicationsMatched : lastResult.deletedApplications}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-brand-grey text-[10px] uppercase tracking-wider">Rentals</p>
-                <p className="text-white text-xl font-bold">
-                  {lastResult.dryRun ? lastResult.rentalsMatched : lastResult.deletedRentals}
-                </p>
-              </div>
-              {!lastResult.dryRun && (
-                <div className="space-y-1">
-                  <p className="text-brand-grey text-[10px] uppercase tracking-wider">Preserved Cars</p>
-                  <p className="text-white text-xl font-bold">{lastResult.preservedCars}</p>
-                </div>
-              )}
-            </div>
-            
-            <p className="text-xs text-brand-grey italic">{lastResult.message}</p>
-          </motion.div>
-        )}
-      </motion.div>
+      {dryRunResult?.criteria && (
+        <pre className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20 p-4 text-xs text-brand-grey">
+          {JSON.stringify(dryRunResult.criteria, null, 2)}
+        </pre>
+      )}
+
+      {exportPayload && (
+        <pre className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20 p-4 text-xs text-brand-grey">
+          {JSON.stringify(exportPayload, null, 2)}
+        </pre>
+      )}
     </div>
   );
 }

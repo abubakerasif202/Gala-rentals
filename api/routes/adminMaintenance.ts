@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { authenticateAdmin } from '../middleware/auth.js';
 import {
+  MaintenanceResetStepError,
   getImportedDataResetPlan,
   getResetExportPayload,
   resetImportedDataAndFinancials,
@@ -88,13 +89,31 @@ router.post('/reset-imported-data', authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to reset imported data';
+    if (error instanceof MaintenanceResetStepError) {
+      console.error('[maintenance-reset] failed', {
+        step: error.step,
+        table: error.table || null,
+        errorMessage: error.message,
+        errorCode: error.code || null,
+      });
+      return res.status(500).json({
+        error: 'Failed to reset imported data',
+        step: error.step,
+        message: error.message,
+      });
+    }
     if (message.includes(CONFIRMATION_PHRASE)) {
       return res.status(400).json({ error: message });
     }
     if (message.includes('No reliable imported markers')) {
       return res.status(400).json({ error: message });
     }
-    console.error('Admin maintenance reset error:', error);
+    console.error('[maintenance-reset] failed', {
+      step: 'unknown',
+      table: null,
+      errorMessage: message,
+      errorCode: error && typeof error === 'object' && 'code' in error ? String((error as any).code || null) : null,
+    });
     res.status(500).json({ error: 'Failed to reset imported data' });
   }
 });

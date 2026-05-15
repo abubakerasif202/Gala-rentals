@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { AlertTriangle, Database, Download, Loader2, Trash2 } from 'lucide-react';
+import axios from 'axios';
 import * as api from '../../../lib/api';
 import { getApiErrorMessage } from '../../../lib/errorHandling';
 
@@ -46,6 +47,9 @@ export default function MaintenanceTab() {
     () => dryRunResult?.counts || dryRunResult?.deleted || null,
     [dryRunResult],
   );
+  const resetFailure = axios.isAxiosError(resetMutation.error)
+    ? (resetMutation.error.response?.data as { step?: string; message?: string } | undefined)
+    : undefined;
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -117,6 +121,11 @@ export default function MaintenanceTab() {
           {getApiErrorMessage(
             dryRunMutation.error || resetMutation.error || exportMutation.error,
             'Request failed',
+          )}
+          {resetFailure?.step && resetFailure?.message && (
+            <div className="mt-2 text-red-100">
+              Reset failed while deleting {resetFailure.step.replace(/^delete_/, '').replace(/_/g, ' ')}. Check Render logs for [maintenance-reset].
+            </div>
           )}
         </div>
       )}

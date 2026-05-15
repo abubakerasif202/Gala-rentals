@@ -30,6 +30,12 @@ type TableQueryResult = {
   reason?: 'table_not_found' | 'column_not_found';
 };
 
+type DeleteResult = {
+  deleted: number;
+  skipped: boolean;
+  reason?: 'table_not_found' | 'column_not_found';
+};
+
 export type ResetCounts = {
   applications: number;
   customers: number;
@@ -132,25 +138,59 @@ const deleteRowsByIds = async (table: string, ids: Array<string | number>) => {
   let query = db.from(table).delete();
   query = query.in('id', ids as never[]);
   const selected = query.select('id') as unknown as {
-    maybeSingle?: () => Promise<{ data: unknown; error: unknown }>;
-    single?: () => Promise<{ data: unknown; error: unknown }>;
-    then?: PromiseLike<{ data: unknown; error: unknown }>['then'];
+    then?: PromiseLike<{ error: unknown }>['then'];
+    maybeSingle?: () => Promise<{ error: unknown }>;
+    single?: () => Promise<{ error: unknown }>;
   };
+
+  if (typeof selected.then === 'function') {
+    const { error } = await (selected as PromiseLike<{ error: unknown }>);
+    if (error) {
+      throw error;
+    }
+    return ids.length;
+  }
+
   if (typeof selected.maybeSingle === 'function') {
     const { error } = await selected.maybeSingle();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return ids.length;
   }
+
   if (typeof selected.single === 'function') {
     const { error } = await selected.single();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return ids.length;
   }
-  const result = await (selected as PromiseLike<{ data: unknown; error: unknown }>);
-  if (result && typeof result === 'object' && 'error' in result && result.error) {
-    throw result.error;
+
+  throw new Error(`Unsupported delete query shape for ${table}`);
+};
+
+const deleteRowsByFilter = async (
+  table: string,
+  filters: Array<[string, string, unknown]> = [],
+): Promise<DeleteResult> => {
+  try {
+    const rows = await fetchRows(table, filters);
+    const deleted = await deleteRowsByIds(
+      table,
+      rows.map((row) => String(row.id)),
+    );
+    return { deleted, skipped: false };
+  } catch (error: any) {
+    if (isMissingTableOrColumnError(error)) {
+      return {
+        deleted: 0,
+        skipped: true,
+        reason: String(error?.code || '').toLowerCase() === '42703' ? 'column_not_found' : 'table_not_found',
+      };
+    }
+    throw error;
   }
-  return ids.length;
 };
 
 const getImportedApplicationIds = async () => {
@@ -221,6 +261,8 @@ const getImportedInvoices = async () => {
   const direct = await fetchRowsSafe('invoices', [['source', 'eq', 'legacy-import']]);
   return direct;
 };
+
+const optionalInvoiceChildTables = ['invoice_line_items', 'invoice_items', 'payments', 'financial_transactions'] as const;
 
 export const buildResetSummary = (counts: ResetCounts): ResetSummary => ({
   counts,
@@ -304,6 +346,23 @@ export const resetImportedDataAndFinancials = async () => {
     }
   };
 
+  const performOptionalTableDelete = async (
+    step: string,
+    table: string,
+    filters: Array<[string, string, unknown]>,
+  ) => {
+    try {
+      return await deleteRowsByFilter(table, filters);
+    } catch (error: any) {
+      throw new MaintenanceResetStepError({
+        step,
+        table,
+        message: `Reset failed while deleting ${table} rows.`,
+        code: String(error?.code || error?.name || null),
+      });
+    }
+  };
+
   const performDeletes = async () => {
     const deletedManualInvoiceItems = await performStep(
       'delete_manual_invoice_items',
@@ -315,6 +374,15 @@ export const resetImportedDataAndFinancials = async () => {
       'manual_invoices',
       plan.rows.manualInvoices.map((row) => String(row.id)),
     );
+    const optionalInvoiceDependencies = [];
+    for (const table of optionalInvoiceChildTables) {
+      const result = await performOptionalTableDelete(
+        `delete_${table}`,
+        table,
+        [['invoice_id', 'in', plan.rows.invoices.map((row) => String(row.id))]],
+      );
+      optionalInvoiceDependencies.push({ table, ...result });
+    }
     const deletedInvoices = await performStep(
       'delete_invoices',
       'invoices',
@@ -361,6 +429,7 @@ export const resetImportedDataAndFinancials = async () => {
         stripeWebhookEvents: deletedStripeWebhookEvents,
       },
       preservedCustomers: plan.rows.customers.length - customersToDelete.length,
+      skippedInvoiceDependencies: optionalInvoiceDependencies.filter((dependency) => dependency.skipped),
     };
   };
 

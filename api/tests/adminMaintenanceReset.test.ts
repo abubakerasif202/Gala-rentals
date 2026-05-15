@@ -7,9 +7,14 @@ const mockState = vi.hoisted(() => ({
   invoices: [] as Array<Record<string, any>>,
   manual_invoices: [] as Array<Record<string, any>>,
   manual_invoice_items: [] as Array<Record<string, any>>,
+  invoice_items: [] as Array<Record<string, any>>,
+  invoice_line_items: [] as Array<Record<string, any>>,
+  payments: [] as Array<Record<string, any>>,
+  financial_transactions: [] as Array<Record<string, any>>,
   stripe_webhook_events: [] as Array<Record<string, any>>,
   deleteOrder: [] as string[],
   failOnStep: null as string | null,
+  missingTables: new Set<string>(),
 }));
 
 const matchesFilter = (row: Record<string, any>, filter: { column: string; op: string; value: unknown }) => {
@@ -56,6 +61,11 @@ vi.mock('../db/index.js', () => ({
           return query.maybeSingle();
         },
         then(onFulfilled: (value: { data: Array<Record<string, any>> | null; error: any }) => unknown) {
+          if (state.missingTables.has(table)) {
+            return Promise.resolve(
+              onFulfilled({ data: null, error: { code: '42P01', message: `relation "${table}" does not exist` } }),
+            );
+          }
           const rows = (state as any)[table] || [];
           const filtered = rows.filter((row: Record<string, any>) => query._filters.every((filter) => matchesFilter(row, filter)));
           if (query._selectOptions && typeof query._selectOptions === 'object' && (query._selectOptions as any).head) {
@@ -101,9 +111,14 @@ describe('adminMaintenanceReset', () => {
     mockState.invoices = [{ id: 'inv-1', source: 'legacy-import' }, { id: 'inv-2', source: 'current' }];
     mockState.manual_invoices = [{ id: 'm-1' }];
     mockState.manual_invoice_items = [{ id: 'mi-1', invoice_id: 'm-1' }];
+    mockState.invoice_items = [{ id: 'ii-1', invoice_id: 'inv-1' }];
+    mockState.invoice_line_items = [{ id: 'ill-1', invoice_id: 'inv-1' }];
+    mockState.payments = [{ id: 'pay-1', invoice_id: 'inv-1' }];
+    mockState.financial_transactions = [{ id: 'ft-1', invoice_id: 'inv-1' }];
     mockState.stripe_webhook_events = [];
     mockState.deleteOrder = [];
     mockState.failOnStep = null;
+    mockState.missingTables = new Set<string>();
   });
 
   it('dry run does not mutate data', async () => {
@@ -123,6 +138,10 @@ describe('adminMaintenanceReset', () => {
     expect(mockState.deleteOrder).toEqual([
       'manual_invoice_items',
       'manual_invoices',
+      'invoice_line_items',
+      'invoice_items',
+      'payments',
+      'financial_transactions',
       'invoices',
       'rentals',
       'applications',
@@ -138,5 +157,19 @@ describe('adminMaintenanceReset', () => {
       step: 'delete_rentals',
       message: 'Reset failed while deleting rentals rows.',
     });
+  });
+
+  it('skips missing invoice child tables safely', async () => {
+    mockState.missingTables = new Set(['invoice_items', 'payments']);
+
+    const result = await resetImportedDataAndFinancials();
+
+    expect(result.counts.invoices).toBe(1);
+    expect(result.skippedInvoiceDependencies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ table: 'invoice_items', skipped: true }),
+        expect.objectContaining({ table: 'payments', skipped: true }),
+      ]),
+    );
   });
 });

@@ -213,6 +213,7 @@ const {
     manual_invoices: [] as Array<Record<string, any>>,
     manual_invoice_items: [] as Array<Record<string, any>>,
     stripe_webhook_events: [] as Array<Record<string, any>>,
+    failOnDeleteTable: null as string | null,
   },
   mockGetUser: vi.fn(),
   mockRefreshSession: vi.fn(),
@@ -848,6 +849,14 @@ vi.mock("../db/index.js", () => {
         mockBeforeApplicationsUpdate();
       }
 
+      if (action === "delete" && mockState.failOnDeleteTable === table) {
+        mockState.failOnDeleteTable = null;
+        return {
+          data: null,
+          error: { code: "23503", message: "fk violation" },
+        };
+      }
+
       const rows = getTableRows(table);
       const matchingRows = applyFilters(rows, filters);
       const nextRows =
@@ -1343,7 +1352,7 @@ const { default: app } = await import("../index.js");
 const { createCheckoutToken, verifyCheckoutToken } =
   await import("../checkoutTokens.js");
 
-beforeEach(() => {
+  beforeEach(() => {
   delete process.env.RESEND_API_KEY;
   delete process.env.LEASE_OWNER_NAME;
   delete process.env.LEASE_OWNER_ADDRESS;
@@ -3418,6 +3427,7 @@ describe("Operational history API", () => {
     ];
     mockState.manual_invoices = [{ id: "m1" }, { id: "m2" }];
     mockState.manual_invoice_items = [{ id: "i1", invoice_id: "m1" }];
+    mockState.failOnDeleteTable = null;
 
     const res = await request(app)
       .post("/api/admin/maintenance/reset-imported-data")
@@ -3436,6 +3446,26 @@ describe("Operational history API", () => {
     expect(mockState.invoices[0].id).toBe(2);
     expect(mockState.manual_invoices).toHaveLength(0);
     expect(mockState.manual_invoice_items).toHaveLength(0);
+    expect(mockState.cars[0].status).toBe("Available");
+  });
+
+  it("POST /api/admin/maintenance/reset-imported-data returns a safe invoice failure payload", async () => {
+    mockState.applications[0].legacy_id = 101;
+    mockState.failOnDeleteTable = "invoices";
+
+    const res = await request(app)
+      .post("/api/admin/maintenance/reset-imported-data")
+      .set("Authorization", "Bearer fake-token")
+      .send({ confirm: "RESET IMPORTED DATA AND FINANCIALS" });
+
+    expect(res.status).toBe(500);
+    expect(res.body).toMatchObject({
+      error: "Failed to reset imported data",
+      step: "delete_invoices",
+      table: "invoices",
+      message: "Reset failed while deleting invoices rows.",
+      hint: "Check invoice child tables or foreign key constraints.",
+    });
   });
 
   it("POST /api/admin/manual-invoices creates a manual invoice with calculated totals", async () => {

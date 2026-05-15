@@ -90,16 +90,23 @@ router.post('/reset-imported-data', authenticateAdmin, async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to reset imported data';
     if (error instanceof MaintenanceResetStepError) {
+      const hint = error.step === 'delete_invoices'
+        ? 'Check invoice child tables or foreign key constraints.'
+        : 'Check child rows, foreign key constraints, or schema drift.';
       console.error('[maintenance-reset] failed', {
         step: error.step,
         table: error.table || null,
         errorMessage: error.message,
         errorCode: error.code || null,
+        details: null,
+        hint,
       });
       return res.status(500).json({
         error: 'Failed to reset imported data',
         step: error.step,
+        table: error.table || null,
         message: error.message,
+        hint,
       });
     }
     if (message.includes(CONFIRMATION_PHRASE)) {
@@ -113,6 +120,8 @@ router.post('/reset-imported-data', authenticateAdmin, async (req, res) => {
       table: null,
       errorMessage: message,
       errorCode: error && typeof error === 'object' && 'code' in error ? String((error as any).code || null) : null,
+      details: null,
+      hint: null,
     });
     res.status(500).json({ error: 'Failed to reset imported data' });
   }

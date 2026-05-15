@@ -75,6 +75,14 @@ vi.mock('../db/index.js', () => ({
             if (state.failOnStep === table) {
               return Promise.resolve(onFulfilled({ data: null, error: { code: '23503', message: 'fk violation' } }));
             }
+            if (
+              table === 'invoice_line_items' &&
+              state.financial_transactions.some((transaction) =>
+                filtered.some((row: Record<string, any>) => String(transaction.invoice_line_item_id) === String(row.id)),
+              )
+            ) {
+              return Promise.resolve(onFulfilled({ data: null, error: { code: '23503', message: 'fk violation' } }));
+            }
             state.deleteOrder.push(table);
             const remaining = rows.filter((row: Record<string, any>) => !query._filters.every((filter) => matchesFilter(row, filter)));
             (state as any)[table] = remaining;
@@ -114,7 +122,7 @@ describe('adminMaintenanceReset', () => {
     mockState.invoice_items = [{ id: 'ii-1', invoice_id: 'inv-1' }];
     mockState.invoice_line_items = [{ id: 'ill-1', invoice_id: 'inv-1' }];
     mockState.payments = [{ id: 'pay-1', invoice_id: 'inv-1' }];
-    mockState.financial_transactions = [{ id: 'ft-1', invoice_id: 'inv-1' }];
+    mockState.financial_transactions = [{ id: 'ft-1', invoice_line_item_id: 'ill-1' }];
     mockState.stripe_webhook_events = [];
     mockState.deleteOrder = [];
     mockState.failOnStep = null;
@@ -138,10 +146,10 @@ describe('adminMaintenanceReset', () => {
     expect(mockState.deleteOrder).toEqual([
       'manual_invoice_items',
       'manual_invoices',
-      'invoice_line_items',
-      'invoice_items',
-      'payments',
       'financial_transactions',
+      'payments',
+      'invoice_items',
+      'invoice_line_items',
       'invoices',
       'rentals',
       'applications',

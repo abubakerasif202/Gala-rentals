@@ -193,6 +193,28 @@ const deleteRowsByFilter = async (
   }
 };
 
+const deleteRowsByAnyFilter = async (
+  table: string,
+  filterSets: Array<Array<[string, string, unknown]>>,
+): Promise<DeleteResult> => {
+  let deleted = 0;
+  const skippedReasons: Array<'table_not_found' | 'column_not_found'> = [];
+
+  for (const filters of filterSets) {
+    const result = await deleteRowsByFilter(table, filters);
+    deleted += result.deleted;
+    if (result.skipped && result.reason) {
+      skippedReasons.push(result.reason);
+    }
+  }
+
+  return {
+    deleted,
+    skipped: deleted === 0 && skippedReasons.length === filterSets.length,
+    reason: skippedReasons.includes('table_not_found') ? 'table_not_found' : skippedReasons[0],
+  };
+};
+
 const getImportedApplicationIds = async () => {
   const { data, error } = await db.from('applications').select('id').not('legacy_id', 'is', null);
   if (error) {
@@ -262,7 +284,7 @@ const getImportedInvoices = async () => {
   return direct;
 };
 
-const optionalInvoiceChildTables = ['invoice_line_items', 'invoice_items', 'payments', 'financial_transactions'] as const;
+const optionalInvoiceChildTables = ['financial_transactions', 'payments', 'invoice_items', 'invoice_line_items'] as const;
 
 export const buildResetSummary = (counts: ResetCounts): ResetSummary => ({
   counts,
@@ -349,10 +371,10 @@ export const resetImportedDataAndFinancials = async () => {
   const performOptionalTableDelete = async (
     step: string,
     table: string,
-    filters: Array<[string, string, unknown]>,
+    filterSets: Array<Array<[string, string, unknown]>>,
   ) => {
     try {
-      return await deleteRowsByFilter(table, filters);
+      return await deleteRowsByAnyFilter(table, filterSets);
     } catch (error: any) {
       throw new MaintenanceResetStepError({
         step,
@@ -364,6 +386,15 @@ export const resetImportedDataAndFinancials = async () => {
   };
 
   const performDeletes = async () => {
+    const invoiceIds = plan.rows.invoices.map((row) => String(row.id));
+    const invoiceLineItemIds = [
+      ...await fetchRowsSafe('invoice_line_items', [['invoice_id', 'in', invoiceIds]]).then((result) =>
+        result.rows.map((row) => String(row.id)),
+      ),
+      ...await fetchRowsSafe('invoice_items', [['invoice_id', 'in', invoiceIds]]).then((result) =>
+        result.rows.map((row) => String(row.id)),
+      ),
+    ];
     const deletedManualInvoiceItems = await performStep(
       'delete_manual_invoice_items',
       'manual_invoice_items',
@@ -376,10 +407,19 @@ export const resetImportedDataAndFinancials = async () => {
     );
     const optionalInvoiceDependencies = [];
     for (const table of optionalInvoiceChildTables) {
+      const filterSets: Array<Array<[string, string, unknown]>> = [
+        [['invoice_id', 'in', invoiceIds]],
+      ];
+
+      if (table === 'financial_transactions' && invoiceLineItemIds.length > 0) {
+        filterSets.push([['invoice_line_item_id', 'in', invoiceLineItemIds]]);
+        filterSets.push([['line_item_id', 'in', invoiceLineItemIds]]);
+      }
+
       const result = await performOptionalTableDelete(
         `delete_${table}`,
         table,
-        [['invoice_id', 'in', plan.rows.invoices.map((row) => String(row.id))]],
+        filterSets,
       );
       optionalInvoiceDependencies.push({ table, ...result });
     }

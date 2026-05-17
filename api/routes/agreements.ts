@@ -5,6 +5,10 @@ import { renderActiveAgreementTemplate } from '../agreementTemplates.js';
 import { leaseAgreementSchema, createLeaseAgreementSchema } from '../validation.js';
 import { z } from 'zod';
 import { getApplicationSelectColumns } from '../schemaCompat.js';
+import {
+  getImportedApplicationIdSet,
+  isImportedApplicationRecord,
+} from '../importedDataFilters.js';
 
 const router = express.Router();
 
@@ -38,7 +42,7 @@ const enrichLeaseAgreements = async (
 
   const [applicationsResult, carsResult] = await Promise.all([
     applicationIds.length > 0
-      ? db.from('applications').select('id, name').in('id', applicationIds)
+      ? db.from('applications').select('*').in('id', applicationIds)
       : Promise.resolve({ data: [], error: null }),
     carIds.length > 0
       ? db.from('cars').select('id, name').in('id', carIds)
@@ -54,6 +58,9 @@ const enrichLeaseAgreements = async (
   }
 
   const applicationNames = new Map<string, string>();
+  const importedApplicationIds = getImportedApplicationIdSet(
+    (applicationsResult.data || []) as Array<Record<string, any>>,
+  );
   for (const application of applicationsResult.data || []) {
     applicationNames.set(String(application.id), String(application.name || ''));
   }
@@ -63,14 +70,16 @@ const enrichLeaseAgreements = async (
     carNames.set(Number(car.id), String(car.name || ''));
   }
 
-  return agreements.map((agreement) => ({
-    ...agreement,
-    applicant_name: applicationNames.get(agreement.application_id) || undefined,
-    car_name:
-      carNames.get(Number(agreement.car_id || 0)) ||
-      agreement.vehicle_label ||
-      undefined,
-  }));
+  return agreements
+    .filter((agreement) => !importedApplicationIds.has(String(agreement.application_id)))
+    .map((agreement) => ({
+      ...agreement,
+      applicant_name: applicationNames.get(agreement.application_id) || undefined,
+      car_name:
+        carNames.get(Number(agreement.car_id || 0)) ||
+        agreement.vehicle_label ||
+        undefined,
+    }));
 };
 
 router.get('/car-lease/template', authenticateAdmin, async (_req, res) => {
@@ -107,6 +116,10 @@ router.post('/', authenticateAdmin, async (req, res) => {
     }
 
     const applicationRecord = application as unknown as Record<string, unknown>;
+
+    if (isImportedApplicationRecord(applicationRecord)) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
 
     if (String(applicationRecord.status) !== 'Paid') {
       return res.status(409).json({

@@ -40,7 +40,7 @@ export const getDateRangeForPreset = (
 
 export default function DateRangePicker({ onChange, value }: DateRangePickerProps) {
   return (
-    <div className="flex w-full flex-col gap-3 rounded-lg border border-[#1e3a5f] bg-[#061425] p-3 sm:w-auto sm:flex-row sm:items-center">
+    <div className="grid w-full gap-3 rounded-lg border border-[#1e3a5f] bg-[#061425] p-3 sm:w-auto sm:grid-cols-[auto_1fr] sm:items-center">
       <select
         value={value.preset}
         onChange={(event) => {
@@ -53,14 +53,14 @@ export default function DateRangePicker({ onChange, value }: DateRangePickerProp
 
           onChange(getDateRangeForPreset(preset));
         }}
-        className="h-10 rounded-lg border border-[#1e3a5f] bg-[#0b1f36] px-3 text-xs font-bold uppercase tracking-widest text-white outline-none focus:border-[#dfb125]"
+        className="min-h-11 w-full rounded-lg border border-[#1e3a5f] bg-[#0b1f36] px-3 text-xs font-bold uppercase tracking-widest text-white outline-none focus:border-[#dfb125]"
       >
         <option value="today">Today</option>
         <option value="last7">Last 7 Days</option>
         <option value="mtd">MTD</option>
         <option value="custom">Custom</option>
       </select>
-      <div className="flex items-center gap-2">
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
         <input
           type="date"
           value={value.startDate}
@@ -68,9 +68,9 @@ export default function DateRangePicker({ onChange, value }: DateRangePickerProp
           onChange={(event) =>
             onChange({ ...value, preset: 'custom', startDate: event.target.value })
           }
-          className="h-10 rounded-lg border border-[#1e3a5f] bg-[#0b1f36] px-3 text-xs text-white outline-none focus:border-[#dfb125] disabled:opacity-60"
+          className="min-h-11 w-full rounded-lg border border-[#1e3a5f] bg-[#0b1f36] px-3 text-xs text-white outline-none focus:border-[#dfb125] disabled:opacity-60"
         />
-        <span className="text-slate-400">to</span>
+        <span className="text-xs uppercase tracking-widest text-slate-400">to</span>
         <input
           type="date"
           value={value.endDate}
@@ -78,7 +78,7 @@ export default function DateRangePicker({ onChange, value }: DateRangePickerProp
           onChange={(event) =>
             onChange({ ...value, preset: 'custom', endDate: event.target.value })
           }
-          className="h-10 rounded-lg border border-[#1e3a5f] bg-[#0b1f36] px-3 text-xs text-white outline-none focus:border-[#dfb125] disabled:opacity-60"
+          className="min-h-11 w-full rounded-lg border border-[#1e3a5f] bg-[#0b1f36] px-3 text-xs text-white outline-none focus:border-[#dfb125] disabled:opacity-60"
         />
       </div>
     </div>

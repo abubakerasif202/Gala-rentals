@@ -130,7 +130,7 @@ export default function FleetTab({
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h2 className="mb-2 text-4xl font-bold uppercase tracking-tighter text-white">
+          <h2 className="mb-2 text-3xl font-bold uppercase tracking-tighter text-white sm:text-4xl">
             Fleet <span className="italic text-brand-gold">Management</span>
           </h2>
           <p className="max-w-3xl text-sm leading-7 text-brand-grey">
@@ -266,7 +266,7 @@ export default function FleetTab({
                   <div className="flex flex-wrap gap-2 lg:justify-end">
                     <button
                       onClick={() => onEditVehicle(car)}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white transition-all hover:border-brand-gold hover:bg-brand-gold hover:text-brand-navy"
+                      className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white transition-all hover:border-brand-gold hover:bg-brand-gold hover:text-brand-navy"
                     >
                       <Edit2 className="h-3.5 w-3.5" />
                       Edit
@@ -276,14 +276,14 @@ export default function FleetTab({
                       <>
                         <button
                           onClick={() => onRestoreVehicle(car)}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-gold transition-all hover:border-brand-gold hover:bg-brand-gold/10"
+                          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-gold transition-all hover:border-brand-gold hover:bg-brand-gold/10"
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
                           Restore
                         </button>
                         <button
                           onClick={() => onDeleteVehicle(car)}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-red-300 transition-all hover:bg-red-500/20"
+                          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-red-300 transition-all hover:bg-red-500/20"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           Delete
@@ -292,7 +292,7 @@ export default function FleetTab({
                     ) : (
                       <button
                         onClick={() => onArchiveVehicle(car)}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey transition-all hover:border-white/20 hover:bg-white/10 hover:text-white"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey transition-all hover:border-white/20 hover:bg-white/10 hover:text-white"
                       >
                         <Archive className="h-3.5 w-3.5" />
                         Archive

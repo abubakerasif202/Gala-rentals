@@ -1,7 +1,17 @@
+import type { PoolClient } from 'pg';
+
 import { db } from './db/index.js';
 import { withPostgresTransaction, hasDirectDatabaseConnection } from './db/postgres.js';
+import {
+  getRecordIdSet,
+  isImportedApplicationRecord,
+  isImportedManualInvoiceRecord,
+  isImportedOperationalCustomerRecord,
+  isImportedOperationalInvoiceRecord,
+  isImportedRentalRecord,
+} from './importedDataFilters.js';
 
-const CONFIRMATION_PHRASE = 'RESET IMPORTED DATA AND FINANCIALS';
+export const IMPORTED_DATA_RESET_CONFIRMATION_PHRASE = 'RESET IMPORTED DATA AND FINANCIALS';
 
 type MaintenanceResetStepErrorInput = {
   step: string;
@@ -25,22 +35,24 @@ export class MaintenanceResetStepError extends Error {
 }
 
 type TableQueryResult = {
-  rows: Array<Record<string, unknown>>;
-  skipped: boolean;
-  reason?: 'table_not_found' | 'column_not_found';
-};
-
-type DeleteResult = {
-  deleted: number;
+  rows: Array<Record<string, any>>;
   skipped: boolean;
   reason?: 'table_not_found' | 'column_not_found';
 };
 
 export type ResetCounts = {
   applications: number;
+  bookings: number;
   customers: number;
   rentals: number;
+  leaseAgreements: number;
+  tollTransferNotices: number;
+  tollTransferNoticeAuditEvents: number;
   invoices: number;
+  invoiceItems: number;
+  invoiceLineItems: number;
+  payments: number;
+  financialTransactions: number;
   manualInvoices: number;
   manualInvoiceItems: number;
   financialRows: number;
@@ -49,9 +61,14 @@ export type ResetCounts = {
 
 export type ResetCriteria = {
   applications: string;
+  bookings: string;
   customers: string;
   rentals: string;
-  financials: string;
+  agreements: string;
+  tollNotices: string;
+  invoices: string;
+  manualInvoices: string;
+  stripeWebhookEvents: string;
 };
 
 export type ResetSummary = {
@@ -61,31 +78,50 @@ export type ResetSummary = {
     adminUsers: true;
     cars: true;
     stripeExternalRecords: true;
+    stripeWebhookEvents: true;
   };
+};
+
+type ResetRows = {
+  applications: Array<Record<string, any>>;
+  bookings: Array<Record<string, any>>;
+  customers: Array<Record<string, any>>;
+  rentals: Array<Record<string, any>>;
+  leaseAgreements: Array<Record<string, any>>;
+  tollTransferNotices: Array<Record<string, any>>;
+  tollTransferNoticeAuditEvents: Array<Record<string, any>>;
+  invoices: Array<Record<string, any>>;
+  invoiceItems: Array<Record<string, any>>;
+  invoiceLineItems: Array<Record<string, any>>;
+  payments: Array<Record<string, any>>;
+  financialTransactions: Array<Record<string, any>>;
+  manualInvoices: Array<Record<string, any>>;
+  manualInvoiceItems: Array<Record<string, any>>;
+};
+
+type ResetPlan = ResetSummary & {
+  rows: ResetRows;
+  skipped: Record<keyof ResetRows, boolean>;
 };
 
 const emptyCounts = (): ResetCounts => ({
   applications: 0,
+  bookings: 0,
   customers: 0,
   rentals: 0,
+  leaseAgreements: 0,
+  tollTransferNotices: 0,
+  tollTransferNoticeAuditEvents: 0,
   invoices: 0,
+  invoiceItems: 0,
+  invoiceLineItems: 0,
+  payments: 0,
+  financialTransactions: 0,
   manualInvoices: 0,
   manualInvoiceItems: 0,
   financialRows: 0,
   stripeWebhookEvents: 0,
 });
-
-const countRows = async (table: string, filters: Array<[string, string, unknown]> = []) => {
-  let query = db.from(table).select('id', { count: 'exact', head: true });
-  for (const [column, op, value] of filters) {
-    if (op === 'eq') query = query.eq(column, value as never);
-    if (op === 'not.is') query = query.not(column, 'is', value as never);
-    if (op === 'in') query = query.in(column, value as never[]);
-  }
-  const { count, error } = await query;
-  if (error) throw error;
-  return count || 0;
-};
 
 const isMissingTableOrColumnError = (error: any) => {
   const message = String(error?.message || '').toLowerCase();
@@ -94,29 +130,27 @@ const isMissingTableOrColumnError = (error: any) => {
     code === '42p01' ||
     code === '42703' ||
     message.includes('does not exist') ||
-    message.includes('column') && message.includes('does not exist') ||
-    message.includes('relation') && message.includes('does not exist')
+    (message.includes('column') && message.includes('does not exist')) ||
+    (message.includes('relation') && message.includes('does not exist'))
   );
 };
 
-const fetchRows = async (table: string, filters: Array<[string, string, unknown]> = []) => {
-  let query = db.from(table).select('*');
-  for (const [column, op, value] of filters) {
-    if (op === 'eq') query = query.eq(column, value as never);
-    if (op === 'not.is') query = query.not(column, 'is', value as never);
-    if (op === 'in') query = query.in(column, value as never[]);
+const quoteIdentifier = (identifier: string) => `"${identifier.replace(/"/g, '""')}"`;
+
+const fetchRows = async (table: string, client?: PoolClient) => {
+  if (client) {
+    const result = await client.query(`SELECT * FROM public.${quoteIdentifier(table)}`);
+    return result.rows as Array<Record<string, any>>;
   }
-  const { data, error } = await query;
+
+  const { data, error } = await db.from(table).select('*');
   if (error) throw error;
-  return (data || []) as Array<Record<string, unknown>>;
+  return (data || []) as Array<Record<string, any>>;
 };
 
-const fetchRowsSafe = async (
-  table: string,
-  filters: Array<[string, string, unknown]> = [],
-): Promise<TableQueryResult> => {
+const fetchRowsSafe = async (table: string, client?: PoolClient): Promise<TableQueryResult> => {
   try {
-    const rows = await fetchRows(table, filters);
+    const rows = await fetchRows(table, client);
     return { rows, skipped: false };
   } catch (error: any) {
     if (isMissingTableOrColumnError(error)) {
@@ -126,13 +160,269 @@ const fetchRowsSafe = async (
         reason: String(error?.code || '').toLowerCase() === '42703' ? 'column_not_found' : 'table_not_found',
       };
     }
+
     throw error;
   }
 };
 
-const deleteRowsByIds = async (table: string, ids: Array<string | number>) => {
+const countRowsSafe = async (table: string, client?: PoolClient) => {
+  try {
+    if (client) {
+      const result = await client.query(
+        `SELECT count(*)::int AS count FROM public.${quoteIdentifier(table)}`,
+      );
+      return Number(result.rows[0]?.count || 0);
+    }
+
+    const { count, error } = await db.from(table).select('id', { count: 'exact', head: true });
+    if (error) throw error;
+    return count || 0;
+  } catch (error: any) {
+    if (isMissingTableOrColumnError(error)) {
+      return 0;
+    }
+
+    throw error;
+  }
+};
+
+const getValue = (row: Record<string, any>, ...keys: string[]) => {
+  for (const key of keys) {
+    if (row[key] != null) {
+      return row[key];
+    }
+  }
+
+  return null;
+};
+
+const idString = (value: unknown) => (value == null ? '' : String(value));
+
+const hasSetValue = (set: Set<string>, value: unknown) => {
+  const normalized = idString(value);
+  return normalized ? set.has(normalized) : false;
+};
+
+const hasLegacyApplicationId = (row: Record<string, any>) =>
+  getValue(row, 'legacy_application_id', 'legacyApplicationId') != null;
+
+const filterLinkedToImportedApplications = (
+  rows: Array<Record<string, any>>,
+  importedApplicationIds: Set<string>,
+) =>
+  rows.filter(
+    (row) =>
+      hasLegacyApplicationId(row) ||
+      hasSetValue(importedApplicationIds, getValue(row, 'application_id', 'applicationId')),
+  );
+
+const filterInvoiceChildren = (
+  rows: Array<Record<string, any>>,
+  importedInvoiceIds: Set<string>,
+) => rows.filter((row) => hasSetValue(importedInvoiceIds, getValue(row, 'invoice_id', 'invoiceId')));
+
+const buildCounts = (rows: ResetRows, stripeWebhookEvents: number): ResetCounts => {
+  const counts = {
+    ...emptyCounts(),
+    applications: rows.applications.length,
+    bookings: rows.bookings.length,
+    customers: rows.customers.length,
+    rentals: rows.rentals.length,
+    leaseAgreements: rows.leaseAgreements.length,
+    tollTransferNotices: rows.tollTransferNotices.length,
+    tollTransferNoticeAuditEvents: rows.tollTransferNoticeAuditEvents.length,
+    invoices: rows.invoices.length,
+    invoiceItems: rows.invoiceItems.length,
+    invoiceLineItems: rows.invoiceLineItems.length,
+    payments: rows.payments.length,
+    financialTransactions: rows.financialTransactions.length,
+    manualInvoices: rows.manualInvoices.length,
+    manualInvoiceItems: rows.manualInvoiceItems.length,
+    stripeWebhookEvents,
+  };
+
+  counts.financialRows =
+    counts.invoices +
+    counts.invoiceItems +
+    counts.invoiceLineItems +
+    counts.payments +
+    counts.financialTransactions +
+    counts.manualInvoices +
+    counts.manualInvoiceItems;
+
+  return counts;
+};
+
+export const buildResetSummary = (counts: ResetCounts): ResetSummary => ({
+  counts,
+  criteria: {
+    applications:
+      'legacy_id/legacyId present, @example.invalid email, 0000000000 phone, LEGACY-* license, or live-fleet import experience marker',
+    bookings: 'legacy_application_id present or linked to imported applications',
+    customers: 'legacy/demo/test/import source, @example.invalid email, 0000000000 phone, or linked to imported applications/rentals',
+    rentals: 'legacy_application_id present or linked to imported applications',
+    agreements: 'lease agreement linked to imported applications',
+    tollNotices: 'toll transfer notice linked to imported applications/rentals/customers',
+    invoices: 'legacy/demo/test/import source or linked to imported customers',
+    manualInvoices: 'manual invoice text explicitly contains legacy/demo/test/import markers',
+    stripeWebhookEvents: 'preserved for Stripe audit history; counted only',
+  },
+  preserved: {
+    adminUsers: true,
+    cars: true,
+    stripeExternalRecords: true,
+    stripeWebhookEvents: true,
+  },
+});
+
+export const getImportedDataResetPlan = async (client?: PoolClient): Promise<ResetPlan> => {
+  const [
+    applicationsResult,
+    rentalsResult,
+    customersResult,
+    invoicesResult,
+    manualInvoicesResult,
+    manualInvoiceItemsResult,
+    invoiceItemsResult,
+    invoiceLineItemsResult,
+    paymentsResult,
+    financialTransactionsResult,
+    bookingsResult,
+    leaseAgreementsResult,
+    tollNoticesResult,
+    tollNoticeAuditEventsResult,
+  ] = await Promise.all([
+    fetchRowsSafe('applications', client),
+    fetchRowsSafe('rentals', client),
+    fetchRowsSafe('customers', client),
+    fetchRowsSafe('invoices', client),
+    fetchRowsSafe('manual_invoices', client),
+    fetchRowsSafe('manual_invoice_items', client),
+    fetchRowsSafe('invoice_items', client),
+    fetchRowsSafe('invoice_line_items', client),
+    fetchRowsSafe('payments', client),
+    fetchRowsSafe('financial_transactions', client),
+    fetchRowsSafe('bookings', client),
+    fetchRowsSafe('lease_agreements', client),
+    fetchRowsSafe('toll_transfer_notices', client),
+    fetchRowsSafe('toll_transfer_notice_audit_events', client),
+  ]);
+
+  const applicationRows = applicationsResult.rows.filter(isImportedApplicationRecord);
+  const applicationIds = getRecordIdSet(applicationRows);
+
+  const rentalRows = rentalsResult.rows.filter((rental) =>
+    isImportedRentalRecord(rental, applicationIds),
+  );
+  const rentalIds = getRecordIdSet(rentalRows);
+
+  const customerRows = customersResult.rows.filter((customer) =>
+    isImportedOperationalCustomerRecord(customer, applicationIds, rentalIds),
+  );
+  const customerIds = getRecordIdSet(customerRows);
+
+  const invoiceRows = invoicesResult.rows.filter((invoice) =>
+    isImportedOperationalInvoiceRecord(invoice, customerIds),
+  );
+  const invoiceIds = getRecordIdSet(invoiceRows);
+
+  const manualInvoiceRows = manualInvoicesResult.rows.filter(isImportedManualInvoiceRecord);
+  const manualInvoiceIds = getRecordIdSet(manualInvoiceRows);
+  const manualInvoiceItemRows = manualInvoiceItemsResult.rows.filter((item) =>
+    hasSetValue(manualInvoiceIds, getValue(item, 'invoice_id', 'invoiceId')),
+  );
+
+  const invoiceItemRows = filterInvoiceChildren(invoiceItemsResult.rows, invoiceIds);
+  const invoiceLineItemRows = filterInvoiceChildren(invoiceLineItemsResult.rows, invoiceIds);
+  const invoiceLineOrItemIds = new Set([
+    ...invoiceItemRows.map((row) => idString(row.id)).filter(Boolean),
+    ...invoiceLineItemRows.map((row) => idString(row.id)).filter(Boolean),
+  ]);
+
+  const paymentRows = filterInvoiceChildren(paymentsResult.rows, invoiceIds);
+  const financialTransactionRows = financialTransactionsResult.rows.filter(
+    (row) =>
+      hasSetValue(invoiceIds, getValue(row, 'invoice_id', 'invoiceId')) ||
+      hasSetValue(invoiceLineOrItemIds, getValue(row, 'invoice_line_item_id', 'invoiceLineItemId')) ||
+      hasSetValue(invoiceLineOrItemIds, getValue(row, 'line_item_id', 'lineItemId')),
+  );
+
+  const bookingRows = filterLinkedToImportedApplications(bookingsResult.rows, applicationIds);
+  const leaseAgreementRows = filterLinkedToImportedApplications(
+    leaseAgreementsResult.rows,
+    applicationIds,
+  );
+
+  const tollNoticeRows = tollNoticesResult.rows.filter(
+    (notice) =>
+      hasSetValue(applicationIds, getValue(notice, 'application_id', 'applicationId')) ||
+      hasSetValue(rentalIds, getValue(notice, 'rental_id', 'rentalId')) ||
+      hasSetValue(customerIds, getValue(notice, 'customer_id', 'customerId')),
+  );
+  const tollNoticeIds = getRecordIdSet(tollNoticeRows);
+  const tollNoticeAuditRows = tollNoticeAuditEventsResult.rows.filter((event) =>
+    hasSetValue(
+      tollNoticeIds,
+      getValue(event, 'toll_transfer_notice_id', 'tollTransferNoticeId'),
+    ),
+  );
+
+  const rows: ResetRows = {
+    applications: applicationRows,
+    bookings: bookingRows,
+    customers: customerRows,
+    rentals: rentalRows,
+    leaseAgreements: leaseAgreementRows,
+    tollTransferNotices: tollNoticeRows,
+    tollTransferNoticeAuditEvents: tollNoticeAuditRows,
+    invoices: invoiceRows,
+    invoiceItems: invoiceItemRows,
+    invoiceLineItems: invoiceLineItemRows,
+    payments: paymentRows,
+    financialTransactions: financialTransactionRows,
+    manualInvoices: manualInvoiceRows,
+    manualInvoiceItems: manualInvoiceItemRows,
+  };
+
+  const stripeWebhookEvents = await countRowsSafe('stripe_webhook_events', client);
+
+  return {
+    ...buildResetSummary(buildCounts(rows, stripeWebhookEvents)),
+    rows,
+    skipped: {
+      applications: applicationsResult.skipped,
+      bookings: bookingsResult.skipped,
+      customers: customersResult.skipped,
+      rentals: rentalsResult.skipped,
+      leaseAgreements: leaseAgreementsResult.skipped,
+      tollTransferNotices: tollNoticesResult.skipped,
+      tollTransferNoticeAuditEvents: tollNoticeAuditEventsResult.skipped,
+      invoices: invoicesResult.skipped,
+      invoiceItems: invoiceItemsResult.skipped,
+      invoiceLineItems: invoiceLineItemsResult.skipped,
+      payments: paymentsResult.skipped,
+      financialTransactions: financialTransactionsResult.skipped,
+      manualInvoices: manualInvoicesResult.skipped,
+      manualInvoiceItems: manualInvoiceItemsResult.skipped,
+    },
+  };
+};
+
+const deleteRowsByIds = async (
+  table: string,
+  ids: Array<string | number>,
+  client?: PoolClient,
+) => {
   if (ids.length === 0) {
     return 0;
+  }
+
+  if (client) {
+    const result = await client.query(
+      `DELETE FROM public.${quoteIdentifier(table)} WHERE id::text = ANY($1::text[])`,
+      [ids.map(String)],
+    );
+    return result.rowCount || 0;
   }
 
   let query = db.from(table).delete();
@@ -145,339 +435,241 @@ const deleteRowsByIds = async (table: string, ids: Array<string | number>) => {
 
   if (typeof selected.then === 'function') {
     const { error } = await (selected as PromiseLike<{ error: unknown }>);
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
     return ids.length;
   }
 
   if (typeof selected.maybeSingle === 'function') {
     const { error } = await selected.maybeSingle();
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
     return ids.length;
   }
 
   if (typeof selected.single === 'function') {
     const { error } = await selected.single();
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
     return ids.length;
   }
 
   throw new Error(`Unsupported delete query shape for ${table}`);
 };
 
-const deleteRowsByFilter = async (
+const deleteStep = async (
+  step: string,
   table: string,
-  filters: Array<[string, string, unknown]> = [],
-): Promise<DeleteResult> => {
+  rows: Array<Record<string, any>>,
+  client?: PoolClient,
+) => {
   try {
-    const rows = await fetchRows(table, filters);
-    const deleted = await deleteRowsByIds(
+    return await deleteRowsByIds(
       table,
       rows.map((row) => String(row.id)),
+      client,
     );
-    return { deleted, skipped: false };
   } catch (error: any) {
-    if (isMissingTableOrColumnError(error)) {
-      return {
-        deleted: 0,
-        skipped: true,
-        reason: String(error?.code || '').toLowerCase() === '42703' ? 'column_not_found' : 'table_not_found',
-      };
-    }
-    throw error;
+    throw new MaintenanceResetStepError({
+      step,
+      table,
+      message: `Reset failed while deleting ${step.replace(/^delete_/, '').replace(/_/g, ' ')} rows.`,
+      code: String(error?.code || error?.name || null),
+    });
   }
 };
 
-const deleteRowsByAnyFilter = async (
-  table: string,
-  filterSets: Array<Array<[string, string, unknown]>>,
-): Promise<DeleteResult> => {
-  let deleted = 0;
-  const skippedReasons: Array<'table_not_found' | 'column_not_found'> = [];
-
-  for (const filters of filterSets) {
-    const result = await deleteRowsByFilter(table, filters);
-    deleted += result.deleted;
-    if (result.skipped && result.reason) {
-      skippedReasons.push(result.reason);
-    }
-  }
-
-  return {
-    deleted,
-    skipped: deleted === 0 && skippedReasons.length === filterSets.length,
-    reason: skippedReasons.includes('table_not_found') ? 'table_not_found' : skippedReasons[0],
-  };
-};
-
-const getImportedApplicationIds = async () => {
-  const { data, error } = await db.from('applications').select('id').not('legacy_id', 'is', null);
-  if (error) {
-    if (isMissingTableOrColumnError(error)) {
-      return { ids: [] as string[], skipped: true, reason: 'column_not_found' as const };
-    }
-    throw error;
-  }
-  return { ids: (data || []).map((row: any) => String(row.id)), skipped: false as const };
-};
-
-const getImportedRentalIds = async (applicationIds: string[]) => {
-  const ids = new Set<string>();
-
-  const legacyQuery = db.from('rentals').select('id').not('legacy_application_id', 'is', null);
-  const { data: legacyRows, error: legacyError } = await legacyQuery;
-  if (legacyError) {
-    if (!isMissingTableOrColumnError(legacyError)) throw legacyError;
-    return { ids: [], skipped: true as const, reason: String(legacyError?.code || '').toLowerCase() === '42703' ? 'column_not_found' as const : 'table_not_found' as const };
-  }
-  for (const row of legacyRows || []) {
-    ids.add(String((row as any).id));
-  }
-
-  if (applicationIds.length > 0) {
-    const linkedQuery = db.from('rentals').select('id').in('application_id', applicationIds);
-    const { data: linkedRows, error: linkedError } = await linkedQuery;
-    if (linkedError) throw linkedError;
-    for (const row of linkedRows || []) {
-      ids.add(String((row as any).id));
-    }
-  }
-
-  return { ids: Array.from(ids), skipped: false as const };
-};
-
-const getImportedCustomers = async (applicationIds: string[], rentalIds: string[]) => {
-  const direct = await fetchRowsSafe('customers', [['source', 'eq', 'legacy-import']]);
-  const rows = [...direct.rows];
-  const ids = new Set<string>(rows.map((row) => String(row.id)));
-
-  if (applicationIds.length > 0) {
-    const linkedByApplications = await fetchRowsSafe('customers', [['application_id', 'in', applicationIds]]);
-    for (const row of linkedByApplications.rows) {
-      ids.add(String(row.id));
-      rows.push(row);
-    }
-  }
-
-  if (rentalIds.length > 0) {
-    const linkedByRentals = await fetchRowsSafe('customers', [['rental_id', 'in', rentalIds]]);
-    for (const row of linkedByRentals.rows) {
-      ids.add(String(row.id));
-      rows.push(row);
-    }
-  }
-
-  return {
-    rows: Array.from(new Map(rows.map((row) => [String(row.id), row])).values()),
-    skipped: direct.skipped,
-    reason: direct.reason,
-  };
-};
-
-const getImportedInvoices = async () => {
-  const direct = await fetchRowsSafe('invoices', [['source', 'eq', 'legacy-import']]);
-  return direct;
-};
-
-const optionalInvoiceChildTables = ['financial_transactions', 'payments', 'invoice_items', 'invoice_line_items'] as const;
-
-export const buildResetSummary = (counts: ResetCounts): ResetSummary => ({
+const insertMaintenanceAuditEvent = async ({
+  adminEmail,
+  client,
   counts,
-  criteria: {
-    applications: 'legacy_id is not null',
-    customers: 'source = legacy-import',
-    rentals: 'legacy_application_id is not null or linked to imported applications',
-    financials: 'local invoices/manual invoice tables only',
-  },
-  preserved: {
-    adminUsers: true,
-    cars: true,
-    stripeExternalRecords: true,
-  },
-});
-
-export const getImportedDataResetPlan = async () => {
-  const applicationResult = await getImportedApplicationIds();
-  const rentalResult = await getImportedRentalIds(applicationResult.ids);
-  const customersResult = await getImportedCustomers(applicationResult.ids, rentalResult.ids);
-  const invoicesResult = await getImportedInvoices();
-  const manualInvoicesResult = await fetchRowsSafe('manual_invoices');
-  const manualInvoiceItemsResult = await fetchRowsSafe('manual_invoice_items');
-  const stripeWebhookEvents = await countRows('stripe_webhook_events');
-
-  const applicationIds = applicationResult.ids;
-  const rentalIds = rentalResult.ids;
-  const customers = customersResult.rows;
-  const invoices = invoicesResult.rows;
-  const manualInvoices = manualInvoicesResult.rows;
-  const manualInvoiceItems = manualInvoiceItemsResult.rows;
-
-  if (applicationIds.length === 0 && rentalIds.length === 0 && customers.length === 0 && invoices.length === 0 && manualInvoices.length === 0) {
-    throw new Error('No reliable imported markers were found. Refusing to broad-delete data without an imported/legacy marker.');
-  }
-
-  const counts = {
-    applications: applicationIds.length,
-    customers: customers.length,
-    rentals: rentalIds.length,
-    invoices: invoices.length,
-    manualInvoices: manualInvoices.length,
-    manualInvoiceItems: manualInvoiceItems.length,
-    financialRows: invoices.length + manualInvoices.length + manualInvoiceItems.length,
-    stripeWebhookEvents,
+  reason,
+}: {
+  adminEmail?: string | null;
+  client?: PoolClient;
+  counts: ResetCounts;
+  reason?: string | null;
+}) => {
+  const metadata = {
+    counts,
+    preserved: {
+      adminUsers: true,
+      cars: true,
+      stripeExternalRecords: true,
+      stripeWebhookEvents: true,
+    },
+    reason: reason || null,
   };
 
+  try {
+    if (client) {
+      await client.query(
+        `
+          INSERT INTO public.maintenance_reset_audit_events (action, actor, metadata)
+          VALUES ($1, $2, $3::jsonb)
+        `,
+        ['imported_data_reset', adminEmail || null, JSON.stringify(metadata)],
+      );
+      return;
+    }
+
+    const auditTable = db.from('maintenance_reset_audit_events') as unknown as {
+      insert?: (rows: Array<Record<string, unknown>>) => PromiseLike<{ error?: unknown }> | unknown;
+    };
+
+    if (typeof auditTable.insert !== 'function') {
+      return;
+    }
+
+    await auditTable.insert([
+      {
+        action: 'imported_data_reset',
+        actor: adminEmail || null,
+        metadata,
+      },
+    ]);
+  } catch (error: any) {
+    if (!isMissingTableOrColumnError(error)) {
+      console.warn('Failed to record maintenance reset audit event:', error);
+    }
+  }
+};
+
+const performDeletes = async (
+  plan: ResetPlan,
+  client: PoolClient | undefined,
+  options: { adminEmail?: string | null; reason?: string | null },
+) => {
+  const deletedTollTransferNoticeAuditEvents = await deleteStep(
+    'delete_toll_transfer_notice_audit_events',
+    'toll_transfer_notice_audit_events',
+    plan.rows.tollTransferNoticeAuditEvents,
+    client,
+  );
+  const deletedTollTransferNotices = await deleteStep(
+    'delete_toll_transfer_notices',
+    'toll_transfer_notices',
+    plan.rows.tollTransferNotices,
+    client,
+  );
+  const deletedFinancialTransactions = await deleteStep(
+    'delete_financial_transactions',
+    'financial_transactions',
+    plan.rows.financialTransactions,
+    client,
+  );
+  const deletedPayments = await deleteStep('delete_payments', 'payments', plan.rows.payments, client);
+  const deletedInvoiceItems = await deleteStep(
+    'delete_invoice_items',
+    'invoice_items',
+    plan.rows.invoiceItems,
+    client,
+  );
+  const deletedInvoiceLineItems = await deleteStep(
+    'delete_invoice_line_items',
+    'invoice_line_items',
+    plan.rows.invoiceLineItems,
+    client,
+  );
+  const deletedManualInvoiceItems = await deleteStep(
+    'delete_manual_invoice_items',
+    'manual_invoice_items',
+    plan.rows.manualInvoiceItems,
+    client,
+  );
+  const deletedManualInvoices = await deleteStep(
+    'delete_manual_invoices',
+    'manual_invoices',
+    plan.rows.manualInvoices,
+    client,
+  );
+  const deletedInvoices = await deleteStep('delete_invoices', 'invoices', plan.rows.invoices, client);
+  const deletedLeaseAgreements = await deleteStep(
+    'delete_lease_agreements',
+    'lease_agreements',
+    plan.rows.leaseAgreements,
+    client,
+  );
+  const deletedBookings = await deleteStep('delete_bookings', 'bookings', plan.rows.bookings, client);
+  const deletedRentals = await deleteStep('delete_rentals', 'rentals', plan.rows.rentals, client);
+  const deletedApplications = await deleteStep(
+    'delete_applications',
+    'applications',
+    plan.rows.applications,
+    client,
+  );
+  const deletedCustomers = await deleteStep('delete_customers', 'customers', plan.rows.customers, client);
+
+  const counts: ResetCounts = {
+    applications: deletedApplications,
+    bookings: deletedBookings,
+    customers: deletedCustomers,
+    rentals: deletedRentals,
+    leaseAgreements: deletedLeaseAgreements,
+    tollTransferNotices: deletedTollTransferNotices,
+    tollTransferNoticeAuditEvents: deletedTollTransferNoticeAuditEvents,
+    invoices: deletedInvoices,
+    invoiceItems: deletedInvoiceItems,
+    invoiceLineItems: deletedInvoiceLineItems,
+    payments: deletedPayments,
+    financialTransactions: deletedFinancialTransactions,
+    manualInvoices: deletedManualInvoices,
+    manualInvoiceItems: deletedManualInvoiceItems,
+    financialRows:
+      deletedInvoices +
+      deletedInvoiceItems +
+      deletedInvoiceLineItems +
+      deletedPayments +
+      deletedFinancialTransactions +
+      deletedManualInvoices +
+      deletedManualInvoiceItems,
+    stripeWebhookEvents: 0,
+  };
+
+  await insertMaintenanceAuditEvent({
+    adminEmail: options.adminEmail,
+    client,
+    counts,
+    reason: options.reason,
+  });
+
   return {
-    ...buildResetSummary(counts),
-    rows: {
-      applications: applicationIds.length ? await fetchRows('applications', [['legacy_id', 'not.is', null]]) : [],
-      customers,
-      rentals: rentalIds.length ? await fetchRows('rentals', [['id', 'in', rentalIds]]) : [],
-      invoices,
-      manualInvoices,
-      manualInvoiceItems,
-    },
-    skipped: {
-      applications: applicationResult.skipped,
-      rentals: rentalResult.skipped,
-      customers: customersResult.skipped,
-      invoices: invoicesResult.skipped,
-      manualInvoices: manualInvoicesResult.skipped,
-      manualInvoiceItems: manualInvoiceItemsResult.skipped,
-    },
+    counts,
+    skipped: plan.skipped,
+    skippedInvoiceDependencies: [
+      { table: 'financial_transactions', skipped: plan.skipped.financialTransactions },
+      { table: 'payments', skipped: plan.skipped.payments },
+      { table: 'invoice_items', skipped: plan.skipped.invoiceItems },
+      { table: 'invoice_line_items', skipped: plan.skipped.invoiceLineItems },
+    ].filter((dependency) => dependency.skipped),
   };
 };
 
-export const resetImportedDataAndFinancials = async () => {
-  const plan = await getImportedDataResetPlan();
-  const performStep = async (step: string, table: string, ids: Array<string | number>) => {
-    try {
-      return await deleteRowsByIds(table, ids);
-    } catch (error: any) {
-      throw new MaintenanceResetStepError({
-        step,
-        table,
-        message: `Reset failed while deleting ${step.replace(/^delete_/, '').replace(/_/g, ' ')} rows.`,
-        code: String(error?.code || error?.name || null),
-      });
-    }
-  };
+export const resetImportedDataAndFinancials = async (options: {
+  adminEmail?: string | null;
+  reason?: string | null;
+} = {}) => {
+  const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
 
-  const performOptionalTableDelete = async (
-    step: string,
-    table: string,
-    filterSets: Array<Array<[string, string, unknown]>>,
-  ) => {
-    try {
-      return await deleteRowsByAnyFilter(table, filterSets);
-    } catch (error: any) {
-      throw new MaintenanceResetStepError({
-        step,
-        table,
-        message: `Reset failed while deleting ${table} rows.`,
-        code: String(error?.code || error?.name || null),
-      });
-    }
-  };
-
-  const performDeletes = async () => {
-    const invoiceIds = plan.rows.invoices.map((row) => String(row.id));
-    const invoiceLineItemIds = [
-      ...await fetchRowsSafe('invoice_line_items', [['invoice_id', 'in', invoiceIds]]).then((result) =>
-        result.rows.map((row) => String(row.id)),
-      ),
-      ...await fetchRowsSafe('invoice_items', [['invoice_id', 'in', invoiceIds]]).then((result) =>
-        result.rows.map((row) => String(row.id)),
-      ),
-    ];
-    const deletedManualInvoiceItems = await performStep(
-      'delete_manual_invoice_items',
-      'manual_invoice_items',
-      plan.rows.manualInvoiceItems.map((row) => String(row.id)),
-    );
-    const deletedManualInvoices = await performStep(
-      'delete_manual_invoices',
-      'manual_invoices',
-      plan.rows.manualInvoices.map((row) => String(row.id)),
-    );
-    const optionalInvoiceDependencies = [];
-    for (const table of optionalInvoiceChildTables) {
-      const filterSets: Array<Array<[string, string, unknown]>> = [
-        [['invoice_id', 'in', invoiceIds]],
-      ];
-
-      if (table === 'financial_transactions' && invoiceLineItemIds.length > 0) {
-        filterSets.push([['invoice_line_item_id', 'in', invoiceLineItemIds]]);
-        filterSets.push([['line_item_id', 'in', invoiceLineItemIds]]);
-      }
-
-      const result = await performOptionalTableDelete(
-        `delete_${table}`,
-        table,
-        filterSets,
+  if (hasDirectDatabaseConnection() && !isTestRuntime) {
+    return withPostgresTransaction(async (client) => {
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtext($1)::bigint)',
+        ['maple:maintenance:imported-data-reset'],
       );
-      optionalInvoiceDependencies.push({ table, ...result });
-    }
-    const deletedInvoices = await performStep(
-      'delete_invoices',
-      'invoices',
-      plan.rows.invoices.map((row) => String(row.id)),
-    );
-    const deletedRentals = await performStep(
-      'delete_rentals',
-      'rentals',
-      plan.rows.rentals.map((row) => String(row.id)),
-    );
-    const deletedApplications = await performStep(
-      'delete_applications',
-      'applications',
-      plan.rows.applications.map((row) => String(row.id)),
-    );
-
-    const customersToDelete = plan.rows.customers
-      .filter((row) => String((row as any).source || '') === 'legacy-import')
-      .filter((row) => {
-        const customer = row as Record<string, unknown>;
-        const applicationId = customer.application_id == null ? null : String(customer.application_id);
-        const rentalId = customer.rental_id == null ? null : String(customer.rental_id);
-        return (
-          (!applicationId || plan.rows.applications.some((application) => String(application.id) === applicationId)) ||
-          (!rentalId || plan.rows.rentals.some((rental) => String(rental.id) === rentalId))
-        );
-      });
-    const deletedCustomers = await performStep(
-      'delete_customers',
-      'customers',
-      customersToDelete.map((row) => String(row.id)),
-    );
-    const deletedStripeWebhookEvents = 0;
-
-    return {
-      counts: {
-        applications: deletedApplications,
-        customers: deletedCustomers,
-        rentals: deletedRentals,
-        invoices: deletedInvoices,
-        manualInvoices: deletedManualInvoices,
-        manualInvoiceItems: deletedManualInvoiceItems,
-        financialRows: deletedInvoices + deletedManualInvoices + deletedManualInvoiceItems,
-        stripeWebhookEvents: deletedStripeWebhookEvents,
-      },
-      preservedCustomers: plan.rows.customers.length - customersToDelete.length,
-      skippedInvoiceDependencies: optionalInvoiceDependencies.filter((dependency) => dependency.skipped),
-    };
-  };
-
-  if (hasDirectDatabaseConnection()) {
-    return withPostgresTransaction(async () => performDeletes());
+      const plan = await getImportedDataResetPlan(client);
+      return performDeletes(plan, client, options);
+    });
   }
 
-  return performDeletes();
+  if (process.env.NODE_ENV === 'production') {
+    throw new MaintenanceResetStepError({
+      step: 'transaction_required',
+      message:
+        'Direct session PostgreSQL access is required before running the production imported data reset.',
+      code: 'TRANSACTION_REQUIRED',
+    });
+  }
+
+  const plan = await getImportedDataResetPlan();
+  return performDeletes(plan, undefined, options);
 };
 
 export const getResetExportPayload = async (adminEmail: string | null) => {
@@ -485,7 +677,7 @@ export const getResetExportPayload = async (adminEmail: string | null) => {
   return {
     createdAt: new Date().toISOString(),
     createdBy: adminEmail || null,
-    confirm: CONFIRMATION_PHRASE,
+    confirm: IMPORTED_DATA_RESET_CONFIRMATION_PHRASE,
     criteria: plan.criteria,
     rows: plan.rows,
   };

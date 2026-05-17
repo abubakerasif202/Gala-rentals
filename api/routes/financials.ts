@@ -4,6 +4,11 @@ import { authenticateAdmin } from '../middleware/auth.js';
 import { LEASE_SETTINGS } from '../constants.js';
 import { getRentalSelectColumns } from '../schemaCompat.js';
 import { getOptionalStripeClient } from '../stripeClient.js';
+import {
+  filterRealApplications,
+  filterRealRentals,
+  getImportedApplicationIdSet,
+} from '../importedDataFilters.js';
 
 const router = express.Router();
 
@@ -47,7 +52,19 @@ router.get('/weekly', authenticateAdmin, async (req, res) => {
 
     if (rentalsError) throw rentalsError;
 
-    const rentals = ((activeRentals || []) as Array<Record<string, any>>);
+    const { data: applications, error: applicationsError } = await db
+      .from('applications')
+      .select('*');
+
+    if (applicationsError) throw applicationsError;
+
+    const importedApplicationIds = getImportedApplicationIdSet(
+      (applications || []) as Array<Record<string, any>>,
+    );
+    const rentals = filterRealRentals(
+      (activeRentals || []) as Array<Record<string, any>>,
+      importedApplicationIds,
+    );
     const projected_gross_weekly = rentals.reduce(
       (sum, rental) => sum + (Number(rental.weekly_price) || 0),
       0
@@ -98,9 +115,8 @@ router.get('/weekly', authenticateAdmin, async (req, res) => {
 router.get('/stats', authenticateAdmin, async (_req, res) => {
   try {
     const rentalSelectColumns = await getRentalSelectColumns();
-    const [applications, rentalsActive, incomeRows] = await Promise.all([
-      db.from('applications').select('*', { count: 'exact', head: true }),
-      db.from('rentals').select('*', { count: 'exact', head: true }).eq('status', 'Active'),
+    const [applications, incomeRows] = await Promise.all([
+      db.from('applications').select('*'),
       db.from('rentals').select(rentalSelectColumns).eq('status', 'Active'),
     ]);
 
@@ -108,17 +124,18 @@ router.get('/stats', authenticateAdmin, async (_req, res) => {
       throw applications.error;
     }
 
-    if (rentalsActive.error) {
-      throw rentalsActive.error;
-    }
-
     if (incomeRows.error) {
       throw incomeRows.error;
     }
 
-    const applicationsCount = applications.count || 0;
-    const activeRentalsCount = rentalsActive.count || 0;
-    const rentalRows = ((incomeRows.data || []) as Array<Record<string, any>>);
+    const applicationRows = (applications.data || []) as Array<Record<string, any>>;
+    const importedApplicationIds = getImportedApplicationIdSet(applicationRows);
+    const applicationsCount = filterRealApplications(applicationRows).length;
+    const rentalRows = filterRealRentals(
+      (incomeRows.data || []) as Array<Record<string, any>>,
+      importedApplicationIds,
+    );
+    const activeRentalsCount = rentalRows.length;
     const totalWeeklyIncome = rentalRows.reduce((sum, row) => sum + (Number(row.weekly_price) || 0), 0);
 
     res.json({

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { authenticateAdmin } from '../middleware/auth.js';
 import {
+  IMPORTED_DATA_RESET_CONFIRMATION_PHRASE,
   MaintenanceResetStepError,
   getImportedDataResetPlan,
   getResetExportPayload,
@@ -10,7 +11,7 @@ import {
 } from '../adminMaintenanceReset.js';
 
 const router = express.Router();
-const CONFIRMATION_PHRASE = 'RESET IMPORTED DATA AND FINANCIALS';
+const CONFIRMATION_PHRASE = IMPORTED_DATA_RESET_CONFIRMATION_PHRASE;
 
 const requestSchema = z.object({
   confirm: z.string(),
@@ -24,7 +25,7 @@ const requireConfirmation = (confirm: string) => {
   }
 };
 
-router.get('/reset-imported-data/export', authenticateAdmin, async (req, res) => {
+const sendExportPayload = async (req: express.Request, res: express.Response) => {
   try {
     const payload = await getResetExportPayload(req.admin?.email || null);
     res.json(payload);
@@ -32,15 +33,22 @@ router.get('/reset-imported-data/export', authenticateAdmin, async (req, res) =>
     console.error('Admin maintenance export error:', error);
     res.status(500).json({ error: 'Failed to export reset payload' });
   }
-});
+};
 
-router.post('/reset-imported-data/dry-run', authenticateAdmin, async (req, res) => {
-  const parsed = requestSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid request body', details: parsed.error.issues });
-  }
+const sendDryRun = async (
+  req: express.Request,
+  res: express.Response,
+  options: { requireConfirmation: boolean },
+) => {
   try {
-    requireConfirmation(parsed.data.confirm);
+    if (options.requireConfirmation) {
+      const parsed = requestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request body', details: parsed.error.issues });
+      }
+      requireConfirmation(parsed.data.confirm);
+    }
+
     const plan = await getImportedDataResetPlan();
     res.json({
       success: true,
@@ -63,18 +71,22 @@ router.post('/reset-imported-data/dry-run', authenticateAdmin, async (req, res) 
     console.error('Admin maintenance dry-run error:', error);
     res.status(500).json({ error: 'Failed to run dry-run' });
   }
-});
+};
 
-router.post('/reset-imported-data', authenticateAdmin, async (req, res) => {
+const performReset = async (req: express.Request, res: express.Response) => {
   const parsed = requestSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid request body', details: parsed.error.issues });
   }
   try {
     requireConfirmation(parsed.data.confirm);
-    const result = await resetImportedDataAndFinancials();
+    const result = await resetImportedDataAndFinancials({
+      adminEmail: req.admin?.email || null,
+      reason: parsed.data.reason || null,
+    });
     console.info('Admin maintenance reset executed', {
       adminEmail: req.admin?.email || null,
+      deleted: result.counts,
       reason: parsed.data.reason || null,
     });
     res.json({
@@ -84,6 +96,7 @@ router.post('/reset-imported-data', authenticateAdmin, async (req, res) => {
         adminUsers: true,
         cars: true,
         stripeExternalRecords: true,
+        stripeWebhookEvents: true,
       },
       message: 'Imported customer data and local financial records reset completed.',
     });
@@ -125,6 +138,18 @@ router.post('/reset-imported-data', authenticateAdmin, async (req, res) => {
     });
     res.status(500).json({ error: 'Failed to reset imported data' });
   }
-});
+};
+
+router.get('/imported-data-reset/dry-run', authenticateAdmin, (req, res) =>
+  sendDryRun(req, res, { requireConfirmation: false }),
+);
+router.post('/imported-data-reset', authenticateAdmin, performReset);
+router.get('/imported-data-reset/export', authenticateAdmin, sendExportPayload);
+
+router.get('/reset-imported-data/export', authenticateAdmin, sendExportPayload);
+router.post('/reset-imported-data/dry-run', authenticateAdmin, (req, res) =>
+  sendDryRun(req, res, { requireConfirmation: true }),
+);
+router.post('/reset-imported-data', authenticateAdmin, performReset);
 
 export default router;

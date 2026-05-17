@@ -68,7 +68,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-brand-grey transition-all hover:bg-white/5 hover:text-white lg:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-brand-grey transition-all hover:bg-white/5 hover:text-white lg:hidden"
           >
             <X className="h-5 w-5" />
           </button>

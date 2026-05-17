@@ -340,6 +340,13 @@ if (-not $Apply) {
     exit 0
 }
 
+if ($env:ALLOW_LEGACY_IMPORT -ne 'true') {
+    Write-Error "Refusing to import legacy operational history. Set ALLOW_LEGACY_IMPORT=true only for an intentional one-off legacy import."
+    exit 1
+}
+
+Write-Warning "ALLOW_LEGACY_IMPORT=true is set. This will replace local customers/invoices with legacy workbook data."
+
 $payload = [ordered]@{
     customers = @($customerImports | ForEach-Object {
         [ordered]@{

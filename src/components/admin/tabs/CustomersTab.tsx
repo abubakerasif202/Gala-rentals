@@ -39,14 +39,11 @@ const renderOperationalUnavailable = (title: string, operationalHistoryMessage: 
         {operationalHistoryMessage}
       </p>
     </div>
-    <div className="bg-brand-navy/60 border border-white/10 rounded-2xl px-5 py-4 text-[11px] text-brand-grey font-light">
+    <div className="break-words bg-brand-navy/60 border border-white/10 rounded-2xl px-5 py-4 text-[11px] text-brand-grey font-light">
       Run <span className="font-mono text-white">npm run migrate:operational-history</span>{' '}
-      with <span className="font-mono text-white">DATABASE_URL</span> (preferred, or{' '}
-      <span className="font-mono text-white">SUPABASE_DB_URL</span>), then run{' '}
-      <span className="font-mono text-white">
-        powershell -ExecutionPolicy Bypass -File scripts/import-operational-history-from-workbooks.ps1 -Apply
-      </span>
-      .
+      with <span className="font-mono text-white">DATABASE_URL</span> or{' '}
+      <span className="font-mono text-white">SUPABASE_DB_URL</span>. Legacy workbook imports now require{' '}
+      <span className="font-mono text-white">ALLOW_LEGACY_IMPORT=true</span> and should not be used for production data.
     </div>
   </div>
 );
@@ -78,11 +75,11 @@ export default function CustomersTab({
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">
-            Legacy <span className="text-brand-gold italic">Customers</span>
+          <h2 className="mb-2 text-3xl font-bold uppercase tracking-tighter text-white sm:text-4xl">
+            Customer <span className="text-brand-gold italic">Directory</span>
           </h2>
           <p className="text-brand-grey font-light">
-            Private customer records imported from the operational client roster.
+            Private production customer records and linked invoice activity.
           </p>
         </div>
         <div className="flex w-full gap-4 md:w-auto">
@@ -107,7 +104,7 @@ export default function CustomersTab({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
-                label: deferredCustomerSearch ? 'Matching Customers' : 'Imported Customers',
+                label: deferredCustomerSearch ? 'Matching Customers' : 'Customers',
                 value: customerTotalItems,
                 helper: deferredCustomerSearch
                   ? 'Records matching the current search'
@@ -146,7 +143,57 @@ export default function CustomersTab({
             ))}
           </div>
 
-          <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+            <div className="space-y-3 p-4 md:hidden">
+              {customerRecords.map((customer) => (
+                <article
+                  key={customer.id}
+                  className="rounded-lg border border-white/10 bg-brand-navy/60 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-white">
+                        {customer.full_name}
+                      </p>
+                      <p className="text-[10px] uppercase tracking-widest text-brand-grey">
+                        {customer.staff_number || customer.external_id || 'Customer record'}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-brand-gold/20 bg-brand-gold/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-brand-gold">
+                      {customer.invoice_count} inv
+                    </span>
+                  </div>
+                  <div className="mt-4 grid gap-3 text-sm">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">Contact</p>
+                      <p className="break-all text-white">{customer.email || 'No email on file'}</p>
+                      <p className="text-brand-grey">{customer.phone || 'No phone on file'}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">Billed</p>
+                        <p className="font-bold text-white">{formatCurrency(customer.total_billed)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">Outstanding</p>
+                        <p className="font-bold text-white">{formatCurrency(customer.outstanding_balance)}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">Last Invoice</p>
+                      <p className="text-brand-grey">{formatDate(customer.last_invoice_date)}</p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {customerRecords.length === 0 && (
+                <div className="px-4 py-12 text-center text-xs font-light italic text-brand-grey">
+                  {customerSearch ? 'No customer records matched the current search.' : 'No customers yet.'}
+                </div>
+              )}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[860px] text-left">
               <thead>
                 <tr className="bg-white/5 border-b border-white/10">
@@ -176,7 +223,7 @@ export default function CustomersTab({
                           {customer.full_name}
                         </p>
                         <p className="text-[10px] text-brand-grey uppercase tracking-widest">
-                          {customer.staff_number || customer.external_id || 'Legacy record'}
+                          {customer.staff_number || customer.external_id || 'Customer record'}
                         </p>
                       </div>
                     </td>
@@ -214,12 +261,13 @@ export default function CustomersTab({
                       colSpan={5}
                       className="px-8 py-12 text-center text-brand-grey text-xs font-light italic"
                     >
-                      No customer records matched the current search.
+                      {customerSearch ? 'No customer records matched the current search.' : 'No customers yet.'}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+            </div>
             <div className="flex flex-col gap-3 border-t border-white/10 px-8 py-6 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-[11px] text-brand-grey">
                 Page {currentCustomerPage} of {customerTotalPages} •{' '}
@@ -231,7 +279,7 @@ export default function CustomersTab({
                   type="button"
                   onClick={() => setCustomerPage((page) => Math.max(1, page - 1))}
                   disabled={currentCustomerPage <= 1 || isFetching}
-                  className="flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
+                  className="min-h-11 flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
                 >
                   Previous
                 </button>
@@ -243,7 +291,7 @@ export default function CustomersTab({
                     )
                   }
                   disabled={currentCustomerPage >= customerTotalPages || isFetching}
-                  className="flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
+                  className="min-h-11 flex-1 border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-40 sm:flex-none"
                 >
                   Next
                 </button>

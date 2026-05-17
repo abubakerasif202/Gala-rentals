@@ -127,7 +127,7 @@ export default function ApplicationsTab({
         sortable: false,
         cell: (app) => (
           <button
-            className="inline-flex rounded-lg bg-white/5 p-2 text-slate-400 transition-all hover:bg-[#dfb125] hover:text-[#061425]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/5 text-slate-400 transition-all hover:bg-[#dfb125] hover:text-[#061425]"
             title="Review Application"
             onClick={() => setSelectedApplication(app)}
           >
@@ -149,7 +149,7 @@ export default function ApplicationsTab({
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">
+          <h2 className="mb-2 text-3xl font-bold uppercase tracking-tighter text-white sm:text-4xl">
             Driver <span className="text-brand-gold italic">Applications</span>
           </h2>
           <p className="text-brand-grey font-light">
@@ -203,7 +203,7 @@ export default function ApplicationsTab({
             : 'New driver applications will appear here as soon as renters submit the application form.',
           icon: Users,
           onAction: applicationSearch ? () => setApplicationSearch('') : undefined,
-          title: applicationSearch ? 'No matching applications' : 'No applications yet',
+          title: applicationSearch ? 'No matching applications' : 'No real applications yet',
         }}
       />
     </motion.div>

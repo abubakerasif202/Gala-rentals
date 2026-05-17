@@ -20,6 +20,13 @@ if (!supabaseUrl || !supabaseServiceKey) {
     process.exit(1);
 }
 
+if (process.env.ALLOW_LEGACY_IMPORT !== 'true') {
+    console.error("Refusing to seed legacy fleet applications/rentals. Set ALLOW_LEGACY_IMPORT=true only for an intentional one-off legacy import.");
+    process.exit(1);
+}
+
+console.warn("ALLOW_LEGACY_IMPORT=true is set. This script will create legacy example.invalid applications and linked rentals.");
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const insertInChunks = async (table, rows, select) => {

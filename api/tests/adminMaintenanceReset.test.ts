@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   applications: [] as Array<Record<string, any>>,
+  bookings: [] as Array<Record<string, any>>,
+  cars: [] as Array<Record<string, any>>,
   customers: [] as Array<Record<string, any>>,
+  lease_agreements: [] as Array<Record<string, any>>,
   rentals: [] as Array<Record<string, any>>,
   invoices: [] as Array<Record<string, any>>,
   manual_invoices: [] as Array<Record<string, any>>,
@@ -12,6 +15,8 @@ const mockState = vi.hoisted(() => ({
   payments: [] as Array<Record<string, any>>,
   financial_transactions: [] as Array<Record<string, any>>,
   stripe_webhook_events: [] as Array<Record<string, any>>,
+  toll_transfer_notices: [] as Array<Record<string, any>>,
+  toll_transfer_notice_audit_events: [] as Array<Record<string, any>>,
   deleteOrder: [] as string[],
   failOnStep: null as string | null,
   missingTables: new Set<string>(),
@@ -107,23 +112,69 @@ import { getImportedDataResetPlan, resetImportedDataAndFinancials } from '../adm
 
 describe('adminMaintenanceReset', () => {
   beforeEach(() => {
-    mockState.applications = [{ id: 'app-1', legacy_id: 101 }, { id: 'app-2', legacy_id: null }];
+    mockState.applications = [
+      {
+        id: 'app-1',
+        email: 'legacy-cno40s@example.invalid',
+        experience: 'Imported from live fleet data on 2026-05-17.',
+        legacy_id: 101,
+        license_number: 'LEGACY-CNO40S',
+        phone: '0000000000',
+      },
+      {
+        id: 'app-2',
+        email: 'real.driver@example.com',
+        experience: 'Manually created by admin',
+        legacy_id: null,
+        license_number: 'NSW123456',
+        phone: '0412345678',
+      },
+    ];
+    mockState.bookings = [
+      { id: 'booking-1', application_id: 'app-1' },
+      { id: 'booking-2', application_id: 'app-2' },
+    ];
+    mockState.cars = [{ id: 1, name: 'Toyota Camry (CNO40S)', status: 'Rented' }];
     mockState.customers = [
       { id: 'cust-1', source: 'legacy-import', application_id: 'app-1' },
       { id: 'cust-2', source: 'current' },
     ];
+    mockState.lease_agreements = [
+      { id: 'lease-1', application_id: 'app-1' },
+      { id: 'lease-2', application_id: 'app-2' },
+    ];
     mockState.rentals = [
       { id: 'rent-1', application_id: 'app-1', legacy_application_id: 101 },
-      { id: 'rent-2', application_id: 'app-2', legacy_application_id: null },
+      {
+        id: 'rent-2',
+        application_id: 'app-2',
+        legacy_application_id: null,
+        stripe_customer_id: null,
+        stripe_subscription_id: null,
+      },
     ];
     mockState.invoices = [{ id: 'inv-1', source: 'legacy-import' }, { id: 'inv-2', source: 'current' }];
-    mockState.manual_invoices = [{ id: 'm-1' }];
-    mockState.manual_invoice_items = [{ id: 'mi-1', invoice_id: 'm-1' }];
+    mockState.manual_invoices = [
+      { id: 'm-1', invoice_number: 'LEGACY-MANUAL-001' },
+      { id: 'm-2', invoice_number: 'MR-REAL-001' },
+    ];
+    mockState.manual_invoice_items = [
+      { id: 'mi-1', invoice_id: 'm-1' },
+      { id: 'mi-2', invoice_id: 'm-2' },
+    ];
     mockState.invoice_items = [{ id: 'ii-1', invoice_id: 'inv-1' }];
     mockState.invoice_line_items = [{ id: 'ill-1', invoice_id: 'inv-1' }];
     mockState.payments = [{ id: 'pay-1', invoice_id: 'inv-1' }];
     mockState.financial_transactions = [{ id: 'ft-1', invoice_line_item_id: 'ill-1' }];
-    mockState.stripe_webhook_events = [];
+    mockState.stripe_webhook_events = [{ id: 'event-1', stripe_event_id: 'evt_1' }];
+    mockState.toll_transfer_notices = [
+      { id: 'notice-1', application_id: 'app-1', rental_id: 'rent-1' },
+      { id: 'notice-2', application_id: 'app-2', rental_id: 'rent-2' },
+    ];
+    mockState.toll_transfer_notice_audit_events = [
+      { id: 'audit-1', toll_transfer_notice_id: 'notice-1' },
+      { id: 'audit-2', toll_transfer_notice_id: 'notice-2' },
+    ];
     mockState.deleteOrder = [];
     mockState.failOnStep = null;
     mockState.missingTables = new Set<string>();
@@ -133,17 +184,26 @@ describe('adminMaintenanceReset', () => {
     const before = structuredClone(mockState);
     const plan = await getImportedDataResetPlan();
     expect(plan.counts.applications).toBe(1);
+    expect(plan.counts.rentals).toBe(1);
+    expect((plan.counts as any).tollTransferNotices).toBe(1);
     expect(mockState).toEqual(before);
   });
 
-  it('deletes children before parents and preserves safe customers', async () => {
+  it('deletes imported children before parents and preserves real records', async () => {
     const result = await resetImportedDataAndFinancials();
-    expect(result.counts.manualInvoiceItems).toBe(1);
+    expect((result.counts as any).tollTransferNoticeAuditEvents).toBe(1);
+    expect((result.counts as any).tollTransferNotices).toBe(1);
+    expect((result.counts as any).leaseAgreements).toBe(1);
+    expect((result.counts as any).bookings).toBe(1);
     expect(result.counts.manualInvoices).toBe(1);
+    expect(result.counts.manualInvoiceItems).toBe(1);
     expect(result.counts.rentals).toBe(1);
     expect(result.counts.applications).toBe(1);
     expect(result.counts.customers).toBe(1);
-    expect(mockState.deleteOrder).toEqual([
+    expect(result.counts.stripeWebhookEvents).toBe(0);
+    expect(mockState.deleteOrder).toEqual(expect.arrayContaining([
+      'toll_transfer_notice_audit_events',
+      'toll_transfer_notices',
       'manual_invoice_items',
       'manual_invoices',
       'financial_transactions',
@@ -151,12 +211,30 @@ describe('adminMaintenanceReset', () => {
       'invoice_items',
       'invoice_line_items',
       'invoices',
+      'lease_agreements',
+      'bookings',
       'rentals',
       'applications',
       'customers',
-    ]);
+    ]));
+    expect(mockState.deleteOrder.indexOf('toll_transfer_notice_audit_events')).toBeLessThan(
+      mockState.deleteOrder.indexOf('toll_transfer_notices'),
+    );
+    expect(mockState.deleteOrder.indexOf('rentals')).toBeLessThan(
+      mockState.deleteOrder.indexOf('applications'),
+    );
     expect(mockState.customers).toHaveLength(1);
     expect(mockState.customers[0].id).toBe('cust-2');
+    expect(mockState.applications.map((row) => row.id)).toEqual(['app-2']);
+    expect(mockState.rentals.map((row) => row.id)).toEqual(['rent-2']);
+    expect(mockState.manual_invoices.map((row) => row.id)).toEqual(['m-2']);
+    expect(mockState.manual_invoice_items.map((row) => row.id)).toEqual(['mi-2']);
+    expect(mockState.toll_transfer_notices.map((row) => row.id)).toEqual(['notice-2']);
+    expect(mockState.toll_transfer_notice_audit_events.map((row) => row.id)).toEqual(['audit-2']);
+    expect(mockState.lease_agreements.map((row) => row.id)).toEqual(['lease-2']);
+    expect(mockState.bookings.map((row) => row.id)).toEqual(['booking-2']);
+    expect(mockState.cars).toHaveLength(1);
+    expect(mockState.stripe_webhook_events).toHaveLength(1);
   });
 
   it('returns a failing step when a delete fails', async () => {

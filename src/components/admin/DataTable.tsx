@@ -347,7 +347,7 @@ export default function DataTable<T>({
                 key={action.label}
                 type="button"
                 onClick={() => action.onClick(selectedRows)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#dfb125] px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-[#061425] transition-all hover:bg-[#f0c94a]"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#dfb125] px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-[#061425] transition-all hover:bg-[#f0c94a]"
               >
                 {action.icon && <action.icon className="h-4 w-4" />}
                 {action.label}
@@ -356,7 +356,7 @@ export default function DataTable<T>({
             <button
               type="button"
               onClick={() => setSelectedRowIds(new Set())}
-              className="rounded-lg border border-[#1e3a5f] px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5"
+              className="min-h-11 rounded-lg border border-[#1e3a5f] px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5"
             >
               Clear
             </button>
@@ -365,9 +365,70 @@ export default function DataTable<T>({
       )}
 
       <div className="overflow-hidden rounded-lg border border-[#1e3a5f] bg-[#0b1f36]">
-        <div className="overflow-x-auto">
+        <div className="space-y-3 p-3 md:hidden">
+          {visibleRows.map((row) => {
+            const rowId = getRowId(row);
+
+            return (
+              <article
+                key={rowId}
+                className="rounded-lg border border-[#1e3a5f] bg-[#061425] p-4"
+              >
+                <div className="flex min-h-11 items-center justify-between gap-3">
+                  <label className="flex min-h-11 items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={selectedRowIds.has(rowId)}
+                      onChange={() =>
+                        setSelectedRowIds((current) => {
+                          const next = new Set(current);
+
+                          if (next.has(rowId)) {
+                            next.delete(rowId);
+                          } else {
+                            next.add(rowId);
+                          }
+
+                          return next;
+                        })
+                      }
+                      className="h-5 w-5 rounded border-[#1e3a5f] bg-[#061425] accent-[#dfb125]"
+                      aria-label={`Select row ${rowId}`}
+                    />
+                    Select
+                  </label>
+                  <span className="max-w-[55%] truncate font-mono text-[10px] text-slate-500">
+                    #{rowId}
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-4">
+                  {columns.map((column) => (
+                    <div
+                      key={column.id}
+                      className={column.id === 'actions' ? 'space-y-2' : 'min-w-0'}
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                        {column.header}
+                      </p>
+                      <div className="mt-1 min-w-0 text-sm text-white">
+                        {column.cell
+                          ? column.cell(row)
+                          : renderAccessorValue(column.accessor?.(row))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            );
+          })}
+
+          {visibleRows.length === 0 && <EmptyState {...emptyState} />}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left" style={{ minWidth }}>
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="border-b border-[#1e3a5f] bg-[#061425]">
                 <th className="w-12 px-4 py-4">
                   <input
@@ -469,7 +530,7 @@ export default function DataTable<T>({
         </div>
 
         <div className="flex flex-col gap-4 border-t border-[#1e3a5f] bg-[#061425] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3 text-[11px] text-slate-400">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
             <span>
               Page {page} of {totalPages}
             </span>
@@ -479,7 +540,7 @@ export default function DataTable<T>({
               <select
                 value={pageSize}
                 onChange={handlePageSizeChange}
-                className="rounded-lg border border-[#1e3a5f] bg-[#0b1f36] px-2 py-1 text-white outline-none focus:border-[#dfb125]"
+                className="min-h-11 rounded-lg border border-[#1e3a5f] bg-[#0b1f36] px-3 py-2 text-white outline-none focus:border-[#dfb125]"
               >
                 {pageSizeOptions.map((option) => (
                   <option key={option} value={option}>
@@ -490,12 +551,12 @@ export default function DataTable<T>({
             </label>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
             <button
               type="button"
               onClick={() => handlePageChange(page - 1)}
               disabled={page <= 1 || pagination?.isFetching}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#1e3a5f] px-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5 disabled:opacity-40"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#1e3a5f] px-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5 disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
               Previous
@@ -509,7 +570,7 @@ export default function DataTable<T>({
                   type="button"
                   onClick={() => handlePageChange(pageNumber)}
                   disabled={pagination?.isFetching}
-                  className={`h-9 min-w-9 rounded-lg border px-3 text-xs font-bold transition-all ${
+                  className={`min-h-11 min-w-11 rounded-lg border px-3 text-xs font-bold transition-all ${
                     pageNumber === page
                       ? 'border-[#dfb125] bg-[#dfb125] text-[#061425]'
                       : 'border-[#1e3a5f] text-white hover:bg-white/5'
@@ -523,7 +584,7 @@ export default function DataTable<T>({
               type="button"
               onClick={() => handlePageChange(page + 1)}
               disabled={page >= totalPages || pagination?.isFetching}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#1e3a5f] px-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5 disabled:opacity-40"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#1e3a5f] px-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5 disabled:opacity-40"
             >
               Next
               <ChevronRight className="h-4 w-4" />

@@ -205,7 +205,7 @@ export default function AgreementsTab({
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">
+          <h2 className="mb-2 text-3xl font-bold uppercase tracking-tighter text-white sm:text-4xl">
             Lease <span className="text-brand-gold italic">Agreements</span>
           </h2>
           <p className="text-brand-grey font-light">
@@ -440,7 +440,63 @@ export default function AgreementsTab({
           )}
       </div>
 
-      <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+        <div className="space-y-3 p-4 md:hidden">
+          {savedAgreements.map((agreement: any) => (
+            <article
+              key={agreement.id}
+              className="rounded-lg border border-white/10 bg-brand-navy/60 p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-brand-gold">
+                    #{agreement.id.toString().padStart(6, '0')}
+                  </p>
+                  <p className="mt-2 truncate text-sm font-bold text-white">
+                    {agreement.applicant_name}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-widest text-brand-grey">
+                    {agreement.car_name || agreement.vehicle_label || 'Approved vehicle'}
+                  </p>
+                </div>
+                <p className="shrink-0 text-xs text-brand-grey">
+                  {new Date(agreement.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  className="flex min-h-11 items-center justify-center rounded-lg bg-white/5 px-4 text-brand-grey transition-all hover:bg-brand-gold hover:text-brand-navy"
+                  onClick={() => {
+                    setAgreementModalMode('saved');
+                    setAgreementContent(agreement.content);
+                    setIsAgreementModalOpen(true);
+                  }}
+                >
+                  <FileText className="h-4 w-4" />
+                </button>
+                <button
+                  className="flex min-h-11 items-center justify-center rounded-lg bg-white/5 px-4 text-red-500 transition-all hover:bg-red-500 hover:text-white"
+                  onClick={() => {
+                    if (window.confirm('Delete this agreement?')) {
+                      deleteAgreementMutation.mutate(agreement.id);
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </article>
+          ))}
+          {savedAgreements.length === 0 && (
+            <EmptyState
+              description="Finalized lease agreements will appear here after a paid application is selected and generated."
+              icon={FileText}
+              title="No agreements generated"
+            />
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[760px] text-left">
           <thead>
             <tr className="bg-white/5 border-b border-white/10">
@@ -483,7 +539,7 @@ export default function AgreementsTab({
                 <td className="px-8 py-6 text-right">
                   <div className="flex justify-end gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                     <button
-                      className="p-2 bg-white/5 text-brand-grey rounded-lg hover:bg-brand-gold hover:text-brand-navy transition-all"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/5 text-brand-grey transition-all hover:bg-brand-gold hover:text-brand-navy"
                       onClick={() => {
                         setAgreementModalMode('saved');
                         setAgreementContent(agreement.content);
@@ -493,7 +549,7 @@ export default function AgreementsTab({
                       <FileText className="w-4 h-4" />
                     </button>
                     <button
-                      className="p-2 bg-white/5 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/5 text-red-500 transition-all hover:bg-red-500 hover:text-white"
                       onClick={() => {
                         if (window.confirm('Delete this agreement?')) {
                           deleteAgreementMutation.mutate(agreement.id);
@@ -519,6 +575,7 @@ export default function AgreementsTab({
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {previewContent && (
@@ -536,7 +593,7 @@ export default function AgreementsTab({
               <button
                 type="button"
                 onClick={() => setPreviewContent(null)}
-                className="rounded-full bg-white/5 p-2 text-brand-grey hover:text-white"
+                className="min-h-11 rounded-full bg-white/5 px-4 text-brand-grey hover:text-white"
               >
                 Close
               </button>

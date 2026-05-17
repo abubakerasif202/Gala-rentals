@@ -54,6 +54,7 @@ import {
   sendResendEmail,
 } from "../email.js";
 import { normalizeUuid } from "../../shared/uuid.js";
+import { isImportedApplicationRecord } from "../importedDataFilters.js";
 
 const router = express.Router();
 const APPLICATIONS_BUCKET = "applications";
@@ -471,7 +472,9 @@ router.get("/", authenticateAdmin, async (_req, res) => {
       return res.status(500).json({ error: "Failed to fetch applications" });
     }
 
-    const rows = (data || []) as Array<Record<string, any>>;
+    const rows = ((data || []) as Array<Record<string, any>>).filter(
+      (application) => !isImportedApplicationRecord(application),
+    );
     const applications = await Promise.all(
       rows.map(async (application, index) => {
         const {

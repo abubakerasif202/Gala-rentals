@@ -126,7 +126,7 @@ export interface CancelSubscriptionResponse {
   stripeSubscriptionId: string;
   cancelAtPeriodEnd: boolean;
   stripeStatus: string;
-  message: string;
+  message?: string;
 }
 
 export const cancelRentalStripeSubscription = async (
@@ -684,15 +684,14 @@ export interface ImportedDataResetResponse {
     adminUsers: true;
     cars: true;
     stripeExternalRecords: true;
+    stripeWebhookEvents: true;
   };
   dryRunToken?: string;
   message: string;
 }
 
-export const resetImportedDataDryRun = async (payload: {
-  confirm: string;
-}): Promise<ImportedDataResetResponse> => {
-  const { data } = await api.post('/admin/maintenance/reset-imported-data/dry-run', payload);
+export const resetImportedDataDryRun = async (): Promise<ImportedDataResetResponse> => {
+  const { data } = await api.get('/admin/maintenance/imported-data-reset/dry-run');
   return data;
 };
 
@@ -701,12 +700,12 @@ export const resetImportedDataAndFinancials = async (payload: {
   dryRunToken?: string;
   reason?: string;
 }): Promise<ImportedDataResetResponse> => {
-  const { data } = await api.post('/admin/maintenance/reset-imported-data', payload);
+  const { data } = await api.post('/admin/maintenance/imported-data-reset', payload);
   return data;
 };
 
 export const exportImportedDataReset = async (): Promise<Record<string, unknown>> => {
-  const { data } = await api.get('/admin/maintenance/reset-imported-data/export');
+  const { data } = await api.get('/admin/maintenance/imported-data-reset/export');
   return data;
 };
 

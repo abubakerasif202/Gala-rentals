@@ -37,6 +37,10 @@ export default function FinancialsTab({
       label: payout.arrival_date,
       value: payout.amount,
     }));
+  const hasRevenue = Boolean(
+    Number(weeklyFinancials?.projected_gross_weekly || 0) ||
+      Number(weeklyFinancials?.actual_payouts_weekly || 0)
+  );
 
   return (
     <motion.div
@@ -48,7 +52,7 @@ export default function FinancialsTab({
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">
+          <h2 className="mb-2 text-3xl font-bold uppercase tracking-tighter text-white sm:text-4xl">
             Weekly <span className="text-brand-gold italic">Financials</span>
           </h2>
           <p className="text-brand-grey font-light">
@@ -103,8 +107,16 @@ export default function FinancialsTab({
             />
           </div>
 
-          <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5">
-            <div className="px-8 py-6 border-b border-white/10 flex items-center justify-between">
+          {!hasRevenue && (
+            <EmptyState
+              description="Projected rental revenue and Stripe payouts are zero for the selected period."
+              icon={DollarSign}
+              title="No revenue for selected period"
+            />
+          )}
+
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-5 sm:px-8 sm:py-6">
               <div>
                 <h3 className="text-white font-bold uppercase tracking-widest text-xs">
                   Recent Stripe Payouts
@@ -115,6 +127,39 @@ export default function FinancialsTab({
               </div>
             </div>
 
+            <div className="space-y-3 p-4 md:hidden">
+              {(weeklyFinancials?.recent_payouts || []).map((payout) => (
+                <article
+                  key={payout.id}
+                  className="rounded-lg border border-white/10 bg-brand-navy/60 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-all text-xs font-bold text-brand-gold">{payout.id}</p>
+                      <p className="mt-1 text-xs text-brand-grey">
+                        {new Date(payout.arrival_date).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                      {payout.status}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-lg font-bold text-white">
+                    {formatCurrency(payout.amount)}
+                  </p>
+                </article>
+              ))}
+              {(!weeklyFinancials?.recent_payouts ||
+                weeklyFinancials.recent_payouts.length === 0) && (
+                <EmptyState
+                  description="Stripe has not returned any payouts for the selected date range."
+                  icon={ShieldCheck}
+                  title="No payout data"
+                />
+              )}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[720px] text-left">
               <thead>
                 <tr className="bg-white/5 border-b border-white/10">
@@ -168,6 +213,7 @@ export default function FinancialsTab({
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </>
       )}

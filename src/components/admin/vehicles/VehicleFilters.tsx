@@ -57,7 +57,7 @@ export default function VehicleFilters({
               key={option.key}
               type="button"
               onClick={() => onFilterChange(option.key)}
-              className={`inline-flex items-center gap-3 rounded-2xl border px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] transition-all ${
+              className={`inline-flex min-h-11 items-center gap-3 rounded-2xl border px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] transition-all ${
                 isActive
                   ? 'border-brand-gold bg-brand-gold text-brand-navy'
                   : 'border-white/10 bg-white/5 text-brand-grey hover:border-white/20 hover:bg-white/10 hover:text-white'

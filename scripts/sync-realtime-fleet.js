@@ -72,6 +72,21 @@ const IMPORT_WORKBOOK_SCRIPT_PATH = fileURLToPath(
   new URL('./import-fleet-from-workbooks.ps1', import.meta.url)
 );
 
+export const isLegacyImportAllowed = (env = process.env) =>
+  String(env.ALLOW_LEGACY_IMPORT || '').trim().toLowerCase() === 'true';
+
+export const assertLegacySnapshotImportAllowed = (env = process.env) => {
+  if (!isLegacyImportAllowed(env)) {
+    throw new Error(
+      'Refusing to import legacy static fleet applications/rentals. Set ALLOW_LEGACY_IMPORT=true only for an intentional one-off legacy import.'
+    );
+  }
+
+  console.warn(
+    '[fleet-sync] ALLOW_LEGACY_IMPORT=true is set. Static snapshot sync can recreate legacy applications and rentals.'
+  );
+};
+
 const buildSnapshotCarPayloadByRegistration = () =>
   new Map(
     REALTIME_FLEET_ROWS.map((row, index) => [
@@ -166,6 +181,10 @@ const buildWorkbookCarPayloadByRegistration = (workbookPayload) => {
 };
 
 export async function runRealtimeFleetSync(syncSource) {
+  if (syncSource.source === 'snapshot') {
+    assertLegacySnapshotImportAllowed();
+  }
+
   const { supabase, supabaseUrl, supabaseServiceRoleKey } = createSupabaseAdminClient();
   const coreMode = await getCoreSchemaMode({ supabaseUrl, supabaseServiceRoleKey });
   const importDate = new Date().toISOString().slice(0, 10);

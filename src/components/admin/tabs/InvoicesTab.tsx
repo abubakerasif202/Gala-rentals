@@ -53,14 +53,11 @@ const renderOperationalUnavailable = (title: string, operationalHistoryMessage: 
         {operationalHistoryMessage}
       </p>
     </div>
-    <div className="bg-brand-navy/60 border border-white/10 rounded-2xl px-5 py-4 text-[11px] text-brand-grey font-light">
+    <div className="break-words bg-brand-navy/60 border border-white/10 rounded-2xl px-5 py-4 text-[11px] text-brand-grey font-light">
       Run <span className="font-mono text-white">npm run migrate:operational-history</span>{' '}
-      with <span className="font-mono text-white">DATABASE_URL</span> (preferred, or{' '}
-      <span className="font-mono text-white">SUPABASE_DB_URL</span>), then run{' '}
-      <span className="font-mono text-white">
-        powershell -ExecutionPolicy Bypass -File scripts/import-operational-history-from-workbooks.ps1 -Apply
-      </span>
-      .
+      with <span className="font-mono text-white">DATABASE_URL</span> or{' '}
+      <span className="font-mono text-white">SUPABASE_DB_URL</span>. Legacy workbook imports now require{' '}
+      <span className="font-mono text-white">ALLOW_LEGACY_IMPORT=true</span> and should not be used for production data.
     </div>
   </div>
 );
@@ -364,12 +361,11 @@ export default function InvoicesTab({
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">
+          <h2 className="mb-2 text-3xl font-bold uppercase tracking-tighter text-white sm:text-4xl">
             Invoice <span className="text-brand-gold italic">History</span>
           </h2>
           <p className="text-brand-grey font-light">
-            Imported legacy invoice history for operational review and
-            reconciliation.
+            Production invoice history for operational review and reconciliation.
           </p>
         </div>
         <div className="flex w-full gap-4 md:w-auto">
@@ -399,10 +395,10 @@ export default function InvoicesTab({
               helper={
                 deferredInvoiceSearch
                   ? 'Invoices matching the current search'
-                  : 'Rows imported from the workbook export'
+                  : 'Rows in production invoice history'
               }
               icon={FileText}
-              label={deferredInvoiceSearch ? 'Matching Invoices' : 'Imported Invoices'}
+              label={deferredInvoiceSearch ? 'Matching Invoices' : 'Invoices'}
               numericValue={invoiceTotalItems}
               value={invoiceTotalItems}
             />
@@ -460,7 +456,7 @@ export default function InvoicesTab({
               actionLabel: invoiceSearch ? 'Clear Search' : undefined,
               description: invoiceSearch
                 ? 'No invoice records match the current search and status filters.'
-                : 'Imported invoice history will appear here after operational history is loaded.',
+                : 'Invoice history will appear here after production invoices are created.',
               icon: FileText,
               onAction: invoiceSearch ? () => setInvoiceSearch('') : undefined,
               title: invoiceSearch ? 'No matching invoices' : 'No invoices yet',

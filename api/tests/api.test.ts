@@ -242,6 +242,7 @@ const {
     subscriptionsRetrieve: vi.fn(),
     subscriptionsUpdate: vi.fn(),
     subscriptionsCancel: vi.fn(),
+    payoutsList: vi.fn(),
     webhooksConstructEvent: vi.fn(),
   },
 }));
@@ -289,7 +290,7 @@ vi.mock("stripe", () => {
       create: vi.fn(),
     };
     payouts = {
-      list: vi.fn(),
+      list: mockStripe.payoutsList,
     };
     balanceTransactions = {
       list: vi.fn(),
@@ -1665,6 +1666,9 @@ const { createCheckoutToken, verifyCheckoutToken } =
   mockStripe.subscriptionsCancel.mockResolvedValue({
     id: "sub_test_123",
     status: "canceled",
+  });
+  mockStripe.payoutsList.mockResolvedValue({
+    data: [],
   });
   mockStripe.webhooksConstructEvent.mockReset();
   mockBeforeApplicationsUpdate.mockReset();
@@ -3147,7 +3151,31 @@ describe("Applications API", () => {
 });
 
 describe("Operational history API", () => {
+  const makeOperationalRowsCurrent = () => {
+    mockState.customers = mockState.customers.map((customer, index) => ({
+      ...customer,
+      email: index === 0 ? "alex.driver@example.com" : "jordan.rider@example.com",
+      source: "current",
+    }));
+    mockState.invoices = mockState.invoices.map((invoice) => ({
+      ...invoice,
+      source: "current",
+    }));
+  };
+
+  it("GET /api/customers excludes imported legacy customer rows by default", async () => {
+    const res = await request(app)
+      .get("/api/customers")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalItems).toBe(0);
+    expect(res.body.items).toEqual([]);
+  });
+
   it("GET /api/customers returns customer summaries for admins", async () => {
+    makeOperationalRowsCurrent();
+
     const res = await request(app)
       .get("/api/customers")
       .set("Authorization", "Bearer fake-token");
@@ -3161,6 +3189,8 @@ describe("Operational history API", () => {
   });
 
   it("GET /api/customers supports paginated search results for admins", async () => {
+    makeOperationalRowsCurrent();
+
     const res = await request(app)
       .get("/api/customers")
       .query({ search: "Jordan", pageSize: 1, page: 1 })
@@ -3174,6 +3204,8 @@ describe("Operational history API", () => {
   });
 
   it("GET /api/invoices returns invoice history for admins", async () => {
+    makeOperationalRowsCurrent();
+
     const res = await request(app)
       .get("/api/invoices")
       .set("Authorization", "Bearer fake-token");
@@ -3187,6 +3219,8 @@ describe("Operational history API", () => {
   });
 
   it("GET /api/invoices supports paginated search results for admins", async () => {
+    makeOperationalRowsCurrent();
+
     const res = await request(app)
       .get("/api/invoices")
       .query({ search: "YNU55M", pageSize: 1, page: 1 })
@@ -3197,6 +3231,100 @@ describe("Operational history API", () => {
     expect(res.body.totalPages).toBe(1);
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0].external_invoice_number).toBe("1881");
+  });
+
+  it("GET /api/financials/stats excludes imported applications and rentals", async () => {
+    mockState.applications = [
+      {
+        ...mockState.applications[0],
+        id: PENDING_APPLICATION_ID,
+        legacy_id: 101,
+        email: "legacy-cno40s@example.invalid",
+        phone: "0000000000",
+        license_number: "LEGACY-CNO40S",
+        experience: "Imported from live fleet data on 2026-05-17.",
+      },
+      {
+        ...mockState.applications[1],
+        id: BLOCKING_APPLICATION_ID,
+        legacy_id: null,
+        email: "real.driver@example.com",
+        phone: "0400000001",
+        license_number: "NSW123456",
+        experience: "Five years driving rideshare in Sydney.",
+      },
+    ];
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: PENDING_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-05-17",
+        weekly_price: 11817,
+        legacy_application_id: 101,
+      },
+      {
+        id: 21,
+        application_id: BLOCKING_APPLICATION_ID,
+        car_id: 2,
+        status: "Active",
+        start_date: "2026-05-18",
+        weekly_price: 260,
+        legacy_application_id: null,
+        stripe_subscription_id: "sub_live",
+      },
+    ];
+
+    const res = await request(app)
+      .get("/api/financials/stats")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      total_applications: 1,
+      active_rentals: 1,
+      total_weekly_income: 260,
+    });
+  });
+
+  it("GET /api/financials/weekly returns zero projections when only imported active rentals exist", async () => {
+    mockState.applications = [
+      {
+        ...mockState.applications[0],
+        id: PENDING_APPLICATION_ID,
+        legacy_id: 101,
+        email: "legacy-cno40s@example.invalid",
+        phone: "0000000000",
+        license_number: "LEGACY-CNO40S",
+        experience: "Imported from live fleet data on 2026-05-17.",
+      },
+    ];
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: PENDING_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-05-17",
+        weekly_price: 11817,
+        legacy_application_id: 101,
+      },
+    ];
+    mockStripe.payoutsList.mockResolvedValueOnce({ data: [] });
+
+    const res = await request(app)
+      .get("/api/financials/weekly?startDate=2026-05-18&endDate=2026-05-24")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      projected_gross_weekly: 0,
+      projected_net_weekly: 0,
+      estimated_platform_fees: 0,
+      actual_payouts_weekly: 0,
+      recent_payouts: [],
+    });
   });
 
   it("POST /api/admin/rentals/:id/cancel-subscription requires admin auth", async () => {
@@ -3342,6 +3470,61 @@ describe("Operational history API", () => {
     expect(res.status).toBe(400);
   });
 
+  it("GET /api/admin/maintenance/imported-data-reset/dry-run reports imported rows without a confirmation phrase", async () => {
+    mockState.applications[0].legacy_id = 101;
+    mockState.applications[0].email = "legacy-cno40s@example.invalid";
+    mockState.applications[0].phone = "0000000000";
+    mockState.applications[0].license_number = "LEGACY-CNO40S";
+    mockState.applications[0].experience = "Imported from live fleet data on 2026-05-17.";
+    mockState.rentals = [
+      {
+        id: 20,
+        application_id: PENDING_APPLICATION_ID,
+        car_id: 1,
+        status: "Active",
+        start_date: "2026-05-17",
+        weekly_price: 250,
+        legacy_application_id: 101,
+        stripe_subscription_id: null,
+      },
+    ];
+    const beforeApplications = structuredClone(mockState.applications);
+    const beforeRentals = structuredClone(mockState.rentals);
+
+    const res = await request(app)
+      .get("/api/admin/maintenance/imported-data-reset/dry-run")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.dryRun).toBe(true);
+    expect(res.body.counts.applications).toBeGreaterThan(0);
+    expect(res.body.counts.rentals).toBeGreaterThan(0);
+    expect(mockState.applications).toEqual(beforeApplications);
+    expect(mockState.rentals).toEqual(beforeRentals);
+  });
+
+  it("POST /api/admin/maintenance/imported-data-reset requires the exact confirmation phrase", async () => {
+    const res = await request(app)
+      .post("/api/admin/maintenance/imported-data-reset")
+      .set("Authorization", "Bearer fake-token")
+      .send({ confirm: "RESET IMPORTED DATA" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/admin/maintenance/imported-data-reset/dry-run rejects non-admin users", async () => {
+    mockGetUser.mockResolvedValueOnce({
+      data: { user: { email: "driver@example.com" } },
+      error: null,
+    });
+
+    const res = await request(app)
+      .get("/api/admin/maintenance/imported-data-reset/dry-run")
+      .set("Authorization", "Bearer fake-token");
+
+    expect([401, 403]).toContain(res.status);
+  });
+
   it("POST /api/admin/maintenance/reset-imported-data/dry-run reports imported rows without mutating data", async () => {
     mockState.applications[0].legacy_id = 101;
     mockState.rentals = [
@@ -3425,7 +3608,10 @@ describe("Operational history API", () => {
       { id: 1, customer_id: 1, source: "legacy-import" },
       { id: 2, customer_id: 2, source: "current" },
     ];
-    mockState.manual_invoices = [{ id: "m1" }, { id: "m2" }];
+    mockState.manual_invoices = [
+      { id: "m1", notes: "Legacy import invoice" },
+      { id: "m2", bill_to_email: "driver@example.invalid" },
+    ];
     mockState.manual_invoice_items = [{ id: "i1", invoice_id: "m1" }];
     mockState.failOnDeleteTable = null;
 
@@ -3647,6 +3833,7 @@ describe("Toll Transfer Notices API", () => {
       full_name: "Approved Driver",
       phone: "0499999999",
       postcode: "2160",
+      source: "current",
       state: "NSW",
       street: "10 Driver Street",
     };

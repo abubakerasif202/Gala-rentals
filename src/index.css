@@ -19,7 +19,9 @@
 }
 
 @layer base {
+  html,
   body {
     @apply bg-brand-navy text-white;
+    overflow-x: hidden;
   }
 }

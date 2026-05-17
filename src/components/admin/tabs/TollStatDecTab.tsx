@@ -540,7 +540,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="mb-2 text-4xl font-bold uppercase tracking-tighter text-white">
+          <h2 className="mb-2 text-3xl font-bold uppercase tracking-tighter text-white sm:text-4xl">
             Toll <span className="text-brand-gold italic">Transfer Notices</span>
           </h2>
           <p className="max-w-3xl text-sm font-light text-brand-grey">
@@ -555,7 +555,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
             setLastGeneratedId(null);
             setMessage(null);
           }}
-          className="inline-flex items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/5 px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 md:w-auto"
         >
           <FileText className="h-4 w-4 text-brand-gold" />
           New Notice
@@ -815,7 +815,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
                 Original Notice
               </h3>
               <a
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10"
                 href={TOLL_NOTICE_TEMPLATE_URL}
                 rel="noreferrer"
                 target="_blank"

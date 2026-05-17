@@ -3,6 +3,11 @@ import { z } from 'zod';
 
 import { db } from '../db/index.js';
 import { escapeHtml, getResend, sanitizeEmailHeaderValue, sendResendEmail } from '../email.js';
+import {
+  filterRealOperationalCustomers,
+  filterRealRentals,
+  getImportedApplicationIdSet,
+} from '../importedDataFilters.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { buildTollTransferNoticePdf } from '../templates/tollTransferNoticePdf.js';
 
@@ -188,7 +193,7 @@ const loadRentalPrefillOptions = async (search: string) => {
     applicationIds.length
       ? db
           .from('applications')
-          .select('id, name, phone, email, address, approved_vehicle')
+          .select('*')
           .in('id', applicationIds)
       : Promise.resolve({ data: [], error: null }),
     carIds.length
@@ -207,6 +212,10 @@ const loadRentalPrefillOptions = async (search: string) => {
   if (carsResult.error) throw carsResult.error;
   if (customersResult.error) throw customersResult.error;
 
+  const importedApplicationIds = getImportedApplicationIdSet(
+    (applicationsResult.data || []) as Array<Record<string, unknown>>,
+  );
+  const realRentalRows = filterRealRentals(rentalRows, importedApplicationIds);
   const applicationsById = new Map<string, Record<string, unknown>>();
   for (const application of applicationsResult.data || []) {
     applicationsById.set(String(application.id), application as Record<string, unknown>);
@@ -217,7 +226,9 @@ const loadRentalPrefillOptions = async (search: string) => {
     carsById.set(Number(car.id), car as Record<string, unknown>);
   }
 
-  const customerRows = (customersResult.data || []) as Array<Record<string, unknown>>;
+  const customerRows = filterRealOperationalCustomers(
+    (customersResult.data || []) as Array<Record<string, unknown>>,
+  );
   const customerForApplication = (application: Record<string, unknown> | undefined) => {
     if (!application) {
       return null;
@@ -239,7 +250,7 @@ const loadRentalPrefillOptions = async (search: string) => {
 
   const query = normalizeSearch(search);
 
-  return rentalRows
+  return realRentalRows
     .map((rental) => {
       const application = applicationsById.get(String(rental.application_id || ''));
       const car = carsById.get(Number(rental.car_id || 0));

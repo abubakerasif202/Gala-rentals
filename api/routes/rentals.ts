@@ -8,6 +8,10 @@ import {
   getRentalSelectColumns,
   getSchemaCompat,
 } from '../schemaCompat.js';
+import {
+  getImportedApplicationIdSet,
+  isImportedRentalRecord,
+} from '../importedDataFilters.js';
 
 const router = express.Router();
 
@@ -47,7 +51,18 @@ router.get('/', authenticateAdmin, async (_req, res) => {
 
     if (error) throw error;
 
-    const formattedRentals = (data || []).map((rental: any) => ({
+    const { data: applications, error: applicationsError } = await db
+      .from('applications')
+      .select('*');
+
+    if (applicationsError) throw applicationsError;
+
+    const importedApplicationIds = getImportedApplicationIdSet(
+      (applications || []) as Array<Record<string, any>>,
+    );
+    const formattedRentals = ((data || []) as Array<Record<string, any>>)
+      .filter((rental) => !isImportedRentalRecord(rental, importedApplicationIds))
+      .map((rental: any) => ({
       ...rental,
       applicant_name: rental.applications?.name,
       car_name: rental.cars?.name

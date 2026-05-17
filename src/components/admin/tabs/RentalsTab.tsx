@@ -249,7 +249,7 @@ export default function RentalsTab({
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">
+          <h2 className="mb-2 text-3xl font-bold uppercase tracking-tighter text-white sm:text-4xl">
             Active <span className="text-brand-gold italic">Rentals</span>
           </h2>
           <p className="text-brand-grey font-light">
@@ -308,7 +308,7 @@ export default function RentalsTab({
             : 'Active rentals will appear here after a paid application is finalized.',
           icon: CarIcon,
           onAction: rentalSearch ? () => setRentalSearch('') : undefined,
-          title: rentalSearch ? 'No matching rentals' : 'No rentals yet',
+          title: rentalSearch ? 'No matching rentals' : 'No active rentals yet',
         }}
       />
 

@@ -35,7 +35,7 @@ export default function OverviewTab({
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-4xl font-bold text-white uppercase tracking-tighter mb-2">
+          <h2 className="mb-2 text-3xl font-bold uppercase tracking-tighter text-white sm:text-4xl">
             Dashboard <span className="text-brand-gold italic">Overview</span>
           </h2>
           <p className="text-brand-grey font-light">
@@ -54,7 +54,7 @@ export default function OverviewTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard
           helper="Submitted renter applications"
           icon={Users}
@@ -117,7 +117,7 @@ export default function OverviewTab({
                 description="There are no pending driver applications waiting for review."
                 icon={Clock}
                 onAction={() => setActiveTab('applications')}
-                title="No pending applications"
+                title="No real applications yet"
               />
             )}
           </div>

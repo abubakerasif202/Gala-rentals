@@ -1051,11 +1051,11 @@ export default function AdminDashboard() {
         <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
         <p className="text-sm text-brand-grey leading-relaxed">{operationalHistoryMessage}</p>
       </div>
-      <div className="bg-brand-navy/60 border border-white/10 rounded-2xl px-5 py-4 text-[11px] text-brand-grey font-light">
+      <div className="break-words bg-brand-navy/60 border border-white/10 rounded-2xl px-5 py-4 text-[11px] text-brand-grey font-light">
         Run <span className="font-mono text-white">npm run migrate:operational-history</span> with
-        {' '}<span className="font-mono text-white">DATABASE_URL</span> (preferred, or{' '}
-        <span className="font-mono text-white">SUPABASE_DB_URL</span>), then run
-        {' '}<span className="font-mono text-white">powershell -ExecutionPolicy Bypass -File scripts/import-operational-history-from-workbooks.ps1 -Apply</span>.
+        {' '}<span className="font-mono text-white">DATABASE_URL</span> or{' '}
+        <span className="font-mono text-white">SUPABASE_DB_URL</span>. Legacy workbook imports now require{' '}
+        <span className="font-mono text-white">ALLOW_LEGACY_IMPORT=true</span> and should not be used for production data.
       </div>
     </div>
   );

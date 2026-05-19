@@ -632,7 +632,6 @@ export default function AdminDashboard() {
         approved_vehicle: string;
         approved_bond: number;
         approved_weekly_price: number;
-        car_id?: number | null;
         send_payment_link?: boolean;
       };
     }) => api.approveApplicationForPayment(id, payload),
@@ -1505,7 +1504,7 @@ export default function AdminDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                          Approved Vehicle
+                          Vehicle / Number Plate
                         </label>
                         <input
                           type="text"
@@ -1517,7 +1516,7 @@ export default function AdminDashboard() {
                             }))
                           }
                           className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
-                          placeholder="e.g. Toyota Camry Hybrid"
+                          placeholder="Toyota Camry Hybrid - ABC123"
                         />
                       </div>
                       <div className="space-y-2">

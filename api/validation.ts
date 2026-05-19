@@ -128,7 +128,6 @@ export const applicationApprovalSchema = z.object({
 
 export const vehicleCheckoutLinkSchema = z.object({
   application_id: uuidSchema,
-  car_id: optionalPositiveIntegerSchema,
 });
 
 export const leaseFeeSchema = z.object({

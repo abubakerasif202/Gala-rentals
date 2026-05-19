@@ -882,10 +882,8 @@ export const createVehicleCheckoutSession = async ({
 
 export const createVehicleCheckoutLink = async ({
   applicationId,
-  carId,
 }: {
   applicationId: string;
-  carId: number | null;
 }) => {
   const application = await fetchApplication(applicationId);
 
@@ -908,9 +906,6 @@ export const createVehicleCheckoutLink = async ({
   requireApprovedPaymentContext({
     application,
   });
-  if (carId) {
-    await requireCheckoutVehicleAvailable(carId);
-  }
 
   const nextVersion = Number(application.payment_link_version || 0) + 1;
   await expirePendingCheckoutSession(application.pending_checkout_session_id);
@@ -931,7 +926,7 @@ export const createVehicleCheckoutLink = async ({
 
   const checkoutToken = createCheckoutToken({
     applicationId,
-    carId,
+    carId: null,
     purpose: 'vehicle',
     version: Number(updatedApplication.payment_link_version || nextVersion),
   });

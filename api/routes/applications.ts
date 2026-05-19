@@ -21,7 +21,6 @@ import {
   getApplicationDuplicateCheckColumns,
   getApplicationDocumentColumn,
   getApplicationSelectColumns,
-  getCarSelectColumns,
   toApplicationWritePayload,
 } from "../schemaCompat.js";
 import {
@@ -262,48 +261,6 @@ type ApplicationPaymentApprovalRecord = {
   payment_link_version?: number | null;
   pending_checkout_session_id?: string | null;
   status: string;
-};
-
-type PaymentApprovalVehicleRecord = {
-  archived_at?: string | null;
-  id: number | string;
-  name?: string | null;
-  status?: string | null;
-};
-
-const fetchAvailablePaymentVehicle = async (carId: number) => {
-  const selectColumns = await getCarSelectColumns();
-  const { data: car, error } = await db
-    .from("cars")
-    .select(selectColumns)
-    .eq("id", carId)
-    .single();
-
-  if (error || !car) {
-    return null;
-  }
-
-  return car as unknown as PaymentApprovalVehicleRecord;
-};
-
-const requireAvailablePaymentVehicle = async (carId: number) => {
-  const car = await fetchAvailablePaymentVehicle(carId);
-
-  if (!car) {
-    const error = new Error("Car not found");
-    (error as Error & { status: number }).status = 404;
-    throw error;
-  }
-
-  if (car.archived_at || String(car.status || "") !== "Available") {
-    const error = new Error(
-      "Selected vehicle is no longer available for payment checkout.",
-    );
-    (error as Error & { status: number }).status = 409;
-    throw error;
-  }
-
-  return car;
 };
 
 const isRecoverableVehicleCheckoutSession = (
@@ -873,10 +830,6 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
         });
     }
 
-    if (payload.car_id) {
-      await requireAvailablePaymentVehicle(payload.car_id);
-    }
-
     const currentVersion = Number(applicationRecord.payment_link_version || 0);
     const nextVersion = currentVersion + 1;
     const nowIso = new Date().toISOString();
@@ -912,7 +865,7 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
 
     const checkoutToken = createCheckoutToken({
       applicationId: payload.application_id,
-      carId: payload.car_id ?? null,
+      carId: null,
       purpose: "vehicle",
       version: nextVersion,
     });

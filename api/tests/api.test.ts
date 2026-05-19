@@ -4012,7 +4012,6 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry Hybrid",
         approved_bond: 650,
         approved_weekly_price: 285,
-        car_id: 1,
       });
 
     expect(res.status).toBe(200);
@@ -4043,7 +4042,8 @@ describe("Stripe API", () => {
       version: 4,
     });
     expect(verified.version).toBe(4);
-    expect(verified.carId).toBe(1);
+    expect(verified.carId).toBeNull();
+    expect(mockState.applications[0].assigned_car_id).toBeNull();
   });
 
   it("POST /api/applications/:id/approve-payment does not expire a completed pending checkout session", async () => {
@@ -4165,6 +4165,7 @@ describe("Stripe API", () => {
 
     expect(res.status).toBe(200);
     expect(mockState.applications[0]).toMatchObject({
+      assigned_car_id: null,
       approved_vehicle: "Any admin approved vehicle",
       status: "Approved",
     });
@@ -4900,18 +4901,23 @@ describe("Stripe API", () => {
     expect(mockState.applications[1].payment_link_version).toBe(2);
   });
 
-  it("POST /api/stripe/vehicle-checkout-link returns a fresh signed payment link", async () => {
+  it("POST /api/stripe/vehicle-checkout-link ignores car_id and returns a text-only signed payment link", async () => {
+    const carStatusesBefore = mockState.cars.map((car) => car.status);
+    const rentalCountBefore = mockState.rentals.length;
+
     const res = await request(app)
       .post("/api/stripe/vehicle-checkout-link")
       .set("Authorization", "Bearer fake-token")
       .send({
         application_id: APPROVED_APPLICATION_ID,
         car_id: 1,
-      });
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.checkout_url).toContain(`/checkout/${APPROVED_APPLICATION_ID}`);
     expect(mockState.applications[1].payment_link_version).toBe(2);
+    expect(mockState.cars.map((car) => car.status)).toEqual(carStatusesBefore);
+    expect(mockState.rentals).toHaveLength(rentalCountBefore);
     expect(res.body.checkout_url).toContain(
       `#checkout_token=${encodeURIComponent(res.body.checkout_token)}`,
     );
@@ -4923,7 +4929,7 @@ describe("Stripe API", () => {
       version: 2,
     });
     expect(verified.applicationId).toBe(APPROVED_APPLICATION_ID);
-    expect(verified.carId).toBe(1);
+    expect(verified.carId).toBeNull();
   });
 
   it("POST /api/stripe/vehicle-checkout-link returns a signed payment link without a car id", async () => {
@@ -5498,6 +5504,7 @@ describe("Stripe API", () => {
   });
 
   it("POST /api/stripe/webhook records paid checkouts without car_id", async () => {
+    const carStatusesBefore = mockState.cars.map((car) => car.status);
     mockStripe.webhooksConstructEvent.mockReturnValue({
       id: "evt_missing_car_id",
       type: "checkout.session.completed",
@@ -5525,7 +5532,7 @@ describe("Stripe API", () => {
       .send("{}");
 
     expect(res.status).toBe(200);
-    expect(mockState.cars[0].status).toBe("Available");
+    expect(mockState.cars.map((car) => car.status)).toEqual(carStatusesBefore);
     expect(mockState.applications[1].status).toBe("Paid");
     expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
     expect(mockState.applications[1].paid_at).toBeTruthy();

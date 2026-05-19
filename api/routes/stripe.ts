@@ -298,10 +298,9 @@ router.post('/vehicle-checkout-session', async (req, res) => {
 
 router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
   try {
-    const { application_id, car_id } = vehicleCheckoutLinkSchema.parse(req.body);
+    const { application_id } = vehicleCheckoutLinkSchema.parse(req.body);
     const response = await createVehicleCheckoutLink({
       applicationId: application_id,
-      carId: car_id ?? null,
     });
     res.json(response);
   } catch (error) {

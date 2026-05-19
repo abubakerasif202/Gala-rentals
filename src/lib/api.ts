@@ -408,7 +408,6 @@ export interface LeaseAgreementPayload {
 
 export const createVehicleCheckoutLink = async (payload: {
   application_id: string;
-  car_id?: number | null;
 }): Promise<VehicleCheckoutLinkResponse> => {
   const { data } = await api.post('/stripe/vehicle-checkout-link', payload);
   return data;
@@ -420,7 +419,6 @@ export const approveApplicationForPayment = async (
     approved_vehicle: string;
     approved_bond: number;
     approved_weekly_price: number;
-    car_id?: number | null;
     send_payment_link?: boolean;
   }
 ): Promise<ApplicationApprovalResponse> => {

@@ -298,8 +298,10 @@ describe('vehicleCheckoutLinkSchema', () => {
     car_id: 1,
   };
 
-  it('accepts a valid link payload', () => {
-    expect(() => vehicleCheckoutLinkSchema.parse(valid)).not.toThrow();
+  it('accepts legacy car_id but strips it from payment link payloads', () => {
+    expect(vehicleCheckoutLinkSchema.parse(valid)).toEqual({
+      application_id: valid.application_id,
+    });
   });
 
   it('accepts a missing car_id', () => {

@@ -659,7 +659,7 @@ export const resetImportedDataAndFinancials = async (options: {
     });
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && !isTestRuntime) {
     throw new MaintenanceResetStepError({
       step: 'transaction_required',
       message:

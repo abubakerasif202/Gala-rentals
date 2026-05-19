@@ -17,7 +17,7 @@ describe('resolveRealtimeFleetSyncSource', () => {
     expect(result.workbookImport.missingFiles).toEqual([]);
   });
 
-  it('falls back to the snapshot sync in auto mode when any workbook file is missing', () => {
+  it('skips the sync in auto mode when any workbook file is missing', () => {
     const { fleetPath, clientPath, invoicePath } = getWorkbookImportPaths({});
     const result = resolveRealtimeFleetSyncSource({
       env: {},
@@ -33,6 +33,7 @@ describe('resolveRealtimeFleetSyncSource', () => {
         path: invoicePath,
       },
     ]);
+    expect(result.reason).toContain('skip this run');
     expect(result.reason).toContain(invoicePath);
     expect(result.workbookImport.fleetPath).toBe(fleetPath);
     expect(result.workbookImport.clientPath).toBe(clientPath);

@@ -182,6 +182,29 @@ const buildWorkbookCarPayloadByRegistration = (workbookPayload) => {
 
 export async function runRealtimeFleetSync(syncSource) {
   if (syncSource.source === 'snapshot') {
+    if (syncSource.mode === 'auto' && !isLegacyImportAllowed()) {
+      const summary = {
+        source: 'skip',
+        coreMode: null,
+        skipped: true,
+        reason: syncSource.reason,
+        updatedCars: 0,
+        insertedCars: 0,
+        deletedCars: 0,
+        skippedDeletions: [],
+        importedApplications: 0,
+        importedRentals: 0,
+        totals: {
+          cars: 0,
+          applications: 0,
+          rentals: 0,
+        },
+      };
+
+      console.info(`[fleet-sync] Sync skipped: ${JSON.stringify(summary)}`);
+      return summary;
+    }
+
     assertLegacySnapshotImportAllowed();
   }
 

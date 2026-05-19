@@ -8,6 +8,7 @@ const DEFAULT_WORKBOOK_IMPORT_PATHS = {
 };
 
 const VALID_SYNC_MODES = new Set(['auto', 'snapshot', 'workbook']);
+const FALLBACK_SYNC_SOURCE = 'snapshot';
 
 const describeMissingWorkbookFiles = (missingFiles) =>
   missingFiles
@@ -93,10 +94,10 @@ export const resolveRealtimeFleetSyncSource = ({
 
   return {
     mode,
-    reason: `Workbook files are missing, so realtime fleet sync will fall back to the static snapshot. Missing: ${describeMissingWorkbookFiles(
+    reason: `Workbook files are missing, so realtime fleet sync will skip this run unless ALLOW_LEGACY_IMPORT=true enables the legacy snapshot import. Missing: ${describeMissingWorkbookFiles(
       missingFiles
     )}.`,
-    source: 'snapshot',
+    source: FALLBACK_SYNC_SOURCE,
     workbookImport,
   };
 };

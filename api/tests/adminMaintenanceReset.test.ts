@@ -22,6 +22,10 @@ const mockState = vi.hoisted(() => ({
   missingTables: new Set<string>(),
 }));
 
+vi.hoisted(() => {
+  process.env.VITEST = 'true';
+});
+
 const matchesFilter = (row: Record<string, any>, filter: { column: string; op: string; value: unknown }) => {
   if (filter.op === 'eq') return String(row[filter.column]) === String(filter.value);
   if (filter.op === 'in') return Array.isArray(filter.value) && filter.value.some((value) => String(value) === String(row[filter.column]));

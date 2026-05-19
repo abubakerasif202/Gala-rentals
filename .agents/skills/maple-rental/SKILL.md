@@ -1,101 +1,38 @@
-```markdown
-# maple-rental Development Patterns
+---
+name: maple-rental
+description: Maple Rentals repo rules for payment links, admin workflow, Stripe, Supabase, and Render.
+---
 
-> Auto-generated skill from repository analysis
+# Maple Rental
 
-## Overview
-This skill teaches the core development patterns, coding conventions, and workflows used in the `maple-rental` TypeScript codebase. The repository does not use a framework, favoring direct TypeScript for implementation. Testing is handled with Vitest, and code style is consistent across files for maintainability.
+Use this skill when working in the Maple Rental repository, especially when touching admin workflows, payment links, Stripe Checkout, Stripe webhooks, Supabase, Render deployment, or production validation.
 
-## Coding Conventions
+## Critical Payment Rule
 
-### File Naming
-- Use **PascalCase** for file names.
-  - Example: `UserService.ts`, `RentalManager.ts`
+Admin manually enters `Vehicle / Number Plate` as text only. Do not add car selection to payment approval, do not attach applications to cars during payment-link creation, and do not mutate car or rental state from payment checkout completion. Payment links must use `carId: null`; successful checkout should mark the application `Paid` only.
 
-### Import Style
-- Use **relative imports** for modules within the project.
-  - Example:
-    ```typescript
-    import { Rental } from './Rental';
-    ```
+## Required Validation
 
-### Export Style
-- Both **named** and **default exports** are used, depending on context.
-  - Named export:
-    ```typescript
-    export function calculateFee() { ... }
-    ```
-  - Default export:
-    ```typescript
-    export default class RentalManager { ... }
-    ```
+For payment, admin, or backend changes, run:
 
-### Commit Patterns
-- Commit messages are **freeform** (no enforced prefixes).
-- Average commit message length: ~60 characters.
-
-## Workflows
-
-### Testing
-**Trigger:** When you want to run the test suite.
-**Command:** `/test`
-
-1. Ensure you have dependencies installed (`npm install`).
-2. Run the Vitest test suite:
-   ```bash
-   npx vitest
-   ```
-3. Review the output for test results.
-
-### Adding a New Module
-**Trigger:** When you need to add a new feature or module.
-**Command:** `/add-module`
-
-1. Create a new file using PascalCase (e.g., `NewFeature.ts`).
-2. Use relative imports to include dependencies.
-3. Export your module using either named or default export as appropriate.
-4. Add corresponding tests in a file named `NewFeature.test.ts`.
-
-### Writing Tests
-**Trigger:** When you add or update functionality.
-**Command:** `/write-test`
-
-1. Create a test file with the pattern `*.test.ts` (e.g., `RentalManager.test.ts`).
-2. Use Vitest's API for writing tests:
-   ```typescript
-   import { describe, it, expect } from 'vitest';
-   import { calculateFee } from './calculateFee';
-
-   describe('calculateFee', () => {
-     it('calculates the correct fee', () => {
-       expect(calculateFee(5)).toBe(50);
-     });
-   });
-   ```
-3. Run the test suite to ensure your tests pass.
-
-## Testing Patterns
-
-- All tests are placed in files matching `*.test.ts`.
-- Vitest is used as the testing framework.
-- Example test:
-  ```typescript
-  import { describe, it, expect } from 'vitest';
-  import { Rental } from './Rental';
-
-  describe('Rental', () => {
-    it('should create a rental instance', () => {
-      const rental = new Rental('Car', 3);
-      expect(rental.type).toBe('Car');
-      expect(rental.days).toBe(3);
-    });
-  });
-  ```
-
-## Commands
-| Command      | Purpose                                |
-|--------------|----------------------------------------|
-| /test        | Run the Vitest test suite              |
-| /add-module  | Add a new module following conventions |
-| /write-test  | Create and run tests for new code      |
+```powershell
+npm run lint
+npm run test
+npm run validate
+npm run build
 ```
+
+## Core Files
+
+Inspect these before changing payment behavior:
+
+- `api/routes/applications.ts`
+- `api/routes/stripe.ts`
+- `api/services/stripeCheckoutService.ts`
+- `api/paymentActivation.ts`
+- `api/services/stripeWebhookService.ts`
+- `api/validation.ts`
+- `src/lib/api.ts`
+- `src/pages/AdminDashboard.tsx`
+- `api/tests/api.test.ts`
+- `api/validation.test.ts`

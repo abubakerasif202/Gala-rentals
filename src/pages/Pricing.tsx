@@ -21,6 +21,7 @@ export default function Pricing() {
         title="Car Rental Plans Sydney | Uber Rental Options | Maple Rentals"
         description="Compare Maple Rentals car rental plans for Uber drivers in Sydney, Merrylands, and Parramatta. Review billing cadence, inclusions, and the approval flow before you apply."
         canonicalPath="/pricing"
+        robots="noindex,nofollow"
         keywords={[
           'car rental plans sydney',
           'weekly car rental sydney',

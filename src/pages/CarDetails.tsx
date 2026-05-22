@@ -49,6 +49,7 @@ export default function CarDetails() {
           : 'Review Maple Rentals vehicle details and application-ready fleet information for Sydney Uber drivers.'
       }
       canonicalPath={id ? `/cars/${id}` : '/cars'}
+      robots="noindex,nofollow"
       keywords={
         car
           ? [

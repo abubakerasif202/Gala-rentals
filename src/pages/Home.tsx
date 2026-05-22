@@ -1,43 +1,40 @@
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
-  BadgeCheck,
+  Brush,
+  Building2,
   CheckCircle2,
-  CreditCard,
+  Hammer,
+  Home as HomeIcon,
+  PaintBucket,
+  Phone,
   ShieldCheck,
   Sparkles,
-  Wallet,
 } from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
-import { useQuery } from '@tanstack/react-query';
 import DeferredInquiryForm from '../components/DeferredInquiryForm';
 import Seo from '../components/Seo';
-import { fetchRentalPlans } from '../lib/api';
 import { buildCanonicalUrl } from '../lib/seo';
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: 'easeOut' } },
 };
 
 const stagger: Variants = {
   hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.12,
-    },
-  },
+  visible: { transition: { staggerChildren: 0.1 } },
 };
 
 const homeJsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'LocalBusiness',
-  name: 'Maple Rentals',
+  '@type': 'HousePainter',
+  name: 'Maple Painting',
   url: buildCanonicalUrl('/'),
   description:
-    'Maple Rentals provides premium driver onboarding, reviewed approvals, and secure Stripe payment workflows for professional drivers across Sydney.',
+    'Maple Painting provides residential painting, commercial painting, interior painting, exterior painting, repainting, and property painting services across Sydney.',
   telephone: '+61 420 550 556',
-  email: 'admin@maplerentals.com.au',
+  email: 'hello@maplerentals.com.au',
   address: {
     '@type': 'PostalAddress',
     streetAddress: '13/27-33 Addlestone Rd',
@@ -53,391 +50,238 @@ const homeJsonLd = {
   ],
 };
 
-const showcaseVehicles = [
+const services = [
   {
-    image: '/car-images/CNO40S.jpeg',
-    title: 'Professional presentation',
-    body: 'Late-model, rideshare-ready vehicles presented for serious working drivers.',
+    icon: Brush,
+    title: 'Interior painting',
+    body: 'Clean, careful interior painting for bedrooms, living areas, hallways, kitchens, offices, and detailed trim work.',
   },
   {
-    image: '/car-images/YNU55M.jpeg',
-    title: 'Managed weekly program',
-    body: 'Structured onboarding, clear payment steps, and admin-led approvals instead of open marketplace browsing.',
+    icon: PaintBucket,
+    title: 'Exterior painting',
+    body: 'Durable exterior painting for homes, facades, garages, fences, decks, and weather-exposed surfaces.',
   },
   {
-    image: '/car-images/YPB83A.jpeg',
-    title: 'Operational confidence',
-    body: 'Vehicle details stay professionally controlled while drivers move through review, payment, and handover.',
-  },
-];
-
-const trustPoints = [
-  {
-    icon: ShieldCheck,
-    title: 'Admin-reviewed approvals',
-    body: 'Every driver application is reviewed before any payment request is sent.',
+    icon: HomeIcon,
+    title: 'Residential painting',
+    body: 'Whole-home repainting, colour refreshes, feature walls, move-in updates, and family-home maintenance.',
   },
   {
-    icon: CreditCard,
-    title: 'Stripe-hosted checkout',
-    body: 'Payment happens through a secure Stripe session with approved amounts already confirmed.',
+    icon: Building2,
+    title: 'Commercial painting',
+    body: 'Professional painting for offices, shops, strata spaces, rental properties, and commercial maintenance works.',
   },
   {
-    icon: BadgeCheck,
-    title: 'Clear onboarding path',
-    body: 'Drivers know what happens before payment, at payment, and after payment.',
+    icon: Sparkles,
+    title: 'Rental property repainting',
+    body: 'Fast property repainting, end-of-lease touch-ups, scuff repairs, and presentation work between tenancies.',
+  },
+  {
+    icon: Hammer,
+    title: 'Paint repairs',
+    body: 'Wall patching, surface preparation, peeling paint repair, minor plaster touch-ups, and final finish corrections.',
   },
 ];
 
-const howItWorks = [
-  {
-    step: '01',
-    title: 'Apply as a driver',
-    body: 'Submit your documents, start date, and driver details through Maple Rentals.',
-  },
-  {
-    step: '02',
-    title: 'Admin review and approval',
-    body: 'The team reviews your application, approves the vehicle and pricing, and confirms the next step.',
-  },
-  {
-    step: '03',
-    title: 'Secure Stripe payment',
-    body: 'You receive a time-limited Stripe checkout link only after approval is complete.',
-  },
-  {
-    step: '04',
-    title: 'Onboarding and handover',
-    body: 'After successful payment, Maple Rentals finalises onboarding, scheduling, and operational handover.',
-  },
+const proofPoints = [
+  'Residential and commercial painting',
+  'Interior, exterior, and repainting work',
+  'Clear quoting before work begins',
+  'Neat preparation and tidy site handover',
 ];
 
 export default function Home() {
-  const {
-    data: rentalPlans = [],
-  } = useQuery({
-    queryKey: ['rental-plans'],
-    queryFn: fetchRentalPlans,
-  });
-
-  const popularPlan = rentalPlans.find((plan) => plan.popular) ?? rentalPlans[0] ?? null;
-
   return (
-    <div className="min-h-screen bg-[#0c0a09] text-white selection:bg-brand-gold selection:text-black">
+    <div className="min-h-screen bg-[#f7f4ef] text-[#1f2933] selection:bg-brand-gold selection:text-black">
       <Seo
-        title="Premium Driver Car Rentals Sydney | Maple Rentals"
-        description="Apply with Maple Rentals for a premium, admin-reviewed driver rental program in Sydney with secure Stripe payments and structured onboarding."
+        title="Maple Painting | Residential & Commercial Painting Sydney"
+        description="Maple Painting provides residential painting, commercial painting, interior painting, exterior painting, repainting, rental property touch-ups, and paint repairs across Sydney."
         canonicalPath="/"
+        imagePath="/painting-hero.png"
         keywords={[
-          'driver car rentals sydney',
-          'uber rental approval sydney',
-          'weekly driver rental sydney',
-          'stripe car rental payment sydney',
-          'maple rentals sydney',
+          'maple painting',
+          'residential painting sydney',
+          'commercial painting sydney',
+          'interior painting sydney',
+          'exterior painting sydney',
+          'property repainting sydney',
         ]}
         jsonLd={homeJsonLd}
       />
 
-      <section className="relative overflow-hidden border-b border-white/10 bg-[#120f0d]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,175,55,0.16),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(245,158,11,0.12),transparent_25%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))]" />
-        <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-16 px-6 pb-24 pt-32 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:pb-32 lg:pt-36">
+      <section className="relative overflow-hidden bg-[#24352f] text-white">
+        <div className="absolute inset-0">
+          <img
+            src="/painting-hero.png"
+            alt="Professional painter applying fresh paint to an interior wall"
+            className="h-full w-full object-cover opacity-40"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#17231f] via-[#17231f]/85 to-[#17231f]/35" />
+        </div>
+
+        <div className="relative mx-auto grid max-w-7xl gap-12 px-6 pb-16 pt-24 sm:pb-20 sm:pt-28 lg:grid-cols-[1fr_0.8fr] lg:px-8 lg:pb-24">
           <motion.div initial="hidden" animate="visible" variants={stagger} className="max-w-3xl">
-            <motion.p variants={fadeUp} className="mb-5 text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">
-              Driver Onboarding, Properly Managed
+            <motion.p variants={fadeUp} className="mb-5 text-[10px] font-bold uppercase tracking-[0.42em] text-brand-gold">
+              Sydney Painting Services
             </motion.p>
-            <motion.h1 variants={fadeUp} className="max-w-4xl text-5xl font-serif font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl">
-              Premium driver rentals with admin-reviewed approvals and secure Stripe payments.
+            <motion.h1 variants={fadeUp} className="text-5xl font-serif font-bold leading-[1.02] text-white sm:text-6xl lg:text-7xl">
+              Maple Painting
             </motion.h1>
-            <motion.p variants={fadeUp} className="mt-8 max-w-2xl text-lg font-light leading-8 text-stone-300">
-              Maple Rentals is built for drivers who want a legitimate process. Apply once,
-              get reviewed by the team, receive a confirmed quote, and pay only when your
-              approval is ready.
+            <motion.p variants={fadeUp} className="mt-7 max-w-2xl text-lg font-light leading-8 text-stone-100">
+              Professional residential painting, commercial painting, interior painting,
+              exterior painting, repainting, and property painting services delivered with
+              careful preparation and a clean finish.
             </motion.p>
 
-            <motion.div variants={fadeUp} className="mt-10 flex flex-col gap-4 sm:flex-row">
-              <Link
-                to="/apply"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-brand-navy transition-colors hover:bg-brand-gold-light"
+            <motion.div variants={fadeUp} className="mt-9 flex flex-col gap-4 sm:flex-row">
+              <a
+                href="#quote"
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-brand-gold px-8 py-4 text-sm font-bold uppercase tracking-[0.18em] text-brand-navy transition-colors hover:bg-brand-gold-light"
               >
-                Start Driver Application <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                to="/pricing"
-                className="inline-flex items-center justify-center rounded-full border border-white/15 px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-white transition-colors hover:border-brand-gold hover:text-brand-gold"
+                Request a Free Quote <ArrowRight className="h-4 w-4" />
+              </a>
+              <a
+                href="tel:0420550556"
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full border border-white/35 px-8 py-4 text-sm font-bold uppercase tracking-[0.18em] text-white transition-colors hover:border-brand-gold hover:text-brand-gold"
               >
-                Review Plans
-              </Link>
+                <Phone className="h-4 w-4" /> Call Maple Painting
+              </a>
             </motion.div>
 
-            <motion.div variants={fadeUp} className="mt-12 flex flex-wrap gap-3">
-              {['Application review before payment', 'Secure Stripe checkout', 'Admin-controlled onboarding'].map((item) => (
-                <div
-                  key={item}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-200"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-gold" />
-                  {item}
+            <motion.div variants={fadeUp} className="mt-10 grid gap-3 sm:grid-cols-2">
+              {proofPoints.map((point) => (
+                <div key={point} className="flex items-center gap-3 rounded-full bg-white/10 px-4 py-3 text-sm text-stone-100 backdrop-blur">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-gold" />
+                  {point}
                 </div>
               ))}
             </motion.div>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 32 }}
+            initial={{ opacity: 0, y: 26 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-            className="grid gap-6"
+            transition={{ duration: 0.75, ease: 'easeOut' }}
+            className="self-end rounded-[1.5rem] border border-white/15 bg-white/10 p-6 shadow-2xl backdrop-blur"
           >
-            <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#1b1713] shadow-[0_40px_120px_rgba(0,0,0,0.45)]">
-              <div className="aspect-[4/3] overflow-hidden">
-                <img
-                  src="/car-images/CNO40S.jpeg"
-                  alt="Premium Maple Rentals vehicle"
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="space-y-5 p-7">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
-                    Payment Confidence
-                  </p>
-                  <ShieldCheck className="h-5 w-5 text-brand-gold" />
-                </div>
-                <h2 className="text-2xl font-semibold text-white">
-                  Structured before checkout, secure at checkout, managed after checkout.
-                </h2>
-                <div className="grid gap-3 text-sm text-stone-300">
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                    Payment is requested only after approval and quote review.
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                    Stripe handles the bond, first weekly payment, and recurring billing securely.
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                    Maple Rentals then completes onboarding and operational handover directly.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {popularPlan && (
-              <div className="rounded-[2rem] border border-brand-gold/20 bg-gradient-to-br from-brand-gold/10 to-transparent p-7">
-                <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
-                  Plan Snapshot
-                </p>
-                <div className="mt-4 flex items-end justify-between gap-4">
-                  <div>
-                    <h3 className="text-2xl font-serif font-bold text-white">{popularPlan.name}</h3>
-                    <p className="mt-2 max-w-md text-sm leading-7 text-stone-300">
-                      {popularPlan.description}
-                    </p>
-                  </div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-gold">
-                    {popularPlan.cadenceLabel}
-                  </p>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="border-b border-white/10 bg-[#0f0d0c] py-20">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-100px' }}
-            variants={stagger}
-            className="grid gap-6 md:grid-cols-3"
-          >
-            {trustPoints.map((item) => (
-              <motion.article
-                key={item.title}
-                variants={fadeUp}
-                className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-7"
-              >
-                <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-gold/10 text-brand-gold">
-                  <item.icon className="h-5 w-5" />
-                </div>
-                <h2 className="text-2xl font-serif font-bold text-white">{item.title}</h2>
-                <p className="mt-3 text-sm leading-7 text-stone-300">{item.body}</p>
-              </motion.article>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="border-b border-white/10 bg-[#16110e] py-24">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="grid items-start gap-10 lg:grid-cols-[0.85fr_1.15fr]">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">How It Works</p>
-              <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
-                A tighter process from first application to final onboarding.
-              </h2>
-              <p className="mt-6 max-w-xl text-lg font-light leading-8 text-stone-300">
-                This is not a public inventory marketplace. Maple Rentals keeps the process controlled,
-                clear, and professional so drivers know exactly when review ends and payment begins.
-              </p>
-            </motion.div>
-
-            <div className="grid gap-5">
-              {howItWorks.map((item) => (
-                <motion.div
-                  key={item.step}
-                  initial={{ opacity: 0, x: 18 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.45, ease: 'easeOut' }}
-                  className="rounded-[1.75rem] border border-white/10 bg-[#1d1713] p-6"
-                >
-                  <div className="flex items-start gap-5">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-gold text-[12px] font-bold tracking-[0.2em] text-brand-navy">
-                      {item.step}
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-semibold text-white">{item.title}</h3>
-                      <p className="mt-2 text-sm leading-7 text-stone-300">{item.body}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-b border-white/10 bg-[#0f0d0c] py-24">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="max-w-3xl">
-            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">Stripe and Payments</p>
-            <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
-              Payment clarity is built into the experience.
-            </h2>
-            <p className="mt-6 text-lg font-light leading-8 text-stone-300">
-              Drivers should never have to guess when they are paying or why. Maple Rentals keeps the payment
-              step separate from the application review so approved pricing is clear before checkout opens.
+            <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
+              What We Paint
             </p>
+            <div className="mt-5 grid gap-3 text-sm leading-6 text-stone-100">
+              <p>Homes, units, offices, shops, rental properties, fences, decks, exterior walls, interior rooms, trims, and touch-up areas.</p>
+              <p>Quotes are scoped around preparation, surface condition, access, coatings, and the finish you need.</p>
+            </div>
           </motion.div>
+        </div>
+      </section>
 
-          <div className="mt-12 grid gap-6 lg:grid-cols-3">
-            {[
-              {
-                icon: Wallet,
-                title: 'Before payment',
-                body: 'Your application is reviewed first. Maple Rentals confirms the approved vehicle, bond, and weekly amount before any checkout link is issued.',
-              },
-              {
-                icon: CreditCard,
-                title: 'At payment',
-                body: 'The Stripe session collects the approved bond, first weekly payment, and any setup fees in one secure, hosted checkout.',
-              },
-              {
-                icon: Sparkles,
-                title: 'After payment',
-                body: 'Once Stripe confirms payment, Maple Rentals moves you into onboarding, scheduling, and operational handover with clear follow-up.',
-              },
-            ].map((item) => (
+      <section id="services" className="bg-[#fffaf2] py-20">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="max-w-3xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-[#8a6a18]">Services</p>
+            <h2 className="mt-4 text-4xl font-serif font-bold text-[#1f2933] sm:text-5xl">
+              Painting services for homes, businesses, and managed properties.
+            </h2>
+          </div>
+
+          <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {services.map((service) => (
               <motion.article
-                key={item.title}
-                initial={{ opacity: 0, y: 20 }}
+                key={service.title}
+                initial={{ opacity: 0, y: 18 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.45, ease: 'easeOut' }}
-                className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-7"
+                className="rounded-lg border border-[#e6dccb] bg-white p-7 shadow-sm"
               >
-                <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-gold/10 text-brand-gold">
-                  <item.icon className="h-5 w-5" />
+                <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-[#24352f] text-brand-gold">
+                  <service.icon className="h-5 w-5" />
                 </div>
-                <h3 className="text-2xl font-serif font-bold text-white">{item.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-stone-300">{item.body}</p>
+                <h3 className="text-xl font-bold text-[#1f2933]">{service.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-[#59636e]">{service.body}</p>
               </motion.article>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="border-b border-white/10 bg-[#17110d] py-24">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="max-w-3xl">
-            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">Vehicle Quality</p>
-            <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
-              Real vehicles, shown for trust, not for public fleet shopping.
+      <section id="about" className="bg-[#eef2ec] py-20">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 lg:grid-cols-2 lg:px-8">
+          <div className="overflow-hidden rounded-lg">
+            <img
+              src="/painting-interior.png"
+              alt="Freshly painted modern interior room"
+              className="aspect-[4/3] h-full w-full object-cover"
+              loading="lazy"
+            />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-[#8a6a18]">About Maple Painting</p>
+            <h2 className="mt-4 text-4xl font-serif font-bold text-[#1f2933] sm:text-5xl">
+              Careful prep, clean lines, and practical advice before the first coat.
             </h2>
-            <p className="mt-6 text-lg font-light leading-8 text-stone-300">
-              Maple Rentals uses real vehicle imagery to show standards and presentation while keeping assignment,
-              pricing, and operational control inside the approval workflow.
+            <p className="mt-6 text-base leading-8 text-[#4f5963]">
+              Maple Painting helps homeowners, landlords, property managers, and business
+              owners refresh spaces without unnecessary complication. We focus on surface
+              preparation, suitable coatings, tidy work areas, and finishes that suit daily use.
             </p>
-          </motion.div>
-
-          <div className="mt-12 grid gap-8 md:grid-cols-3">
-            {showcaseVehicles.map((vehicle, index) => (
-              <motion.article
-                key={vehicle.image}
-                initial={{ opacity: 0, y: 22 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.45, delay: index * 0.08 }}
-                className="overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#221a15]"
-              >
-                <div className="aspect-[4/3] overflow-hidden">
-                  <img
-                    src={vehicle.image}
-                    alt={vehicle.title}
-                    className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
-                    loading="lazy"
-                  />
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              {['Colour refreshes', 'Full repaints', 'Lease-ready touch-ups', 'Surface repairs'].map((item) => (
+                <div key={item} className="flex items-center gap-3 text-sm font-semibold text-[#1f2933]">
+                  <ShieldCheck className="h-4 w-4 text-[#8a6a18]" />
+                  {item}
                 </div>
-                <div className="p-6">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
-                    Maple Rentals
-                  </p>
-                  <h3 className="mt-3 text-2xl font-serif font-bold text-white">{vehicle.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-stone-300">{vehicle.body}</p>
-                </div>
-              </motion.article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#0d0b0a] py-24">
-        <div className="mx-auto max-w-6xl px-6 lg:px-8">
-          <div className="rounded-[2.25rem] border border-brand-gold/20 bg-gradient-to-br from-brand-gold/10 via-white/[0.03] to-transparent px-8 py-10 sm:px-10 sm:py-12">
-            <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">
-                  Start With Confidence
-                </p>
-                <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
-                  Apply once. Get reviewed properly. Pay only when everything is ready.
-                </h2>
-                <p className="mt-6 max-w-2xl text-lg font-light leading-8 text-stone-300">
-                  Maple Rentals is designed for real driver onboarding, real admin control, and clear Stripe-backed payment handling.
-                </p>
-              </div>
-              <div className="flex flex-col gap-4">
-                <Link
-                  to="/apply"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-brand-navy transition-colors hover:bg-brand-gold-light"
-                >
-                  Apply Now <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  to="/pricing"
-                  className="inline-flex items-center justify-center rounded-full border border-white/15 px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-white transition-colors hover:border-brand-gold hover:text-brand-gold"
-                >
-                  View Rental Plans
-                </Link>
-              </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="bg-[#0c0a09] pb-28">
-        <div className="mx-auto max-w-4xl px-6 lg:px-8">
+      <section className="bg-[#fffaf2] py-20">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-[#8a6a18]">Exterior Work</p>
+            <h2 className="mt-4 text-4xl font-serif font-bold text-[#1f2933] sm:text-5xl">
+              Exterior painting and repainting for street appeal and long-term protection.
+            </h2>
+            <p className="mt-6 text-base leading-8 text-[#4f5963]">
+              From weathered facades to fences, decks, and investment properties, exterior
+              work is scoped around preparation, access, coating choice, and a finish that
+              can handle Sydney conditions.
+            </p>
+          </div>
+          <div className="overflow-hidden rounded-lg">
+            <img
+              src="/painting-exterior.png"
+              alt="Freshly painted modern house exterior"
+              className="aspect-[16/10] h-full w-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section id="quote" className="bg-[#24352f] py-20 text-white">
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">Contact</p>
+            <h2 className="mt-4 text-4xl font-serif font-bold sm:text-5xl">
+              Book a painting estimate.
+            </h2>
+            <p className="mt-6 text-base leading-8 text-stone-200">
+              Tell us what needs painting, the property type, location, approximate timing,
+              and whether you need interior painting, exterior painting, repainting, touch-ups,
+              or paint repairs.
+            </p>
+            <div className="mt-8 flex flex-col gap-4">
+              <a href="tel:0420550556" className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-sm font-bold uppercase tracking-[0.18em] text-brand-navy hover:bg-brand-gold-light sm:w-fit">
+                <Phone className="h-4 w-4" /> 0420 550 556
+              </a>
+              <Link to="/" className="text-sm text-stone-300">
+                Maple Painting serves Merrylands, Parramatta, Lidcombe, and Greater Sydney.
+              </Link>
+            </div>
+          </div>
           <DeferredInquiryForm />
         </div>
       </section>

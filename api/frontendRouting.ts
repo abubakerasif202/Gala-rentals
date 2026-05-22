@@ -4,18 +4,36 @@ export type RequestLike = {
   get: (name: string) => string | undefined;
 };
 
-const SPA_ROUTE_PATTERNS = [
+const PUBLIC_SPA_ROUTE_PATTERNS = [
   /^\/$/,
+];
+
+const PRIVATE_SPA_ROUTE_PATTERNS = [
   /^\/pricing\/?$/,
   /^\/cars\/?$/,
   /^\/cars\/[^/]+\/?$/,
+  /^\/checkout\/?$/,
   /^\/checkout\/[^/]+\/?$/,
   /^\/apply\/?$/,
+  /^\/application\/?$/,
+  /^\/applications(?:\/.*)?$/,
+  /^\/driver(?:\/.*)?$/,
+  /^\/rental(?:\/.*)?$/,
   /^\/success\/?$/,
-  /^\/admin\/login\/?$/,
-  /^\/admin\/dashboard\/?$/,
-  /^\/admin\/toll-notices\/?$/,
+  /^\/agreement(?:\/.*)?$/,
+  /^\/agreements(?:\/.*)?$/,
+  /^\/toll(?:\/.*)?$/,
+  /^\/toll-notices(?:\/.*)?$/,
+  /^\/admin(?:\/.*)?$/,
 ];
+
+const getPathname = (path: string) => {
+  try {
+    return new URL(path, 'https://www.maplerentals.com.au').pathname;
+  } catch {
+    return path;
+  }
+};
 
 const acceptsHtmlNavigation = (req: RequestLike) => {
   if (req.method === 'HEAD') {
@@ -43,5 +61,12 @@ export const shouldServeSpaEntry = (req: RequestLike) => {
     return false;
   }
 
-  return SPA_ROUTE_PATTERNS.some((pattern) => pattern.test(req.path));
+  return [...PUBLIC_SPA_ROUTE_PATTERNS, ...PRIVATE_SPA_ROUTE_PATTERNS].some(
+    (pattern) => pattern.test(req.path)
+  );
+};
+
+export const isPrivateSpaRoute = (path: string) => {
+  const pathname = getPathname(path);
+  return PRIVATE_SPA_ROUTE_PATTERNS.some((pattern) => pattern.test(pathname));
 };

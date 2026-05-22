@@ -28,8 +28,8 @@ export default function AdminLogin() {
   return (
     <div className="flex items-center justify-center min-h-[80vh] bg-brand-navy py-12 px-4 sm:px-6 lg:px-8">
       <Seo
-        title="Admin Login | Maple Rentals"
-        description="Administrative login for Maple Rentals."
+        title="Private Login | Maple Painting"
+        description="Private management login."
         canonicalPath="/admin/login"
         robots="noindex,nofollow"
       />

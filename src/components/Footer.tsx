@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
-import { Mail, MapPin, Phone } from 'lucide-react';
+import { Brush, Mail, MapPin, Phone } from 'lucide-react';
 
 const quickLinks = [
   { label: 'Home', path: '/' },
-  { label: 'Pricing', path: '/pricing' },
-  { label: 'Apply', path: '/apply' },
-  { label: 'Admin Login', path: '/admin/login' },
+  { label: 'Services', path: '/#services' },
+  { label: 'About', path: '/#about' },
+  { label: 'Request a Quote', path: '/#quote' },
 ];
 
 export default function Footer() {
@@ -14,16 +14,18 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
           <div>
-            <Link to="/" className="flex items-center mb-8 group">
-              <img
-                src="/maple-logo.webp"
-                alt="Maple Rentals Sydney car rentals logo"
-                className="h-20 md:h-24 object-contain rounded-lg"
-              />
+            <Link to="/" className="mb-8 flex items-center gap-3 group">
+              <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-brand-gold/40 bg-brand-gold/10 text-brand-gold">
+                <Brush className="h-6 w-6" />
+              </span>
+              <span className="leading-none">
+                <span className="block text-lg font-serif font-bold text-white tracking-wide">Maple</span>
+                <span className="block text-[10px] font-bold uppercase tracking-[0.28em] text-brand-gold">Painting</span>
+              </span>
             </Link>
             <p className="text-sm text-gray-500 max-w-xs leading-relaxed font-light">
-              Weekly car rentals and Uber-ready hybrid vehicles for professional drivers in
-              Sydney, Merrylands, Parramatta, and surrounding suburbs.
+              Residential painting, commercial painting, interior painting, exterior painting,
+              repainting, and property painting services across Sydney.
             </p>
             <p className="mt-5 text-[11px] uppercase tracking-[0.2em] text-gray-600 font-light max-w-sm">
               Service areas: Merrylands, Parramatta, Lidcombe, and Greater Sydney
@@ -31,7 +33,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-xs font-bold text-white uppercase tracking-widest mb-8">Rental Links</h3>
+            <h3 className="text-xs font-bold text-white uppercase tracking-widest mb-8">Painting Links</h3>
             <ul className="space-y-5">
               {quickLinks.map((link) => (
                 <li key={link.path}>
@@ -52,7 +54,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-4">
                 <Mail className="h-4 w-4 text-brand-gold" />
-                <a href="mailto:admin@maplerentals.com.au" className="text-sm hover:text-brand-gold transition-colors font-light">admin@maplerentals.com.au</a>
+                <a href="mailto:hello@maplerentals.com.au" className="text-sm hover:text-brand-gold transition-colors font-light">hello@maplerentals.com.au</a>
               </li>
               <li className="flex items-start gap-4">
                 <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />
@@ -73,7 +75,7 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-white/10 mt-20 pt-8 text-center text-xs text-gray-600 uppercase tracking-widest font-light">
-          &copy; {new Date().getFullYear()} Maple Rentals. All rights reserved.
+          &copy; {new Date().getFullYear()} Maple Painting. All rights reserved.
         </div>
       </div>
     </footer>

@@ -41,7 +41,6 @@ export default function Cars() {
       title="Car Rental Fleet Sydney | Uber-Ready Hybrid Cars | Maple Rentals"
       description="Browse Maple Rentals vehicles for Uber drivers in Sydney, Merrylands, and Parramatta. Review available fleet options and start an application for approval."
       canonicalPath="/cars"
-      robots="noindex,nofollow"
       keywords={[
         'sydney car rental fleet',
         'uber car rentals sydney',

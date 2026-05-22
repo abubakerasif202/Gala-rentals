@@ -1,23 +1,8 @@
 User-agent: *
 Allow: /
-Disallow: /admin
 Disallow: /admin/
 Disallow: /api/
-Disallow: /apply
-Disallow: /application
-Disallow: /applications/
-Disallow: /driver/
-Disallow: /rental/
-Disallow: /cars
-Disallow: /cars/
-Disallow: /pricing
-Disallow: /checkout
 Disallow: /checkout/
 Disallow: /success
-Disallow: /agreement
-Disallow: /agreements/
-Disallow: /toll
-Disallow: /toll-notices/
-Disallow: /forms/
 
 Sitemap: https://www.maplerentals.com.au/sitemap.xml

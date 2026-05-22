@@ -28,8 +28,8 @@ export default function AdminLogin() {
   return (
     <div className="flex items-center justify-center min-h-[80vh] bg-brand-navy py-12 px-4 sm:px-6 lg:px-8">
       <Seo
-        title="Private Login | Maple Painting"
-        description="Private management login."
+        title="Admin Login | Maple Rentals"
+        description="Administrative login for Maple Rentals."
         canonicalPath="/admin/login"
         robots="noindex,nofollow"
       />
@@ -39,14 +39,14 @@ export default function AdminLogin() {
           <h2 className="text-center text-3xl font-serif font-bold text-white tracking-tight">Admin Access</h2>
           <p className="mt-2 text-center text-xs text-brand-gold font-bold uppercase tracking-[0.3em]">Maple Rentals Management</p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-md">
               <p className="text-red-500 text-xs text-center font-bold uppercase tracking-widest">{error}</p>
             </div>
           )}
-          
+
           <div className="space-y-4">
             <div>
               <label className="sr-only">Admin Email</label>

@@ -6,7 +6,7 @@ import { escapeHtml, getResend, sanitizeEmailHeaderValue, sendResendEmail } from
 
 const router = express.Router();
 const SUPPORT_FALLBACK_MESSAGE =
-  'Painting quote requests are temporarily unavailable online. Please call or email Maple Painting directly.';
+  'Availability inquiries are temporarily unavailable online. Please call or email Maple Rentals directly.';
 const inquirySubmissionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
@@ -36,32 +36,32 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
 
     const [adminEmailResult, userEmailResult] = await Promise.allSettled([
       sendResendEmail(resend, {
-        from: 'Maple Painting <noreply@maplerentals.com.au>',
+        from: 'Maple Rentals <noreply@maplerentals.com.au>',
         to: adminEmail,
-        subject: `New painting quote request from ${inquiryNameForSubject}`,
+        subject: `New availability inquiry from ${inquiryNameForSubject}`,
         html: `
           <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
-            <h2 style="color: #D4AF37;">New Painting Quote Request</h2>
+            <h2 style="color: #D4AF37;">New Availability Inquiry</h2>
             <p><strong>Name:</strong> ${safeName}</p>
             <p><strong>Email:</strong> ${safeEmail}</p>
             <p><strong>Phone:</strong> ${safePhone}</p>
-            <p><strong>Preferred timing:</strong> ${safeStartDate} to ${safeEndDate}</p>
+            <p><strong>Requested dates:</strong> ${safeStartDate} to ${safeEndDate}</p>
             <p><strong>Additional notes:</strong></p>
             <p>${safeMessage}</p>
           </div>
         `,
       }),
       sendResendEmail(resend, {
-        from: 'Maple Painting <noreply@maplerentals.com.au>',
+        from: 'Maple Rentals <noreply@maplerentals.com.au>',
         to: inquiry.email,
-        subject: 'We received your Maple Painting quote request',
+        subject: 'We received your Maple Rentals inquiry',
         html: `
           <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
-            <h2 style="color: #D4AF37;">Quote Request Received</h2>
+            <h2 style="color: #D4AF37;">Inquiry Received</h2>
             <p>Hi ${safeName},</p>
-            <p>We received your painting quote request for ${safeStartDate} to ${safeEndDate}.</p>
-            <p>Our team will review your notes and contact you shortly to discuss the estimate.</p>
-            <p>Best regards,<br /><strong>The Maple Painting Team</strong></p>
+            <p>We received your availability inquiry for ${safeStartDate} to ${safeEndDate}.</p>
+            <p>Our fleet manager will review current availability and contact you shortly.</p>
+            <p>Best regards,<br /><strong>The Maple Rentals Team</strong></p>
           </div>
         `,
       }),
@@ -82,7 +82,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
     }
 
     console.error('Inquiry submission error:', error);
-    res.status(500).json({ error: 'Failed to submit painting quote request' });
+    res.status(500).json({ error: 'Failed to submit availability inquiry' });
   }
 });
 

@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
-import { Brush, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 const navLinks = [
   { name: 'Home', path: '/' },
-  { name: 'Services', path: '/#services' },
-  { name: 'About', path: '/#about' },
-  { name: 'Quote', path: '/#quote' },
+  { name: 'Pricing', path: '/pricing' },
+  { name: 'Apply', path: '/apply' },
+  { name: 'Contact', path: '/#contact' },
 ];
 
 export default function Navbar() {
@@ -17,14 +17,12 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex justify-between items-center h-20 md:h-24">
           <div className="flex-1 flex justify-start">
-            <Link to="/" className="flex items-center gap-3 group" onClick={() => setIsOpen(false)}>
-              <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-brand-gold/40 bg-brand-gold/10 text-brand-gold">
-                <Brush className="h-5 w-5" />
-              </span>
-              <span className="leading-none">
-                <span className="block text-sm font-serif font-bold text-white tracking-wide">Maple</span>
-                <span className="block text-[10px] font-bold uppercase tracking-[0.26em] text-brand-gold">Painting</span>
-              </span>
+            <Link to="/" className="flex items-center group" onClick={() => setIsOpen(false)}>
+              <img
+                src="/maple-logo.webp"
+                alt="Maple Rentals Sydney car rentals logo"
+                className="h-16 md:h-20 object-contain drop-shadow-2xl"
+              />
             </Link>
           </div>
 
@@ -41,17 +39,11 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex flex-1 justify-end items-center gap-3">
-            <Link
-              to="/admin/login"
-              className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-grey transition-colors hover:text-white"
-            >
-              Admin Login
-            </Link>
             <a
               href="tel:0420550556"
               className="border border-brand-gold/30 hover:border-brand-gold px-6 py-2.5 text-[11px] font-bold text-white uppercase tracking-[0.15em] transition-all hover:bg-brand-gold/5"
             >
-              Call Maple Painting
+              0420 550 556
             </a>
           </div>
 
@@ -77,18 +69,11 @@ export default function Navbar() {
               </Link>
             ))}
             <div className="pt-6 border-t border-white/5">
-              <Link
-                to="/admin/login"
-                onClick={() => setIsOpen(false)}
-                className="mb-4 block text-center text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey hover:text-white"
-              >
-                Admin Login
-              </Link>
               <a
                 href="tel:0420550556"
                 className="block text-center border border-brand-gold/30 py-3 text-[11px] font-bold text-brand-gold uppercase tracking-[0.2em]"
               >
-                Call Maple Painting
+                0420 550 556
               </a>
             </div>
           </div>

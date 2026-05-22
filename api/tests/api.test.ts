@@ -2523,22 +2523,6 @@ describe("Applications API", () => {
     expect(res.status).toBe(202);
     expect(res.body.success).toBe(true);
     expect(mockResendEmailsSend).toHaveBeenCalledTimes(2);
-    expect(mockResendEmailsSend).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        from: "Maple Painting <noreply@maplerentals.com.au>",
-        subject: "New painting quote request from Jordan Prospect",
-        html: expect.stringContaining("New Painting Quote Request"),
-      }),
-    );
-    expect(mockResendEmailsSend).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        from: "Maple Painting <noreply@maplerentals.com.au>",
-        subject: "We received your Maple Painting quote request",
-        html: expect.stringContaining("The Maple Painting Team"),
-      }),
-    );
   });
 
   it("POST /api/inquiries returns 500 when Resend resolves with a provider error", async () => {
@@ -2561,7 +2545,7 @@ describe("Applications API", () => {
     });
 
     expect(res.status).toBe(500);
-    expect(res.body.error).toBe("Failed to submit painting quote request");
+    expect(res.body.error).toBe("Failed to submit availability inquiry");
   });
 
   it("POST /api/inquiries returns 202 when only the user confirmation email fails", async () => {

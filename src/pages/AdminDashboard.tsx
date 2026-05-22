@@ -16,7 +16,6 @@ import {
   ChevronRight,
   RefreshCw,
   ExternalLink,
-  Clipboard,
   ShieldCheck,
   Car,
   Users,
@@ -65,7 +64,6 @@ import type { VehicleDialogMode, VehicleFormValues } from '../components/admin/v
 
 const OPERATIONAL_PAGE_SIZE = 25;
 const DEFAULT_VEHICLE_IMAGE = '/hero-camry.webp';
-const DRIVER_APPLICATION_URL = 'https://www.maplerentals.com.au/apply';
 
 type VehicleFilter = 'active' | 'all' | 'archived';
 
@@ -129,14 +127,6 @@ const copyCheckoutLink = async (checkoutUrl: string) => {
   }
 
   return copied;
-};
-
-const promptForManualDriverApplicationCopy = () => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.prompt('Copy driver application link', DRIVER_APPLICATION_URL);
 };
 
 const isRestrictedPaymentLinkError = (error: unknown) =>
@@ -268,19 +258,6 @@ export default function AdminDashboard() {
       setNotification(null);
       notificationTimeoutRef.current = null;
     }, 3000);
-  };
-
-  const handleCopyDriverApplicationLink = async () => {
-    const copied = await copyTextToClipboard(DRIVER_APPLICATION_URL);
-
-    if (!copied) {
-      promptForManualDriverApplicationCopy();
-    }
-
-    showNotification(
-      copied ? 'Driver application link copied' : 'Driver application link ready to copy',
-      'success'
-    );
   };
 
   function resetVehicleModal() {
@@ -1116,54 +1093,12 @@ export default function AdminDashboard() {
 
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
-            <div className="space-y-6">
-              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-2xl shadow-black/10 sm:p-6">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-brand-gold/20 bg-brand-gold/10 text-brand-gold">
-                      <Clipboard className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-bold uppercase tracking-widest text-white">
-                        Driver Application Link
-                      </h2>
-                      <p className="mt-2 max-w-2xl text-sm font-light leading-6 text-brand-grey">
-                        Send this private link to drivers when you want them to complete the application form.
-                      </p>
-                      <p className="mt-3 break-all font-mono text-xs text-brand-gold">
-                        {DRIVER_APPLICATION_URL}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
-                    <button
-                      type="button"
-                      onClick={handleCopyDriverApplicationLink}
-                      className="flex min-h-12 items-center justify-center gap-3 rounded-full bg-brand-gold px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-brand-navy transition-all hover:bg-brand-gold-light"
-                    >
-                      <Clipboard className="h-4 w-4" />
-                      Copy Driver Application Link
-                    </button>
-                    <a
-                      href="/apply"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex min-h-12 items-center justify-center gap-3 rounded-full border border-white/10 px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/5"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Open Driver Application
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              <OverviewTab
-                stats={stats}
-                applications={applications}
-                cars={activeCars}
-                setActiveTab={setActiveTab}
-              />
-            </div>
+            <OverviewTab
+              stats={stats}
+              applications={applications}
+              cars={activeCars}
+              setActiveTab={setActiveTab}
+            />
           )}
 
           {activeTab === 'applications' && (

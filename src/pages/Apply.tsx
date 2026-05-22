@@ -334,7 +334,6 @@ export default function Apply() {
       title="Apply to Drive with Maple Rentals | Sydney Car Rental Applications"
       description="Apply to drive with Maple Rentals for a premium weekly rental and Uber-ready vehicle program in Sydney. Simple onboarding, fast approval, and reliable cars."
       canonicalPath="/apply"
-      robots="noindex,nofollow"
       keywords={[
         "apply to drive maple rentals",
         "uber driver application sydney",

@@ -23,7 +23,7 @@ import {
   closePostgresPool,
   getDirectDatabaseConfig,
 } from './db/postgres.js';
-import { isPrivateSpaRoute, shouldServeSpaEntry } from './frontendRouting.js';
+import { shouldServeSpaEntry } from './frontendRouting.js';
 import { apiNotFoundHandler, errorHandler } from './middleware/errors.js';
 import { requestContext, requestLogger } from './middleware/requestLogger.js';
 
@@ -581,9 +581,6 @@ const registerProductionFrontend = (app: express.Express) => {
     }
 
     res.setHeader('Cache-Control', 'no-store');
-    if (isPrivateSpaRoute(req.path)) {
-      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-    }
     res.sendFile(frontendIndexPath, (error) => {
       if (error) {
         next(error);

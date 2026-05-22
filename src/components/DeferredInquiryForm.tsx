@@ -7,7 +7,7 @@ const inquiryFallback = (
   <div className="bg-brand-navy-light p-8 md:p-12 border border-white/10 shadow-2xl">
     <div className="flex items-center gap-3 text-sm font-light text-brand-grey">
       <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
-      Preparing quote form...
+      Preparing availability form...
     </div>
   </div>
 );

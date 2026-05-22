@@ -41,6 +41,12 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex flex-1 justify-end items-center gap-3">
+            <Link
+              to="/admin/login"
+              className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-grey transition-colors hover:text-white"
+            >
+              Admin Login
+            </Link>
             <a
               href="tel:0420550556"
               className="border border-brand-gold/30 hover:border-brand-gold px-6 py-2.5 text-[11px] font-bold text-white uppercase tracking-[0.15em] transition-all hover:bg-brand-gold/5"
@@ -71,6 +77,13 @@ export default function Navbar() {
               </Link>
             ))}
             <div className="pt-6 border-t border-white/5">
+              <Link
+                to="/admin/login"
+                onClick={() => setIsOpen(false)}
+                className="mb-4 block text-center text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey hover:text-white"
+              >
+                Admin Login
+              </Link>
               <a
                 href="tel:0420550556"
                 className="block text-center border border-brand-gold/30 py-3 text-[11px] font-bold text-brand-gold uppercase tracking-[0.2em]"

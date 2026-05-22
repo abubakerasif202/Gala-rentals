@@ -75,7 +75,13 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-white/10 mt-20 pt-8 text-center text-xs text-gray-600 uppercase tracking-widest font-light">
-          &copy; {new Date().getFullYear()} Maple Painting. All rights reserved.
+          <span>&copy; {new Date().getFullYear()} Maple Painting. All rights reserved.</span>
+          <Link
+            to="/admin/login"
+            className="ml-0 mt-4 block text-[10px] text-gray-600 transition-colors hover:text-brand-gold sm:ml-4 sm:mt-0 sm:inline"
+          >
+            Admin Login
+          </Link>
         </div>
       </div>
     </footer>

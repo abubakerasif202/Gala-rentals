@@ -992,6 +992,10 @@ vi.mock("../db/index.js", () => {
       insertedRow.received_at = new Date().toISOString();
     }
 
+    if (table === "stripe_webhook_events" && !insertedRow.updated_at) {
+      insertedRow.updated_at = new Date().toISOString();
+    }
+
     if (table === "cars") {
       mockState.cars = [...mockState.cars, insertedRow];
     }
@@ -5461,6 +5465,29 @@ describe("Stripe API", () => {
     );
   });
 
+  it("POST /api/stripe/webhook returns 503 when the webhook secret is missing", async () => {
+    const previousWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    delete process.env.STRIPE_WEBHOOK_SECRET;
+
+    try {
+      const res = await request(app)
+        .post("/api/stripe/webhook")
+        .set("stripe-signature", "test-signature")
+        .set("Content-Type", "application/json")
+        .send("{}");
+
+      expect(res.status).toBe(503);
+      expect(res.text).toBe("Webhook configuration missing");
+      expect(mockStripe.webhooksConstructEvent).not.toHaveBeenCalled();
+    } finally {
+      if (previousWebhookSecret === undefined) {
+        delete process.env.STRIPE_WEBHOOK_SECRET;
+      } else {
+        process.env.STRIPE_WEBHOOK_SECRET = previousWebhookSecret;
+      }
+    }
+  });
+
   it("POST /api/stripe/webhook activates the rental and records paid bond on success", async () => {
     mockStripe.webhooksConstructEvent.mockReturnValue({
       id: "evt_test_1",
@@ -6019,6 +6046,7 @@ describe("Stripe API", () => {
   });
 
   it("POST /api/stripe/webhook retries stale in-flight ledger events after reclaiming the claim", async () => {
+    const staleUpdatedAt = new Date(Date.now() - 6 * 60 * 1000).toISOString();
     mockState.stripe_webhook_events = [
       {
         id: 999,
@@ -6026,6 +6054,7 @@ describe("Stripe API", () => {
         event_type: "checkout.session.completed",
         status: "processing",
         received_at: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
+        updated_at: staleUpdatedAt,
       },
     ];
 
@@ -6064,6 +6093,60 @@ describe("Stripe API", () => {
         (event) => event.stripe_event_id === "evt_stale_processing",
       )?.status,
     ).toBe("processed");
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === "evt_stale_processing",
+      )?.updated_at,
+    ).not.toBe(staleUpdatedAt);
+  });
+
+  it("POST /api/stripe/webhook does not reclaim an in-flight ledger event before the TTL", async () => {
+    mockState.stripe_webhook_events = [
+      {
+        id: 1000,
+        stripe_event_id: "evt_fresh_processing",
+        event_type: "checkout.session.completed",
+        status: "processing",
+        received_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        updated_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+      },
+    ];
+
+    mockStripe.webhooksConstructEvent.mockReturnValue({
+      id: "evt_fresh_processing",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_fresh_processing",
+          payment_status: "paid",
+          metadata: {
+            application_id: APPROVED_APPLICATION_ID,
+            approved_bond: "500.00",
+            approved_weekly_price: "250.00",
+            car_id: "1",
+            checkout_kind: "vehicle",
+            payment_link_version: "1",
+          },
+          customer: "cus_fresh_processing",
+          subscription: "sub_fresh_processing",
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post("/api/stripe/webhook")
+      .set("stripe-signature", "test-signature")
+      .set("Content-Type", "application/json")
+      .send("{}");
+
+    expect(res.status).toBe(409);
+    expect(res.text).toBe("Webhook event is currently processing");
+    expect(mockState.rentals).toHaveLength(0);
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === "evt_fresh_processing",
+      )?.status,
+    ).toBe("processing");
   });
 
   it("POST /api/stripe/webhook records permanent failures without asking Stripe to retry forever", async () => {

@@ -1,5 +1,4 @@
 import express from 'express';
-import Stripe from 'stripe';
 import { z } from 'zod';
 
 import {
@@ -51,21 +50,25 @@ const isStripeResourceMissingError = (
 const isStripeSdkError = (
   error: unknown
 ): error is { message: string; statusCode?: number; type?: string } => {
-  const stripeErrorCtor = (
-    Stripe as typeof Stripe & {
-      errors?: { StripeError?: new (...args: never[]) => Error };
-    }
-  ).errors?.StripeError;
-
-  if (typeof stripeErrorCtor === 'function' && error instanceof stripeErrorCtor) {
-    return true;
+  if (!error || typeof error !== 'object') {
+    return false;
   }
 
-  return Boolean(
-    error &&
-      typeof error === 'object' &&
-      typeof (error as { type?: unknown }).type === 'string' &&
-      String((error as { type?: string }).type || '').startsWith('Stripe')
+  const candidate = error as {
+    message?: unknown;
+    raw?: unknown;
+    type?: unknown;
+  };
+  const type = typeof candidate.type === 'string' ? candidate.type : '';
+  const raw = candidate.raw;
+  const hasStripeRaw =
+    raw &&
+    typeof raw === 'object' &&
+    ('type' in raw || 'code' in raw || 'message' in raw);
+
+  return (
+    typeof candidate.message === 'string' &&
+    (type.startsWith('Stripe') || Boolean(hasStripeRaw))
   );
 };
 

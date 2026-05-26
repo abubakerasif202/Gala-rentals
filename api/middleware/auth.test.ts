@@ -17,8 +17,10 @@ vi.mock('../db/index.js', () => ({
 import {
   createLocalAdminSessionToken,
   createSupabaseAdminSessionToken,
+  getAdminSessionSecretConfigurationIssue,
   getEffectiveAdminEmail,
   getSupabaseSessionExpiry,
+  MIN_ADMIN_SESSION_SECRET_LENGTH,
 } from './auth.js';
 
 // ---------------------------------------------------------------------------
@@ -97,6 +99,42 @@ describe('getSupabaseSessionExpiry', () => {
 
   it('returns null when expires_at is NaN', () => {
     expect(getSupabaseSessionExpiry({ expires_at: NaN })).toBeNull();
+  });
+});
+
+describe('getAdminSessionSecretConfigurationIssue', () => {
+  const originalJwtSecret = process.env.JWT_SECRET;
+
+  afterEach(() => {
+    if (originalJwtSecret === undefined) {
+      delete process.env.JWT_SECRET;
+    } else {
+      process.env.JWT_SECRET = originalJwtSecret;
+    }
+  });
+
+  it('requires JWT_SECRET when production admin sessions are required', () => {
+    delete process.env.JWT_SECRET;
+
+    expect(
+      getAdminSessionSecretConfigurationIssue({ required: true })
+    ).toContain('JWT_SECRET is required');
+  });
+
+  it('rejects dangerously short production JWT_SECRET values', () => {
+    process.env.JWT_SECRET = 'short-secret';
+
+    expect(
+      getAdminSessionSecretConfigurationIssue({ required: true })
+    ).toContain(`${MIN_ADMIN_SESSION_SECRET_LENGTH} characters`);
+  });
+
+  it('accepts a production JWT_SECRET with enough entropy budget', () => {
+    process.env.JWT_SECRET = 'x'.repeat(MIN_ADMIN_SESSION_SECRET_LENGTH);
+
+    expect(
+      getAdminSessionSecretConfigurationIssue({ required: true })
+    ).toBeNull();
   });
 });
 

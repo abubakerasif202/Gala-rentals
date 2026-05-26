@@ -19,6 +19,7 @@
     "migrate:operational-history": "node scripts/migrate-operational-history.js",
     "migrate:application-indexes": "node scripts/migrate-application-indexes.js",
     "verify:schema-contract": "tsx scripts/verify-production-schema-contract.js",
+    "verify-production-schema-contract": "npm run verify:schema-contract",
     "cron:fleet-sync": "tsx scripts/sync-realtime-fleet.js",
     "sync:realtime-fleet": "node scripts/sync-realtime-fleet.js",
     "stripe:setup": "tsx scripts/stripe-setup.ts",

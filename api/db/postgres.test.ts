@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  getSessionModePostgresRequirementIssue,
   getPostgresConnectionMode,
   hasDirectDatabaseConnection,
   shouldUseRelaxedPostgresSsl,
@@ -85,6 +86,34 @@ describe('postgres connection mode detection', () => {
 
     expect(getPostgresConnectionMode()).toBe('none');
     expect(hasDirectDatabaseConnection()).toBe(false);
+  });
+
+  it('does not report a session-mode production issue for a direct 5432 URL', () => {
+    process.env.DATABASE_URL =
+      'postgresql://postgres:secret@render-postgres.internal:5432/render_app';
+    delete process.env.SUPABASE_DB_URL;
+
+    expect(getSessionModePostgresRequirementIssue()).toBeNull();
+  });
+
+  it('reports a session-mode production issue for Supabase transaction pooler 6543', () => {
+    delete process.env.DATABASE_URL;
+    process.env.SUPABASE_DB_URL =
+      'postgresql://postgres.example:secret@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres';
+
+    expect(getSessionModePostgresRequirementIssue()).toContain(
+      'transaction-mode Postgres'
+    );
+    expect(getSessionModePostgresRequirementIssue()).toContain('port 6543');
+  });
+
+  it('reports a session-mode production issue when direct Postgres is missing', () => {
+    delete process.env.SUPABASE_DB_URL;
+    delete process.env.DATABASE_URL;
+
+    expect(getSessionModePostgresRequirementIssue()).toContain(
+      'DATABASE_URL or SUPABASE_DB_URL'
+    );
   });
 
   it('uses relaxed SSL settings for Supabase pooler hosts', () => {

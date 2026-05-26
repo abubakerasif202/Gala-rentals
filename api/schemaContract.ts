@@ -5,7 +5,7 @@ type RequiredColumnContract = {
   label: string;
 };
 
-const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
+export const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
   applications: [
     { label: 'approved_at', acceptable: ['approved_at', 'approvedAt'] },
     { label: 'approved_bond', acceptable: ['approved_bond', 'approvedBond'] },
@@ -62,13 +62,14 @@ const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
   ],
 } as const;
 
-const STRIPE_WEBHOOK_LEDGER_CONTRACTS = [
+export const STRIPE_WEBHOOK_LEDGER_CONTRACTS = [
   {
     label: 'modern',
     required: [
       { label: 'stripe_event_id', acceptable: ['stripe_event_id'] },
       { label: 'status', acceptable: ['status'] },
       { label: 'received_at', acceptable: ['received_at'] },
+      { label: 'updated_at', acceptable: ['updated_at'] },
     ],
   },
   {

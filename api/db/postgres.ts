@@ -37,6 +37,7 @@ const REQUIRED_PAYMENT_SCHEMA_COLUMNS: Record<string, string[]> = {
     'event_type',
     'status',
     'received_at',
+    'updated_at',
     'processed_at',
   ],
 };
@@ -114,6 +115,28 @@ export const getPostgresConnectionMode = () => getDirectDatabaseConfig().mode;
 
 export const hasDirectDatabaseConnection = () =>
   getPostgresConnectionMode() === 'session';
+
+export const getSessionModePostgresRequirementIssue = () => {
+  const { mode, source } = getDirectDatabaseConfig();
+
+  if (mode === 'session') {
+    return null;
+  }
+
+  if (mode === 'none') {
+    return (
+      'DATABASE_URL or SUPABASE_DB_URL must be configured with a session-capable ' +
+      'Postgres connection before production payment processing starts.'
+    );
+  }
+
+  const sourceName = source || 'the direct Postgres URL';
+  return (
+    `${sourceName} is configured for transaction-mode Postgres. ` +
+    'Checkout and webhook payment activation use advisory locks and direct transactions, ' +
+    'so production must use a direct connection or Supabase session pooler on port 5432, not transaction pooler port 6543.'
+  );
+};
 
 const checkPaymentActivationSchema = async (client: PoolClient) => {
   const requiredTables = Object.keys(REQUIRED_PAYMENT_SCHEMA_COLUMNS);

@@ -54,6 +54,7 @@ type ModernWebhookLedgerRow = {
   retry_count?: number | null;
   retry_reason?: string | null;
   status?: WebhookLedgerStatus | null;
+  updated_at?: string | null;
 };
 
 type LegacyWebhookLedgerRow = {
@@ -199,7 +200,7 @@ const readModernLedgerRow = async (eventId: string) => {
   const { data, error } = await db
     .from('stripe_webhook_events')
     .select(
-      'id, application_id, car_id, checkout_kind, checkout_session_id, error_message, fulfillment_state, received_at, retry_count, retry_reason, status'
+      'id, application_id, car_id, checkout_kind, checkout_session_id, error_message, fulfillment_state, received_at, retry_count, retry_reason, status, updated_at'
     )
     .eq('stripe_event_id', eventId)
     .maybeSingle();
@@ -217,10 +218,10 @@ const readLegacyLedgerRow = async (eventId: string) => {
   return data as LegacyWebhookLedgerRow | null;
 };
 
-const canReclaimStaleProcessingEvent = (receivedAt?: string | null) => {
-  if (!receivedAt) return false;
-  const receivedAtMs = Date.parse(receivedAt);
-  return Number.isFinite(receivedAtMs) && Date.now() - receivedAtMs >= STALE_WEBHOOK_PROCESSING_WINDOW_MS;
+const canReclaimStaleProcessingEvent = (lastUpdatedAt?: string | null) => {
+  if (!lastUpdatedAt) return false;
+  const lastUpdatedAtMs = Date.parse(lastUpdatedAt);
+  return Number.isFinite(lastUpdatedAtMs) && Date.now() - lastUpdatedAtMs >= STALE_WEBHOOK_PROCESSING_WINDOW_MS;
 };
 
 const claimModernLedgerForProcessing = async (
@@ -240,6 +241,7 @@ const claimModernLedgerForProcessing = async (
         processing_source: workItem.processingSource,
         retry_reason: null,
         fulfillment_state: 'processing',
+        updated_at: new Date().toISOString(),
       })
       .eq('stripe_event_id', workItem.eventId)
       .eq('status', status)
@@ -255,9 +257,11 @@ const claimModernLedgerForProcessing = async (
 
 const reclaimStaleModernInFlightLedger = async (
   workItem: StripeWebhookWorkItem,
-  existingReceivedAt: string | null | undefined
+  existing: ModernWebhookLedgerRow | null | undefined
 ) => {
-  if (!canReclaimStaleProcessingEvent(existingReceivedAt)) return false;
+  const existingLastUpdatedAt = existing?.updated_at || existing?.received_at;
+  if (!canReclaimStaleProcessingEvent(existingLastUpdatedAt)) return false;
+  const concurrencyColumn = existing?.updated_at ? 'updated_at' : 'received_at';
   const { data, error } = await db
     .from('stripe_webhook_events')
     .update({
@@ -266,15 +270,15 @@ const reclaimStaleModernInFlightLedger = async (
       checkout_kind: workItem.checkoutKind,
       checkout_session_id: workItem.checkoutSessionId,
       error_message: null,
-      received_at: new Date().toISOString(),
       status: 'processing',
       processing_source: workItem.processingSource,
       retry_reason: null,
       fulfillment_state: 'processing',
+      updated_at: new Date().toISOString(),
     })
     .eq('stripe_event_id', workItem.eventId)
     .eq('status', 'processing')
-    .eq('received_at', existingReceivedAt || '')
+    .eq(concurrencyColumn, existingLastUpdatedAt || '')
     .select('id')
     .maybeSingle();
   if (error) throw new Error(`Failed to reclaim stale Stripe webhook ledger row ${workItem.eventId}: ${error.message || 'Unknown error'}`);
@@ -293,6 +297,7 @@ const markModernLedgerProcessed = async (
       processed_at: new Date().toISOString(),
       retry_reason: null,
       status: 'processed',
+      updated_at: new Date().toISOString(),
     })
     .eq('stripe_event_id', eventId)
     .eq('status', 'processing')
@@ -314,6 +319,7 @@ const markModernLedgerFailed = async (eventId: string, errorMessage: string) => 
       fulfillment_state: 'failed',
       retry_reason: errorMessage,
       status: 'failed',
+      updated_at: new Date().toISOString(),
     })
     .eq('stripe_event_id', eventId)
     .eq('status', 'processing');
@@ -332,6 +338,7 @@ const markModernLedgerProcessedWithClassification = async (
       retry_reason: errorMessage,
       status: 'processed',
       processed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
     .eq('stripe_event_id', eventId)
     .eq('status', 'processing')
@@ -465,6 +472,7 @@ const claimModernWebhookEvent = async (
       retry_reason: null,
       stripe_event_id: workItem.eventId,
       status: 'processing',
+      updated_at: new Date().toISOString(),
     },
   ]);
   if (!error) {
@@ -486,7 +494,7 @@ const claimModernWebhookEvent = async (
       };
     }
     if (existingStatus === 'processing') {
-      if (await reclaimStaleModernInFlightLedger(workItem, existing?.received_at)) {
+      if (await reclaimStaleModernInFlightLedger(workItem, existing)) {
         return {
           eventId: workItem.eventId,
           ledgerMode: setPreferredWebhookLedgerMode('modern'),

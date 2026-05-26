@@ -59,6 +59,7 @@ describe('schemaContract', () => {
                 stripe_event_id: { type: 'string' },
                 status: { type: 'string' },
                 received_at: { type: 'string' },
+                updated_at: { type: 'string' },
               },
             },
           },
@@ -116,6 +117,7 @@ describe('schemaContract', () => {
                 stripe_event_id: { type: 'string' },
                 status: { type: 'string' },
                 received_at: { type: 'string' },
+                updated_at: { type: 'string' },
               },
             },
           },
@@ -162,6 +164,63 @@ describe('schemaContract', () => {
     resetSchemaContractValidationForTests();
     await expect(verifyProductionSchemaContract()).rejects.toThrow(
       'Production schema contract check failed'
+    );
+  });
+
+  it('fails when the modern webhook ledger is missing updated_at for stale claim recovery', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+          definitions: {
+            applications: {
+              properties: {
+                approved_at: { type: 'string' },
+                approved_bond: { type: 'number' },
+                approved_vehicle: { type: 'string' },
+                approved_weekly_price: { type: 'number' },
+                agreement_accepted_at: { type: 'string' },
+                agreement_signature: { type: 'string' },
+                agreement_template_version: { type: 'number' },
+                cancelled_at: { type: 'string' },
+                cancel_reason: { type: 'string' },
+                paid_at: { type: 'string' },
+                passport_or_uber_profile_screenshot: { type: 'string' },
+                payment_link_sent_at: { type: 'string' },
+                payment_link_version: { type: 'number' },
+                pending_checkout_session_id: { type: 'string' },
+              },
+            },
+            cars: { properties: { created_at: { type: 'string' } } },
+            rentals: {
+              properties: {
+                stripe_customer_id: { type: 'string' },
+                stripe_subscription_id: { type: 'string' },
+              },
+            },
+            stripe_webhook_events: {
+              properties: {
+                stripe_event_id: { type: 'string' },
+                status: { type: 'string' },
+                received_at: { type: 'string' },
+              },
+            },
+          },
+        }),
+      })
+    );
+
+    const {
+      resetSchemaContractValidationForTests,
+      verifyProductionSchemaContract,
+    } = await import('./schemaContract.js');
+
+    resetSchemaContractValidationForTests();
+    await expect(verifyProductionSchemaContract()).rejects.toThrow(
+      'stripe_webhook_events'
     );
   });
 

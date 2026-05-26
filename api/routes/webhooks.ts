@@ -7,6 +7,23 @@ import { processStripeWebhookEvent } from '../services/stripeWebhookService.js';
 const router = express.Router();
 const getStripe = () => getStripeClient();
 
+const getSafeStripeEventLogContext = (event: Stripe.Event) => {
+  const payload = event.data.object as
+    | { id?: unknown; metadata?: Record<string, unknown> | null }
+    | undefined;
+  const metadata =
+    payload?.metadata && typeof payload.metadata === 'object'
+      ? payload.metadata
+      : null;
+
+  return {
+    metadataKeys: metadata ? Object.keys(metadata).sort() : [],
+    stripeEventId: event.id,
+    stripeEventType: event.type,
+    stripeObjectId: typeof payload?.id === 'string' ? payload.id : null,
+  };
+};
+
 router.post('/', async (request, response) => {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     console.error('Stripe webhook secret is not configured.');
@@ -40,7 +57,12 @@ router.post('/', async (request, response) => {
     response.status(result.status).send(result.body);
     return;
   } catch (err) {
-    console.error(`Error processing webhook event ${event.type}:`, err);
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Stripe webhook processing failed', {
+      ...getSafeStripeEventLogContext(event),
+      errorMessage: message,
+      errorName: err instanceof Error ? err.name : 'UnknownError',
+    });
     return response.status(500).send('Webhook processing failed');
   }
 });

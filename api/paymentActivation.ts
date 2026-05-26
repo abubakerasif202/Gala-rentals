@@ -252,6 +252,7 @@ const persistVehicleCheckoutFulfillmentMarkerInTransaction = async (
       {
         event_type: VEHICLE_CHECKOUT_FULFILLMENT_EVENT_TYPE,
         processed_at: processedAt,
+        updated_at: processedAt,
       },
       'Failed to update vehicle checkout fulfillment marker'
     );

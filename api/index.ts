@@ -22,7 +22,9 @@ import {
   checkDirectDatabaseHealth,
   closePostgresPool,
   getDirectDatabaseConfig,
+  getSessionModePostgresRequirementIssue,
 } from './db/postgres.js';
+import { getAdminSessionSecretConfigurationIssue } from './middleware/auth.js';
 import { shouldServeSpaEntry } from './frontendRouting.js';
 import { apiNotFoundHandler, errorHandler } from './middleware/errors.js';
 import { requestContext, requestLogger } from './middleware/requestLogger.js';
@@ -98,7 +100,6 @@ const validateProductionEnv = () => {
     'APP_URL',
     'ADMIN_EMAIL',
     'CHECKOUT_LINK_SECRET',
-    'JWT_SECRET',
     'STRIPE_SECRET_KEY',
     'STRIPE_WEBHOOK_SECRET',
   ].filter((key) => !process.env[key]?.trim());
@@ -120,6 +121,17 @@ const validateProductionEnv = () => {
     if (!parsedAdminEmail.success) {
       invalid.push(parsedAdminEmail.error.issues[0]?.message || 'ADMIN_EMAIL');
     }
+  }
+
+  const adminSessionSecretIssue =
+    getAdminSessionSecretConfigurationIssue({ required: true });
+  if (adminSessionSecretIssue) {
+    invalid.push(adminSessionSecretIssue);
+  }
+
+  const sessionModePostgresIssue = getSessionModePostgresRequirementIssue();
+  if (sessionModePostgresIssue) {
+    invalid.push(sessionModePostgresIssue);
   }
 
   if (missing.length > 0 || invalid.length > 0) {

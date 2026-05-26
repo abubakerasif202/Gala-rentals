@@ -6,7 +6,7 @@ const isVitest = process.env.VITEST === 'true';
 const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
 
 const devAdminEmail = 'admin@maplerentals.com.au';
-const adminSessionSecret = (process.env.JWT_SECRET || '').trim();
+export const MIN_ADMIN_SESSION_SECRET_LENGTH = 32;
 
 const LOCAL_ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 60 * 1000;
@@ -75,7 +75,7 @@ const getRequestOrigin = (req: express.Request) => {
 const getTrustedWriteOrigins = (req: express.Request) =>
   new Set(
     [
-      getRequestOrigin(req),
+      ...(!isProduction ? [getRequestOrigin(req)] : []),
       toOrigin(process.env.APP_URL),
       toOrigin(process.env.FRONTEND_URL),
       toOrigin(process.env.CORS_ORIGIN),
@@ -94,6 +94,29 @@ const getTrustedWriteOrigins = (req: express.Request) =>
 
 const isSafeMethod = (method: string) =>
   ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+
+const readAdminSessionSecret = () => (process.env.JWT_SECRET || '').trim();
+
+export const getAdminSessionSecretConfigurationIssue = ({
+  required = isProduction,
+}: {
+  required?: boolean;
+} = {}) => {
+  if (!required) {
+    return null;
+  }
+
+  const secret = readAdminSessionSecret();
+  if (!secret) {
+    return 'JWT_SECRET is required for production admin authentication.';
+  }
+
+  if (secret.length < MIN_ADMIN_SESSION_SECRET_LENGTH) {
+    return `JWT_SECRET must be at least ${MIN_ADMIN_SESSION_SECRET_LENGTH} characters for production admin authentication.`;
+  }
+
+  return null;
+};
 
 const hasTrustedWriteOrigin = (req: express.Request) => {
   if (isSafeMethod(req.method)) {
@@ -137,10 +160,23 @@ export const requireTrustedAdminWriteOrigin = (
   res.status(403).json({ error: 'Cross-site admin request rejected' });
 };
 
+const requireAdminSessionSecret = () => {
+  const secret = readAdminSessionSecret();
+  if (!secret) {
+    throw new Error('JWT_SECRET is required to issue admin sessions.');
+  }
+
+  return secret;
+};
+
+const signAdminSessionValueWithSecret = (value: string, secret: string) =>
+  crypto.createHmac('sha256', secret).update(value).digest('base64url');
+
 const signAdminSessionValue = (value: string) =>
-  crypto.createHmac('sha256', adminSessionSecret).update(value).digest('base64url');
+  signAdminSessionValueWithSecret(value, requireAdminSessionSecret());
 
 const verifySignedSessionToken = (token: string) => {
+  const adminSessionSecret = readAdminSessionSecret();
   if (!adminSessionSecret) {
     return null;
   }
@@ -150,7 +186,10 @@ const verifySignedSessionToken = (token: string) => {
     return null;
   }
 
-  const expectedSignature = signAdminSessionValue(encodedPayload);
+  const expectedSignature = signAdminSessionValueWithSecret(
+    encodedPayload,
+    adminSessionSecret
+  );
   const providedBuffer = Buffer.from(providedSignature);
   const expectedBuffer = Buffer.from(expectedSignature);
 
@@ -250,9 +289,7 @@ export const createSupabaseAdminSessionToken = ({
   email: string;
   refreshToken: string;
 }) => {
-  if (!adminSessionSecret) {
-    throw new Error('JWT_SECRET is required to issue admin sessions.');
-  }
+  requireAdminSessionSecret();
 
   const payload: SupabaseAdminSessionPayload = {
     accessToken,
@@ -271,9 +308,7 @@ export const createSupabaseAdminSessionToken = ({
 };
 
 export const createLocalAdminSessionToken = (email: string) => {
-  if (!adminSessionSecret) {
-    throw new Error('JWT_SECRET is required to issue admin sessions.');
-  }
+  requireAdminSessionSecret();
 
   const payload: LocalAdminSessionPayload = {
     email,

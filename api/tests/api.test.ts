@@ -3872,6 +3872,41 @@ describe("Toll Transfer Notices API", () => {
     expect(res.body.error).toBe("Validation failed");
   });
 
+  it("POST /api/toll-notices accepts manually entered date values", async () => {
+    const res = await request(app)
+      .post("/api/toll-notices")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        ...validTollNoticePayload(),
+        declaration_date: "30/04/2026",
+        nominee_dob: "24/09/1999",
+        responsible_type: "new-owner",
+        toll_trip_date: "29/04/2026",
+      });
+
+    expect(res.status).toBe(201);
+    expect(mockState.toll_transfer_notices[0]).toMatchObject({
+      declaration_date: "2026-04-30",
+      nominee_dob: "1999-09-24",
+      responsible_type: "new-owner",
+      toll_trip_date: "2026-04-29",
+    });
+  });
+
+  it("POST /api/toll-notices requires toll trip date for ownership transfer notices", async () => {
+    const res = await request(app)
+      .post("/api/toll-notices")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        ...validTollNoticePayload(),
+        responsible_type: "previous-owner",
+        toll_trip_date: "",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Validation failed");
+  });
+
   it("POST /api/toll-notices saves generated records and audit events", async () => {
     const res = await request(app)
       .post("/api/toll-notices")

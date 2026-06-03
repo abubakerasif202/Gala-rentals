@@ -43,7 +43,7 @@ const createEmptyForm = (): TollTransferForm => ({
   car_id: null,
   car_name: '',
   customer_id: null,
-  declaration_date: getTodayInAustralia(),
+  declaration_date: formatIsoDateForManualInput(getTodayInAustralia()),
   declaration_place: 'Merrylands NSW',
   nominee_address: '',
   nominee_country: 'AUSTRALIA',
@@ -82,16 +82,63 @@ const labels: Partial<Record<keyof TollTransferForm, string>> = {
   declaration_date: 'Declaration date',
   declaration_place: 'Declaration place',
   nominee_address: 'Mailing address',
+  nominee_dob: 'Date of birth',
   nominee_full_name: 'Customer full name',
   nominee_phone: 'Phone',
   nominee_postcode: 'Postcode',
   nominee_state: 'State',
   nominee_suburb: 'Suburb',
+  toll_trip_date: 'Toll trip date',
   toll_notice_number: 'Toll notice number',
   vehicle_registration: 'Vehicle registration',
 };
 
 const display = (value: unknown) => String(value ?? '').trim() || '-';
+const manualDateFields = new Set<keyof TollTransferForm>([
+  'declaration_date',
+  'nominee_dob',
+  'toll_trip_date',
+]);
+const ownershipTransferTypes = new Set<ResponsibleType>(['new-owner', 'previous-owner']);
+
+const parseManualDateInput = (value: string | null | undefined) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const local = raw.match(/^(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{2,4})$/);
+  const match = iso || local;
+  if (!match) return null;
+
+  const year = Number(iso ? match[1] : match[3].length === 2 ? `20${match[3]}` : match[3]);
+  const month = Number(iso ? match[2] : match[2]);
+  const day = Number(iso ? match[3] : match[1]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+const formatIsoDateForManualInput = (value: string | null | undefined) => {
+  const raw = String(value || '').trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return iso ? `${iso[3]}/${iso[2]}/${iso[1]}` : raw;
+};
+
+const normalizeRequiredDateForPayload = (value: string | null | undefined) =>
+  parseManualDateInput(value) || String(value || '').trim();
+
+const normalizeOptionalDateForPayload = (value: string | null | undefined) => {
+  const trimmed = String(value || '').trim();
+  return trimmed ? parseManualDateInput(trimmed) || trimmed : null;
+};
 
 type FieldProps = {
   error?: string;
@@ -102,6 +149,7 @@ type FieldProps = {
   onChange: (field: keyof TollTransferForm) => (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => void;
+  placeholder?: string;
   required: boolean;
   type?: string;
   value: string;
@@ -120,6 +168,7 @@ const Field = memo(
     label,
     maxLength,
     onChange,
+    placeholder,
     required,
     type = 'text',
     value,
@@ -134,6 +183,7 @@ const Field = memo(
         inputMode={inputMode}
         maxLength={maxLength}
         onChange={onChange(field)}
+        placeholder={placeholder}
         type={type}
         value={value}
       />
@@ -381,9 +431,16 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     },
   });
 
+  const effectiveRequiredFields = useMemo(
+    () =>
+      ownershipTransferTypes.has(form.responsible_type)
+        ? [...requiredFields, 'toll_trip_date' as keyof TollTransferForm]
+        : requiredFields,
+    [form.responsible_type]
+  );
   const missingRequiredFields = useMemo(
-    () => requiredFields.filter((field) => !String(form[field] ?? '').trim()),
-    [form]
+    () => effectiveRequiredFields.filter((field) => !String(form[field] ?? '').trim()),
+    [effectiveRequiredFields, form]
   );
   const selectedRentalSummary = useMemo(() => {
     if (!form.rental_id && !form.application_id && !form.car_name) {
@@ -432,7 +489,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
       customer_id: option.customer_id,
       nominee_address: option.nominee_address,
       nominee_country: option.nominee_country || 'AUSTRALIA',
-      nominee_dob: option.nominee_dob || null,
+      nominee_dob: formatIsoDateForManualInput(option.nominee_dob),
       nominee_full_name: option.nominee_full_name,
       nominee_phone: option.nominee_phone,
       nominee_postcode: option.nominee_postcode,
@@ -448,9 +505,15 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
 
   const validate = () => {
     const nextErrors: Partial<Record<keyof TollTransferForm, string>> = {};
-    for (const field of requiredFields) {
+    for (const field of effectiveRequiredFields) {
       if (!String(form[field] ?? '').trim()) {
         nextErrors[field] = `${labels[field] || field} is required`;
+      }
+    }
+    for (const field of manualDateFields) {
+      const rawValue = String(form[field] ?? '').trim();
+      if (rawValue && !parseManualDateInput(rawValue)) {
+        nextErrors[field] = `${labels[field] || field} must be DD/MM/YYYY or YYYY-MM-DD`;
       }
     }
     setErrors(nextErrors);
@@ -462,11 +525,11 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     authorised_officer_name: form.authorised_officer_name.trim(),
     car_id: form.car_id || null,
     customer_id: form.customer_id || null,
-    declaration_date: form.declaration_date,
+    declaration_date: normalizeRequiredDateForPayload(form.declaration_date),
     declaration_place: form.declaration_place.trim(),
     nominee_address: form.nominee_address.trim(),
     nominee_country: form.nominee_country.trim() || 'AUSTRALIA',
-    nominee_dob: form.nominee_dob || null,
+    nominee_dob: normalizeOptionalDateForPayload(form.nominee_dob),
     nominee_full_name: form.nominee_full_name.trim(),
     nominee_phone: form.nominee_phone.trim(),
     nominee_postcode: form.nominee_postcode.trim(),
@@ -475,7 +538,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     rental_id: form.rental_id || null,
     responsible_type: form.responsible_type,
     toll_notice_number: form.toll_notice_number.trim(),
-    toll_trip_date: form.toll_trip_date || null,
+    toll_trip_date: normalizeOptionalDateForPayload(form.toll_trip_date),
     vehicle_registration: form.vehicle_registration.trim().toUpperCase(),
     witness_jp_number: form.witness_jp_number?.trim() || null,
     witness_name: form.witness_name?.trim() || null,
@@ -526,7 +589,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     error: errors[field],
     field,
     onChange: handleTextChange,
-    required: requiredFields.includes(field),
+    required: effectiveRequiredFields.includes(field),
     value: String(form[field] ?? ''),
   });
 
@@ -687,7 +750,12 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
             <div className="grid gap-4 sm:grid-cols-2">
               <Field {...fieldProps('toll_notice_number')} label="Toll notice number" maxLength={20} />
               <Field {...fieldProps('vehicle_registration')} label="Vehicle registration" maxLength={8} />
-              <Field {...fieldProps('toll_trip_date')} label="Toll trip date" type="date" />
+              <Field
+                {...fieldProps('toll_trip_date')}
+                inputMode="numeric"
+                label="Toll trip date"
+                placeholder="DD/MM/YYYY"
+              />
               <label className="space-y-2">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
                   Responsible type
@@ -714,7 +782,12 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field {...fieldProps('nominee_full_name')} label="Full name" />
-              <Field {...fieldProps('nominee_dob')} label="Date of birth" type="date" />
+              <Field
+                {...fieldProps('nominee_dob')}
+                inputMode="numeric"
+                label="Date of birth"
+                placeholder="DD/MM/YYYY"
+              />
               <Field {...fieldProps('nominee_phone')} inputMode="tel" label="Phone" />
               <Field {...fieldProps('nominee_suburb')} label="Suburb" />
               <TextArea {...fieldProps('nominee_address')} label="Mailing address" />
@@ -733,7 +806,12 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field {...fieldProps('declaration_place')} label="Declaration place" />
-              <Field {...fieldProps('declaration_date')} label="Declaration date" type="date" />
+              <Field
+                {...fieldProps('declaration_date')}
+                inputMode="numeric"
+                label="Declaration date"
+                placeholder="DD/MM/YYYY"
+              />
               <Field {...fieldProps('authorised_officer_name')} label="Authorised officer name" />
               <Field {...fieldProps('witness_name')} label="Witness name" />
               <Field {...fieldProps('witness_qualification')} label="Witness qualification" />

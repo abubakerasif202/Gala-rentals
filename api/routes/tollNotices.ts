@@ -23,20 +23,53 @@ const responsibleTypeSchema = z
   .enum(['responsible', 'new-owner', 'previous-owner'])
   .default('responsible');
 const statusSchema = z.enum(['draft', 'generated', 'sent']);
-const optionalDateSchema = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .optional()
-  .nullable()
-  .or(z.literal('').transform(() => null));
+const parseManualDateToIso = (value: string | null | undefined) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
 
-const tollNoticePayloadSchema = z.object({
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const local = raw.match(/^(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{2,4})$/);
+  const match = iso || local;
+  if (!match) return null;
+
+  const year = Number(iso ? match[1] : match[3].length === 2 ? `20${match[3]}` : match[3]);
+  const month = Number(iso ? match[2] : match[2]);
+  const day = Number(iso ? match[3] : match[1]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+const manualDateSchema = (label: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${label} is required`)
+    .refine((value) => Boolean(parseManualDateToIso(value)), {
+      message: `${label} must be DD/MM/YYYY or YYYY-MM-DD`,
+    })
+    .transform((value) => parseManualDateToIso(value) as string);
+const optionalDateSchema = z.preprocess(
+  (value) => {
+    if (value === null || value === undefined) return undefined;
+    const trimmed = String(value).trim();
+    return trimmed || undefined;
+  },
+  manualDateSchema('Date').optional()
+);
+const tollNoticePayloadBaseSchema = z.object({
   application_id: z.string().trim().uuid().nullable().optional(),
   authorised_officer_name: z.string().trim().min(1, 'Authorised officer name is required'),
   car_id: z.coerce.number().int().positive().nullable().optional(),
   customer_id: z.coerce.number().int().positive().nullable().optional(),
-  declaration_date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Declaration date is required'),
+  declaration_date: manualDateSchema('Declaration date'),
   declaration_place: z.string().trim().min(1, 'Declaration place is required'),
   nominee_address: z.string().trim().min(1, 'Address is required'),
   nominee_country: z.string().trim().min(1).default('AUSTRALIA'),
@@ -54,6 +87,19 @@ const tollNoticePayloadSchema = z.object({
   witness_jp_number: z.string().trim().nullable().optional(),
   witness_name: z.string().trim().nullable().optional(),
   witness_qualification: z.string().trim().nullable().optional(),
+});
+
+const tollNoticePayloadSchema = tollNoticePayloadBaseSchema.superRefine((payload, ctx) => {
+  if (
+    (payload.responsible_type === 'new-owner' || payload.responsible_type === 'previous-owner') &&
+    !payload.toll_trip_date
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Toll trip date is required for ownership transfer notices',
+      path: ['toll_trip_date'],
+    });
+  }
 });
 
 type TollNoticePayload = z.infer<typeof tollNoticePayloadSchema>;

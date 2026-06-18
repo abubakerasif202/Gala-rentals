@@ -29,6 +29,10 @@ import {
   updateApplicationPaymentStateIfCurrentVersion,
 } from '../applicationPaymentState.js';
 import { LEASE_SETTINGS, RENTAL_PLAN_SETUP_FEES_AUD } from '../constants.js';
+import {
+  getTodayInAustralia,
+  isValidDateOnly,
+} from '../../shared/applicationSubmission.js';
 import { normalizeUuid } from '../../shared/uuid.js';
 
 const getStripe = () => getStripeClient();
@@ -119,6 +123,8 @@ type StripeApplication = {
   approved_weekly_price?: number | string | null;
   email: string;
   id: string;
+  intended_start_date?: string | null;
+  intendedStartDate?: string | null;
   name: string;
   payment_link_version?: number | null;
   pending_checkout_session_id?: string | null;
@@ -139,6 +145,80 @@ const toFloat = (value: number | string | null | undefined) =>
 const isLiveRentalStatus = (status: unknown) => {
   const normalized = String(status || '').toLowerCase();
   return normalized !== 'completed' && normalized !== 'cancelled';
+};
+
+const RENTAL_START_TRIAL_MINIMUM_SECONDS = 48 * 60 * 60;
+
+const getRentalSubscriptionStartDate = (application: StripeApplication) => {
+  const value = String(
+    application.intended_start_date ?? application.intendedStartDate ?? ''
+  ).trim();
+
+  return isValidDateOnly(value) ? value : null;
+};
+
+const getAustraliaSydneyStartOfDayUnix = (dateOnly: string) => {
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  const utcGuess = Date.UTC(year, month - 1, day, 0, 0, 0);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    month: '2-digit',
+    second: '2-digit',
+    timeZone: 'Australia/Sydney',
+    year: 'numeric',
+  }).formatToParts(new Date(utcGuess));
+  const part = (type: string) =>
+    Number(parts.find((entry) => entry.type === type)?.value || 0);
+  const localAtGuess = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    part('hour'),
+    part('minute'),
+    part('second')
+  );
+  const offsetMs = localAtGuess - utcGuess;
+
+  return Math.floor((Date.UTC(year, month - 1, day, 0, 0, 0) - offsetMs) / 1000);
+};
+
+const buildSubscriptionData = ({
+  application,
+  metadata,
+}: {
+  application: StripeApplication;
+  metadata: Record<string, string>;
+}): Stripe.Checkout.SessionCreateParams.SubscriptionData => {
+  const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
+    metadata,
+  };
+  const rentalStartDate = getRentalSubscriptionStartDate(application);
+
+  if (rentalStartDate) {
+    metadata.rental_subscription_start_date = rentalStartDate;
+  }
+
+  if (!rentalStartDate || rentalStartDate <= getTodayInAustralia()) {
+    return subscriptionData;
+  }
+
+  const startTimestamp = getAustraliaSydneyStartOfDayUnix(rentalStartDate);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(startTimestamp) || startTimestamp <= nowSeconds) {
+    return subscriptionData;
+  }
+
+  if (startTimestamp >= nowSeconds + RENTAL_START_TRIAL_MINIMUM_SECONDS) {
+    subscriptionData.trial_end = startTimestamp;
+    return subscriptionData;
+  }
+
+  subscriptionData.billing_cycle_anchor = startTimestamp;
+  subscriptionData.proration_behavior = 'none';
+  return subscriptionData;
 };
 
 const isVehicleCheckoutMetadataMatch = (
@@ -275,12 +355,14 @@ const createHostedCheckoutSession = async ({
   if (carId) {
     metadata.car_id = String(carId);
   }
+  const subscriptionData = buildSubscriptionData({ application, metadata });
 
   console.info('Creating Stripe vehicle checkout session', {
     applicationId: application.id,
     carId,
     idempotencyKey,
     paymentLinkVersion: application.payment_link_version,
+    rentalSubscriptionStartDate: metadata.rental_subscription_start_date || null,
   });
 
   return getStripe().checkout.sessions.create(
@@ -295,9 +377,7 @@ const createHostedCheckoutSession = async ({
       line_items: await buildSubscriptionLineItems({ billingBreakdown }),
       metadata,
       mode: 'subscription',
-      subscription_data: {
-        metadata,
-      },
+      subscription_data: subscriptionData,
       success_url: buildSuccessUrl({
         applicationId: application.id,
         token: checkoutToken,

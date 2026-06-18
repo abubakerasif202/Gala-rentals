@@ -13,6 +13,7 @@ type ApplicationPaymentWritePayload = {
   assigned_car_id?: number | null;
   cancelled_at?: string | null;
   cancel_reason?: string | null;
+  intended_start_date?: string | null;
   paid_at?: string | null;
   payment_link_sent_at?: string | null;
   payment_link_version?: number;

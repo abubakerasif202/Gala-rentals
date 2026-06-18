@@ -165,6 +165,7 @@ export default function AdminDashboard() {
     approved_vehicle: '',
     approved_bond: '',
     approved_weekly_price: '',
+    rental_subscription_start_date: '',
   });
 
   // Agreement Management State
@@ -632,6 +633,7 @@ export default function AdminDashboard() {
         approved_vehicle: string;
         approved_bond: number;
         approved_weekly_price: number;
+        rental_subscription_start_date?: string;
         send_payment_link?: boolean;
       };
     }) => api.approveApplicationForPayment(id, payload),
@@ -792,6 +794,8 @@ export default function AdminDashboard() {
     const approvedVehicle = applicationApprovalForm.approved_vehicle.trim();
     const approvedBond = Number(applicationApprovalForm.approved_bond);
     const approvedWeeklyPrice = Number(applicationApprovalForm.approved_weekly_price);
+    const rentalSubscriptionStartDate =
+      applicationApprovalForm.rental_subscription_start_date.trim();
 
     if (!approvedVehicle || approvedBond < 0 || approvedWeeklyPrice <= 0) {
       showNotification('Enter the approved vehicle, bond, and weekly payment amounts.', 'error');
@@ -805,6 +809,9 @@ export default function AdminDashboard() {
           approved_vehicle: approvedVehicle,
           approved_bond: approvedBond,
           approved_weekly_price: approvedWeeklyPrice,
+          ...(rentalSubscriptionStartDate
+            ? { rental_subscription_start_date: rentalSubscriptionStartDate }
+            : {}),
           send_payment_link: true,
         },
       });
@@ -835,6 +842,9 @@ export default function AdminDashboard() {
               approved_vehicle: approvedVehicle,
               approved_bond: approvedBond,
               approved_weekly_price: approvedWeeklyPrice,
+              ...(rentalSubscriptionStartDate
+                ? { rental_subscription_start_date: rentalSubscriptionStartDate }
+                : {}),
               send_payment_link: false,
             },
           });
@@ -953,6 +963,7 @@ export default function AdminDashboard() {
         selectedApplication.approved_weekly_price != null
           ? String(selectedApplication.approved_weekly_price)
           : '',
+      rental_subscription_start_date: selectedApplication.intended_start_date || '',
     });
   }, [selectedApplication]);
 
@@ -1501,7 +1512,7 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
                           Vehicle / Number Plate
@@ -1555,6 +1566,22 @@ export default function AdminDashboard() {
                           className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
                         />
                       </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                          Rental subscription start date
+                        </label>
+                        <input
+                          type="date"
+                          value={applicationApprovalForm.rental_subscription_start_date}
+                          onChange={(e) =>
+                            setApplicationApprovalForm((current) => ({
+                              ...current,
+                              rental_subscription_start_date: e.target.value,
+                            }))
+                          }
+                          className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
+                        />
+                      </div>
                     </div>
 
                     {applicationApprovalForm.approved_vehicle && (
@@ -1572,6 +1599,14 @@ export default function AdminDashboard() {
                           <span className="text-white font-bold">
                             ${Number(applicationApprovalForm.approved_weekly_price || 0).toFixed(2)}
                           </span>
+                          {applicationApprovalForm.rental_subscription_start_date && (
+                            <>
+                              {' '}| Subscription starts:{' '}
+                              <span className="text-white font-bold">
+                                {applicationApprovalForm.rental_subscription_start_date}
+                              </span>
+                            </>
+                          )}
                         </p>
                       </div>
                     )}

@@ -3865,7 +3865,6 @@ describe("Toll Transfer Notices API", () => {
       .send({
         ...validTollNoticePayload(),
         nominee_full_name: "",
-        toll_notice_number: "",
       });
 
     expect(res.status).toBe(400);
@@ -3893,18 +3892,25 @@ describe("Toll Transfer Notices API", () => {
     });
   });
 
-  it("POST /api/toll-notices requires toll trip date for ownership transfer notices", async () => {
+  it("POST /api/toll-notices allows blank toll number and date fields", async () => {
     const res = await request(app)
       .post("/api/toll-notices")
       .set("Authorization", "Bearer fake-token")
       .send({
         ...validTollNoticePayload(),
+        declaration_date: "",
         responsible_type: "previous-owner",
+        toll_notice_number: "",
         toll_trip_date: "",
       });
 
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Validation failed");
+    expect(res.status).toBe(201);
+    expect(mockState.toll_transfer_notices[0]).toMatchObject({
+      declaration_date: null,
+      responsible_type: "previous-owner",
+      toll_notice_number: null,
+      toll_trip_date: null,
+    });
   });
 
   it("POST /api/toll-notices saves generated records and audit events", async () => {
@@ -4051,6 +4057,7 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry Hybrid",
         approved_bond: 650,
         approved_weekly_price: 285,
+        rental_subscription_start_date: getFutureDateOnly(5),
       });
 
     expect(res.status).toBe(200);
@@ -4066,6 +4073,7 @@ describe("Stripe API", () => {
       approved_bond: 650,
       approved_vehicle: "Toyota Camry Hybrid",
       approved_weekly_price: 285,
+      intended_start_date: getFutureDateOnly(5),
       payment_link_version: 4,
       pending_checkout_session_id: null,
       status: "Approved",
@@ -4734,7 +4742,17 @@ describe("Stripe API", () => {
     expect(payload.metadata.applicant_email).toBe("approved@example.com");
     expect(payload.metadata.car_id).toBe("1");
     expect(payload.metadata.payment_type).toBe("vehicle_rental");
+    expect(payload.metadata.rental_subscription_start_date).toBe(
+      mockState.applications[1].intended_start_date,
+    );
     expect(payload.subscription_data.metadata.car_id).toBe("1");
+    expect(payload.subscription_data.metadata.rental_subscription_start_date).toBe(
+      mockState.applications[1].intended_start_date,
+    );
+    expect(
+      payload.subscription_data.trial_end ||
+        payload.subscription_data.billing_cycle_anchor,
+    ).toEqual(expect.any(Number));
 
     const recurringItem = payload.line_items.find(
       (item: any) => item.price_data.recurring,
@@ -4780,6 +4798,30 @@ describe("Stripe API", () => {
     const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
     expect(payload.metadata.car_id).toBeUndefined();
     expect(payload.subscription_data.metadata.car_id).toBeUndefined();
+  });
+
+  it("POST /api/stripe/vehicle-checkout-session starts subscriptions immediately for past rental start dates", async () => {
+    mockState.applications[1].intended_start_date = getPastDateOnly(1);
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      purpose: "vehicle",
+      version: 1,
+    });
+
+    const res = await request(app)
+      .post("/api/stripe/vehicle-checkout-session")
+      .send({
+        application_id: APPROVED_APPLICATION_ID,
+        checkout_token: token.token,
+      });
+
+    expect(res.status).toBe(200);
+    const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
+    expect(payload.metadata.rental_subscription_start_date).toBe(
+      getPastDateOnly(1),
+    );
+    expect(payload.subscription_data.trial_end).toBeUndefined();
+    expect(payload.subscription_data.billing_cycle_anchor).toBeUndefined();
   });
 
   it("POST /api/stripe/vehicle-checkout-session returns a retryable Stripe outage message", async () => {

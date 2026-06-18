@@ -64,12 +64,16 @@ const optionalDateSchema = z.preprocess(
   },
   manualDateSchema('Date').optional()
 );
+const optionalStringSchema = z.preprocess(
+  (value) => (value == null ? undefined : String(value).trim()),
+  z.string().optional()
+);
 const tollNoticePayloadBaseSchema = z.object({
   application_id: z.string().trim().uuid().nullable().optional(),
   authorised_officer_name: z.string().trim().min(1, 'Authorised officer name is required'),
   car_id: z.coerce.number().int().positive().nullable().optional(),
   customer_id: z.coerce.number().int().positive().nullable().optional(),
-  declaration_date: manualDateSchema('Declaration date'),
+  declaration_date: optionalDateSchema,
   declaration_place: z.string().trim().min(1, 'Declaration place is required'),
   nominee_address: z.string().trim().min(1, 'Address is required'),
   nominee_country: z.string().trim().min(1).default('AUSTRALIA'),
@@ -81,7 +85,7 @@ const tollNoticePayloadBaseSchema = z.object({
   nominee_suburb: z.string().trim().min(1, 'Suburb is required'),
   rental_id: z.coerce.number().int().positive().nullable().optional(),
   responsible_type: responsibleTypeSchema,
-  toll_notice_number: z.string().trim().min(1, 'Toll notice number is required'),
+  toll_notice_number: optionalStringSchema,
   toll_trip_date: optionalDateSchema,
   vehicle_registration: z.string().trim().min(1, 'Vehicle registration is required'),
   witness_jp_number: z.string().trim().nullable().optional(),
@@ -89,18 +93,7 @@ const tollNoticePayloadBaseSchema = z.object({
   witness_qualification: z.string().trim().nullable().optional(),
 });
 
-const tollNoticePayloadSchema = tollNoticePayloadBaseSchema.superRefine((payload, ctx) => {
-  if (
-    (payload.responsible_type === 'new-owner' || payload.responsible_type === 'previous-owner') &&
-    !payload.toll_trip_date
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Toll trip date is required for ownership transfer notices',
-      path: ['toll_trip_date'],
-    });
-  }
-});
+const tollNoticePayloadSchema = tollNoticePayloadBaseSchema;
 
 type TollNoticePayload = z.infer<typeof tollNoticePayloadSchema>;
 
@@ -348,11 +341,13 @@ const toRecordPayload = (payload: TollNoticePayload, req: express.Request) => ({
   application_id: payload.application_id || null,
   car_id: payload.car_id || null,
   customer_id: payload.customer_id || null,
+  declaration_date: payload.declaration_date || null,
   nominee_country: payload.nominee_country.toUpperCase(),
   nominee_dob: payload.nominee_dob || null,
   pdf_url: null,
   rental_id: payload.rental_id || null,
   status: 'generated',
+  toll_notice_number: payload.toll_notice_number || null,
   toll_trip_date: payload.toll_trip_date || null,
   created_by: getAdminEmail(req),
 });
@@ -414,7 +409,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
       metadata: {
         application_id: payload.application_id || null,
         rental_id: payload.rental_id || null,
-        toll_notice_number: payload.toll_notice_number,
+        toll_notice_number: payload.toll_notice_number || null,
       },
       noticeId: id,
     });
@@ -478,14 +473,14 @@ router.post('/:id/send', authenticateAdmin, async (req, res) => {
 
     const pdf = await buildTollTransferNoticePdf(notice as any);
     const resend = await getResend();
-    const tollNoticeNumber = getSafeNoticeValue(notice, 'toll_notice_number') || String(id);
+    const tollNoticeNumber = getSafeNoticeValue(notice, 'toll_notice_number');
     const vehicleRegistration = getSafeNoticeValue(notice, 'vehicle_registration');
     const nomineeName = getSafeNoticeValue(notice, 'nominee_full_name');
     const safeRecipientName = escapeHtml(payload.recipient_name || 'Toll compliance team');
     const safeTollNoticeNumber = escapeHtml(tollNoticeNumber);
     const safeVehicleRegistration = escapeHtml(vehicleRegistration || 'not supplied');
     const safeNomineeName = escapeHtml(nomineeName || 'not supplied');
-    const subjectNoticeNumber = sanitizeEmailHeaderValue(tollNoticeNumber);
+    const subjectNoticeNumber = sanitizeEmailHeaderValue(tollNoticeNumber || String(id));
 
     await sendResendEmail(resend, {
       attachments: [

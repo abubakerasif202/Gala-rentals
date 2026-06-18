@@ -6,7 +6,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf
 
 export type TollTransferNoticePdfData = {
   authorised_officer_name: string;
-  declaration_date: string;
+  declaration_date?: string | null;
   declaration_place: string;
   nominee_address: string;
   nominee_country: string;
@@ -17,7 +17,7 @@ export type TollTransferNoticePdfData = {
   nominee_state: string;
   nominee_suburb: string;
   responsible_type: string;
-  toll_notice_number: string;
+  toll_notice_number?: string | null;
   toll_trip_date?: string | null;
   vehicle_registration: string;
   witness_jp_number?: string | null;

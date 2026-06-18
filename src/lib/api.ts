@@ -419,6 +419,7 @@ export const approveApplicationForPayment = async (
     approved_vehicle: string;
     approved_bond: number;
     approved_weekly_price: number;
+    rental_subscription_start_date?: string;
     send_payment_link?: boolean;
   }
 ): Promise<ApplicationApprovalResponse> => {
@@ -591,7 +592,7 @@ export interface TollTransferNoticePayload {
   authorised_officer_name: string;
   car_id?: number | null;
   customer_id?: number | null;
-  declaration_date: string;
+  declaration_date?: string | null;
   declaration_place: string;
   nominee_address: string;
   nominee_country: string;
@@ -603,7 +604,7 @@ export interface TollTransferNoticePayload {
   nominee_suburb: string;
   rental_id?: number | null;
   responsible_type: 'responsible' | 'new-owner' | 'previous-owner';
-  toll_notice_number: string;
+  toll_notice_number?: string | null;
   toll_trip_date?: string | null;
   vehicle_registration: string;
   witness_jp_number?: string | null;

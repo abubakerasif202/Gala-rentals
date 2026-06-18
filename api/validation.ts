@@ -46,6 +46,15 @@ const dateOnlySchema = (requiredMessage: string, invalidMessage: string) =>
     .trim()
     .min(1, requiredMessage)
     .refine(isValidDateOnly, invalidMessage);
+const optionalDateOnlySchema = (invalidMessage: string) =>
+  z.preprocess(
+    (value) => {
+      if (value === null || value === undefined) return undefined;
+      const trimmed = String(value).trim();
+      return trimmed || undefined;
+    },
+    z.string().trim().refine(isValidDateOnly, invalidMessage).optional(),
+  );
 const optionalPositiveIntegerSchema = z.preprocess(
   (value) => (value === "" || value == null ? undefined : value),
   z.coerce.number().int().positive().optional(),
@@ -123,6 +132,9 @@ export const applicationApprovalSchema = z.object({
   approved_weekly_price: z.coerce.number().positive(),
   application_id: uuidSchema,
   car_id: optionalPositiveIntegerSchema,
+  rental_subscription_start_date: optionalDateOnlySchema(
+    "Rental subscription start date must be a valid date",
+  ),
   send_payment_link: z.boolean().optional().default(true),
 });
 

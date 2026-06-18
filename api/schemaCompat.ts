@@ -23,6 +23,7 @@ type ApplicationAgreementTemplateVersionColumn =
 type SchemaCompat = {
   applicationApprovedAtColumn: string;
   applicationApprovedVehicleColumn: string;
+  applicationIntendedStartDateColumn: string;
   applicationAgreementAcceptedAtColumn: string;
   applicationAgreementSignatureColumn: string;
   applicationAgreementTemplateVersionColumn: ApplicationAgreementTemplateVersionColumn;
@@ -47,6 +48,7 @@ type SchemaCompat = {
 const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationApprovedAtColumn: 'approved_at',
   applicationApprovedVehicleColumn: 'approved_vehicle',
+  applicationIntendedStartDateColumn: 'intended_start_date',
   applicationAgreementAcceptedAtColumn: 'agreement_accepted_at',
   applicationAgreementSignatureColumn: 'agreement_signature',
   applicationAgreementTemplateVersionColumn: 'agreement_template_version',
@@ -218,6 +220,13 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
             : coreMode === 'camel'
               ? 'approvedAt'
               : 'approved_at';
+        const applicationIntendedStartDateColumn = hasProperty(applicationsDefinition, 'intendedStartDate')
+          ? 'intendedStartDate'
+          : hasProperty(applicationsDefinition, 'intended_start_date')
+            ? 'intended_start_date'
+            : coreMode === 'camel'
+              ? 'intendedStartDate'
+              : 'intended_start_date';
         const applicationAgreementAcceptedAtColumn = hasProperty(
           applicationsDefinition,
           'agreementAcceptedAt'
@@ -293,6 +302,7 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
         const resolvedCompat = {
           applicationApprovedAtColumn,
           applicationApprovedVehicleColumn,
+          applicationIntendedStartDateColumn,
           applicationAgreementAcceptedAtColumn,
           applicationAgreementSignatureColumn,
           applicationAgreementTemplateVersionColumn,
@@ -668,6 +678,7 @@ export const toApplicationPaymentWritePayload = async (payload: {
   approved_bond?: number | null;
   approved_vehicle?: string | null;
   approved_weekly_price?: number | null;
+  intended_start_date?: string | null;
   payment_link_version?: number;
   payment_link_sent_at?: string | null;
   approved_at?: string | null;
@@ -695,6 +706,11 @@ export const toApplicationPaymentWritePayload = async (payload: {
   if ('approved_weekly_price' in payload) {
     mappedPayload[compat.applicationApprovedWeeklyPriceColumn] =
       payload.approved_weekly_price ?? null;
+  }
+
+  if ('intended_start_date' in payload) {
+    mappedPayload[compat.applicationIntendedStartDateColumn] =
+      payload.intended_start_date ?? null;
   }
 
   if ('payment_link_version' in payload) {

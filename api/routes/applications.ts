@@ -848,6 +848,9 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
           approved_vehicle: payload.approved_vehicle.trim(),
           approved_weekly_price: payload.approved_weekly_price,
           assigned_car_id: null,
+          ...(payload.rental_subscription_start_date
+            ? { intended_start_date: payload.rental_subscription_start_date }
+            : {}),
           paid_at: null,
           payment_link_sent_at: payload.send_payment_link ? nowIso : null,
           payment_link_version: nextVersion,

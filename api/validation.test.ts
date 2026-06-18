@@ -282,6 +282,24 @@ describe('applicationApprovalSchema', () => {
     expect(() => applicationApprovalSchema.parse(withoutCarId)).not.toThrow();
   });
 
+  it('accepts an optional rental subscription start date', () => {
+    const result = applicationApprovalSchema.parse({
+      ...valid,
+      rental_subscription_start_date: '2026-07-01',
+    });
+
+    expect(result.rental_subscription_start_date).toBe('2026-07-01');
+  });
+
+  it('rejects an invalid rental subscription start date', () => {
+    expect(() =>
+      applicationApprovalSchema.parse({
+        ...valid,
+        rental_subscription_start_date: '2026-02-31',
+      })
+    ).toThrow();
+  });
+
   it('rejects an empty approved_vehicle', () => {
     expect(() => applicationApprovalSchema.parse({ ...valid, approved_vehicle: '' })).toThrow();
   });

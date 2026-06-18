@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import * as api from '../../../lib/api';
 import { getApiErrorMessage } from '../../../lib/errorHandling';
-import { getTodayInAustralia } from '../../../../shared/applicationSubmission';
 
 type ResponsibleType = 'responsible' | 'new-owner' | 'previous-owner';
 
@@ -43,7 +42,7 @@ const createEmptyForm = (): TollTransferForm => ({
   car_id: null,
   car_name: '',
   customer_id: null,
-  declaration_date: formatIsoDateForManualInput(getTodayInAustralia()),
+  declaration_date: null,
   declaration_place: 'Merrylands NSW',
   nominee_address: '',
   nominee_country: 'AUSTRALIA',
@@ -64,7 +63,6 @@ const createEmptyForm = (): TollTransferForm => ({
 });
 
 const requiredFields: Array<keyof TollTransferForm> = [
-  'toll_notice_number',
   'vehicle_registration',
   'nominee_full_name',
   'nominee_address',
@@ -73,7 +71,6 @@ const requiredFields: Array<keyof TollTransferForm> = [
   'nominee_postcode',
   'nominee_phone',
   'declaration_place',
-  'declaration_date',
   'authorised_officer_name',
 ];
 
@@ -95,11 +92,8 @@ const labels: Partial<Record<keyof TollTransferForm, string>> = {
 
 const display = (value: unknown) => String(value ?? '').trim() || '-';
 const manualDateFields = new Set<keyof TollTransferForm>([
-  'declaration_date',
   'nominee_dob',
-  'toll_trip_date',
 ]);
-const ownershipTransferTypes = new Set<ResponsibleType>(['new-owner', 'previous-owner']);
 
 const parseManualDateInput = (value: string | null | undefined) => {
   const raw = String(value || '').trim();
@@ -131,9 +125,6 @@ const formatIsoDateForManualInput = (value: string | null | undefined) => {
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return iso ? `${iso[3]}/${iso[2]}/${iso[1]}` : raw;
 };
-
-const normalizeRequiredDateForPayload = (value: string | null | undefined) =>
-  parseManualDateInput(value) || String(value || '').trim();
 
 const normalizeOptionalDateForPayload = (value: string | null | undefined) => {
   const trimmed = String(value || '').trim();
@@ -431,13 +422,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     },
   });
 
-  const effectiveRequiredFields = useMemo(
-    () =>
-      ownershipTransferTypes.has(form.responsible_type)
-        ? [...requiredFields, 'toll_trip_date' as keyof TollTransferForm]
-        : requiredFields,
-    [form.responsible_type]
-  );
+  const effectiveRequiredFields = useMemo(() => requiredFields, []);
   const missingRequiredFields = useMemo(
     () => effectiveRequiredFields.filter((field) => !String(form[field] ?? '').trim()),
     [effectiveRequiredFields, form]
@@ -525,7 +510,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     authorised_officer_name: form.authorised_officer_name.trim(),
     car_id: form.car_id || null,
     customer_id: form.customer_id || null,
-    declaration_date: normalizeRequiredDateForPayload(form.declaration_date),
+    declaration_date: null,
     declaration_place: form.declaration_place.trim(),
     nominee_address: form.nominee_address.trim(),
     nominee_country: form.nominee_country.trim() || 'AUSTRALIA',
@@ -537,8 +522,8 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
     nominee_suburb: form.nominee_suburb.trim(),
     rental_id: form.rental_id || null,
     responsible_type: form.responsible_type,
-    toll_notice_number: form.toll_notice_number.trim(),
-    toll_trip_date: normalizeOptionalDateForPayload(form.toll_trip_date),
+    toll_notice_number: form.toll_notice_number.trim() || null,
+    toll_trip_date: null,
     vehicle_registration: form.vehicle_registration.trim().toUpperCase(),
     witness_jp_number: form.witness_jp_number?.trim() || null,
     witness_name: form.witness_name?.trim() || null,
@@ -750,12 +735,6 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
             <div className="grid gap-4 sm:grid-cols-2">
               <Field {...fieldProps('toll_notice_number')} label="Toll notice number" maxLength={20} />
               <Field {...fieldProps('vehicle_registration')} label="Vehicle registration" maxLength={8} />
-              <Field
-                {...fieldProps('toll_trip_date')}
-                inputMode="numeric"
-                label="Toll trip date"
-                placeholder="DD/MM/YYYY"
-              />
               <label className="space-y-2">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
                   Responsible type
@@ -806,12 +785,6 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field {...fieldProps('declaration_place')} label="Declaration place" />
-              <Field
-                {...fieldProps('declaration_date')}
-                inputMode="numeric"
-                label="Declaration date"
-                placeholder="DD/MM/YYYY"
-              />
               <Field {...fieldProps('authorised_officer_name')} label="Authorised officer name" />
               <Field {...fieldProps('witness_name')} label="Witness name" />
               <Field {...fieldProps('witness_qualification')} label="Witness qualification" />
@@ -829,7 +802,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
                   : `${missingRequiredFields.length} required field${missingRequiredFields.length === 1 ? '' : 's'} remaining`}
               </span>
               <span className="font-mono text-[10px] uppercase tracking-widest text-white">
-                {display(form.vehicle_registration)} | {display(form.toll_notice_number)}
+                {display(form.vehicle_registration)} | {form.toll_notice_number.trim()}
               </span>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -923,7 +896,7 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
                 >
                   <div>
                     <p className="text-sm font-bold text-white">
-                      {notice.toll_notice_number} | {notice.vehicle_registration}
+                      {String(notice.toll_notice_number || '')} | {notice.vehicle_registration}
                     </p>
                     <p className="text-[10px] uppercase tracking-widest text-brand-grey">
                       {notice.nominee_full_name} | {notice.status} |{' '}

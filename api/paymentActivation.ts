@@ -55,6 +55,14 @@ const isLiveRentalStatus = (status: unknown) => {
   return normalized !== 'completed' && normalized !== 'cancelled';
 };
 
+const getApplicationRentalStartDate = (application: Record<string, unknown>) => {
+  const value = String(
+    application.intended_start_date ?? application.intendedStartDate ?? ''
+  ).trim();
+
+  return value || getTodayInAustralia();
+};
+
 export const getRentalStatusUpdatePayload = async (status: string, endDate?: string) => {
   const compat = await getSchemaCompat();
   const payload: Record<string, unknown> = { status };
@@ -769,7 +777,7 @@ export const handleVehicleCheckoutCompletion = async (
         application_id: applicationId,
         bond_paid: approvedBond,
         car_id: legacyCarId,
-        start_date: getTodayInAustralia(),
+        start_date: getApplicationRentalStartDate(application),
         status: 'Active',
         stripe_customer_id:
           typeof session.customer === 'string' ? session.customer : null,

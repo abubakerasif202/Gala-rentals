@@ -61,7 +61,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-4">
                 <Mail className="h-4 w-4 text-brand-gold" />
-                <a href="mailto:hello@galarentals.com.au" className="text-sm hover:text-brand-gold transition-colors font-light">hello@galarentals.com.au</a>
+                <a href="mailto:hello@gala-rentals.com.au" className="text-sm hover:text-brand-gold transition-colors font-light">hello@gala-rentals.com.au</a>
               </li>
               <li className="flex items-start gap-4">
                 <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />

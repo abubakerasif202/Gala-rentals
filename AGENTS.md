@@ -404,8 +404,8 @@ Deployment safety rules:
 Production smoke commands:
 
 ```powershell
-curl.exe https://www.galarentals.com.au/api/live
-curl.exe https://www.galarentals.com.au/api/health
+curl.exe https://www.gala-rentals.com.au/api/live
+curl.exe https://www.gala-rentals.com.au/api/health
 ```
 
 Use the configured production domain for non-current-brand projects.

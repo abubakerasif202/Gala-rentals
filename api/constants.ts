@@ -1,6 +1,6 @@
 import type Stripe from 'stripe';
 
-export const FALLBACK_ADMIN_EMAIL = 'hello@galarentals.com.au';
+export const FALLBACK_ADMIN_EMAIL = 'hello@gala-rentals.com.au';
 
 export const LEASE_SETTINGS = {
   currency: 'aud',

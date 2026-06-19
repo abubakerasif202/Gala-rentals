@@ -52,7 +52,7 @@ export default function Contact() {
             <div className="mt-10 space-y-4">
               {[
                 { icon: Phone, title: 'Phone', body: '1300 555 828' },
-                { icon: Mail, title: 'Email', body: 'hello@galarentals.com.au' },
+                { icon: Mail, title: 'Email', body: 'hello@gala-rentals.com.au' },
                 { icon: Clock3, title: 'Business hours', body: 'Mon-Fri, 8:30am to 5:30pm AEST' },
                 { icon: MapPin, title: 'Service area', body: 'Sydney metro and surrounding suburbs' },
               ].map((item) => (

@@ -19,14 +19,14 @@ Expected service configuration:
 - Build command: `npm ci --include=dev && npm run validate && npm run build`
 - Start command: `npm start`
 - Health check path: `/api/health`
-- Production URL: `https://www.galarentals.com.au`
+- Production URL: `https://www.gala-rentals.com.au`
 
 ## Required Environment Variables
 
 Set these in the Gala Rentals Render service. Do not reuse credentials from any other rental brand.
 
 - `NODE_ENV=production`
-- `APP_URL=https://www.galarentals.com.au`
+- `APP_URL=https://www.gala-rentals.com.au`
 - `ADMIN_EMAIL`
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
@@ -45,13 +45,13 @@ Set these in the Gala Rentals Render service. Do not reuse credentials from any 
 - `LEASE_OWNER_NAME=Gala Rentals`
 - `LEASE_OWNER_ADDRESS=Sydney NSW`
 - `LEASE_OWNER_CONTACT=1300 555 828`
-- `LEASE_OWNER_EMAIL=hello@galarentals.com.au`
+- `LEASE_OWNER_EMAIL=hello@gala-rentals.com.au`
 
 ## Stripe Webhook
 
 Configure Stripe to send production events to:
 
-`https://www.galarentals.com.au/api/stripe/webhook`
+`https://www.gala-rentals.com.au/api/stripe/webhook`
 
 Keep webhook signing verification enabled and store the signing secret in `STRIPE_WEBHOOK_SECRET`.
 
@@ -64,8 +64,8 @@ Keep webhook signing verification enabled and store the signing secret in `STRIP
 5. Configure a separate Gala Supabase project and storage buckets.
 6. Configure separate Gala Stripe products, prices, and webhook endpoint.
 7. Run the production build through Render.
-8. Verify `https://www.galarentals.com.au/api/live`.
-9. Verify `https://www.galarentals.com.au/api/health`.
+8. Verify `https://www.gala-rentals.com.au/api/live`.
+9. Verify `https://www.gala-rentals.com.au/api/health`.
 10. Verify the public homepage and `/apply` load from the deployed asset hash.
 
 ## Local Production Verification

@@ -50,4 +50,4 @@ services:
       - key: LEASE_OWNER_CONTACT
         value: "1300 555 828"
       - key: LEASE_OWNER_EMAIL
-        value: "hello@galarentals.com.au"
+        value: "hello@gala-rentals.com.au"

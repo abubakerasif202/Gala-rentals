@@ -9,7 +9,7 @@ not supported for security updates.
 ## Reporting a Vulnerability
 
 If you believe you have found a security vulnerability in Gala Rentals, please
-email the details to hello@galarentals.com.au.
+email the details to hello@gala-rentals.com.au.
 
 Include enough information for us to reproduce and assess the issue, such as:
 

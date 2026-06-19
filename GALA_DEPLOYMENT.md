@@ -5,11 +5,11 @@ Gala Rentals must be deployed as its own rental company project with its own rep
 ## Production Identity
 
 - Brand: Gala Rentals
-- Domain: `https://www.galarentals.com.au`
-- Email: `hello@galarentals.com.au`
+- Domain: `https://www.gala-rentals.com.au`
+- Email: `hello@gala-rentals.com.au`
 - Render service: `gala-rentals`
 - Repository: `https://github.com/abubakerasif202/gala-rentals.git`
-- Stripe webhook: `https://www.galarentals.com.au/api/stripe/webhook`
+- Stripe webhook: `https://www.gala-rentals.com.au/api/stripe/webhook`
 
 ## Deployment Rules
 
@@ -25,7 +25,7 @@ Gala Rentals must be deployed as its own rental company project with its own rep
 
 The blueprint defines the required keys. Fill the synced values in Render:
 
-- `APP_URL=https://www.galarentals.com.au`
+- `APP_URL=https://www.gala-rentals.com.au`
 - `ADMIN_EMAIL`
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
@@ -48,17 +48,17 @@ Static values are already in `render.yaml`:
 - `LEASE_OWNER_NAME=Gala Rentals`
 - `LEASE_OWNER_ADDRESS=Sydney NSW`
 - `LEASE_OWNER_CONTACT=1300 555 828`
-- `LEASE_OWNER_EMAIL=hello@galarentals.com.au`
+- `LEASE_OWNER_EMAIL=hello@gala-rentals.com.au`
 
 ## Smoke Tests
 
 After deployment, verify:
 
 ```powershell
-curl.exe https://www.galarentals.com.au/api/live
-curl.exe https://www.galarentals.com.au/api/health
-curl.exe https://www.galarentals.com.au/
-curl.exe https://www.galarentals.com.au/apply
+curl.exe https://www.gala-rentals.com.au/api/live
+curl.exe https://www.gala-rentals.com.au/api/health
+curl.exe https://www.gala-rentals.com.au/
+curl.exe https://www.gala-rentals.com.au/apply
 ```
 
 Do not call the deployment complete until health, liveness, homepage, and application page checks pass against the intended deployed commit.

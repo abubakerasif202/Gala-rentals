@@ -734,7 +734,7 @@ router.post(
           );
           const emailResults = await Promise.allSettled([
             sendResendEmail(resend, {
-              from: "Gala Rentals Notifications <noreply@galarentals.com.au>",
+              from: "Gala Rentals Notifications <noreply@gala-rentals.com.au>",
               to: adminEmail,
               subject: `New Driver Application: ${applicantNameForSubject}`,
               html: `
@@ -755,7 +755,7 @@ router.post(
               `,
             }),
             sendResendEmail(resend, {
-              from: "Gala Rentals <noreply@galarentals.com.au>",
+              from: "Gala Rentals <noreply@gala-rentals.com.au>",
               to: normalizedApplicationData.email,
               subject: "We received your Gala Rentals application",
               html: `

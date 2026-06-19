@@ -5,11 +5,11 @@ Gala Rentals is a full-stack rental platform for premium weekly car rentals in S
 ## Production Identity
 
 - Brand: Gala Rentals
-- Domain: `https://www.galarentals.com.au`
-- Contact: `hello@galarentals.com.au`
+- Domain: `https://www.gala-rentals.com.au`
+- Contact: `hello@gala-rentals.com.au`
 - Render service: `gala-rentals`
 - Repository: `https://github.com/abubakerasif202/gala-rentals.git`
-- Stripe webhook: `https://www.galarentals.com.au/api/stripe/webhook`
+- Stripe webhook: `https://www.gala-rentals.com.au/api/stripe/webhook`
 
 ## Stack
 
@@ -48,7 +48,7 @@ Copy `.env.example` to `.env.local` and fill in Gala-specific values. Do not com
 
 ```env
 APP_URL=http://localhost:3000
-ADMIN_EMAIL=hello@galarentals.com.au
+ADMIN_EMAIL=hello@gala-rentals.com.au
 SUPABASE_URL=https://your-gala-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 SUPABASE_ANON_KEY=your_anon_key
@@ -66,7 +66,7 @@ VITE_SUPABASE_VEHICLE_IMAGES_BUCKET=vehicle-images
 LEASE_OWNER_NAME=Gala Rentals
 LEASE_OWNER_ADDRESS=Sydney NSW
 LEASE_OWNER_CONTACT=1300 555 828
-LEASE_OWNER_EMAIL=hello@galarentals.com.au
+LEASE_OWNER_EMAIL=hello@gala-rentals.com.au
 ```
 
 `DATABASE_URL` is preferred for transactional payment activation. `SUPABASE_DB_URL` remains a fallback for environments that have not moved to `DATABASE_URL`.
@@ -149,10 +149,10 @@ Deployment instructions are in [DEPLOY_RENDER.md](DEPLOY_RENDER.md).
 After an approved Gala deployment, verify:
 
 ```powershell
-curl.exe https://www.galarentals.com.au/api/live
-curl.exe https://www.galarentals.com.au/api/health
-curl.exe https://www.galarentals.com.au/
-curl.exe https://www.galarentals.com.au/apply
+curl.exe https://www.gala-rentals.com.au/api/live
+curl.exe https://www.gala-rentals.com.au/api/health
+curl.exe https://www.gala-rentals.com.au/
+curl.exe https://www.gala-rentals.com.au/apply
 ```
 
 Do not call deployment complete until the deployed commit and production health checks are verified.

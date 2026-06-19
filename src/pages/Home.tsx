@@ -22,7 +22,7 @@ const homeJsonLd = {
   description:
     'Premium weekly car rentals in Sydney with easy approvals, secure payments, and modern Toyota Camry options.',
   telephone: '+61 1300 555 828',
-  email: 'hello@galarentals.com.au',
+  email: 'hello@gala-rentals.com.au',
   address: {
     '@type': 'PostalAddress',
     addressLocality: 'Sydney',
@@ -87,7 +87,7 @@ export default function Home() {
           'premium car rentals sydney',
           'toyota camry rental sydney',
           'weekly car rentals sydney',
-          'galarentals.com.au',
+          'gala-rentals.com.au',
         ]}
         jsonLd={homeJsonLd}
       />
@@ -265,7 +265,7 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-8 flex flex-col justify-between gap-3 border-t border-slate-100 pt-6 text-xs text-slate-500 sm:flex-row">
-            <p>© 2026 Gala Rentals, galarentals.com.au. All rights reserved.</p>
+            <p>© 2026 Gala Rentals, gala-rentals.com.au. All rights reserved.</p>
             <p>Drive smarter. Rent easier.</p>
           </div>
         </footer>

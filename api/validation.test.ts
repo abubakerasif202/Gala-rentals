@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   adminLoginSchema,
+  applicationSchema,
   applicationApprovalSchema,
   carSchema,
   modelYearSchema,
@@ -9,6 +10,42 @@ import {
   vehicleCheckoutSessionSchema,
   weeklyPriceSchema,
 } from './validation.js';
+
+// ---------------------------------------------------------------------------
+// applicationSchema
+// ---------------------------------------------------------------------------
+
+describe('applicationSchema', () => {
+  const validApplication = {
+    name: 'Alex Driver',
+    date_of_birth: '1995-03-20',
+    phone: '+61400111222',
+    email: 'alex@example.com',
+    licence_state: 'NSW',
+    license_number: 'NSW123456',
+    license_expiry: '2027-03-20',
+    uber_status: 'Active' as const,
+    experience: '1-3 years',
+    address: '1 George St, Sydney NSW 2000',
+    weekly_budget: '$420',
+    preferred_vehicle: 'Toyota Camry Hybrid',
+    preferred_category: 'SUV',
+    rental_duration_weeks: 12,
+    driving_history_notes: 'Clean record',
+    rental_notes: 'Needs Monday pickup',
+    agreement_accepted: 'true',
+    agreement_signature: 'Alex Driver',
+    intended_start_date: '2026-07-01',
+  };
+
+  it('accepts the Aurora application payload', () => {
+    expect(() => applicationSchema.parse(validApplication)).not.toThrow();
+  });
+
+  it('rejects an application without agreement acceptance', () => {
+    expect(() => applicationSchema.parse({ ...validApplication, agreement_accepted: false })).toThrow();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // carSchema

@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 describe('renderApplicationLeaseAgreement', () => {
-  it('uses Maple Rentals defaults when lease owner env overrides are not set', () => {
+  it('uses Aurora Rentals defaults when lease owner env overrides are not set', () => {
     const agreement = renderApplicationLeaseAgreement(
       {
         name: 'Jordan Driver',
@@ -33,17 +33,17 @@ describe('renderApplicationLeaseAgreement', () => {
       900
     );
 
-    expect(agreement).toContain('Name: Maple Rentals');
-    expect(agreement).toContain('Address: 13/27-33 Addlestone Rd, Merrylands NSW 2160');
-    expect(agreement).toContain('Contact: 0420 550 556');
-    expect(agreement).toContain('Email: admin@maplerentals.com.au');
+    expect(agreement).toContain('Name: Aurora Rentals');
+    expect(agreement).toContain('Address: Sydney NSW');
+    expect(agreement).toContain('Contact: 1300 555 828');
+    expect(agreement).toContain('Email: hello@aurorarentals.com.au');
   });
 
   it('fills lease agreements with configured owner details and non-placeholder fallbacks', () => {
-    process.env.LEASE_OWNER_NAME = 'Maple Rentals';
-    process.env.LEASE_OWNER_ADDRESS = '13/27-33 Addlestone Rd, Merrylands NSW 2160';
-    process.env.LEASE_OWNER_CONTACT = '0420 550 556';
-    process.env.LEASE_OWNER_EMAIL = 'admin@maplerentals.com.au';
+    process.env.LEASE_OWNER_NAME = 'Aurora Rentals';
+    process.env.LEASE_OWNER_ADDRESS = 'Sydney NSW';
+    process.env.LEASE_OWNER_CONTACT = '1300 555 828';
+    process.env.LEASE_OWNER_EMAIL = 'hello@aurorarentals.com.au';
 
     const agreement = renderApplicationLeaseAgreement(
       {
@@ -63,10 +63,10 @@ describe('renderApplicationLeaseAgreement', () => {
       900
     );
 
-    expect(agreement).toContain('Name: Maple Rentals');
-    expect(agreement).toContain('Address: 13/27-33 Addlestone Rd, Merrylands NSW 2160');
-    expect(agreement).toContain('Contact: 0420 550 556');
-    expect(agreement).toContain('Email: admin@maplerentals.com.au');
+    expect(agreement).toContain('Name: Aurora Rentals');
+    expect(agreement).toContain('Address: Sydney NSW');
+    expect(agreement).toContain('Contact: 1300 555 828');
+    expect(agreement).toContain('Email: hello@aurorarentals.com.au');
     expect(agreement).toContain('Date of Birth: Not provided');
     expect(agreement).toContain('VIN: Not recorded');
     expect(agreement).not.toContain('Business Address');

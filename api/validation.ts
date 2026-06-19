@@ -74,6 +74,10 @@ export const carSchema = z.object({
 
 export const applicationSchema = z.object({
   name: z.string().trim().min(2),
+  date_of_birth: dateOnlySchema(
+    'Date of birth is required',
+    'Date of birth must be a valid date',
+  ),
   phone: z
     .string()
     .transform(normalizeAustralianMobile)
@@ -89,6 +93,7 @@ export const applicationSchema = z.object({
     .string()
     .transform(normalizeApplicationEmail)
     .pipe(z.string().email()),
+  licence_state: z.string().trim().min(1),
   license_number: z.string().trim().min(5),
   license_expiry: dateOnlySchema(
     "License expiry date is required",
@@ -101,6 +106,14 @@ export const applicationSchema = z.object({
   experience: z.string().trim().min(1),
   address: z.string().trim().min(5),
   weekly_budget: z.string().trim().optional(),
+  preferred_vehicle: z.string().trim().optional(),
+  preferred_category: z.string().trim().optional(),
+  rental_duration_weeks: z.preprocess(
+    (value) => (value === '' || value == null ? undefined : value),
+    z.coerce.number().int().positive().optional(),
+  ),
+  driving_history_notes: z.string().trim().optional(),
+  rental_notes: z.string().trim().optional(),
   agreement_accepted: z.enum(['true']),
   agreement_signature: z.string().trim().min(2),
   intended_start_date: dateOnlySchema(

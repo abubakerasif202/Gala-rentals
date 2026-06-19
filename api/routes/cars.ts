@@ -248,6 +248,17 @@ router.get('/', async (_req, res) => {
   res.json((data || []).map((car) => toPublicCarResponse(car as Record<string, any>)));
 });
 
+router.get('/public', async (_req, res) => {
+  const { data, error } = await fetchCarsWithFallback();
+
+  if (error) {
+    console.error('Fetch public vehicles error', error);
+    return res.status(500).json({ error: 'Failed to fetch vehicles' });
+  }
+
+  res.json((data || []).map((car) => toPublicCarResponse(car as Record<string, any>)));
+});
+
 router.get('/admin/all', authenticateAdmin, async (_req, res) => {
   const { data, error } = await fetchCarsWithFallback({ includeArchived: true });
 

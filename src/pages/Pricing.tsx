@@ -18,8 +18,8 @@ export default function Pricing() {
   return (
     <div className="min-h-screen bg-[#F4F6F8] text-brand-navy selection:bg-brand-gold selection:text-black">
       <Seo
-        title="Car Rental Plans Sydney | Uber Rental Options | Maple Rentals"
-        description="Compare Maple Rentals car rental plans for Uber drivers in Sydney, Merrylands, and Parramatta. Review billing cadence, inclusions, and the approval flow before you apply."
+        title="Pricing | Aurora Rentals"
+        description="Compare Aurora Rentals weekly plans, bond requirements, and subscription structure before you apply."
         canonicalPath="/pricing"
         keywords={[
           'car rental plans sydney',
@@ -55,7 +55,7 @@ export default function Pricing() {
             className="text-slate-300 text-lg max-w-3xl mx-auto font-light leading-relaxed"
           >
             Compare each plan&apos;s billing cadence, support level, and included services before
-            you apply. Maple Rentals confirms the approved vehicle, weekly amount, and payment
+            you apply. Aurora Rentals confirms the approved vehicle, weekly amount, and payment
             step only after review.
           </motion.p>
         </div>
@@ -123,7 +123,7 @@ export default function Pricing() {
                       </p>
                       <p className="text-2xl font-bold">{plan.cadenceLabel}</p>
                       <p className={`mt-3 text-sm leading-7 ${plan.popular ? 'text-slate-300' : 'text-slate-600'}`}>
-                        Exact pricing and vehicle details are shared privately by Maple Rentals
+                        Exact pricing and vehicle details are shared privately by Aurora Rentals
                         after your application is approved.
                       </p>
                     </div>
@@ -172,7 +172,7 @@ export default function Pricing() {
             {
               icon: Check,
               title: 'Review-first approval',
-              body: 'Maple Rentals confirms the approved vehicle, onboarding notes, and exact billing amount during review.',
+              body: 'Aurora Rentals confirms the approved vehicle, onboarding notes, and exact billing amount during review.',
             },
             {
               icon: Check,

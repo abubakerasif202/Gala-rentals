@@ -542,6 +542,7 @@ const registerCoreRoutes = (app: express.Express) => {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/cars', carRoutes);
+  app.use('/api/vehicles', carRoutes);
   app.use('/api/applications', applicationRoutes);
   app.use('/api/inquiries', inquiryRoutes);
   app.use('/api/stripe', stripeRoutes);

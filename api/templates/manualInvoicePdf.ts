@@ -31,8 +31,8 @@ export const renderManualInvoicePdf = (invoice: ManualInvoice) =>
     doc.on('error', reject);
     doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-    doc.info.Title = `Maple Rentals Invoice ${invoice.invoice_number}`;
-    doc.info.Author = 'Maple Rentals';
+    doc.info.Title = `Aurora Rentals Invoice ${invoice.invoice_number}`;
+    doc.info.Author = 'Aurora Rentals';
     doc.info.Subject =
       'MAPLE RENTALS TAX INVOICE Payment Details BSB: 062202 Account Number: 11147699';
 
@@ -183,7 +183,7 @@ export const renderManualInvoicePdf = (invoice: ManualInvoice) =>
       .font('Helvetica')
       .fontSize(10)
       .fillColor('#111827')
-      .text('Account Name: Maple Rentals', 50, paymentY + 28)
+      .text('Account Name: Aurora Rentals', 50, paymentY + 28)
       .text('BSB: 062202', 50, paymentY + 44)
       .text('Account Number: 11147699', 50, paymentY + 60);
 
@@ -205,7 +205,7 @@ export const renderManualInvoicePdf = (invoice: ManualInvoice) =>
       .fontSize(8)
       .fillColor('#6B7280')
       .text(
-        'Maple Rentals - 13/27-33 Addlestone Rd, Merrylands NSW 2160 - ABN 16 623 061 941 - 0420 550 556',
+        'Aurora Rentals - Sydney NSW - contact details on file',
         50,
         790,
         { align: 'center', width: 495 }

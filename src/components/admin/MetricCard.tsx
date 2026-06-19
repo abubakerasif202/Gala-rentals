@@ -44,13 +44,13 @@ export default function MetricCard({
   );
 
   return (
-    <div className="rounded-lg border border-[#1e3a5f] bg-[#0b1f36] p-6">
+    <div className="rounded-2xl border border-white/10 bg-white p-6 text-brand-navy shadow-[0_20px_60px_rgba(2,8,23,0.18)]">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
             {label}
           </p>
-          <h3 className="text-3xl font-bold tracking-tight text-white">
+          <h3 className="text-3xl font-bold tracking-tight text-brand-navy">
             {value}
           </h3>
         </div>
@@ -78,7 +78,7 @@ export default function MetricCard({
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <p className="mt-4 text-xs font-light text-slate-400">{helper}</p>
+      <p className="mt-4 text-xs font-light text-slate-500">{helper}</p>
     </div>
   );
 }

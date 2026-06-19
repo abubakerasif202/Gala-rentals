@@ -1075,7 +1075,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-brand-navy">
+    <div className="min-h-screen bg-[#061425]">
       <Sidebar
         activeTab={activeTab}
         setActiveTab={handleAdminTabChange}
@@ -1085,8 +1085,8 @@ export default function AdminDashboard() {
       />
 
       {/* Main Content */}
-      <div className="min-h-screen overflow-x-hidden px-4 pb-8 pt-0 sm:px-6 lg:ml-72 lg:min-h-screen lg:overflow-y-auto lg:p-12">
-        <div className="sticky top-0 z-30 -mx-4 mb-6 flex items-center justify-between border-b border-white/10 bg-brand-navy/95 px-4 py-4 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:hidden">
+      <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_right,rgba(223,177,37,0.12),transparent_28%),linear-gradient(180deg,#0b1f36_0%,#061425_38%,#061425_100%)] px-4 pb-8 pt-0 sm:px-6 lg:ml-72 lg:min-h-screen lg:overflow-y-auto lg:p-12">
+        <div className="sticky top-0 z-30 -mx-4 mb-6 flex items-center justify-between border-b border-white/10 bg-[#061425]/95 px-4 py-4 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:hidden">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold">Admin Panel</p>
             <h1 className="mt-1 text-lg font-bold uppercase tracking-tight text-white">

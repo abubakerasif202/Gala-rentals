@@ -4,9 +4,11 @@ import { useState } from 'react';
 
 const navLinks = [
   { name: 'Home', path: '/' },
+  { name: 'Fleet', path: '/fleet' },
   { name: 'Pricing', path: '/pricing' },
   { name: 'Apply', path: '/apply' },
-  { name: 'Contact', path: '/#contact' },
+  { name: 'FAQ', path: '/faq' },
+  { name: 'Contact', path: '/contact' },
 ];
 
 export default function Navbar() {
@@ -18,11 +20,17 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-20 md:h-24">
           <div className="flex-1 flex justify-start">
             <Link to="/" className="flex items-center group" onClick={() => setIsOpen(false)}>
-              <img
-                src="/maple-logo.webp"
-                alt="Maple Rentals Sydney car rentals logo"
-                className="h-16 md:h-20 object-contain drop-shadow-2xl"
-              />
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-brand-gold/30 bg-brand-gold/10 text-sm font-bold tracking-[0.2em] text-brand-gold">
+                  AR
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">
+                    Aurora Rentals
+                  </p>
+                  <p className="text-[11px] text-brand-grey">Premium car subscriptions</p>
+                </div>
+              </div>
             </Link>
           </div>
 
@@ -40,10 +48,10 @@ export default function Navbar() {
 
           <div className="hidden md:flex flex-1 justify-end items-center gap-3">
             <a
-              href="tel:0420550556"
+              href="tel:1300555828"
               className="border border-brand-gold/30 hover:border-brand-gold px-6 py-2.5 text-[11px] font-bold text-white uppercase tracking-[0.15em] transition-all hover:bg-brand-gold/5"
             >
-              0420 550 556
+              1300 555 828
             </a>
           </div>
 
@@ -70,10 +78,10 @@ export default function Navbar() {
             ))}
             <div className="pt-6 border-t border-white/5">
               <a
-                href="tel:0420550556"
+                href="tel:1300555828"
                 className="block text-center border border-brand-gold/30 py-3 text-[11px] font-bold text-brand-gold uppercase tracking-[0.2em]"
               >
-                0420 550 556
+                1300 555 828
               </a>
             </div>
           </div>

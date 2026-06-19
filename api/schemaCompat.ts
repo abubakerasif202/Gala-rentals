@@ -31,9 +31,11 @@ type SchemaCompat = {
   carCreatedAtColumn: string;
   coreMode: SchemaMode;
   applicationBackPhotoColumn: ApplicationBackPhotoColumn;
+  applicationDateOfBirthColumn: string;
   applicationAssignedCarColumn: string | null;
   applicationApprovedBondColumn: string;
   applicationApprovedWeeklyPriceColumn: string;
+  applicationLicenceStateColumn: string;
   applicationPaidAtColumn: string;
   applicationPaymentLinkSentAtColumn: string;
   applicationPaymentLinkVersionColumn: string;
@@ -41,6 +43,13 @@ type SchemaCompat = {
   applicationCancelReasonColumn: string;
   applicationCancelledAtColumn: string;
   applicationPassportDocumentColumn: ApplicationPassportDocumentColumn;
+  applicationPreferredVehicleColumn: string;
+  applicationPreferredCategoryColumn: string;
+  applicationRentalDurationWeeksColumn: string;
+  applicationDrivingHistoryNotesColumn: string;
+  applicationRentalNotesColumn: string;
+  applicationProofOfAddressDocumentColumn: string;
+  applicationAdditionalDocumentColumn: string;
   rentalStripeSubscriptionColumn: string | null;
   rentalStripeCustomerColumn: string | null;
 };
@@ -59,9 +68,11 @@ const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   // introspection (e.g. missing SUPABASE_SERVICE_ROLE_KEY) still write to
   // the correct column defined in supabase/migrations/01_schema.sql.
   applicationBackPhotoColumn: 'license_back_photo',
+  applicationDateOfBirthColumn: 'date_of_birth',
   applicationAssignedCarColumn: null,
   applicationApprovedBondColumn: 'approved_bond',
   applicationApprovedWeeklyPriceColumn: 'approved_weekly_price',
+  applicationLicenceStateColumn: 'licence_state',
   applicationPaidAtColumn: 'paid_at',
   applicationPaymentLinkSentAtColumn: 'payment_link_sent_at',
   applicationPaymentLinkVersionColumn: 'payment_link_version',
@@ -69,8 +80,20 @@ const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationCancelReasonColumn: 'cancel_reason',
   applicationCancelledAtColumn: 'cancelled_at',
   applicationPassportDocumentColumn: 'passport_or_uber_profile_screenshot',
+  applicationPreferredVehicleColumn: 'preferred_vehicle',
+  applicationPreferredCategoryColumn: 'preferred_category',
+  applicationRentalDurationWeeksColumn: 'rental_duration_weeks',
+  applicationDrivingHistoryNotesColumn: 'driving_history_notes',
+  applicationRentalNotesColumn: 'rental_notes',
+  applicationProofOfAddressDocumentColumn: 'proof_of_address_document',
+  applicationAdditionalDocumentColumn: 'additional_document',
   rentalStripeSubscriptionColumn: 'stripe_subscription_id',
   rentalStripeCustomerColumn: 'stripe_customer_id',
+};
+
+const normalizeOptionalText = (value?: string | null) => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed.length > 0 ? trimmed : null;
 };
 
 let schemaCompatPromise: Promise<SchemaCompat> | null = null;
@@ -158,9 +181,90 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           ? 'passportOrUberProfileScreenshot'
           : hasProperty(applicationsDefinition, 'passport_or_uber_profile_screenshot')
             ? 'passport_or_uber_profile_screenshot'
-            : coreMode === 'camel'
+              : coreMode === 'camel'
               ? 'passportOrUberProfileScreenshot'
               : 'passport_or_uber_profile_screenshot';
+        const applicationDateOfBirthColumn = hasProperty(applicationsDefinition, 'dateOfBirth')
+          ? 'dateOfBirth'
+          : hasProperty(applicationsDefinition, 'date_of_birth')
+            ? 'date_of_birth'
+            : coreMode === 'camel'
+              ? 'dateOfBirth'
+              : 'date_of_birth';
+        const applicationLicenceStateColumn = hasProperty(applicationsDefinition, 'licenceState')
+          ? 'licenceState'
+          : hasProperty(applicationsDefinition, 'licence_state')
+            ? 'licence_state'
+            : coreMode === 'camel'
+              ? 'licenceState'
+              : 'licence_state';
+        const applicationPreferredVehicleColumn = hasProperty(
+          applicationsDefinition,
+          'preferredVehicle'
+        )
+          ? 'preferredVehicle'
+          : hasProperty(applicationsDefinition, 'preferred_vehicle')
+            ? 'preferred_vehicle'
+            : coreMode === 'camel'
+              ? 'preferredVehicle'
+              : 'preferred_vehicle';
+        const applicationPreferredCategoryColumn = hasProperty(
+          applicationsDefinition,
+          'preferredCategory'
+        )
+          ? 'preferredCategory'
+          : hasProperty(applicationsDefinition, 'preferred_category')
+            ? 'preferred_category'
+            : coreMode === 'camel'
+              ? 'preferredCategory'
+              : 'preferred_category';
+        const applicationRentalDurationWeeksColumn = hasProperty(
+          applicationsDefinition,
+          'rentalDurationWeeks'
+        )
+          ? 'rentalDurationWeeks'
+          : hasProperty(applicationsDefinition, 'rental_duration_weeks')
+            ? 'rental_duration_weeks'
+            : coreMode === 'camel'
+              ? 'rentalDurationWeeks'
+              : 'rental_duration_weeks';
+        const applicationDrivingHistoryNotesColumn = hasProperty(
+          applicationsDefinition,
+          'drivingHistoryNotes'
+        )
+          ? 'drivingHistoryNotes'
+          : hasProperty(applicationsDefinition, 'driving_history_notes')
+            ? 'driving_history_notes'
+            : coreMode === 'camel'
+              ? 'drivingHistoryNotes'
+              : 'driving_history_notes';
+        const applicationRentalNotesColumn = hasProperty(applicationsDefinition, 'rentalNotes')
+          ? 'rentalNotes'
+          : hasProperty(applicationsDefinition, 'rental_notes')
+            ? 'rental_notes'
+            : coreMode === 'camel'
+              ? 'rentalNotes'
+              : 'rental_notes';
+        const applicationProofOfAddressDocumentColumn = hasProperty(
+          applicationsDefinition,
+          'proofOfAddressDocument'
+        )
+          ? 'proofOfAddressDocument'
+          : hasProperty(applicationsDefinition, 'proof_of_address_document')
+            ? 'proof_of_address_document'
+            : coreMode === 'camel'
+              ? 'proofOfAddressDocument'
+              : 'proof_of_address_document';
+        const applicationAdditionalDocumentColumn = hasProperty(
+          applicationsDefinition,
+          'additionalDocument'
+        )
+          ? 'additionalDocument'
+          : hasProperty(applicationsDefinition, 'additional_document')
+            ? 'additional_document'
+            : coreMode === 'camel'
+              ? 'additionalDocument'
+              : 'additional_document';
         const applicationAssignedCarColumn = hasProperty(applicationsDefinition, 'assignedCarId')
           ? 'assignedCarId'
           : hasProperty(applicationsDefinition, 'assigned_car_id')
@@ -310,9 +414,11 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           carCreatedAtColumn,
           coreMode,
           applicationBackPhotoColumn,
+          applicationDateOfBirthColumn,
           applicationAssignedCarColumn,
           applicationApprovedBondColumn,
           applicationApprovedWeeklyPriceColumn,
+          applicationLicenceStateColumn,
           applicationPaidAtColumn,
           applicationPaymentLinkSentAtColumn,
           applicationPaymentLinkVersionColumn,
@@ -320,6 +426,13 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           applicationCancelReasonColumn,
           applicationCancelledAtColumn,
           applicationPassportDocumentColumn,
+          applicationPreferredVehicleColumn,
+          applicationPreferredCategoryColumn,
+          applicationRentalDurationWeeksColumn,
+          applicationDrivingHistoryNotesColumn,
+          applicationRentalNotesColumn,
+          applicationProofOfAddressDocumentColumn,
+          applicationAdditionalDocumentColumn,
           rentalStripeSubscriptionColumn,
           rentalStripeCustomerColumn,
         };
@@ -409,7 +522,16 @@ export const getApplicationSelectColumns = async () => {
   const {
     coreMode,
     applicationBackPhotoColumn,
+    applicationDateOfBirthColumn,
     applicationPassportDocumentColumn,
+    applicationPreferredVehicleColumn,
+    applicationPreferredCategoryColumn,
+    applicationRentalDurationWeeksColumn,
+    applicationDrivingHistoryNotesColumn,
+    applicationRentalNotesColumn,
+    applicationProofOfAddressDocumentColumn,
+    applicationAdditionalDocumentColumn,
+    applicationLicenceStateColumn,
     applicationAssignedCarColumn,
     applicationApprovedBondColumn,
     applicationApprovedVehicleColumn,
@@ -495,18 +617,45 @@ export const getApplicationSelectColumns = async () => {
     ? [
         'id',
         'name',
+        applicationDateOfBirthColumn === 'date_of_birth'
+          ? 'date_of_birth:dateOfBirth'
+          : `dateOfBirth:${applicationDateOfBirthColumn}`,
         'phone',
         'email',
+        applicationLicenceStateColumn === 'licence_state'
+          ? 'licence_state:licenceState'
+          : `licenceState:${applicationLicenceStateColumn}`,
         'license_number:licenseNumber',
         'license_expiry:licenseExpiry',
         'uber_status:uberStatus',
         'experience',
         'address',
         'weekly_budget:weeklyBudget',
+        applicationPreferredVehicleColumn === 'preferred_vehicle'
+          ? 'preferred_vehicle:preferredVehicle'
+          : `preferredVehicle:${applicationPreferredVehicleColumn}`,
+        applicationPreferredCategoryColumn === 'preferred_category'
+          ? 'preferred_category:preferredCategory'
+          : `preferredCategory:${applicationPreferredCategoryColumn}`,
+        applicationRentalDurationWeeksColumn === 'rental_duration_weeks'
+          ? 'rental_duration_weeks:rentalDurationWeeks'
+          : `rentalDurationWeeks:${applicationRentalDurationWeeksColumn}`,
+        applicationDrivingHistoryNotesColumn === 'driving_history_notes'
+          ? 'driving_history_notes:drivingHistoryNotes'
+          : `drivingHistoryNotes:${applicationDrivingHistoryNotesColumn}`,
+        applicationRentalNotesColumn === 'rental_notes'
+          ? 'rental_notes:rentalNotes'
+          : `rentalNotes:${applicationRentalNotesColumn}`,
         'intended_start_date:intendedStartDate',
         'license_photo:licensePhoto',
         backPhotoSelect,
         passportDocumentSelect,
+        applicationProofOfAddressDocumentColumn === 'proof_of_address_document'
+          ? 'proof_of_address_document:proofOfAddressDocument'
+          : `proofOfAddressDocument:${applicationProofOfAddressDocumentColumn}`,
+        applicationAdditionalDocumentColumn === 'additional_document'
+          ? 'additional_document:additionalDocument'
+          : `additionalDocument:${applicationAdditionalDocumentColumn}`,
         ...(assignedCarSelect ? [assignedCarSelect] : []),
         approvedBondSelect,
         approvedVehicleSelect,
@@ -527,18 +676,45 @@ export const getApplicationSelectColumns = async () => {
     : [
         'id',
         'name',
+        applicationDateOfBirthColumn === 'date_of_birth'
+          ? 'date_of_birth'
+          : `date_of_birth:${applicationDateOfBirthColumn}`,
         'phone',
         'email',
+        applicationLicenceStateColumn === 'licence_state'
+          ? 'licence_state'
+          : `licence_state:${applicationLicenceStateColumn}`,
         'license_number',
         'license_expiry',
         'uber_status',
         'experience',
         'address',
         'weekly_budget',
+        applicationPreferredVehicleColumn === 'preferred_vehicle'
+          ? 'preferred_vehicle'
+          : `preferred_vehicle:${applicationPreferredVehicleColumn}`,
+        applicationPreferredCategoryColumn === 'preferred_category'
+          ? 'preferred_category'
+          : `preferred_category:${applicationPreferredCategoryColumn}`,
+        applicationRentalDurationWeeksColumn === 'rental_duration_weeks'
+          ? 'rental_duration_weeks'
+          : `rental_duration_weeks:${applicationRentalDurationWeeksColumn}`,
+        applicationDrivingHistoryNotesColumn === 'driving_history_notes'
+          ? 'driving_history_notes'
+          : `driving_history_notes:${applicationDrivingHistoryNotesColumn}`,
+        applicationRentalNotesColumn === 'rental_notes'
+          ? 'rental_notes'
+          : `rental_notes:${applicationRentalNotesColumn}`,
         'intended_start_date',
         'license_photo',
         backPhotoSelect,
         passportDocumentSelect,
+        applicationProofOfAddressDocumentColumn === 'proof_of_address_document'
+          ? 'proof_of_address_document'
+          : `proof_of_address_document:${applicationProofOfAddressDocumentColumn}`,
+        applicationAdditionalDocumentColumn === 'additional_document'
+          ? 'additional_document'
+          : `additional_document:${applicationAdditionalDocumentColumn}`,
         ...(assignedCarSelect ? [assignedCarSelect] : []),
         approvedBondSelect,
         approvedVehicleSelect,
@@ -568,18 +744,27 @@ export const getApplicationDuplicateCheckColumns = async () => {
 
 export const toApplicationWritePayload = async (application: {
   name: string;
+  date_of_birth?: string | null;
   phone: string;
   email: string;
+  licence_state?: string | null;
   license_number: string;
   license_expiry: string;
   uber_status: string;
   experience: string;
   address: string;
   weekly_budget?: string | null;
+  preferred_vehicle?: string | null;
+  preferred_category?: string | null;
+  rental_duration_weeks?: number | null;
+  driving_history_notes?: string | null;
+  rental_notes?: string | null;
   intended_start_date: string;
   license_photo?: string | null;
   license_back_photo?: string | null;
   passport_or_uber_profile_screenshot?: string | null;
+  proof_of_address_document?: string | null;
+  additional_document?: string | null;
   agreement_accepted_at?: string | null;
   agreement_signature?: string | null;
   agreement_template_version?: number | null;
@@ -605,16 +790,25 @@ export const toApplicationWritePayload = async (application: {
   if (coreMode === 'camel') {
     const payload: Record<string, unknown> = {
       name: application.name,
+      dateOfBirth: application.date_of_birth ?? null,
       phone: application.phone,
       email: application.email,
+      licenceState: application.licence_state ?? null,
       licenseNumber: application.license_number,
       licenseExpiry: application.license_expiry,
       uberStatus: application.uber_status,
       experience: application.experience,
       address: application.address,
-      weeklyBudget: application.weekly_budget ?? null,
+      weeklyBudget: normalizeOptionalText(application.weekly_budget),
+      preferredVehicle: normalizeOptionalText(application.preferred_vehicle),
+      preferredCategory: normalizeOptionalText(application.preferred_category),
+      rentalDurationWeeks: application.rental_duration_weeks ?? null,
+      drivingHistoryNotes: normalizeOptionalText(application.driving_history_notes),
+      rentalNotes: normalizeOptionalText(application.rental_notes),
       intendedStartDate: application.intended_start_date,
       licensePhoto: application.license_photo ?? null,
+      proofOfAddressDocument: normalizeOptionalText(application.proof_of_address_document),
+      additionalDocument: normalizeOptionalText(application.additional_document),
       agreementAcceptedAt: application.agreement_accepted_at ?? null,
       agreementSignature: application.agreement_signature ?? null,
       agreementTemplateVersion: application.agreement_template_version ?? null,
@@ -635,16 +829,25 @@ export const toApplicationWritePayload = async (application: {
 
   const payload: Record<string, unknown> = {
     name: application.name,
+    date_of_birth: application.date_of_birth ?? null,
     phone: application.phone,
     email: application.email,
+    licence_state: application.licence_state ?? null,
     license_number: application.license_number,
     license_expiry: application.license_expiry,
     uber_status: application.uber_status,
     experience: application.experience,
     address: application.address,
-    weekly_budget: application.weekly_budget ?? null,
+    weekly_budget: normalizeOptionalText(application.weekly_budget),
+    preferred_vehicle: normalizeOptionalText(application.preferred_vehicle),
+    preferred_category: normalizeOptionalText(application.preferred_category),
+    rental_duration_weeks: application.rental_duration_weeks ?? null,
+    driving_history_notes: normalizeOptionalText(application.driving_history_notes),
+    rental_notes: normalizeOptionalText(application.rental_notes),
     intended_start_date: application.intended_start_date,
     license_photo: application.license_photo ?? null,
+    proof_of_address_document: normalizeOptionalText(application.proof_of_address_document),
+    additional_document: normalizeOptionalText(application.additional_document),
     agreement_accepted_at: application.agreement_accepted_at ?? null,
     agreement_signature: application.agreement_signature ?? null,
     agreement_template_version: application.agreement_template_version ?? null,

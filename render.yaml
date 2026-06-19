@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: maple-rental
+    name: aurora-rentals
     runtime: node
     plan: starter
     branch: main
@@ -34,10 +34,10 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: LEASE_OWNER_NAME
-        value: "Maple Rentals"
+        value: "Aurora Rentals"
       - key: LEASE_OWNER_ADDRESS
-        value: "13/27-33 Addlestone Rd, Merrylands NSW 2160"
+        value: "Sydney NSW"
       - key: LEASE_OWNER_CONTACT
-        value: "0420 550 556"
+        value: "1300 555 828"
       - key: LEASE_OWNER_EMAIL
-        value: "admin@maplerentals.com.au"
+        value: "hello@aurorarentals.com.au"

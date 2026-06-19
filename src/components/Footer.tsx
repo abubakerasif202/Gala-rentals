@@ -3,8 +3,11 @@ import { Mail, MapPin, Phone } from 'lucide-react';
 
 const quickLinks = [
   { label: 'Home', path: '/' },
+  { label: 'Fleet', path: '/fleet' },
   { label: 'Pricing', path: '/pricing' },
   { label: 'Apply', path: '/apply' },
+  { label: 'FAQ', path: '/faq' },
+  { label: 'Contact', path: '/contact' },
   { label: 'Admin Login', path: '/admin/login' },
 ];
 
@@ -15,18 +18,24 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
           <div>
             <Link to="/" className="flex items-center mb-8 group">
-              <img
-                src="/maple-logo.webp"
-                alt="Maple Rentals Sydney car rentals logo"
-                className="h-20 md:h-24 object-contain rounded-lg"
-              />
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-brand-gold/30 bg-brand-gold/10 text-sm font-bold tracking-[0.2em] text-brand-gold">
+                  AR
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">
+                    Aurora Rentals
+                  </p>
+                  <p className="text-[11px] text-gray-500">Luxury fleet subscriptions</p>
+                </div>
+              </div>
             </Link>
             <p className="text-sm text-gray-500 max-w-xs leading-relaxed font-light">
-              Weekly car rentals and Uber-ready hybrid vehicles for professional drivers in
-              Sydney, Merrylands, Parramatta, and surrounding suburbs.
+              Premium car rental and subscription programs for Australian drivers who want clean approvals,
+              clear pricing, and a polished handover process.
             </p>
             <p className="mt-5 text-[11px] uppercase tracking-[0.2em] text-gray-600 font-light max-w-sm">
-              Service areas: Merrylands, Parramatta, Lidcombe, and Greater Sydney
+              Service areas: Sydney, Parramatta, Liverpool, Blacktown, and the greater metro area
             </p>
           </div>
 
@@ -48,32 +57,30 @@ export default function Footer() {
             <ul className="space-y-5">
               <li className="flex items-center gap-4">
                 <Phone className="h-4 w-4 text-brand-gold" />
-                <a href="tel:0420550556" className="text-sm hover:text-brand-gold transition-colors font-light tracking-wider">0420 550 556</a>
+                <a href="tel:1300555828" className="text-sm hover:text-brand-gold transition-colors font-light tracking-wider">1300 555 828</a>
               </li>
               <li className="flex items-center gap-4">
                 <Mail className="h-4 w-4 text-brand-gold" />
-                <a href="mailto:admin@maplerentals.com.au" className="text-sm hover:text-brand-gold transition-colors font-light">admin@maplerentals.com.au</a>
+                <a href="mailto:hello@aurorarentals.com.au" className="text-sm hover:text-brand-gold transition-colors font-light">hello@aurorarentals.com.au</a>
               </li>
               <li className="flex items-start gap-4">
                 <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />
                 <span className="text-sm font-light leading-relaxed">
-                  13/27-33 Addlestone Rd
+                  Sydney CBD service hub
                   <br />
-                  Merrylands NSW 2160
+                  Australia
                 </span>
               </li>
               <li className="text-xs text-gray-600 mt-8 space-y-2 font-light">
-                <p>Sarfaraz Rajabi</p>
-                <p>Licence No: 317786C</p>
-                <p>ABN No: 16623061941</p>
-                <p>ACN No: 623061941</p>
+                <p>Premium rental operations</p>
+                <p>ABN and licence details supplied in customer paperwork</p>
               </li>
             </ul>
           </div>
         </div>
 
         <div className="border-t border-white/10 mt-20 pt-8 text-center text-xs text-gray-600 uppercase tracking-widest font-light">
-          &copy; {new Date().getFullYear()} Maple Rentals. All rights reserved.
+          &copy; {new Date().getFullYear()} Aurora Rentals. All rights reserved.
         </div>
       </div>
     </footer>

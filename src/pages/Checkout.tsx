@@ -30,8 +30,8 @@ export default function Checkout() {
   const applicationId = isUuid(applicationIdParam || '') ? String(applicationIdParam) : '';
   const pageSeo = (
     <Seo
-      title="Secure Checkout | Maple Rentals"
-      description="Secure Maple Rentals checkout for approved driver applications."
+      title="Secure Checkout | Aurora Rentals"
+      description="Secure Aurora Rentals checkout for approved applications."
       canonicalPath={applicationId ? `/checkout/${applicationId}` : '/checkout'}
       robots="noindex,nofollow"
     />
@@ -103,7 +103,7 @@ export default function Checkout() {
 
       if (!session.checkout_url) {
         throw new Error(
-          'Stripe did not return a checkout URL. Request a fresh secure checkout link from the Maple Rentals team.'
+          'Stripe did not return a checkout URL. Request a fresh secure checkout link from the Aurora Rentals team.'
         );
       }
 
@@ -133,7 +133,7 @@ export default function Checkout() {
               This payment page needs a valid checkout link
             </h1>
             <p className="text-brand-grey font-light">
-              Start with a Maple Rentals application so we can complete review, approve the vehicle,
+              Start with an Aurora Rentals application so we can complete review, approve the vehicle,
               and issue a secure Stripe payment link.
             </p>
             <Link
@@ -167,7 +167,7 @@ export default function Checkout() {
           <div className="text-center space-y-4 max-w-xl">
             <p>Unable to load the payment details for this link.</p>
             <p className="text-sm text-brand-grey font-light">
-              Request a fresh checkout link from Maple Rentals if this one has expired or was
+              Request a fresh checkout link from Aurora Rentals if this one has expired or was
               replaced by a newer application.
             </p>
             <Link to="/apply" className="text-brand-gold hover:underline">
@@ -186,7 +186,7 @@ export default function Checkout() {
     <>
       {pageSeo}
       <div className="pt-32 pb-24 min-h-screen bg-brand-navy">
-      <div className="container mx-auto px-6">
+        <div className="container mx-auto px-6">
         <div className="max-w-6xl mx-auto">
           <Link
             to="/apply"
@@ -222,8 +222,8 @@ export default function Checkout() {
                       <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
                         Hosted Stripe session
                       </p>
-                      <p className="text-sm text-brand-grey font-light leading-relaxed">
-                        Payment happens only after Maple Rentals has reviewed your application.
+                        <p className="text-sm text-brand-grey font-light leading-relaxed">
+                      Payment happens only after Aurora Rentals has reviewed your application.
                         Stripe collects the approved bond, your first weekly payment, and any setup
                         fees before recurring weekly billing starts.
                       </p>
@@ -235,8 +235,8 @@ export default function Checkout() {
                       Approved vehicle
                     </p>
                     <p className="text-xl font-semibold text-white">{approved_vehicle}</p>
-                    <p className="text-sm text-brand-grey font-light leading-relaxed">
-                      Your application has already been reviewed by Maple Rentals. After Stripe
+                      <p className="text-sm text-brand-grey font-light leading-relaxed">
+                      Your application has already been reviewed by Aurora Rentals. After Stripe
                       confirms payment, the team finalises onboarding, handover, and any remaining
                       operational steps directly with you.
                     </p>
@@ -278,12 +278,12 @@ export default function Checkout() {
               >
                 <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
                   <div className="aspect-video relative">
-                    <img src={vehicle_image} alt="Maple Rentals approved vehicle preview" className="w-full h-full object-cover" />
+                    <img src={vehicle_image} alt="Aurora Rentals approved vehicle preview" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-brand-navy to-transparent opacity-60" />
                     <div className="absolute bottom-6 left-6">
                       <h3 className="text-xl font-bold text-white tracking-tight">{approved_vehicle}</h3>
                       <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">
-                        Reviewed and approved by Maple Rentals
+                        Reviewed and approved by Aurora Rentals
                       </p>
                     </div>
                   </div>
@@ -325,7 +325,7 @@ export default function Checkout() {
                     <p className="text-[10px] text-brand-grey leading-relaxed">
                       After the upfront payment, your recurring rental will be{' '}
                       <strong>{formatCurrency(billing.recurringAmount)}</strong> {billing.recurringLabel}. Stripe
-                      handles the payment securely and Maple Rentals completes the driver onboarding process after confirmation.
+                      handles the payment securely and Aurora Rentals completes the driver onboarding process after confirmation.
                     </p>
                   </div>
                 </div>

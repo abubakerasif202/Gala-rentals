@@ -131,7 +131,9 @@ router.get("/agreement-template", async (_req, res) => {
 type ApplicationUploadField =
   | "license_photo"
   | "license_back_photo"
-  | "passport_or_uber_profile_screenshot";
+  | "passport_or_uber_profile_screenshot"
+  | "proof_of_address_document"
+  | "additional_document";
 type UploadedApplicationFiles = Partial<
   Record<ApplicationUploadField, Express.Multer.File[]>
 >;
@@ -139,7 +141,7 @@ type UploadedApplicationFiles = Partial<
 const applicationUpload = multer({
   limits: {
     fileSize: MAX_APPLICATION_UPLOAD_BYTES,
-    files: 3,
+    files: 5,
   },
   storage: multer.memoryStorage(),
 });
@@ -164,6 +166,8 @@ const applicationUploadMiddleware: express.RequestHandler = (
     { name: "license_photo", maxCount: 1 },
     { name: "license_back_photo", maxCount: 1 },
     { name: "passport_or_uber_profile_screenshot", maxCount: 1 },
+    { name: "proof_of_address_document", maxCount: 1 },
+    { name: "additional_document", maxCount: 1 },
   ])(req, res, (error) => {
     if (!error) {
       next();
@@ -381,6 +385,11 @@ const getUploadedApplicationFile = (
   return file;
 };
 
+const getOptionalUploadedApplicationFile = (
+  files: UploadedApplicationFiles,
+  field: ApplicationUploadField,
+) => files[field]?.[0] || null;
+
 const uploadApplicationFile = async ({
   file,
   filePrefix,
@@ -557,7 +566,16 @@ router.post(
       const passportDocumentFile = getUploadedApplicationFile(
         files,
         "passport_or_uber_profile_screenshot",
-        "Passport or Uber profile screenshot",
+        "Proof of address document",
+      );
+      const proofOfAddressFile = getUploadedApplicationFile(
+        files,
+        "proof_of_address_document",
+        "Proof of address document",
+      );
+      const additionalDocumentFile = getOptionalUploadedApplicationFile(
+        files,
+        "additional_document",
       );
 
       const normalizedApplicationData = {
@@ -642,9 +660,23 @@ router.post(
       const passportDocumentUrl = await uploadApplicationFile({
         file: passportDocumentFile,
         filePrefix: "passport-or-uber-profile-screenshot",
-        fieldLabel: "Passport or Uber profile screenshot",
+        fieldLabel: "Proof of address document",
         uploadedPaths,
       });
+      const proofOfAddressUrl = await uploadApplicationFile({
+        file: proofOfAddressFile,
+        filePrefix: "proof-of-address-document",
+        fieldLabel: "Proof of address document",
+        uploadedPaths,
+      });
+      const additionalDocumentUrl = additionalDocumentFile
+        ? await uploadApplicationFile({
+            file: additionalDocumentFile,
+            filePrefix: "additional-document",
+            fieldLabel: "Additional document",
+            uploadedPaths,
+          })
+        : null;
 
       const {
         weekly_budget: _weeklyBudget,
@@ -655,6 +687,8 @@ router.post(
         license_photo: licensePhotoUrl,
         license_back_photo: licenseBackPhotoUrl,
         passport_or_uber_profile_screenshot: passportDocumentUrl,
+        proof_of_address_document: proofOfAddressUrl,
+        additional_document: additionalDocumentUrl,
         agreement_accepted_at: new Date().toISOString(),
         agreement_signature: String(data.agreement_signature || "").trim(),
         agreement_template_version: (await renderActiveAgreementTemplate()).agreementTemplateVersion,
@@ -700,7 +734,7 @@ router.post(
           );
           const emailResults = await Promise.allSettled([
             sendResendEmail(resend, {
-              from: "Maple Rentals Notifications <noreply@maplerentals.com.au>",
+              from: "Aurora Rentals Notifications <noreply@aurorarentals.com.au>",
               to: adminEmail,
               subject: `New Driver Application: ${applicantNameForSubject}`,
               html: `
@@ -721,17 +755,17 @@ router.post(
               `,
             }),
             sendResendEmail(resend, {
-              from: "Maple Rentals <noreply@maplerentals.com.au>",
+              from: "Aurora Rentals <noreply@aurorarentals.com.au>",
               to: normalizedApplicationData.email,
-              subject: "We received your Maple Rentals application",
+              subject: "We received your Aurora Rentals application",
               html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
                   <h2 style="color: #D4AF37;">Application Received</h2>
                   <p>Hi ${safeApplicantName},</p>
-                  <p>Thanks for applying to drive with Maple Rentals.</p>
+                  <p>Thanks for applying to drive with Aurora Rentals.</p>
                   <p>Our team is reviewing your documents now. If your application is approved, we will email you a secure checkout link with the final pricing and agreement.</p>
                   <p><strong>Application reference:</strong> ${applicationId}</p>
-                  <p>Best regards,<br /><strong>The Maple Rentals Team</strong></p>
+                  <p>Best regards,<br /><strong>The Aurora Rentals Team</strong></p>
                 </div>
               `,
             }),

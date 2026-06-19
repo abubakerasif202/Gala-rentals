@@ -37,10 +37,10 @@ export default function Cars() {
       : cars.filter((car) => car.status === activeFilter);
 
   const pageSeo = (
-    <Seo
-      title="Car Rental Fleet Sydney | Uber-Ready Hybrid Cars | Maple Rentals"
-      description="Browse Maple Rentals vehicles for Uber drivers in Sydney, Merrylands, and Parramatta. Review available fleet options and start an application for approval."
-      canonicalPath="/cars"
+      <Seo
+      title="Fleet | Aurora Rentals"
+      description="Browse the Aurora Rentals fleet, compare premium vehicle categories, and start an application for approval."
+      canonicalPath="/fleet"
       keywords={[
         'sydney car rental fleet',
         'uber car rentals sydney',
@@ -74,12 +74,11 @@ export default function Cars() {
               variants={fadeIn}
             >
               <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 uppercase tracking-tighter">
-                Sydney <span className="text-brand-gold italic">Car Rentals</span>
+                Sydney <span className="text-brand-gold italic">Fleet</span>
               </h1>
               <p className="text-brand-grey text-lg max-w-xl font-light leading-relaxed">
-                Browse Uber-ready hybrid vehicles for drivers in Merrylands, Parramatta, and across
-                Sydney. Pricing and registration details are confirmed by Maple Rentals after
-                approval.
+                Browse premium fleet options for drivers across Sydney. Pricing, approval, and
+                start dates are confirmed by Aurora Rentals after review.
               </p>
             </motion.div>
 
@@ -143,11 +142,11 @@ export default function Cars() {
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 mb-8">
                       <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-brand-gold mb-3">
-                        Private details after approval
+                        Fleet visibility after approval
                       </p>
                       <p className="text-sm leading-7 text-brand-grey">
                         Vehicle pricing, number plates, and final handover details are confirmed
-                        directly by Maple Rentals during review.
+                        directly by Aurora Rentals during review.
                       </p>
                     </div>
 

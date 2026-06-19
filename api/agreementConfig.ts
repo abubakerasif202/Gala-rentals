@@ -1,9 +1,9 @@
 import { LEASE_SETTINGS } from './constants.js';
 
-const DEFAULT_LEASE_OWNER_NAME = 'Maple Rentals';
-const DEFAULT_LEASE_OWNER_ADDRESS = '13/27-33 Addlestone Rd, Merrylands NSW 2160';
-const DEFAULT_LEASE_OWNER_CONTACT = '0420 550 556';
-const DEFAULT_LEASE_OWNER_EMAIL = 'admin@maplerentals.com.au';
+const DEFAULT_LEASE_OWNER_NAME = 'Aurora Rentals';
+const DEFAULT_LEASE_OWNER_ADDRESS = 'Sydney NSW';
+const DEFAULT_LEASE_OWNER_CONTACT = '1300 555 828';
+const DEFAULT_LEASE_OWNER_EMAIL = 'hello@aurorarentals.com.au';
 const DEFAULT_KM_ALLOWANCE = 'As agreed in booking';
 const DEFAULT_RETURN_NOTICE_DAYS = 14;
 const DEFAULT_FUEL_POLICY =

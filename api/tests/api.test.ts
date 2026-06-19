@@ -25,14 +25,21 @@ const UNKNOWN_APPLICATION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 type ApplicationSubmissionFields = {
   selected_car_id?: string | number;
   name: string;
+  date_of_birth: string;
   phone: string;
   email: string;
+  licence_state: string;
   license_number: string;
   license_expiry: string;
   uber_status: string;
   experience: string;
   address: string;
   weekly_budget?: string;
+  preferred_vehicle?: string;
+  preferred_category?: string;
+  rental_duration_weeks?: string | number;
+  driving_history_notes?: string;
+  rental_notes?: string;
   intended_start_date: string;
   agreement_accepted: string;
   agreement_signature: string;
@@ -49,6 +56,7 @@ type ApplicationSubmissionOverrides = Partial<
     license_photo: string | ApplicationUploadFixture;
     license_back_photo: string | ApplicationUploadFixture;
     passport_or_uber_profile_screenshot: string | ApplicationUploadFixture;
+    proof_of_address_document: string | ApplicationUploadFixture;
   }
 >;
 
@@ -124,19 +132,24 @@ const createApplicationSubmissionRequest = (
     license_photo,
     license_back_photo,
     passport_or_uber_profile_screenshot,
+    proof_of_address_document,
     ...fieldOverrides
   } = overrides;
   const payload: ApplicationSubmissionFields = {
     selected_car_id: "1",
     name: "Jane Driver",
+    date_of_birth: "1995-03-20",
     phone: "0412345678",
     email: "jane@example.com",
+    licence_state: "NSW",
     license_number: "NSW12345",
     license_expiry: getFutureDateOnly(365),
     uber_status: "Active",
     experience: "New Driver",
     address: "1 Test Street",
     intended_start_date: getFutureDateOnly(7),
+    preferred_category: "Economy",
+    rental_duration_weeks: 4,
     agreement_accepted: "true",
     agreement_signature: "Jane Driver",
     ...fieldOverrides,
@@ -159,6 +172,10 @@ const createApplicationSubmissionRequest = (
     passport_or_uber_profile_screenshot ?? DEFAULT_PASSPORT_UPLOAD,
     "passport",
   );
+  const proofOfAddressUpload = buildApplicationUploadFixture(
+    proof_of_address_document ?? DEFAULT_PASSPORT_UPLOAD,
+    "proof-of-address",
+  );
 
   req = req.attach("license_photo", frontUpload.buffer, {
     contentType: frontUpload.contentType,
@@ -176,6 +193,10 @@ const createApplicationSubmissionRequest = (
       filename: passportUpload.filename,
     },
   );
+  req = req.attach("proof_of_address_document", proofOfAddressUpload.buffer, {
+    contentType: proofOfAddressUpload.contentType,
+    filename: proofOfAddressUpload.filename,
+  });
 
   return req;
 };
@@ -1568,7 +1589,7 @@ const { createCheckoutToken, verifyCheckoutToken } =
   ];
 
   mockGetUser.mockResolvedValue({
-    data: { user: { email: "admin@maplerentals.com.au" } },
+    data: { user: { email: "hello@aurorarentals.com.au" } },
     error: null,
   });
   mockRefreshSession.mockImplementation(async () => ({
@@ -1578,7 +1599,7 @@ const { createCheckoutToken, verifyCheckoutToken } =
         expires_at: Math.floor(Date.now() / 1000) + 3600,
         refresh_token: "refresh-token",
       },
-      user: { email: "admin@maplerentals.com.au" },
+      user: { email: "hello@aurorarentals.com.au" },
     },
     error: null,
   }));
@@ -1988,18 +2009,18 @@ describe("Auth API", () => {
   it("POST /api/auth/login should log in an admin", async () => {
     const res = await request(app)
       .post("/api/auth/login")
-      .send({ username: "admin@maplerentals.com.au", password: "password" });
+      .send({ username: "hello@aurorarentals.com.au", password: "password" });
 
     expect(res.status).toBe(200);
-    expect(res.body.username).toBe("admin@maplerentals.com.au");
+    expect(res.body.username).toBe("hello@aurorarentals.com.au");
     expect(res.headers["set-cookie"]).toBeDefined();
   });
 
   it("POST /api/auth/login sets a cross-site compatible cookie when the frontend is on another host", async () => {
     const res = await request(app)
       .post("/api/auth/login")
-      .set("Origin", "https://admin.maplerentals.com.au")
-      .send({ username: "admin@maplerentals.com.au", password: "password" });
+      .set("Origin", "https://admin.aurorarentals.com.au")
+      .send({ username: "hello@aurorarentals.com.au", password: "password" });
 
     expect(res.status).toBe(200);
     expect(res.headers["set-cookie"]?.[0]).toContain("SameSite=None");
@@ -2008,7 +2029,7 @@ describe("Auth API", () => {
 
   it("POST /api/auth/login allows a configured CORS origin with a trailing slash", async () => {
     const previousCorsOrigin = process.env.CORS_ORIGIN;
-    process.env.CORS_ORIGIN = "https://admin.maplerentals.com.au/";
+    process.env.CORS_ORIGIN = "https://admin.aurorarentals.com.au/";
 
     try {
       const { createApp } = await import("../index.js");
@@ -2016,12 +2037,12 @@ describe("Auth API", () => {
 
       const res = await request(scopedApp)
         .post("/api/auth/login")
-        .set("Origin", "https://admin.maplerentals.com.au")
-        .send({ username: "admin@maplerentals.com.au", password: "password" });
+        .set("Origin", "https://admin.aurorarentals.com.au")
+        .send({ username: "hello@aurorarentals.com.au", password: "password" });
 
       expect(res.status).toBe(200);
       expect(res.headers["access-control-allow-origin"]).toBe(
-        "https://admin.maplerentals.com.au",
+        "https://admin.aurorarentals.com.au",
       );
       expect(res.headers["access-control-allow-credentials"]).toBe("true");
     } finally {
@@ -2037,7 +2058,7 @@ describe("Auth API", () => {
     const agent = request.agent(app);
     const loginRes = await agent
       .post("/api/auth/login")
-      .send({ username: "admin@maplerentals.com.au", password: "password" });
+      .send({ username: "hello@aurorarentals.com.au", password: "password" });
 
     expect(loginRes.status).toBe(200);
     const adminCookie = loginRes.headers["set-cookie"]?.[0]?.split(";")[0];
@@ -2051,7 +2072,7 @@ describe("Auth API", () => {
     const verifyRes = await agent.get("/api/auth/verify").set("Cookie", adminCookie);
 
     expect(verifyRes.status).toBe(200);
-    expect(verifyRes.body.user.username).toBe("admin@maplerentals.com.au");
+    expect(verifyRes.body.user.username).toBe("hello@aurorarentals.com.au");
     expect(mockRefreshSession).toHaveBeenCalledWith({
       refresh_token: "refresh-token",
     });
@@ -2062,7 +2083,7 @@ describe("Auth API", () => {
     const agent = request.agent(app);
     const loginRes = await agent
       .post("/api/auth/login")
-      .send({ username: "admin@maplerentals.com.au", password: "password" });
+      .send({ username: "hello@aurorarentals.com.au", password: "password" });
 
     expect(loginRes.status).toBe(200);
     const adminCookie = loginRes.headers["set-cookie"]?.[0]?.split(";")[0];
@@ -2804,10 +2825,9 @@ describe("Applications API", () => {
   });
 
   it("POST /api/applications creates a pending application without generating an agreement or checkout link", async () => {
-    process.env.LEASE_OWNER_NAME = "Maple Rentals";
-    process.env.LEASE_OWNER_ADDRESS =
-      "13/27-33 Addlestone Rd, Merrylands NSW 2160";
-    process.env.LEASE_OWNER_EMAIL = "admin@maplerentals.com.au";
+    process.env.LEASE_OWNER_NAME = "Aurora Rentals";
+    process.env.LEASE_OWNER_ADDRESS = "Sydney NSW";
+    process.env.LEASE_OWNER_EMAIL = "hello@aurorarentals.com.au";
     mockState.applications[1].status = "Paid";
     mockState.applications[1].paid_at = "2026-03-07T00:00:00.000Z";
 
@@ -3739,7 +3759,7 @@ describe("Operational history API", () => {
     expect(res.status).toBe(409);
   });
 
-  it("GET /api/admin/manual-invoices/:id/pdf returns a Maple Rentals PDF", async () => {
+  it("GET /api/admin/manual-invoices/:id/pdf returns an Aurora Rentals PDF", async () => {
     mockState.manual_invoices = [
       {
         id: "invoice-1",

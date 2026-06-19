@@ -145,8 +145,8 @@ export default function Success() {
   return (
     <div className="min-h-screen bg-brand-charcoal flex flex-col justify-center py-12 sm:px-6 lg:px-8 selection:bg-brand-gold selection:text-brand-charcoal">
       <Seo
-        title="Payment Status | Maple Rentals"
-        description="Secure payment status page for Maple Rentals checkout sessions."
+        title="Payment Status | Aurora Rentals"
+        description="Secure payment status page for Aurora Rentals checkout sessions."
         canonicalPath="/success"
         robots="noindex,nofollow"
       />
@@ -165,15 +165,15 @@ export default function Success() {
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
                 {presentation.title}
               </h2>
-              <p className="text-brand-grey font-light leading-relaxed mb-10">
-                {presentation.body}
-              </p>
-              <Link
-                to="/"
-                className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
-              >
-                <Home className="mr-2 h-5 w-5" /> Return Home
-              </Link>
+                <p className="text-brand-grey font-light leading-relaxed mb-10">
+                  {presentation.body}
+                </p>
+                <Link
+                  to="/"
+                  className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
+                >
+                  <Home className="mr-2 h-5 w-5" /> Return Home
+                </Link>
             </>
           )}
 

@@ -51,7 +51,7 @@ export default function Sidebar({
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex h-full w-72 max-w-[85vw] flex-col border-r border-white/10 bg-brand-navy transition-transform duration-300 lg:z-20 lg:max-w-none ${
+        className={`fixed inset-y-0 left-0 z-40 flex h-full w-72 max-w-[85vw] flex-col border-r border-white/10 bg-[#061425] shadow-[24px_0_80px_rgba(0,0,0,0.24)] transition-transform duration-300 lg:z-20 lg:max-w-none ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
       >
@@ -61,7 +61,7 @@ export default function Sidebar({
               <Car className="w-6 h-6 text-brand-navy" />
             </div>
             <div>
-              <h1 className="text-white font-bold tracking-tighter leading-none">MAPLE</h1>
+              <h1 className="text-white font-bold tracking-tighter leading-none">AURORA</h1>
               <p className="text-[8px] text-brand-gold font-bold tracking-[0.3em] uppercase">Rentals Admin</p>
             </div>
           </Link>

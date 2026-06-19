@@ -5,12 +5,15 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
 const Home = lazy(() => import('./pages/Home'));
+const Fleet = lazy(() => import('./pages/Cars'));
 const Pricing = lazy(() => import('./pages/Pricing'));
-const Cars = lazy(() => import('./pages/Cars'));
 const CarDetails = lazy(() => import('./pages/CarDetails'));
 const Success = lazy(() => import('./pages/Success'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const Apply = lazy(() => import('./pages/Apply'));
+const FAQ = lazy(() => import('./pages/FAQ'));
+const Contact = lazy(() => import('./pages/Contact'));
+const MyRental = lazy(() => import('./pages/MyRental'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboardRoute'));
 const queryClient = new QueryClient({
@@ -39,11 +42,16 @@ function AppShell() {
         >
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/fleet" element={<Fleet />} />
+            <Route path="/cars" element={<Fleet />} />
             <Route path="/pricing" element={<Pricing />} />
-            <Route path="/cars" element={<Cars />} />
             <Route path="/cars/:id" element={<CarDetails />} />
+            <Route path="/fleet/:id" element={<CarDetails />} />
             <Route path="/checkout/:id" element={<Checkout />} />
             <Route path="/apply" element={<Apply />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/my-rental" element={<MyRental />} />
             <Route path="/success" element={<Success />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />

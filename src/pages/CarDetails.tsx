@@ -40,13 +40,13 @@ export default function CarDetails() {
     <Seo
       title={
         car
-          ? `${car.name} Car Rental Sydney | Maple Rentals`
-          : 'Fleet Vehicle Details Sydney | Maple Rentals'
+          ? `${car.name} Car Rental Sydney | Aurora Rentals`
+          : 'Fleet Vehicle Details Sydney | Aurora Rentals'
       }
       description={
         car
-          ? `Review Maple Rentals vehicle details and application requirements for the ${car.name} available for Uber drivers in Sydney.`
-          : 'Review Maple Rentals vehicle details and application-ready fleet information for Sydney Uber drivers.'
+          ? `Review Aurora Rentals vehicle details and application requirements for the ${car.name} available for Sydney drivers.`
+          : 'Review Aurora Rentals vehicle details and application-ready fleet information for Sydney drivers.'
       }
       canonicalPath={id ? `/cars/${id}` : '/cars'}
       keywords={
@@ -124,7 +124,7 @@ export default function CarDetails() {
                 {car.name}
               </h1>
               <p className="text-base sm:text-lg leading-8 text-brand-grey">
-                Maple Rentals keeps public vehicle pricing, number plates, and final handover
+                Aurora Rentals keeps public vehicle pricing, number plates, and final handover
                 details private until your application is reviewed and approved.
               </p>
 
@@ -152,7 +152,7 @@ export default function CarDetails() {
                   Approval note
                 </p>
                 <p className="mt-3 text-sm leading-7 text-brand-grey">
-                  Once approved, Maple Rentals confirms the selected vehicle, registration details,
+                  Once approved, Aurora Rentals confirms the selected vehicle, registration details,
                   and the payment handoff directly with you.
                 </p>
               </div>

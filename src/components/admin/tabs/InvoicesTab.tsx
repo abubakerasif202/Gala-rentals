@@ -166,7 +166,7 @@ export default function InvoicesTab({
       window.open(url, '_blank', 'noopener,noreferrer');
       const link = document.createElement('a');
       link.href = url;
-      link.download = `maple-rentals-invoice-${invoice.invoice_number}.pdf`;
+      link.download = `gala-rentals-invoice-${invoice.invoice_number}.pdf`;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setManualInvoiceSuccess('Manual invoice PDF generated.');
@@ -247,7 +247,7 @@ export default function InvoicesTab({
     const link = document.createElement('a');
 
     link.href = url;
-    link.download = 'maple-invoices.csv';
+    link.download = 'gala-invoices.csv';
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -472,7 +472,7 @@ export default function InvoicesTab({
               Manual Invoices
             </h3>
             <p className="mt-1 text-sm text-brand-grey">
-              Create Aurora Rentals tax invoices for manual admin billing, including
+              Create Gala Rentals tax invoices for manual admin billing, including
               bond tracking outside Stripe.
             </p>
           </div>

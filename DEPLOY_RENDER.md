@@ -1,158 +1,78 @@
-# Deploy Maple Rental to Render
+# Deploy Gala Rentals to Render
 
 ## Goal
 
-Deploy the application as a single Render web service where:
+Deploy Gala Rentals as a single Render web service where Express serves the API under `/api/*`, serves the built Vite frontend from `dist/`, and exposes `/api/health` for Render health checks.
 
-- Express serves the API under `/api/*`
-- Express serves the built Vite frontend from `dist/`
-- non-API routes fall back to `dist/index.html`
-- Render health checks probe `/api/health`
+## Render Blueprint
 
-## Render blueprint
+This repository includes `render.yaml`.
 
-This repository includes `render.yaml`, so Render can provision the service directly from GitHub.
+Blueprint repo:
+`https://github.com/abubakerasif202/gala-rentals.git`
 
-Blueprint link:
-[https://dashboard.render.com/blueprint/new?repo=https://github.com/abubakerasif202/maple-rental](https://dashboard.render.com/blueprint/new?repo=https://github.com/abubakerasif202/maple-rental)
+Expected service configuration:
 
-Supabase SQL files are organized under `supabase/migrations/`, with the base schema in `supabase/migrations/01_schema.sql`.
-
-## Expected service configuration
-
-- Service type: `Web Service`
+- Service name: `gala-rentals`
 - Runtime: `Node`
+- Branch: `main`
 - Build command: `npm ci --include=dev && npm run validate && npm run build`
 - Start command: `npm start`
 - Health check path: `/api/health`
+- Production URL: `https://www.galarentals.com.au`
 
-## Runtime model
+## Required Environment Variables
 
-### Development
+Set these in the Gala Rentals Render service. Do not reuse credentials from any other rental brand.
 
-`npm run dev` starts the Express server in development mode and mounts Vite middleware inside the same process.
-
-Default local URL:
-- `http://localhost:3000`
-
-### Production
-
-`npm start` runs the compiled backend from:
-- `server-dist/api/index.js`
-
-That server:
-- binds to `0.0.0.0:$PORT`
-- serves static frontend assets from `dist/`
-- returns `dist/index.html` for SPA routes
-- keeps missing API routes as JSON 404s instead of returning the frontend shell
-
-## Environment variables
-
-### Required
-
-- `APP_URL`
-  - Canonical public app URL, for example `https://www.maplerentals.com.au`
-
+- `NODE_ENV=production`
+- `APP_URL=https://www.galarentals.com.au`
 - `ADMIN_EMAIL`
-  - Allowed production admin login email
-
 - `SUPABASE_URL`
-  - Supabase project URL in `https://...supabase.co` format
-
-- `SUPABASE_SERVICE_ROLE_KEY`
-  - Backend service-role key used for privileged storage and auth-backed operations
-
 - `SUPABASE_ANON_KEY`
-  - Frontend/browser public anon key used by the client app
-
+- `SUPABASE_SERVICE_ROLE_KEY`
 - `DATABASE_URL`
-  - Preferred direct PostgreSQL connection string for Render Postgres and transactional Stripe/payment state
-
+- `SUPABASE_DB_URL` only as a fallback when `DATABASE_URL` is unavailable
 - `STRIPE_SECRET_KEY`
-  - Stripe server SDK key
-
 - `STRIPE_WEBHOOK_SECRET`
-  - Stripe webhook signing secret
-
 - `CHECKOUT_LINK_SECRET`
-  - HMAC secret used to sign checkout link tokens
-
 - `JWT_SECRET`
-  - Secret used to sign admin session cookies
-
-- `LEASE_OWNER_NAME`
-- `LEASE_OWNER_ADDRESS`
-- `LEASE_OWNER_CONTACT`
-- `LEASE_OWNER_EMAIL`
-  - Registered-owner details inserted into generated lease agreements
-
-### Fallback only
-
-- `SUPABASE_DB_URL`
-  - Legacy fallback direct Postgres connection string when `DATABASE_URL` is not set
-  - If both are present, the app uses `DATABASE_URL`
-
-### Optional
-
 - `RESEND_API_KEY`
-  - Enables outbound transactional email
+- `VITE_API_BASE_URL=/api`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_SUPABASE_VEHICLE_IMAGES_BUCKET=vehicle-images`
+- `LEASE_OWNER_NAME=Gala Rentals`
+- `LEASE_OWNER_ADDRESS=Sydney NSW`
+- `LEASE_OWNER_CONTACT=1300 555 828`
+- `LEASE_OWNER_EMAIL=hello@galarentals.com.au`
 
-- `CORS_ORIGIN`
-  - Additional browser origin to allow
+## Stripe Webhook
 
-- `FRONTEND_URL`
-  - Legacy extra origin override if needed for external clients
+Configure Stripe to send production events to:
 
-- `ADMIN_PASSWORD`
-  - Dev/test fallback only; not required in production
+`https://www.galarentals.com.au/api/stripe/webhook`
 
-- `JSON_BODY_LIMIT`
-  - Overrides the default JSON payload limit of `100kb` for non-application routes
+Keep webhook signing verification enabled and store the signing secret in `STRIPE_WEBHOOK_SECRET`.
 
-- `/api/applications`
-  - Uses its own parser budget sized for two 7 MB base64 licence uploads
+## First Deploy Checklist
 
-## Important env rules
+1. Connect the Gala Rentals GitHub repository in Render.
+2. Create or apply the Blueprint for the `gala-rentals` service.
+3. Fill every required environment variable with Gala-specific values.
+4. Connect the Gala database and set `DATABASE_URL`.
+5. Configure a separate Gala Supabase project and storage buckets.
+6. Configure separate Gala Stripe products, prices, and webhook endpoint.
+7. Run the production build through Render.
+8. Verify `https://www.galarentals.com.au/api/live`.
+9. Verify `https://www.galarentals.com.au/api/health`.
+10. Verify the public homepage and `/apply` load from the deployed asset hash.
 
-- `SUPABASE_URL` must be the HTTPS project URL, not the Postgres connection string.
-- `DATABASE_URL` should point to Render Postgres in new deployments.
-- `SUPABASE_DB_URL` must be the Postgres connection string, not the HTTPS project URL.
-- Do not expose `SUPABASE_SERVICE_ROLE_KEY` to the frontend.
-- Do not set `PORT` manually on Render.
-
-## First deploy checklist
-
-1. Connect the GitHub repo in Render.
-2. Use the Blueprint flow so `render.yaml` is applied.
-3. Fill every required environment variable.
-4. Create Render Postgres and set its connection string as `DATABASE_URL`.
-5. Keep the Supabase storage/auth variables in place.
-6. Run the payment workflow migrations against `DATABASE_URL`.
-7. Configure Stripe to deliver webhooks to `https://<your-domain>/api/stripe/webhook`.
-8. Deploy.
-9. Verify [https://www.maplerentals.com.au/api/health](https://www.maplerentals.com.au/api/health) or your Render URL equivalent.
-
-## Health check expectations
-
-A healthy response should look like:
-
-```json
-{
-  "status": "ok",
-  "database": "ok",
-  "directDatabase": "ok",
-  "paymentActivationMode": "transactional"
-}
-```
-
-If `paymentActivationMode` is `restricted`, the service is up but the selected direct Postgres connection is missing or not session-capable.
-
-## Local production verification
-
-Use this to simulate the Render runtime locally:
+## Local Production Verification
 
 ```powershell
 npm ci
+npm run validate
 npm run build
 $env:NODE_ENV='production'
 $env:PORT='3000'
@@ -163,37 +83,11 @@ Then check:
 
 - `http://localhost:3000/api/health`
 - `http://localhost:3000/`
-- `http://localhost:3000/admin/dashboard`
+- `http://localhost:3000/apply`
 
-## Common failures
+## Notes
 
-### Invalid supabaseUrl
-
-Cause:
-- a Postgres URI was pasted into `SUPABASE_URL`
-
-Fix:
-- put the `https://...supabase.co` URL back into `SUPABASE_URL`
-- put the Postgres URI into `DATABASE_URL` (preferred) or `SUPABASE_DB_URL`
-
-### Health endpoint shows `restricted`
-
-Cause:
-- `DATABASE_URL` is missing or points at a non-session-capable pooler
-
-Fix:
-- add a valid session-capable `DATABASE_URL` and redeploy
-
-### Rate-limit proxy warning on Render
-
-Cause:
-- Express was not trusting the Render proxy
-
-Fix:
-- already handled in `api/index.ts` by enabling `trust proxy` in production
-
-## Operational notes
-
-- Static assets under `/assets/*` are served with long-lived cache headers.
-- `index.html` is served with `Cache-Control: no-store` so SPA shells do not go stale.
-- The backend validates critical production environment variables at startup and fails fast when required secrets are missing.
+- Do not set `PORT` manually on Render.
+- Do not expose service-role, Stripe, database, Resend, or JWT secrets to the frontend.
+- `DATABASE_URL` should be a session-capable Postgres connection for transactional payment activation.
+- If `paymentActivationMode` is `restricted`, the app is running but the direct database connection is missing or unsuitable.

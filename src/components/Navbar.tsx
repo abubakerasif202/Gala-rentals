@@ -22,11 +22,11 @@ export default function Navbar() {
             <Link to="/" className="flex items-center group" onClick={() => setIsOpen(false)}>
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-brand-gold/30 bg-brand-gold/10 text-sm font-bold tracking-[0.2em] text-brand-gold">
-                  AR
+                  GR
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">
-                    Aurora Rentals
+                    Gala Rentals
                   </p>
                   <p className="text-[11px] text-brand-grey">Premium car subscriptions</p>
                 </div>

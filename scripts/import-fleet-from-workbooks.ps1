@@ -395,7 +395,7 @@ for ($index = 0; $index -lt $fleetRows.Count; $index++) {
 
     $carImport = [ordered]@{
         registration = $fleetRow.Registration
-        name = "Maple Fleet Vehicle ($($fleetRow.Registration))"
+        name = "Gala Fleet Vehicle ($($fleetRow.Registration))"
         model_year = 2024
         weekly_price = $weeklyPrice
         bond = 500
@@ -533,10 +533,10 @@ $payload = [ordered]@{
 }
 
 $tempId = [guid]::NewGuid().ToString('N')
-$tempPayloadPath = Join-Path $repoRoot ".maple-import-$tempId.json"
-$tempScriptPath = Join-Path $repoRoot ".maple-import-$tempId.mjs"
-$tempStdoutPath = Join-Path $repoRoot ".maple-import-$tempId.stdout.log"
-$tempStderrPath = Join-Path $repoRoot ".maple-import-$tempId.stderr.log"
+$tempPayloadPath = Join-Path $repoRoot ".gala-import-$tempId.json"
+$tempScriptPath = Join-Path $repoRoot ".gala-import-$tempId.mjs"
+$tempStdoutPath = Join-Path $repoRoot ".gala-import-$tempId.stdout.log"
+$tempStderrPath = Join-Path $repoRoot ".gala-import-$tempId.stderr.log"
 
 try {
     $payload | ConvertTo-Json -Depth 8 | Set-Content -Path $tempPayloadPath -Encoding UTF8

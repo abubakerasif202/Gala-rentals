@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-stripe_demo.py — Maple Rental · Stripe API Feature Demo
+stripe_demo.py — Gala Rental · Stripe API Feature Demo
 ========================================================
 This script demonstrates the full breadth of Stripe API capabilities
-as integrated into the Maple Rental platform. It uses the official
+as integrated into the Gala Rental platform. It uses the official
 Stripe Python SDK and covers the following feature areas:
 
   1.  Account & Balance         — inspect the connected Stripe account
@@ -114,14 +114,14 @@ def demo_customers() -> dict:
     # Create customers
     alice = stripe.Customer.create(
         name="Alice Johnson",
-        email="alice@maplerental.demo",
+        email="alice@galarental.demo",
         metadata={"role": "tenant", "tier": "premium"},
     )
     ok("Created customer", f"{alice.name} ({alice.id})")
 
     bob = stripe.Customer.create(
         name="Bob Smith",
-        email="bob@maplerental.demo",
+        email="bob@galarental.demo",
         metadata={"role": "tenant", "tier": "standard"},
     )
     ok("Created customer", f"{bob.name} ({bob.id})")
@@ -144,14 +144,14 @@ def demo_products() -> dict:
     header("3 · Product Catalogue")
 
     cabin = stripe.Product.create(
-        name="Maple Cabin — Weekend Rental",
-        description="A cosy 2-bedroom cabin perfect for weekend getaways in the maple forest.",
+        name="Gala Cabin — Weekend Rental",
+        description="A cosy 2-bedroom cabin perfect for weekend getaways in the forest.",
         metadata={"category": "cabin", "bedrooms": "2"},
     )
     ok("Created product", f"{cabin.name} ({cabin.id})")
 
     lakehouse = stripe.Product.create(
-        name="Maple Lakehouse — Monthly Subscription",
+        name="Gala Lakehouse — Monthly Subscription",
         description="Premium lakehouse rental with monthly subscription billing.",
         metadata={"category": "lakehouse", "bedrooms": "4"},
     )
@@ -274,7 +274,7 @@ def demo_payment_intents(customer_ids: dict) -> None:
         amount=5000,   # AUD $50 security deposit
         currency="aud",
         customer=customer_ids["bob_id"],
-        description="Security deposit — Maple Cabin booking",
+        description="Security deposit — Gala Cabin booking",
         metadata={"booking_ref": "MCB-2026-001"},
     )
     ok("Deposit PaymentIntent created",
@@ -438,8 +438,8 @@ def demo_disputes() -> None:
         stripe.Dispute.modify(
             "dp_xxxx",
             evidence={
-                "customer_email_address": "alice@maplerental.demo",
-                "product_description": "Maple Cabin — Weekend Rental",
+                "customer_email_address": "alice@galarental.demo",
+                "product_description": "Gala Cabin — Weekend Rental",
                 "uncategorized_text": "Customer confirmed stay via email.",
             },
             submit=True,
@@ -456,10 +456,10 @@ def demo_search() -> None:
 
     # Search customers by email domain
     results = stripe.Customer.search(
-        query="email~'maplerental.demo'",
+        query="email~'galarental.demo'",
         limit=10,
     )
-    ok("Customer search (email~'maplerental.demo')",
+    ok("Customer search (email~'galarental.demo')",
        f"{len(results.data)} result(s)")
     for c in results.data:
         print(f"     • {c.name:<25} {c.email}")
@@ -479,9 +479,9 @@ def demo_search() -> None:
 
 def main() -> None:
     print(f"\n{BOLD}{'=' * 60}")
-    print("  Maple Rental — Stripe API Feature Demo")
+    print("  Gala Rental — Stripe API Feature Demo")
     print(f"{'=' * 60}{RESET}")
-    print("  Account: Maple rentals sandbox")
+    print("  Account: Gala rentals sandbox")
     print("  Mode:    TEST (no real charges)")
     print(f"  SDK:     stripe-python v{stripe.VERSION}")
     print()

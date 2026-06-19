@@ -2,483 +2,274 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   BadgeCheck,
-  CheckCircle2,
-  CreditCard,
-  FileText,
+  CalendarClock,
+  Car,
+  ChevronRight,
+  ClipboardCheck,
+  Headphones,
   KeyRound,
   ShieldCheck,
-  Smartphone,
+  Sparkles,
 } from 'lucide-react';
-import { motion, type Variants } from 'motion/react';
-import { useQuery } from '@tanstack/react-query';
-import DeferredInquiryForm from '../components/DeferredInquiryForm';
 import Seo from '../components/Seo';
-import { fetchRentalPlans } from '../lib/api';
 import { buildCanonicalUrl } from '../lib/seo';
-
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: 'easeOut' } },
-};
-
-const stagger: Variants = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.12,
-    },
-  },
-};
 
 const homeJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'LocalBusiness',
-  name: 'Aurora Rentals',
+  name: 'Gala Rentals',
   url: buildCanonicalUrl('/'),
   description:
-    'Aurora Rentals provides premium vehicle subscriptions, reviewed approvals, and secure Stripe payment workflows across Sydney.',
+    'Premium weekly car rentals in Sydney with easy approvals, secure payments, and modern Toyota Camry options.',
   telephone: '+61 1300 555 828',
-  email: 'hello@aurorarentals.com.au',
+  email: 'hello@galarentals.com.au',
   address: {
     '@type': 'PostalAddress',
-    streetAddress: 'Sydney service hub',
     addressLocality: 'Sydney',
     addressRegion: 'NSW',
-    postalCode: '2000',
     addressCountry: 'AU',
   },
-  areaServed: [
-    { '@type': 'City', name: 'Sydney' },
-    { '@type': 'City', name: 'Parramatta' },
-    { '@type': 'City', name: 'Merrylands' },
-  ],
+  areaServed: [{ '@type': 'City', name: 'Sydney' }],
 };
 
-const showcaseVehicles = [
+const fleetCards = [
   {
+    badge: 'Popular Choice',
+    title: '2026 Toyota Camry',
+    image: '/hero-camry.webp',
+    note: 'Refined hybrid-style comfort for weekly rental plans.',
+  },
+  {
+    badge: 'Executive Option',
+    title: '2026 Toyota Camry',
+    image: '/cta-camry.webp',
+    note: 'Premium presentation for business and everyday driving.',
+  },
+  {
+    badge: 'Flexible Rental',
+    title: '2026 Toyota Camry',
     image: '/car-images/CNO40S.jpeg',
-    title: 'Toyota Camry Hybrid',
-    body: 'Executive-grade hybrid sedan with weekly rental structure, bond review, and handover support.',
-    price: 'From $390/wk',
-    tag: 'Hybrid sedan',
-  },
-  {
-    image: '/car-images/YNU55M.jpeg',
-    title: 'Kia Carnival',
-    body: 'Premium people mover option for high-capacity work, approved through Aurora operations.',
-    price: 'From $520/wk',
-    tag: 'People mover',
-  },
-  {
-    image: '/car-images/YPB83A.jpeg',
-    title: 'SUV Collection',
-    body: 'Comfortable, airport-ready SUVs with clear weekly pricing and secure checkout after approval.',
-    price: 'From $470/wk',
-    tag: 'SUV range',
+    note: 'Simple application, approval, and secure checkout flow.',
   },
 ];
 
-const trustPoints = [
-  {
-    icon: ShieldCheck,
-    title: 'Admin-reviewed approvals',
-    body: 'Every driver application is reviewed before any payment request is sent.',
-  },
-  {
-    icon: CreditCard,
-    title: 'Stripe-hosted checkout',
-    body: 'Payment happens through a secure Stripe session with approved amounts already confirmed.',
-  },
-  {
-    icon: BadgeCheck,
-    title: 'Clear onboarding path',
-    body: 'Drivers know what happens before payment, at payment, and after payment.',
-  },
+const reasons = [
+  { icon: CalendarClock, title: 'Flexible Weekly Rentals', body: 'Clear weekly rental plans designed around practical Sydney driving needs.' },
+  { icon: ClipboardCheck, title: 'Fast Application Process', body: 'Apply online with a calm approval process before payment is requested.' },
+  { icon: Sparkles, title: 'Premium Vehicles', body: 'Modern Toyota Camry options with clean presentation and professional handover.' },
+  { icon: Headphones, title: 'Local Support', body: 'Sydney-based support for applications, onboarding, payments, and follow-up.' },
 ];
 
-const howItWorks = [
-  {
-    step: '01',
-    title: 'Apply as a driver',
-    body: 'Submit your documents, start date, and driver details through Aurora Rentals.',
-  },
-  {
-    step: '02',
-    title: 'Admin review and approval',
-    body: 'The team reviews your application, approves the vehicle and pricing, and confirms the next step.',
-  },
-  {
-    step: '03',
-    title: 'Secure Stripe payment',
-    body: 'You receive a time-limited Stripe checkout link only after approval is complete.',
-  },
-  {
-    step: '04',
-    title: 'Onboarding and handover',
-    body: 'After successful payment, Aurora Rentals finalises onboarding, scheduling, and operational handover.',
-  },
+const steps = [
+  { icon: Car, title: 'Choose your vehicle' },
+  { icon: ClipboardCheck, title: 'Submit your application' },
+  { icon: BadgeCheck, title: 'Get approved' },
+  { icon: KeyRound, title: 'Start driving' },
+];
+
+const navLinks = [
+  { label: 'Fleet', to: '/fleet' },
+  { label: 'Subscriptions', to: '/pricing' },
+  { label: 'How It Works', to: '#how-it-works' },
+  { label: 'About', to: '/faq' },
+  { label: 'Contact', to: '/contact' },
 ];
 
 export default function Home() {
-  const {
-    data: rentalPlans = [],
-  } = useQuery({
-    queryKey: ['rental-plans'],
-    queryFn: fetchRentalPlans,
-  });
-
-  const popularPlan = rentalPlans.find((plan) => plan.popular) ?? rentalPlans[0] ?? null;
-
   return (
-    <div className="min-h-screen bg-[#061425] text-white selection:bg-brand-gold selection:text-black">
+    <div className="min-h-screen bg-[#eef1f5] px-3 py-4 text-[#0b1f36] selection:bg-brand-gold selection:text-brand-navy sm:px-6 sm:py-8">
       <Seo
-        title="Aurora Rentals | Premium Car Subscriptions Sydney"
-        description="Apply with Aurora Rentals for a premium, admin-reviewed vehicle subscription program in Sydney with secure Stripe payments and structured onboarding."
+        title="Gala Rentals | Premium Car Rentals Sydney"
+        description="Premium weekly car rentals in Sydney with easy approvals, secure payments, and modern Toyota Camry options."
         canonicalPath="/"
         keywords={[
-          'driver car rentals sydney',
-          'uber rental approval sydney',
-          'weekly driver rental sydney',
-          'stripe car rental payment sydney',
-          'aurora rentals sydney',
+          'gala rentals',
+          'premium car rentals sydney',
+          'toyota camry rental sydney',
+          'weekly car rentals sydney',
+          'galarentals.com.au',
         ]}
         jsonLd={homeJsonLd}
       />
 
-      <section className="relative overflow-hidden border-b border-white/10 bg-[#061425]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(223,177,37,0.18),transparent_31%),linear-gradient(120deg,rgba(11,31,54,0.96),rgba(6,20,37,0.88)_52%,rgba(3,10,20,0.98))]" />
-        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#061425] to-transparent" />
-        <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-16 px-6 pb-24 pt-32 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:pb-32 lg:pt-36">
-          <motion.div initial="hidden" animate="visible" variants={stagger} className="max-w-3xl">
-            <motion.p variants={fadeUp} className="mb-5 text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">
-              Driver Onboarding, Properly Managed
-            </motion.p>
-            <motion.h1 variants={fadeUp} className="max-w-4xl text-5xl font-serif font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl">
-              Premium driver rentals with admin-reviewed approvals and secure Stripe payments.
-            </motion.h1>
-            <motion.p variants={fadeUp} className="mt-8 max-w-2xl text-lg font-light leading-8 text-stone-300">
-              Aurora Rentals is built for drivers who want a premium process. Apply once,
-              get reviewed by the team, receive a confirmed quote, and pay only when your
-              approval is ready.
-            </motion.p>
+      <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.16)] ring-1 ring-slate-200/80">
+        <nav className="flex items-center justify-between gap-4 border-b border-slate-100 bg-white px-5 py-4 sm:px-8 lg:px-10">
+          <Link to="/" className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0b1f36] text-sm font-black text-brand-gold">
+              GR
+            </span>
+            <span>
+              <span className="block text-base font-black tracking-wide text-[#0b1f36]">Gala Rentals</span>
+              <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Sydney car hire</span>
+            </span>
+          </Link>
 
-            <motion.div variants={fadeUp} className="mt-10 flex flex-col gap-4 sm:flex-row">
+          <div className="hidden items-center gap-7 lg:flex">
+            {navLinks.map((link) =>
+              link.to.startsWith('#') ? (
+                <a key={link.label} href={link.to} className="text-sm font-semibold text-slate-600 transition-colors hover:text-[#0b1f36]">
+                  {link.label}
+                </a>
+              ) : (
+                <Link key={link.label} to={link.to} className="text-sm font-semibold text-slate-600 transition-colors hover:text-[#0b1f36]">
+                  {link.label}
+                </Link>
+              ),
+            )}
+          </div>
+
+          <Link
+            to="/apply"
+            className="inline-flex items-center justify-center rounded-full bg-[#0b1f36] px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-[#12385e]"
+          >
+            Book Now
+          </Link>
+        </nav>
+
+        <main>
+          <section className="px-5 pb-12 pt-6 sm:px-8 lg:px-10">
+            <div className="relative min-h-[560px] overflow-hidden rounded-[1.6rem] bg-[#dfe5ec]">
+              <img
+                src="/hero-camry.webp"
+                alt="2026 Toyota Camry premium rental vehicle"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.95)_0%,rgba(255,255,255,0.82)_38%,rgba(255,255,255,0.18)_68%,rgba(255,255,255,0)_100%)]" />
+              <div className="relative flex min-h-[560px] max-w-2xl flex-col justify-center px-6 py-14 sm:px-10 lg:px-14">
+                <p className="mb-5 inline-flex w-fit items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-brand-gold-dark shadow-sm">
+                  <ShieldCheck className="h-4 w-4" />
+                  Premium Sydney rentals
+                </p>
+                <h1 className="text-5xl font-black leading-[1.02] text-[#0b1f36] sm:text-6xl lg:text-7xl">
+                  Premium Car Rentals Made Simple
+                </h1>
+                <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
+                  Book quality rental vehicles with flexible weekly plans, easy approvals, and professional service across Sydney.
+                </p>
+                <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+                  <Link
+                    to="/fleet"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-sm font-black text-[#0b1f36] transition-colors hover:bg-brand-gold-light"
+                  >
+                    Browse Fleet <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    to="/apply"
+                    className="inline-flex items-center justify-center rounded-full border border-[#0b1f36]/15 bg-white/80 px-7 py-4 text-sm font-black text-[#0b1f36] transition-colors hover:border-brand-gold"
+                  >
+                    Apply Now
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="px-5 py-12 sm:px-8 lg:px-10">
+            <div className="mb-8 flex items-end justify-between gap-6">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-gold-dark">Featured Fleet Preview</p>
+                <h2 className="mt-3 text-3xl font-black text-[#0b1f36] sm:text-4xl">Popular Fleet Options</h2>
+              </div>
+              <Link to="/fleet" className="hidden items-center gap-2 text-sm font-black text-[#0b1f36] sm:inline-flex">
+                View all <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <div className="grid gap-6 md:grid-cols-3">
+              {fleetCards.map((vehicle) => (
+                <article key={vehicle.badge} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+                  <div className="aspect-[4/3] overflow-hidden bg-slate-100">
+                    <img src={vehicle.image} alt={vehicle.title} className="h-full w-full object-cover" loading="lazy" />
+                  </div>
+                  <div className="p-6">
+                    <p className="inline-flex rounded-full bg-brand-gold/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-brand-gold-dark">
+                      {vehicle.badge}
+                    </p>
+                    <h3 className="mt-4 text-2xl font-black text-[#0b1f36]">{vehicle.title}</h3>
+                    <p className="mt-3 text-sm leading-7 text-slate-600">{vehicle.note}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="bg-[#f8fafc] px-5 py-14 sm:px-8 lg:px-10">
+            <div className="mb-8">
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-gold-dark">Why Choose Gala Rentals</p>
+              <h2 className="mt-3 text-3xl font-black text-[#0b1f36] sm:text-4xl">Simple, premium, and professionally managed.</h2>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {reasons.map((item) => (
+                <article key={item.title} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0b1f36] text-brand-gold">
+                    <item.icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-lg font-black text-[#0b1f36]">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section id="how-it-works" className="px-5 py-14 sm:px-8 lg:px-10">
+            <div className="mb-10 text-center">
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-gold-dark">How It Works</p>
+              <h2 className="mt-3 text-3xl font-black text-[#0b1f36] sm:text-4xl">Four steps from browsing to driving.</h2>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-4">
+              {steps.map((step, index) => (
+                <article key={step.title} className="relative rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-gold text-[#0b1f36]">
+                    <step.icon className="h-6 w-6" />
+                  </div>
+                  <p className="mt-5 text-sm font-black uppercase tracking-[0.18em] text-slate-400">Step {index + 1}</p>
+                  <h3 className="mt-2 text-lg font-black text-[#0b1f36]">{step.title}</h3>
+                  {index < steps.length - 1 && (
+                    <ChevronRight className="absolute -right-5 top-1/2 hidden h-7 w-7 -translate-y-1/2 text-brand-gold-dark lg:block" />
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="px-5 py-10 sm:px-8 lg:px-10">
+            <div className="flex flex-col items-start justify-between gap-6 rounded-[1.6rem] bg-[#0b1f36] px-7 py-9 text-white sm:px-10 lg:flex-row lg:items-center">
+              <div>
+                <h2 className="text-3xl font-black">Ready to Get Started?</h2>
+                <p className="mt-3 text-base text-slate-300">Browse our premium rental vehicles and apply online today.</p>
+              </div>
               <Link
                 to="/apply"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-brand-navy transition-colors hover:bg-brand-gold-light"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-sm font-black text-[#0b1f36] transition-colors hover:bg-brand-gold-light"
               >
-                Start Driver Application <ArrowRight className="h-4 w-4" />
+                Start Your Application <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link
-                to="/pricing"
-                className="inline-flex items-center justify-center rounded-full border border-white/15 px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-white transition-colors hover:border-brand-gold hover:text-brand-gold"
-              >
-                Review Plans
-              </Link>
-            </motion.div>
-
-            <motion.div variants={fadeUp} className="mt-12 flex flex-wrap gap-3">
-              {['Application review before payment', 'Secure Stripe checkout', 'Admin-controlled onboarding'].map((item) => (
-                <div
-                  key={item}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-200"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-gold" />
-                  {item}
-                </div>
-              ))}
-            </motion.div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 32 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-            className="grid gap-6"
-          >
-            <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#0b1f36] shadow-[0_40px_120px_rgba(0,0,0,0.45)]">
-              <div className="aspect-[4/3] overflow-hidden">
-                <img
-                  src="/car-images/CNO40S.jpeg"
-                  alt="Premium Aurora Rentals vehicle"
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="grid gap-5 p-7 lg:grid-cols-[0.9fr_1.1fr]">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
-                      Approval Ready
-                    </p>
-                    <ShieldCheck className="h-5 w-5 text-brand-gold" />
-                  </div>
-                  <h2 className="mt-4 text-2xl font-semibold text-white">
-                    Premium rentals, approved before payment.
-                  </h2>
-                  <p className="mt-3 text-sm leading-7 text-slate-300">
-                    Drivers apply with documents, Aurora reviews the profile, then a secure checkout opens with confirmed pricing.
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-white p-5 text-brand-navy shadow-2xl">
-                  <p className="text-[10px] font-black uppercase tracking-[0.26em] text-brand-gold-dark">
-                    Quick Application
-                  </p>
-                  <div className="mt-4 grid gap-3">
-                    {['Full name', 'Licence state', 'Preferred vehicle'].map((field) => (
-                      <div key={field} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
-                        {field}
-                      </div>
-                    ))}
-                    <Link
-                      to="/apply"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-gold px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-brand-navy"
-                    >
-                      Apply <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
             </div>
+          </section>
+        </main>
 
-            {popularPlan && (
-              <div className="rounded-[2rem] border border-brand-gold/20 bg-gradient-to-br from-brand-gold/10 to-transparent p-7">
-                <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">
-                  Plan Snapshot
-                </p>
-                <div className="mt-4 flex items-end justify-between gap-4">
-                  <div>
-                    <h3 className="text-2xl font-serif font-bold text-white">{popularPlan.name}</h3>
-                    <p className="mt-2 max-w-md text-sm leading-7 text-stone-300">
-                      {popularPlan.description}
-                    </p>
-                  </div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-gold">
-                    {popularPlan.cadenceLabel}
-                  </p>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="border-b border-white/10 bg-[#0b1f36] py-20">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-100px' }}
-            variants={stagger}
-            className="grid gap-6 md:grid-cols-3"
-          >
-            {trustPoints.map((item) => (
-              <motion.article
-                key={item.title}
-                variants={fadeUp}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.2)]"
-              >
-                <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-gold/10 text-brand-gold">
-                  <item.icon className="h-5 w-5" />
-                </div>
-                <h2 className="text-2xl font-serif font-bold text-white">{item.title}</h2>
-                <p className="mt-3 text-sm leading-7 text-stone-300">{item.body}</p>
-              </motion.article>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="border-b border-white/10 bg-[#061425] py-24">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="grid items-start gap-10 lg:grid-cols-[0.85fr_1.15fr]">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">How It Works</p>
-              <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
-                A tighter process from first application to final onboarding.
-              </h2>
-              <p className="mt-6 max-w-xl text-lg font-light leading-8 text-stone-300">
-                This is not a public inventory marketplace. Aurora Rentals keeps the process controlled,
-                clear, and professional so drivers know exactly when review ends and payment begins.
-              </p>
-            </motion.div>
-
-            <div className="grid gap-5">
-              {howItWorks.map((item) => (
-                <motion.div
-                  key={item.step}
-                  initial={{ opacity: 0, x: 18 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.45, ease: 'easeOut' }}
-                  className="rounded-2xl border border-white/10 bg-[#0b1f36] p-6"
-                >
-                  <div className="flex items-start gap-5">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-gold text-[12px] font-bold tracking-[0.2em] text-brand-navy">
-                      {item.step}
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-semibold text-white">{item.title}</h3>
-                      <p className="mt-2 text-sm leading-7 text-stone-300">{item.body}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+        <footer className="border-t border-slate-100 bg-white px-5 py-10 sm:px-8 lg:px-10">
+          <div className="grid gap-8 md:grid-cols-[1.3fr_1fr_1fr]">
+            <div>
+              <p className="text-xl font-black text-[#0b1f36]">Gala Rentals</p>
+              <p className="mt-3 max-w-sm text-sm leading-7 text-slate-600">Drive smarter. Rent easier.</p>
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-3 text-sm font-semibold text-slate-600">
+              <Link to="/fleet">Fleet</Link>
+              <Link to="/pricing">Subscriptions</Link>
+              <Link to="/faq">About</Link>
+              <Link to="/contact">Contact</Link>
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-3 text-sm font-semibold text-slate-600 md:justify-end">
+              <Link to="/terms">Terms of Service</Link>
+              <Link to="/privacy">Privacy Policy</Link>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="border-b border-white/10 bg-[#0b1f36] py-24">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 lg:grid-cols-[1fr_0.82fr] lg:px-8">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">Mobile Rental Portal</p>
-            <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
-              A driver portal preview for application, checkout, and handover status.
-            </h2>
-            <p className="mt-6 max-w-2xl text-lg font-light leading-8 text-slate-300">
-              The mobile experience keeps the rental journey visible: documents submitted, admin review,
-              checkout ready, and vehicle handover scheduled.
-            </p>
-            <div className="mt-10 grid gap-4 sm:grid-cols-3">
-              {[
-                { icon: FileText, label: 'Documents', value: 'Submitted' },
-                { icon: CreditCard, label: 'Checkout', value: 'Secure' },
-                { icon: KeyRound, label: 'Handover', value: 'Scheduled' },
-              ].map((item) => (
-                <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-                  <item.icon className="h-5 w-5 text-brand-gold" />
-                  <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">{item.label}</p>
-                  <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 26 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.55 }}
-            className="mx-auto w-full max-w-sm"
-          >
-            <div className="rounded-[2.4rem] border border-brand-gold/30 bg-[#020817] p-3 shadow-[0_32px_100px_rgba(0,0,0,0.45)]">
-              <div className="overflow-hidden rounded-[2rem] bg-white text-brand-navy">
-                <div className="bg-brand-navy px-6 pb-8 pt-6 text-white">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-gold">My Rental</p>
-                    <Smartphone className="h-5 w-5 text-brand-gold" />
-                  </div>
-                  <h3 className="mt-8 text-2xl font-serif font-bold">Camry Hybrid</h3>
-                  <p className="mt-2 text-sm text-slate-300">Application approved. Checkout link active.</p>
-                </div>
-                <div className="space-y-4 p-6">
-                  {['Profile reviewed', 'Payment link issued', 'Pickup window pending'].map((item, index) => (
-                    <div key={item} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-full ${index < 2 ? 'bg-brand-gold text-brand-navy' : 'bg-slate-200 text-slate-500'}`}>
-                        <CheckCircle2 className="h-4 w-4" />
-                      </div>
-                      <span className="text-sm font-bold">{item}</span>
-                    </div>
-                  ))}
-                  <Link to="/my-rental" className="flex items-center justify-center rounded-2xl bg-brand-gold px-5 py-4 text-xs font-black uppercase tracking-[0.2em] text-brand-navy">
-                    Open Portal
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="border-b border-white/10 bg-[#f8fafc] py-24 text-brand-navy">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="max-w-3xl">
-            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold-dark">Premium Fleet</p>
-            <h2 className="mt-5 text-4xl font-serif font-bold text-brand-navy sm:text-5xl">
-              Premium fleet cards with clear pricing signals and approval-first checkout.
-            </h2>
-            <p className="mt-6 text-lg font-light leading-8 text-slate-600">
-              Aurora Rentals uses real vehicle imagery to show standards and presentation while keeping assignment,
-              pricing, and operational control inside the approval workflow.
-            </p>
-          </motion.div>
-
-          <div className="mt-12 grid gap-8 md:grid-cols-3">
-            {showcaseVehicles.map((vehicle, index) => (
-              <motion.article
-                key={vehicle.image}
-                initial={{ opacity: 0, y: 22 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.45, delay: index * 0.08 }}
-                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.12)]"
-              >
-                <div className="aspect-[4/3] overflow-hidden">
-                  <img
-                    src={vehicle.image}
-                    alt={vehicle.title}
-                    className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="rounded-full bg-brand-gold/15 px-3 py-1 text-[9px] font-black uppercase tracking-[0.22em] text-brand-gold-dark">
-                      {vehicle.tag}
-                    </p>
-                    <p className="text-sm font-black text-brand-navy">{vehicle.price}</p>
-                  </div>
-                  <h3 className="mt-5 text-2xl font-serif font-bold text-brand-navy">{vehicle.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">{vehicle.body}</p>
-                  <Link to="/fleet" className="mt-6 inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-brand-gold-dark">
-                    View fleet <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </div>
-              </motion.article>
-            ))}
+          <div className="mt-8 flex flex-col justify-between gap-3 border-t border-slate-100 pt-6 text-xs text-slate-500 sm:flex-row">
+            <p>© 2026 Gala Rentals, galarentals.com.au. All rights reserved.</p>
+            <p>Drive smarter. Rent easier.</p>
           </div>
-        </div>
-      </section>
-
-      <section className="bg-[#061425] py-24">
-        <div className="mx-auto max-w-6xl px-6 lg:px-8">
-          <div className="rounded-[2.25rem] border border-brand-gold/20 bg-gradient-to-br from-brand-gold/10 via-white/[0.03] to-transparent px-8 py-10 sm:px-10 sm:py-12">
-            <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">
-                  Start With Confidence
-                </p>
-                <h2 className="mt-5 text-4xl font-serif font-bold text-white sm:text-5xl">
-                  Apply once. Get reviewed properly. Pay only when everything is ready.
-                </h2>
-                <p className="mt-6 max-w-2xl text-lg font-light leading-8 text-stone-300">
-                  Aurora Rentals is designed for real driver onboarding, real admin control, and clear Stripe-backed payment handling.
-                </p>
-              </div>
-              <div className="flex flex-col gap-4">
-                <Link
-                  to="/apply"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-brand-navy transition-colors hover:bg-brand-gold-light"
-                >
-                  Apply Now <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  to="/pricing"
-                  className="inline-flex items-center justify-center rounded-full border border-white/15 px-8 py-4 text-sm font-bold uppercase tracking-[0.22em] text-white transition-colors hover:border-brand-gold hover:text-brand-gold"
-                >
-                  View Rental Plans
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#061425] pb-28">
-        <div className="mx-auto max-w-4xl px-6 lg:px-8">
-          <DeferredInquiryForm />
-        </div>
-      </section>
+        </footer>
+      </div>
     </div>
   );
 }

@@ -16,7 +16,7 @@ const downloadJsonBackup = (payload: Record<string, unknown>) => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
   link.href = url;
-  link.download = `maple-imported-data-reset-backup-${timestamp}.json`;
+  link.download = `gala-imported-data-reset-backup-${timestamp}.json`;
   link.click();
   URL.revokeObjectURL(url);
 };

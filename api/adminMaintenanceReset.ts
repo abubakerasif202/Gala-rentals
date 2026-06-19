@@ -652,7 +652,7 @@ export const resetImportedDataAndFinancials = async (options: {
     return withPostgresTransaction(async (client) => {
       await client.query(
         'SELECT pg_advisory_xact_lock(hashtext($1)::bigint)',
-        ['maple:maintenance:imported-data-reset'],
+        ['gala:maintenance:imported-data-reset'],
       );
       const plan = await getImportedDataResetPlan(client);
       return performDeletes(plan, client, options);

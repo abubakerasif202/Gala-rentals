@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { verifyProductionSchemaContract } from '../schemaContract.js';
 
-type AuroraSupabaseClient = SupabaseClient;
+type GalaSupabaseClient = SupabaseClient;
 
 const readEnv = (key: string) => {
   const value = process.env[key];
@@ -31,7 +31,7 @@ const supabaseServiceRoleKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
 const supabaseAnonKey =
   readEnv('SUPABASE_ANON_KEY') || readEnv('SUPABASE_ANON_PUBLIC_KEY');
 
-let serviceClient: AuroraSupabaseClient | null = null;
+let serviceClient: GalaSupabaseClient | null = null;
 
 const createScopedClient = (url: string, key: string) =>
   createClient(url, key, {
@@ -102,7 +102,7 @@ const getServiceClient = () => {
   return serviceClient;
 };
 
-export const db = new Proxy({} as AuroraSupabaseClient, {
+export const db = new Proxy({} as GalaSupabaseClient, {
   get(_target, property, receiver) {
     const client = getServiceClient();
     const value = Reflect.get(client, property, receiver);

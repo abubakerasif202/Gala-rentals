@@ -1,6 +1,6 @@
-export const STRIPE_CATALOG_APP_METADATA_KEY = 'maple_rental_app';
-export const STRIPE_CATALOG_KIND_METADATA_KEY = 'maple_rental_catalog_kind';
-export const STRIPE_CATALOG_APP_METADATA_VALUE = 'maple-rental';
+export const STRIPE_CATALOG_APP_METADATA_KEY = 'gala_rental_app';
+export const STRIPE_CATALOG_KIND_METADATA_KEY = 'gala_rental_catalog_kind';
+export const STRIPE_CATALOG_APP_METADATA_VALUE = 'gala-rentals';
 
 export const stripeCatalogDefinitions = {
   securityBond: {

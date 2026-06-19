@@ -13,8 +13,8 @@ from reportlab.lib.utils import ImageReader
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_PATH = ROOT / "output" / "pdf" / "maple-rentals-business-card-double-sided.pdf"
-LOGO_PATH = ROOT / "public" / "maple-logo.webp"
+OUTPUT_PATH = ROOT / "output" / "pdf" / "gala-rentals-business-card-double-sided.pdf"
+LOGO_PATH = ROOT / "public" / "gala-logo.webp"
 HERO_PATH = ROOT / "public" / "hero-camry.webp"
 
 PAGE_W = 90 * mm
@@ -30,8 +30,8 @@ SLATE = HexColor("#5B6676")
 RED = HexColor("#B8332E")
 
 PHONE = "0420 550 556"
-EMAIL = "hello@maplerentals.com.au"
-WEBSITE = "maplerentals.com.au"  # inferred from the branded email domain in this repo
+EMAIL = "hello@galarentals.com.au"
+WEBSITE = "galarentals.com.au"  # inferred from the branded email domain in this repo
 CONTACT_NAME = "Sarfaraz Rajabi"
 LICENCE = "317786C"
 ABN = "16 623 061 941"
@@ -307,8 +307,8 @@ def draw_back(c: canvas.Canvas) -> None:
 def main() -> None:
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     c = canvas.Canvas(str(OUTPUT_PATH), pagesize=(PAGE_W, PAGE_H), pageCompression=1)
-    c.setTitle("Maple Rentals Business Card")
-    c.setAuthor("Codex for Maple Rentals")
+    c.setTitle("Gala Rentals Business Card")
+    c.setAuthor("Codex for Gala Rentals")
     c.setSubject("Double-sided business card artwork")
     c.setCreator("scripts/generate_business_card_pdf.py")
 

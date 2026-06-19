@@ -101,7 +101,7 @@ export default function RentalsTab({
     const link = document.createElement('a');
 
     link.href = url;
-    link.download = 'maple-rentals.csv';
+    link.download = 'gala-rentals.csv';
     link.click();
     URL.revokeObjectURL(url);
   };

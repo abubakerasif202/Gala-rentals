@@ -4,17 +4,17 @@
 >
 > Use [docs/STRIPE_HANDOFF_CHECKLIST.md](./STRIPE_HANDOFF_CHECKLIST.md), [docs/STRIPE_SETUP.md](./STRIPE_SETUP.md), and `npm run stripe:handoff` instead.
 
-**Project:** Maple Rental  
-**Account:** Maple rentals sandbox (`acct_1T8kakDaPc7L3S6e`)  
-**Mode:** Test (sandbox — no real charges)  
-**Author:** Manus AI  
+**Project:** Gala Rental
+**Account:** Gala rentals sandbox (`acct_1T8kakDaPc7L3S6e`)
+**Mode:** Test (sandbox — no real charges)
+**Author:** Manus AI
 **Date:** March 2026
 
 ---
 
 ## Overview
 
-Stripe is a developer-first payments platform that provides a unified API surface for the full lifecycle of online commerce — from collecting a one-time payment to managing complex recurring billing, issuing invoices, handling disputes, and analysing financial data. This brief documents every major capability area available through the Stripe API, with live-tested results from the Maple Rental sandbox account.
+Stripe is a developer-first payments platform that provides a unified API surface for the full lifecycle of online commerce — from collecting a one-time payment to managing complex recurring billing, issuing invoices, handling disputes, and analysing financial data. This brief documents every major capability area available through the Stripe API, with live-tested results from the Gala Rental sandbox account.
 
 ---
 
@@ -25,7 +25,7 @@ The Stripe account object is the root of all activity. It exposes the business i
 | Field | Live Value |
 |---|---|
 | Account ID | `acct_1T8kakDaPc7L3S6e` |
-| Display Name | Maple rentals sandbox |
+| Display Name | Gala rentals sandbox |
 | Default Currency | AUD |
 | Charges Enabled | `true` |
 | Available Balance | AUD 0.00 (sandbox) |
@@ -42,20 +42,20 @@ Customers are persistent objects that store contact information, payment methods
 - `stripe.Customer.create()` — register a new customer with name, email, phone, address, and arbitrary metadata.
 - `stripe.Customer.modify()` — update any field, including the default payment method for invoices.
 - `stripe.Customer.list()` — paginate through all customers with optional email filter.
-- `stripe.Customer.search()` — full-text search using Stripe Query Language (e.g., `email~'maplerental.demo'`).
+- `stripe.Customer.search()` — full-text search using Stripe Query Language (e.g., `email~'galarental.demo'`).
 
 **Live test results:**
 
 | Customer | Email | ID |
 |---|---|---|
-| Alice Johnson | alice@maplerental.demo | `cus_U708RUJyMvPqGC` |
-| Bob Smith | bob@maplerental.demo | `cus_U7085OZVHNCqWk` |
+| Alice Johnson | alice@galarental.demo | `cus_U708RUJyMvPqGC` |
+| Bob Smith | bob@galarental.demo | `cus_U7085OZVHNCqWk` |
 
 ---
 
 ## 3. Product Catalogue
 
-Products represent what is being sold — in Maple Rental's case, individual rental properties or packages. Products are decoupled from pricing, allowing multiple price points (currencies, billing intervals) to be attached to a single product.
+Products represent what is being sold — in Gala Rental's case, individual rental properties or packages. Products are decoupled from pricing, allowing multiple price points (currencies, billing intervals) to be attached to a single product.
 
 **Key operations:**
 
@@ -67,8 +67,8 @@ Products represent what is being sold — in Maple Rental's case, individual ren
 
 | Product | Type | ID |
 |---|---|---|
-| Maple Cabin — Weekend Rental | service | `prod_U709mb1avE9jCh` |
-| Maple Lakehouse — Monthly Subscription | service | `prod_U7098NCEpO8K6t` |
+| Gala Cabin — Weekend Rental | service | `prod_U709mb1avE9jCh` |
+| Gala Lakehouse — Monthly Subscription | service | `prod_U7098NCEpO8K6t` |
 
 ---
 
@@ -100,7 +100,7 @@ Payment Links generate a hosted checkout URL that can be shared via email, SMS, 
 
 **Live test result:**
 
-> **Cabin Rental Payment Link:**  
+> **Cabin Rental Payment Link:**
 > `https://buy.stripe.com/test_dRm7sLbJb9Tf0XRaRCdZ600`
 
 Payment Links are ideal for ad-hoc bookings, quote follow-ups, and situations where embedding a full checkout flow is not practical.
@@ -231,7 +231,7 @@ Stripe's Search API provides a powerful query language (`Stripe Query Language`)
 **Example queries:**
 
 ```
-email~'maplerental.demo'          # customers with email containing domain
+email~'galarental.demo'          # customers with email containing domain
 status:'open'                     # open invoices
 amount>10000 AND currency:'aud'   # large AUD payment intents
 metadata['tier']:'premium'        # customers tagged as premium

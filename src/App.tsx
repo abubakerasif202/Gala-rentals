@@ -28,10 +28,11 @@ const queryClient = new QueryClient({
 function AppShell() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const isHomeRoute = location.pathname === '/';
 
   return (
     <div className="flex min-h-screen flex-col bg-brand-navy">
-      {!isAdminRoute && <Navbar />}
+      {!isAdminRoute && !isHomeRoute && <Navbar />}
       <main className="flex-grow">
         <Suspense
           fallback={
@@ -60,7 +61,7 @@ function AppShell() {
           </Routes>
         </Suspense>
       </main>
-      {!isAdminRoute && <Footer />}
+      {!isAdminRoute && !isHomeRoute && <Footer />}
     </div>
   );
 }

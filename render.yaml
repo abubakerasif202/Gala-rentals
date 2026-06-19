@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: aurora-rentals
+    name: gala-rentals
     runtime: node
     plan: starter
     branch: main
@@ -33,11 +33,21 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: VITE_API_BASE_URL
+        value: /api
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_SUPABASE_VEHICLE_IMAGES_BUCKET
+        value: vehicle-images
       - key: LEASE_OWNER_NAME
-        value: "Aurora Rentals"
+        value: "Gala Rentals"
       - key: LEASE_OWNER_ADDRESS
         value: "Sydney NSW"
       - key: LEASE_OWNER_CONTACT
         value: "1300 555 828"
       - key: LEASE_OWNER_EMAIL
-        value: "hello@aurorarentals.com.au"
+        value: "hello@galarentals.com.au"

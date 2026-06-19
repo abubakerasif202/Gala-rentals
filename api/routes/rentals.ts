@@ -121,7 +121,7 @@ router.post('/:rentalId/cancel-subscription', authenticateAdmin, async (req, res
       admin_cancelled_by: String(req.admin?.email || 'admin'),
       admin_cancellation_reason: reason || '',
       admin_cancellation_requested_at: new Date().toISOString(),
-      maple_rental_id: rentalId,
+      gala_rental_id: rentalId,
     };
 
     const existingSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);

@@ -26,7 +26,7 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[80vh] bg-brand-navy py-12 px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-[80vh] items-center justify-center bg-[#eef1f5] px-4 py-12 sm:px-6 lg:px-8">
       <Seo
         title="Admin Login | Gala Rentals"
         description="Administrative login for Gala Rentals."
@@ -34,20 +34,20 @@ export default function AdminLogin() {
         robots="noindex,nofollow"
       />
 
-      <div className="max-w-md w-full space-y-8 bg-brand-navy-light p-10 rounded-xl shadow-2xl border border-white/10">
+      <div className="w-full max-w-md space-y-8 rounded-[1.75rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_rgba(11,31,54,0.16)] sm:p-10">
         <div>
           <img
-            src="/logo/gala-logo-icon-192.png"
+            src="/logo/gala-logo-navbar.png"
             alt="Gala Rentals logo"
-            className="mx-auto mb-5 h-20 w-20 object-contain"
+            className="mx-auto mb-5 h-14 w-auto max-w-[190px] object-contain"
           />
-          <h2 className="text-center text-3xl font-serif font-bold text-white tracking-tight">Admin Access</h2>
+          <h2 className="text-center text-3xl font-serif font-bold text-brand-navy tracking-tight">Admin Access</h2>
           <p className="mt-2 text-center text-xs text-brand-gold font-bold uppercase tracking-[0.3em]">Gala Rentals Operations</p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           {error && (
-            <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-md">
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
               <p className="text-red-500 text-xs text-center font-bold uppercase tracking-widest">{error}</p>
             </div>
           )}
@@ -58,7 +58,7 @@ export default function AdminLogin() {
               <input
                 type="email"
                 required
-                className="appearance-none rounded-md relative block w-full px-4 py-3 border border-white/10 bg-brand-navy text-white placeholder-brand-grey/50 focus:outline-none focus:border-brand-gold focus:z-10 sm:text-sm font-light transition-colors"
+                className="relative block w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-brand-navy placeholder:text-slate-400 transition-colors focus:z-10 focus:border-brand-gold focus:bg-white focus:outline-none sm:text-sm"
                 placeholder="Email Address"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -69,7 +69,7 @@ export default function AdminLogin() {
               <input
                 type="password"
                 required
-                className="appearance-none rounded-md relative block w-full px-4 py-3 border border-white/10 bg-brand-navy text-white placeholder-brand-grey/50 focus:outline-none focus:border-brand-gold focus:z-10 sm:text-sm font-light transition-colors"
+                className="relative block w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-brand-navy placeholder:text-slate-400 transition-colors focus:z-10 focus:border-brand-gold focus:bg-white focus:outline-none sm:text-sm"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -79,7 +79,7 @@ export default function AdminLogin() {
 
           <button
             type="submit"
-            className="group relative w-full flex justify-center py-4 px-4 border border-transparent text-sm font-bold rounded-md text-brand-navy bg-brand-gold hover:bg-brand-gold-light focus:outline-none transition-all uppercase tracking-widest shadow-lg"
+            className="group relative flex w-full justify-center rounded-full border border-transparent bg-brand-gold px-4 py-4 text-sm font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light focus:outline-none"
           >
             Sign in to Dashboard
           </button>

@@ -13,7 +13,7 @@ const quickLinks = [
 
 export default function Footer() {
   return (
-    <footer id="contact" className="bg-brand-navy text-gray-400 py-20 border-t border-white/10">
+    <footer id="contact" className="bg-brand-charcoal text-gray-400 py-20 border-t border-brand-gold/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
           <div>
@@ -21,15 +21,15 @@ export default function Footer() {
               <img
                 src="/logo/gala-logo-footer.png"
                 alt="Gala Rentals logo"
-                className="h-16 w-auto max-w-[180px] object-contain sm:h-20 sm:max-w-[220px]"
+                className="h-14 w-auto max-w-[172px] object-contain sm:h-16 sm:max-w-[210px]"
                 loading="lazy"
               />
             </Link>
-            <p className="text-sm text-gray-500 max-w-xs leading-relaxed font-light">
+            <p className="text-sm text-slate-400 max-w-xs leading-relaxed font-light">
               Premium car rental and subscription programs for Australian drivers who want clean approvals,
               clear pricing, and a polished handover process.
             </p>
-            <p className="mt-5 text-[11px] uppercase tracking-[0.2em] text-gray-600 font-light max-w-sm">
+            <p className="mt-5 text-[11px] uppercase tracking-[0.2em] text-slate-500 font-light max-w-sm">
               Service areas: Sydney, Parramatta, Liverpool, Blacktown, and the greater metro area
             </p>
           </div>
@@ -74,7 +74,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-white/10 mt-20 pt-8 text-center text-xs text-gray-600 uppercase tracking-widest font-light">
+        <div className="border-t border-white/10 mt-20 pt-8 text-center text-xs text-slate-500 uppercase tracking-widest font-light">
           &copy; {new Date().getFullYear()} Gala Rentals. All rights reserved.
         </div>
       </div>

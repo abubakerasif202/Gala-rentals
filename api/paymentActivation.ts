@@ -12,14 +12,11 @@ import {
 } from './applicationPaymentState.js';
 import {
   getApplicationSelectColumns,
-  getCarSelectColumns,
   getRentalApplicationIdColumn,
   getRentalCarIdColumn,
   getSchemaCompat,
   toApplicationPaymentWritePayload,
-  toRentalWritePayload,
 } from './schemaCompat.js';
-import { getTodayInAustralia } from '../shared/applicationSubmission.js';
 import { escapeHtml, getResend, sendResendEmail } from './email.js';
 import {
   AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON,
@@ -42,25 +39,9 @@ const assertSupabaseWrite = (
   }
 };
 
-const isDuplicateWrite = (error: unknown) =>
-  Boolean(
-    error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      String((error as { code?: string }).code || '') === '23505'
-  );
-
 const isLiveRentalStatus = (status: unknown) => {
   const normalized = String(status || '').toLowerCase();
   return normalized !== 'completed' && normalized !== 'cancelled';
-};
-
-const getApplicationRentalStartDate = (application: Record<string, unknown>) => {
-  const value = String(
-    application.intended_start_date ?? application.intendedStartDate ?? ''
-  ).trim();
-
-  return value || getTodayInAustralia();
 };
 
 export const getRentalStatusUpdatePayload = async (status: string, endDate?: string) => {
@@ -178,40 +159,6 @@ export const withVehicleCheckoutProcessingLock = async <T>(
   return withPostgresAdvisoryLock(`vehicle-checkout:${applicationId}`, callback);
 };
 
-const stripRentalIdentityFields = (payload: Record<string, unknown>) => {
-  const {
-    startDate: _unusedCamelStartDate,
-    start_date: _unusedSnakeStartDate,
-    carId: _unusedCamelCarId,
-    car_id: _unusedSnakeCarId,
-    applicationId: _unusedCamelApplicationId,
-    application_id: _unusedSnakeApplicationId,
-    ...repairPayload
-  } = payload;
-
-  return repairPayload;
-};
-
-const insertRowInTransaction = async (
-  client: import('pg').PoolClient,
-  table: string,
-  payload: Record<string, unknown>
-) => {
-  const entries = Object.entries(payload);
-  const columns = entries.map(([column]) => quoteIdentifier(column)).join(', ');
-  const placeholders = entries.map((_, index) => `$${index + 1}`).join(', ');
-  const values = entries.map(([, value]) => value);
-
-  const result = await client.query(
-    `INSERT INTO ${quoteIdentifier(table)} (${columns}) VALUES (${placeholders})`,
-    values
-  );
-
-  if (result.rowCount !== 1) {
-    throw new Error(`Failed to insert ${table} row within transaction.`);
-  }
-};
-
 const updateRowByIdInTransaction = async (
   client: import('pg').PoolClient,
   table: string,
@@ -293,140 +240,6 @@ const hasVehicleCheckoutFulfillmentMarker = async (sessionId: string) => {
   return data?.event_type === VEHICLE_CHECKOUT_FULFILLMENT_EVENT_TYPE;
 };
 
-const applyVehicleCheckoutActivationWrites = async ({
-  applicationId,
-  carId,
-  existingRentalId,
-  expectedPaymentLinkVersion,
-  fulfillmentSessionId,
-  paidAt,
-  rentalInsertPayload,
-  rentalRepairPayload,
-}: {
-  applicationId: string;
-  carId: number;
-  existingRentalId: number | null;
-  expectedPaymentLinkVersion: number;
-  fulfillmentSessionId: string;
-  paidAt: string;
-  rentalInsertPayload: Record<string, unknown>;
-  rentalRepairPayload: Record<string, unknown>;
-}) => {
-  const applicationPaymentPayload = await toApplicationPaymentWritePayload({
-    paid_at: paidAt,
-    pending_checkout_session_id: null,
-    status: 'Paid',
-  });
-
-  if (!hasDirectDatabaseConnection()) {
-    throw new Error(
-      'Automatic payment activation requires a session-capable Postgres connection.'
-    );
-  }
-
-  return withPostgresTransaction(async (client) => {
-    const fulfillmentLedgerResult =
-      await readVehicleCheckoutFulfillmentMarkerInTransaction(
-        client,
-        fulfillmentSessionId
-      );
-    const existingFulfillmentLedgerRow =
-      (fulfillmentLedgerResult.rows[0] as
-        | { event_type?: string | null; id?: number | null }
-        | undefined) || undefined;
-
-    if (
-      existingFulfillmentLedgerRow?.event_type ===
-      VEHICLE_CHECKOUT_FULFILLMENT_EVENT_TYPE
-    ) {
-      return 'already_fulfilled' as const;
-    }
-
-    const applicationRes = await client.query(
-      await buildLockedApplicationSelectSql(),
-      [applicationId]
-    );
-
-    const lockedApplicationRow = applicationRes.rows[0] as
-      | {
-          assigned_car_id?: number | string | null;
-          payment_link_version?: number | string | null;
-          status?: string | null;
-        }
-      | undefined;
-
-    if (!lockedApplicationRow) {
-      throw new Error(`Application ${applicationId} disappeared while activating payment.`);
-    }
-
-    const lockedPaymentLinkVersion = Number(lockedApplicationRow.payment_link_version || 0);
-    if (lockedPaymentLinkVersion !== expectedPaymentLinkVersion) {
-      throw new Error(
-        `Application ${applicationId} payment link version changed from ${expectedPaymentLinkVersion} to ${lockedPaymentLinkVersion}.`
-      );
-    }
-
-const lockedApplicationStatus = String(lockedApplicationRow.status || '');
-    if (
-      lockedApplicationStatus !== 'Approved' &&
-      lockedApplicationStatus !== 'Paid' &&
-      lockedApplicationStatus !== 'Payment Review' &&
-      lockedApplicationStatus !== 'Cancelled'
-    ) {
-      throw new Error(
-        `Application ${applicationId} cannot be activated from status ${lockedApplicationStatus || 'Unknown'}.`
-      );
-    }
-
-    // Lock the car row and re-validate availability inside the transaction
-    const carRes = await client.query(
-      'SELECT status FROM cars WHERE id = $1 FOR UPDATE',
-      [carId]
-    );
-    const currentCarStatus = carRes.rows[0]?.status;
-
-    if (!existingRentalId && currentCarStatus !== 'Available' && currentCarStatus !== 'Rented') {
-      throw new Error(`Vehicle is no longer available for activation (currently ${currentCarStatus})`);
-    }
-
-    if (existingRentalId) {
-      await updateRowByIdInTransaction(
-        client,
-        'rentals',
-        existingRentalId,
-        rentalRepairPayload,
-        'Failed to repair existing rental after checkout completion'
-      );
-    } else {
-      await insertRowInTransaction(client, 'rentals', rentalInsertPayload);
-    }
-
-    await updateRowByIdInTransaction(
-      client,
-      'cars',
-      carId,
-      { status: 'Rented' },
-      'Failed to mark car as rented'
-    );
-
-    await updateRowByIdInTransaction(
-      client,
-      'applications',
-      applicationId,
-      applicationPaymentPayload,
-      'Failed to update application payment state'
-    );
-
-    await persistVehicleCheckoutFulfillmentMarkerInTransaction(
-      client,
-      fulfillmentSessionId,
-      Number(existingFulfillmentLedgerRow?.id || 0) || null
-    );
-
-    return 'fulfilled' as const;
-  });
-};
-
 const applyVehicleCheckoutPaymentOnlyWrites = async ({
   applicationId,
   expectedPaymentLinkVersion,
@@ -445,8 +258,26 @@ const applyVehicleCheckoutPaymentOnlyWrites = async ({
   });
 
   if (!hasDirectDatabaseConnection()) {
-    const result = await db.from('applications').update(applicationPaymentPayload).eq('id', applicationId);
-    assertSupabaseWrite(result, 'Failed to update application payment state');
+    const { applicationPaymentLinkVersionColumn } = await getSchemaCompat();
+    const { data, error } = await db
+      .from('applications')
+      .update(applicationPaymentPayload)
+      .eq('id', applicationId)
+      .eq(applicationPaymentLinkVersionColumn, expectedPaymentLinkVersion)
+      .in('status', ['Approved', 'Paid', 'Payment Review'])
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to update application payment state: ${error.message || 'Unknown Supabase error'}`);
+    }
+
+    if (!data?.id) {
+      throw new Error(
+        'Application payment state changed before paid checkout could be recorded.'
+      );
+    }
+
     return 'fulfilled' as const;
   }
 
@@ -494,8 +325,7 @@ const lockedApplicationStatus = String(lockedApplicationRow.status || '');
     if (
       lockedApplicationStatus !== 'Approved' &&
       lockedApplicationStatus !== 'Paid' &&
-      lockedApplicationStatus !== 'Payment Review' &&
-      lockedApplicationStatus !== 'Cancelled'
+      lockedApplicationStatus !== 'Payment Review'
     ) {
       throw new Error(
         `Application ${applicationId} cannot be marked paid from status ${lockedApplicationStatus || 'Unknown'}.`
@@ -722,92 +552,27 @@ export const handleVehicleCheckoutCompletion = async (
       );
     }
 
-    if (!legacyCarId) {
-      try {
-        return await applyVehicleCheckoutPaymentOnlyWrites({
-          applicationId,
-          expectedPaymentLinkVersion: sessionPaymentLinkVersion,
-          fulfillmentSessionId: session.id,
-          paidAt: recordedPaidAt,
-        });
-      } catch (error) {
-        return moveApplicationToPaymentReview(
-          error instanceof Error
-            ? error.message
-            : 'Payment was received but could not be recorded automatically.'
-        );
-      }
+    if (legacyCarId) {
+      console.warn('Ignoring legacy checkout car_id during payment-only completion', {
+        applicationId,
+        checkoutSessionId: session.id,
+        legacyCarId,
+      });
     }
 
-    if (legacyCarId) {
-      const { rentalApplicationIdColumn, rentals } =
-        await fetchExistingRentalsForCar(legacyCarId);
-      const existingRentalForApplication =
-        rentals.find(
-          (rental) =>
-            normalizeUuid(String(rental[rentalApplicationIdColumn] || '')) ===
-            applicationId
-        ) || null;
-      const blockingRental =
-        rentals.find((rental) => {
-          const rentalApplicationId = normalizeUuid(
-            String(rental[rentalApplicationIdColumn] || '')
-          );
-          return (
-            rentalApplicationId !== applicationId &&
-            isLiveRentalStatus(rental.status)
-          );
-        }) || null;
-
-      if (blockingRental) {
-        return moveApplicationToPaymentReview(
-          `Vehicle ${legacyCarId} is no longer available for automatic activation.`
-        );
-      }
-
-      const approvedBond = Number(
-        session.metadata?.approved_bond ?? application.approved_bond ?? 0
-      );
-      const approvedWeeklyPrice = Number(
-        session.metadata?.approved_weekly_price ??
-          application.approved_weekly_price ??
-          0
-      );
-      const rentalPayload = await toRentalWritePayload({
-        application_id: applicationId,
-        bond_paid: approvedBond,
-        car_id: legacyCarId,
-        start_date: getApplicationRentalStartDate(application),
-        status: 'Active',
-        stripe_customer_id:
-          typeof session.customer === 'string' ? session.customer : null,
-        stripe_subscription_id: subscriptionId,
-        weekly_price: approvedWeeklyPrice,
+    try {
+      return await applyVehicleCheckoutPaymentOnlyWrites({
+        applicationId,
+        expectedPaymentLinkVersion: sessionPaymentLinkVersion,
+        fulfillmentSessionId: session.id,
+        paidAt: recordedPaidAt,
       });
-
-      try {
-        return await applyVehicleCheckoutActivationWrites({
-          applicationId,
-          carId: legacyCarId,
-          existingRentalId:
-            Number(existingRentalForApplication?.id || 0) || null,
-          expectedPaymentLinkVersion: sessionPaymentLinkVersion,
-          fulfillmentSessionId: session.id,
-          paidAt: recordedPaidAt,
-          rentalInsertPayload: rentalPayload,
-          rentalRepairPayload: stripRentalIdentityFields(rentalPayload),
-        });
-      } catch (error) {
-        if (isDuplicateWrite(error)) {
-          return 'already_fulfilled' as const;
-        }
-
-        return moveApplicationToPaymentReview(
-          error instanceof Error
-            ? error.message
-            : 'Automatic vehicle activation failed and requires manual review.'
-        );
-      }
+    } catch (error) {
+      return moveApplicationToPaymentReview(
+        error instanceof Error
+          ? error.message
+          : 'Payment was received but could not be recorded automatically.'
+      );
     }
   });
 };

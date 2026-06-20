@@ -87,6 +87,17 @@ export const removeVehicleImageUpload = async (
   return data;
 };
 
+export const uploadVehicleImageFile = async (
+  file: File
+): Promise<{ path: string; publicUrl: string }> => {
+  const payload = new FormData();
+  payload.append('image', file);
+
+  const { data } = await api.post('/cars/image', payload);
+
+  return data;
+};
+
 export const archiveCar = async (
   id: number,
   archived: boolean

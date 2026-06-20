@@ -1,4 +1,6 @@
 import express from 'express';
+import { randomUUID } from 'node:crypto';
+import multer from 'multer';
 import { db } from '../db/index.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { carSchema } from '../validation.js';
@@ -20,6 +22,28 @@ import { syncRealtimeFleet } from '../../scripts/sync-realtime-fleet.js';
 
 const router = express.Router();
 const VEHICLE_IMAGES_BUCKET = (process.env.SUPABASE_VEHICLE_IMAGES_BUCKET || 'vehicle-images').trim();
+const MAX_VEHICLE_IMAGE_BYTES = 15 * 1024 * 1024;
+const ALLOWED_VEHICLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const uploadVehicleImage = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_VEHICLE_IMAGE_BYTES,
+    files: 1,
+  },
+});
+const parseVehicleImageUpload: express.RequestHandler = (req, res, next) => {
+  uploadVehicleImage.single('image')(req, res, (error) => {
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'Vehicle image file is too large.' });
+    }
+
+    if (error) {
+      return res.status(400).json({ error: 'Invalid vehicle image upload.' });
+    }
+
+    next();
+  });
+};
 
 router.post('/admin/sync', authenticateAdmin, async (_req, res) => {
   try {
@@ -135,6 +159,49 @@ const removeUploadedVehicleImage = async (imageUrl: string | null | undefined) =
   if (error) {
     console.warn(`Failed to clean up vehicle image ${storagePath}:`, error);
   }
+};
+
+const toVehicleImageExtension = (mimeType: string) => {
+  switch (mimeType) {
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    default:
+      return 'jpg';
+  }
+};
+
+const createVehicleImagePath = (file: Express.Multer.File) =>
+  `admin-uploads/${randomUUID()}.${toVehicleImageExtension(file.mimetype)}`;
+
+const uploadManagedVehicleImage = async (file: Express.Multer.File) => {
+  if (!ALLOWED_VEHICLE_IMAGE_TYPES.has(file.mimetype)) {
+    const error = new Error('Choose a JPG, PNG, or WebP image.');
+    (error as Error & { status?: number }).status = 400;
+    throw error;
+  }
+
+  const path = createVehicleImagePath(file);
+  const { error } = await db.storage.from(VEHICLE_IMAGES_BUCKET).upload(path, file.buffer, {
+    cacheControl: '3600',
+    contentType: file.mimetype,
+    upsert: false,
+  });
+
+  if (error) {
+    throw new Error(`Failed to upload vehicle image: ${error.message || 'Unknown error'}`);
+  }
+
+  const { data } = db.storage.from(VEHICLE_IMAGES_BUCKET).getPublicUrl(path);
+  if (!data.publicUrl) {
+    throw new Error('Vehicle image uploaded but no public URL was returned.');
+  }
+
+  return {
+    path,
+    publicUrl: data.publicUrl,
+  };
 };
 
 const toPublicSiteOrigin = () => {
@@ -268,6 +335,27 @@ router.get('/admin/all', authenticateAdmin, async (_req, res) => {
   }
 
   res.json((data || []).map((car) => toCarResponse(car as Record<string, any>)));
+});
+
+router.post('/image', authenticateAdmin, parseVehicleImageUpload, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Vehicle image file is required.' });
+    }
+
+    const uploadedImage = await uploadManagedVehicleImage(req.file);
+    res.status(201).json(uploadedImage);
+  } catch (error) {
+    const status = Number((error as { status?: number }).status || 0);
+    if (status >= 400 && status < 500) {
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Invalid vehicle image upload.',
+      });
+    }
+
+    console.error('Vehicle image upload error:', error);
+    res.status(500).json({ error: 'Failed to upload vehicle image' });
+  }
 });
 
 router.delete('/image', authenticateAdmin, async (req, res) => {

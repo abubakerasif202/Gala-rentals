@@ -19,18 +19,12 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex justify-between items-center h-20 md:h-24">
           <div className="flex-1 flex justify-start">
-            <Link to="/" className="flex items-center group" onClick={() => setIsOpen(false)}>
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-brand-gold/30 bg-brand-gold/10 text-sm font-bold tracking-[0.2em] text-brand-gold">
-                  GR
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">
-                    Gala Rentals
-                  </p>
-                  <p className="text-[11px] text-brand-grey">Premium car subscriptions</p>
-                </div>
-              </div>
+            <Link to="/" className="flex min-w-0 items-center group" onClick={() => setIsOpen(false)} aria-label="Gala Rentals home">
+              <img
+                src="/logo/gala-logo-navbar.png"
+                alt="Gala Rentals logo"
+                className="h-12 w-auto max-w-[168px] object-contain sm:h-14 sm:max-w-[196px]"
+              />
             </Link>
           </div>
 

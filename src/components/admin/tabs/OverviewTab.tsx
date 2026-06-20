@@ -38,6 +38,11 @@ export default function OverviewTab({
       <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#0b1f36] shadow-[0_30px_100px_rgba(0,0,0,0.24)]">
         <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr] lg:p-10">
           <div>
+            <img
+              src="/logo/gala-logo-navbar.png"
+              alt="Gala Rentals logo"
+              className="mb-6 h-12 w-auto max-w-[168px] object-contain sm:h-14 sm:max-w-[196px]"
+            />
             <p className="text-[10px] font-bold uppercase tracking-[0.36em] text-brand-gold">
               Gala Operations
             </p>

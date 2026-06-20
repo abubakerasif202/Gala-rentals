@@ -17,18 +17,13 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
           <div>
-            <Link to="/" className="flex items-center mb-8 group">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-brand-gold/30 bg-brand-gold/10 text-sm font-bold tracking-[0.2em] text-brand-gold">
-                  GR
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">
-                    Gala Rentals
-                  </p>
-                  <p className="text-[11px] text-gray-500">Luxury fleet subscriptions</p>
-                </div>
-              </div>
+            <Link to="/" className="mb-8 flex w-fit items-center group" aria-label="Gala Rentals home">
+              <img
+                src="/logo/gala-logo-footer.png"
+                alt="Gala Rentals logo"
+                className="h-16 w-auto max-w-[180px] object-contain sm:h-20 sm:max-w-[220px]"
+                loading="lazy"
+              />
             </Link>
             <p className="text-sm text-gray-500 max-w-xs leading-relaxed font-light">
               Premium car rental and subscription programs for Australian drivers who want clean approvals,

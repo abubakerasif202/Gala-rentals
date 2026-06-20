@@ -94,14 +94,12 @@ export default function Home() {
 
       <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.16)] ring-1 ring-slate-200/80">
         <nav className="flex items-center justify-between gap-4 border-b border-slate-100 bg-white px-5 py-4 sm:px-8 lg:px-10">
-          <Link to="/" className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0b1f36] text-sm font-black text-brand-gold">
-              GR
-            </span>
-            <span>
-              <span className="block text-base font-black tracking-wide text-[#0b1f36]">Gala Rentals</span>
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Sydney car hire</span>
-            </span>
+          <Link to="/" className="flex min-w-0 items-center">
+            <img
+              src="/logo/gala-logo-navbar.png"
+              alt="Gala Rentals logo"
+              className="h-12 w-auto max-w-[168px] object-contain sm:h-14 sm:max-w-[196px]"
+            />
           </Link>
 
           <div className="hidden items-center gap-7 lg:flex">
@@ -250,7 +248,12 @@ export default function Home() {
         <footer className="border-t border-slate-100 bg-white px-5 py-10 sm:px-8 lg:px-10">
           <div className="grid gap-8 md:grid-cols-[1.3fr_1fr_1fr]">
             <div>
-              <p className="text-xl font-black text-[#0b1f36]">Gala Rentals</p>
+              <img
+                src="/logo/gala-logo-navbar.png"
+                alt="Gala Rentals logo"
+                className="h-12 w-auto max-w-[168px] object-contain sm:h-14 sm:max-w-[196px]"
+                loading="lazy"
+              />
               <p className="mt-3 max-w-sm text-sm leading-7 text-slate-600">Drive smarter. Rent easier.</p>
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-3 text-sm font-semibold text-slate-600">

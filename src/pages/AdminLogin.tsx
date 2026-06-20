@@ -36,6 +36,11 @@ export default function AdminLogin() {
 
       <div className="max-w-md w-full space-y-8 bg-brand-navy-light p-10 rounded-xl shadow-2xl border border-white/10">
         <div>
+          <img
+            src="/logo/gala-logo-icon-192.png"
+            alt="Gala Rentals logo"
+            className="mx-auto mb-5 h-20 w-20 object-contain"
+          />
           <h2 className="text-center text-3xl font-serif font-bold text-white tracking-tight">Admin Access</h2>
           <p className="mt-2 text-center text-xs text-brand-gold font-bold uppercase tracking-[0.3em]">Gala Rentals Operations</p>
         </div>

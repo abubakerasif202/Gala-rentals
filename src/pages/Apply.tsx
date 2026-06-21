@@ -5,6 +5,7 @@ import * as z from 'zod';
 import Seo from '../components/Seo';
 import { submitApplication } from '../lib/api';
 import { getApiErrorMessage } from '../lib/errorHandling';
+import { featuredVehicleImages } from '../lib/publicVehicleImages';
 import {
   APPLICATION_DOCUMENT_CONTENT_TYPES,
   APPLICATION_IMAGE_CONTENT_TYPES,
@@ -115,7 +116,7 @@ const steps = [
 ] as const;
 
 const fieldClass =
-  'w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none placeholder:text-brand-grey/60 focus:border-brand-gold';
+  'w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold [color-scheme:dark]';
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -389,7 +390,7 @@ export default function Apply() {
         <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <div className="lg:sticky lg:top-28">
             <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">Apply now</p>
-            <h1 className="mt-5 text-5xl font-serif font-bold tracking-tight sm:text-6xl">
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-6xl">
               Premium rental approvals, organized in five steps.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-stone-300">
@@ -406,16 +407,38 @@ export default function Apply() {
               ))}
             </div>
 
-            <div className="mt-10 flex items-center gap-3">
+            <div className="mt-10 overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.24)]">
+              <img
+                src={featuredVehicleImages[5]}
+                alt="Generated premium sedan with no registration plate"
+                className="aspect-[16/10] w-full rounded-[1.15rem] object-cover"
+              />
+              <div className="grid gap-2 p-3 sm:grid-cols-3">
+                {[
+                  { icon: User, label: 'Apply online' },
+                  { icon: CarFront, label: 'Review vehicle' },
+                  { icon: ShieldCheck, label: 'Secure handoff' },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center justify-center gap-2 rounded-2xl bg-brand-navy/65 px-3 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-brand-grey">
+                    <item.icon className="h-4 w-4 text-brand-gold" />
+                    {item.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-8 grid grid-cols-5 gap-2">
               {steps.map((item) => (
                 <div
                   key={item.id}
                   className={[
-                    'flex h-11 w-11 items-center justify-center rounded-full border text-[12px] font-bold',
+                    'flex min-h-12 flex-col items-center justify-center rounded-2xl border px-2 py-2 text-center text-[11px] font-bold transition-colors',
                     step >= item.id ? 'border-brand-gold bg-brand-gold text-brand-navy' : 'border-white/10 bg-white/[0.03] text-brand-grey',
                   ].join(' ')}
+                  aria-label={`Step ${item.id}: ${item.label}`}
                 >
-                  {item.id}
+                  <span>{item.id}</span>
+                  <span className="mt-1 hidden text-[8px] uppercase tracking-[0.16em] sm:block">{item.label}</span>
                 </div>
               ))}
             </div>

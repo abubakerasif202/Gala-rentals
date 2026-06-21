@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ImagePlus, Loader2, RefreshCw, Trash2, UploadCloud } from 'lucide-react';
 
-const DEFAULT_VEHICLE_IMAGE = '/hero-camry.webp';
+const DEFAULT_VEHICLE_IMAGE = '/car-images/ai-gala-navy-sedan-front.png';
 const MAX_RECOMMENDED_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_ALLOWED_FILE_SIZE_BYTES = MAX_RECOMMENDED_FILE_SIZE_BYTES * 3;
 const MAX_DIMENSION = 1600;

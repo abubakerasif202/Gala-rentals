@@ -63,7 +63,7 @@ import { getTodayInAustralia } from '../../shared/applicationSubmission';
 import type { VehicleDialogMode, VehicleFormValues } from '../components/admin/vehicles/types';
 
 const OPERATIONAL_PAGE_SIZE = 25;
-const DEFAULT_VEHICLE_IMAGE = '/hero-camry.webp';
+const DEFAULT_VEHICLE_IMAGE = '/car-images/ai-gala-navy-sedan-front.png';
 
 type VehicleFilter = 'active' | 'all' | 'archived';
 

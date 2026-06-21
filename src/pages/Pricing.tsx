@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import Seo from '../components/Seo';
 import { fetchRentalPlans } from '../lib/api';
+import { featuredVehicleImages } from '../lib/publicVehicleImages';
 
 export default function Pricing() {
   const {
@@ -30,34 +31,56 @@ export default function Pricing() {
         ]}
       />
 
-      <section className="bg-brand-navy py-24 md:py-28 px-4">
-        <div className="max-w-6xl mx-auto text-center">
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="text-[10px] font-bold tracking-[0.45em] uppercase text-brand-gold mb-4"
+      <section className="bg-brand-navy bg-[radial-gradient(circle_at_top_left,rgba(223,177,37,0.18),transparent_34%)] px-4 py-20 md:py-24">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <div>
+            <motion.p
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-brand-gold"
+            >
+              Flexible Plans
+            </motion.p>
+            <motion.h1
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="mb-6 max-w-3xl text-4xl font-black tracking-tight text-white md:text-6xl"
+            >
+              Sydney rental plans built for professional drivers.
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 22 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="max-w-2xl text-lg leading-8 text-slate-300"
+            >
+              Compare each plan&apos;s billing cadence, support level, and included services before
+              you apply. Gala Rentals confirms the approved vehicle, weekly amount, and payment
+              step only after review.
+            </motion.p>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.55 }}
+            className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/10 p-2 shadow-[0_28px_90px_rgba(0,0,0,0.3)]"
           >
-            Flexible Plans
-          </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-4xl md:text-6xl font-serif font-bold text-white mb-6"
-          >
-            Sydney rental plans built for professional drivers.
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 22 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-slate-300 text-lg max-w-3xl mx-auto font-light leading-relaxed"
-          >
-            Compare each plan&apos;s billing cadence, support level, and included services before
-            you apply. Gala Rentals confirms the approved vehicle, weekly amount, and payment
-            step only after review.
-          </motion.p>
+            <img
+              src={featuredVehicleImages[1]}
+              alt="Generated premium sedan with no registration plate"
+              className="aspect-[16/10] w-full rounded-[1.5rem] object-cover"
+            />
+            <div className="grid gap-2 p-3 sm:grid-cols-3">
+              {['Review first', 'Stripe secure', 'Weekly plans'].map((item) => (
+                <div key={item} className="rounded-2xl border border-white/10 bg-brand-navy/65 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-slate-200">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </motion.div>
         </div>
       </section>
 
@@ -91,7 +114,25 @@ export default function Pricing() {
             </div>
           )}
 
-          {!isLoading && !isError && (
+          {!isLoading && !isError && rentalPlans.length === 0 && (
+            <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500">
+                Plans are being prepared
+              </p>
+              <p className="mx-auto mt-3 max-w-xl text-slate-600">
+                Continue with the application and Gala Rentals will confirm current approved
+                pricing during review.
+              </p>
+              <Link
+                to="/apply"
+                className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-navy px-6 py-4 text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors hover:bg-brand-navy-light"
+              >
+                Start Application <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
+
+          {!isLoading && !isError && rentalPlans.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {rentalPlans.map((plan, index) => (
                 <motion.div
@@ -143,13 +184,13 @@ export default function Pricing() {
                   <div className="p-8 pt-0 space-y-3">
                     <Link
                       to="/apply"
-                      className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] transition-colors ${plan.popular ? 'bg-brand-gold text-brand-navy hover:bg-brand-gold-light' : 'bg-brand-navy text-white hover:bg-brand-navy-light'}`}
+                      className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full px-5 py-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors ${plan.popular ? 'bg-brand-gold text-brand-navy hover:bg-brand-gold-light' : 'bg-brand-navy text-white hover:bg-brand-navy-light'}`}
                     >
                       Start Application <ArrowRight className="w-4 h-4" />
                     </Link>
                     <Link
                       to="/"
-                      className={`w-full inline-flex items-center justify-center gap-2 rounded-xl border px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] transition-colors ${plan.popular ? 'border-white/15 text-white hover:border-white/40' : 'border-slate-200 text-brand-navy hover:border-brand-navy/25'}`}
+                      className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border px-5 py-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors ${plan.popular ? 'border-white/15 text-white hover:border-white/40' : 'border-slate-200 text-brand-navy hover:border-brand-navy/25'}`}
                     >
                       Back to Home
                     </Link>

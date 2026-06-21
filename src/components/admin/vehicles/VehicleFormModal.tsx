@@ -70,7 +70,7 @@ export default function VehicleFormModal({
 
   const isEditing = Boolean(vehicle);
   const isArchived = Boolean(vehicle?.archived_at);
-  const hasCustomImage = imagePreviewUrl !== '/hero-camry.webp';
+  const hasCustomImage = imagePreviewUrl !== '/car-images/ai-gala-navy-sedan-front.png';
 
   return (
     <AnimatePresence>

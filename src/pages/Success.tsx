@@ -131,7 +131,7 @@ export default function Success() {
       type="button"
       onClick={handleRetryStatusCheck}
       disabled={isFetching}
-      className="mb-4 w-full flex justify-center items-center py-4 px-4 border border-white/10 text-white font-bold text-sm uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-60"
+      className="mb-4 flex min-h-12 w-full items-center justify-center rounded-full border border-white/10 px-4 py-4 text-sm font-bold uppercase tracking-widest text-white transition-colors hover:bg-white/5 disabled:opacity-60"
     >
       {isFetching ? (
         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -143,7 +143,7 @@ export default function Success() {
   ) : null;
 
   return (
-    <div className="min-h-screen bg-brand-charcoal flex flex-col justify-center py-12 sm:px-6 lg:px-8 selection:bg-brand-gold selection:text-brand-charcoal">
+    <div className="flex min-h-screen flex-col justify-center bg-brand-navy bg-[radial-gradient(circle_at_top_left,rgba(223,177,37,0.16),transparent_34%)] px-4 py-12 selection:bg-brand-gold selection:text-brand-charcoal sm:px-6 lg:px-8">
       <Seo
         title="Payment Status | Gala Rentals"
         description="Secure payment status page for Gala Rentals checkout sessions."
@@ -152,7 +152,7 @@ export default function Success() {
       />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-brand-charcoal border border-white/5 py-12 px-6 shadow-2xl rounded-2xl text-center">
+        <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] px-6 py-12 text-center shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur">
           {isLoading && (
             <div className="flex justify-center py-12">
               <Loader2 className="h-12 w-12 text-brand-gold animate-spin" />
@@ -165,12 +165,12 @@ export default function Success() {
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
                 {presentation.title}
               </h2>
-                <p className="text-brand-grey font-light leading-relaxed mb-10">
+                <p className="mb-10 leading-relaxed text-brand-grey">
                   {presentation.body}
                 </p>
                 <Link
                   to="/"
-                  className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
+                  className="flex min-h-12 w-full items-center justify-center rounded-full bg-brand-gold px-4 py-4 text-sm font-bold uppercase tracking-widest text-brand-charcoal shadow-[0_0_20px_rgba(198,169,79,0.1)] transition-colors hover:bg-white"
                 >
                   <Home className="mr-2 h-5 w-5" /> Return Home
                 </Link>
@@ -187,13 +187,13 @@ export default function Success() {
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
                 {presentation.title}
               </h2>
-              <p className="text-brand-grey font-light leading-relaxed mb-10">
+              <p className="mb-10 leading-relaxed text-brand-grey">
                 {presentation.body}
               </p>
               {statusRetryButton}
               <Link
                 to="/"
-                className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
+                className="flex min-h-12 w-full items-center justify-center rounded-full bg-brand-gold px-4 py-4 text-sm font-bold uppercase tracking-widest text-brand-charcoal shadow-[0_0_20px_rgba(198,169,79,0.1)] transition-colors hover:bg-white"
               >
                 <Home className="mr-2 h-5 w-5" /> Return Home
               </Link>
@@ -210,13 +210,13 @@ export default function Success() {
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
                 {presentation.title}
               </h2>
-              <p className="text-brand-grey font-light leading-relaxed mb-10">
+              <p className="mb-10 leading-relaxed text-brand-grey">
                 {presentation.body}
               </p>
               {statusRetryButton}
               <Link
                 to="/"
-                className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
+                className="flex min-h-12 w-full items-center justify-center rounded-full bg-brand-gold px-4 py-4 text-sm font-bold uppercase tracking-widest text-brand-charcoal shadow-[0_0_20px_rgba(198,169,79,0.1)] transition-colors hover:bg-white"
               >
                 <Home className="mr-2 h-5 w-5" /> Return Home
               </Link>
@@ -233,13 +233,13 @@ export default function Success() {
               <h2 className="text-3xl font-serif font-bold text-white mb-4 tracking-tight">
                 {presentation.title}
               </h2>
-              <p className="text-brand-grey font-light leading-relaxed mb-10">
+              <p className="mb-10 leading-relaxed text-brand-grey">
                 {presentation.body}
               </p>
               {statusRetryButton}
               <Link
                 to={presentation.showSecurePaymentLink ? retryHref : '/'}
-                className="w-full flex justify-center items-center py-4 px-4 bg-brand-gold text-brand-charcoal font-bold text-sm uppercase tracking-widest hover:bg-white transition-colors shadow-[0_0_20px_rgba(198,169,79,0.1)]"
+                className="flex min-h-12 w-full items-center justify-center rounded-full bg-brand-gold px-4 py-4 text-sm font-bold uppercase tracking-widest text-brand-charcoal shadow-[0_0_20px_rgba(198,169,79,0.1)] transition-colors hover:bg-white"
               >
                 {presentation.showSecurePaymentLink ? 'Return to Secure Payment' : 'Return Home'}
               </Link>

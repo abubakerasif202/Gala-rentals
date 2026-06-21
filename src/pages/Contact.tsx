@@ -2,6 +2,7 @@ import { Mail, MapPin, Phone, Clock3, Send } from 'lucide-react';
 import Seo from '../components/Seo';
 import { submitInquiry } from '../lib/api';
 import { useState, type FormEvent } from 'react';
+import { featuredVehicleImages } from '../lib/publicVehicleImages';
 
 export default function Contact() {
   const [message, setMessage] = useState('');
@@ -41,7 +42,7 @@ export default function Contact() {
         <div className="grid gap-12 lg:grid-cols-[0.95fr_1.05fr]">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">Contact</p>
-            <h1 className="mt-5 text-5xl font-serif font-bold tracking-tight sm:text-6xl">
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-6xl">
               Reach the team directly.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-stone-300">
@@ -51,8 +52,8 @@ export default function Contact() {
 
             <div className="mt-10 space-y-4">
               {[
-                { icon: Phone, title: 'Phone', body: '1300 555 828' },
-                { icon: Mail, title: 'Email', body: 'hello@gala-rentals.com.au' },
+                { icon: Phone, title: 'Phone', body: '1300 555 828', href: 'tel:1300555828' },
+                { icon: Mail, title: 'Email', body: 'hello@gala-rentals.com.au', href: 'mailto:hello@gala-rentals.com.au' },
                 { icon: Clock3, title: 'Business hours', body: 'Mon-Fri, 8:30am to 5:30pm AEST' },
                 { icon: MapPin, title: 'Service area', body: 'Sydney metro and surrounding suburbs' },
               ].map((item) => (
@@ -62,10 +63,24 @@ export default function Contact() {
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">{item.title}</p>
-                    <p className="text-sm text-white">{item.body}</p>
+                    {item.href ? (
+                      <a href={item.href} className="text-sm text-white transition-colors hover:text-brand-gold">
+                        {item.body}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-white">{item.body}</p>
+                    )}
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
+              <img
+                src={featuredVehicleImages[0]}
+                alt="Generated premium sedan with no registration plate"
+                className="aspect-[16/9] w-full rounded-[1.1rem] object-cover"
+              />
             </div>
           </div>
 
@@ -74,12 +89,12 @@ export default function Contact() {
             <h2 className="mt-4 text-3xl font-semibold text-white">Send an enquiry</h2>
 
             <div className="mt-8 grid gap-4">
-              <input name="name" required placeholder="Your name" className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none placeholder:text-brand-grey/60 focus:border-brand-gold" />
-              <input name="email" type="email" required placeholder="Email address" className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none placeholder:text-brand-grey/60 focus:border-brand-gold" />
-              <input name="phone" required placeholder="Phone number" className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none placeholder:text-brand-grey/60 focus:border-brand-gold" />
+              <input name="name" required placeholder="Your name" className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold" />
+              <input name="email" type="email" required placeholder="Email address" className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold" />
+              <input name="phone" required placeholder="Phone number" className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold" />
               <div className="grid gap-4 sm:grid-cols-2">
-                <input name="startDate" type="date" required className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none focus:border-brand-gold" />
-                <input name="endDate" type="date" required className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none focus:border-brand-gold" />
+                <input name="startDate" type="date" required className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors focus:border-brand-gold [color-scheme:dark]" />
+                <input name="endDate" type="date" required className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors focus:border-brand-gold [color-scheme:dark]" />
               </div>
               <textarea
                 name="message"

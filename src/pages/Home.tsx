@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import Seo from '../components/Seo';
+import { featuredVehicleImages } from '../lib/publicVehicleImages';
 import { buildCanonicalUrl } from '../lib/seo';
 
 const homeJsonLd = {
@@ -36,19 +37,19 @@ const fleetCards = [
   {
     badge: 'Popular Choice',
     title: '2026 Toyota Camry',
-    image: '/hero-camry.webp',
+    image: featuredVehicleImages[0],
     note: 'Refined hybrid-style comfort for weekly rental plans.',
   },
   {
     badge: 'Executive Option',
     title: '2026 Toyota Camry',
-    image: '/cta-camry.webp',
+    image: featuredVehicleImages[3],
     note: 'Premium presentation for business and everyday driving.',
   },
   {
     badge: 'Flexible Rental',
     title: '2026 Toyota Camry',
-    image: '/car-images/CNO40S.jpeg',
+    image: featuredVehicleImages[5],
     note: 'Simple application, approval, and secure checkout flow.',
   },
 ];
@@ -128,17 +129,29 @@ export default function Home() {
           <section className="px-4 pb-10 pt-5 sm:px-8 sm:pb-12 lg:px-10">
             <div className="relative min-h-[620px] overflow-hidden rounded-[1.35rem] bg-[#dfe5ec] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.52)] sm:rounded-[1.6rem] lg:min-h-[560px]">
               <img
-                src="/hero-camry.webp"
+                src="/car-images/ai-gala-navy-sedan-hero.png"
                 alt="2026 Toyota Camry premium rental vehicle"
                 className="absolute inset-0 h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.9)_46%,rgba(255,255,255,0.2)_100%)] lg:bg-[linear-gradient(90deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.84)_38%,rgba(255,255,255,0.16)_68%,rgba(255,255,255,0)_100%)]" />
+              <div className="absolute bottom-5 right-5 hidden max-w-[360px] gap-3 lg:grid lg:grid-cols-2">
+                {featuredVehicleImages.slice(1, 5).map((image, index) => (
+                  <div key={image} className="overflow-hidden rounded-2xl border border-white/70 bg-white/80 p-1 shadow-[0_16px_38px_rgba(11,31,54,0.18)] backdrop-blur">
+                    <img
+                      src={image}
+                      alt={`Gala Rentals fleet vehicle preview ${index + 1}`}
+                      className="aspect-[4/3] h-full w-full rounded-xl object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                ))}
+              </div>
               <div className="relative flex min-h-[620px] max-w-2xl flex-col justify-start px-5 py-10 sm:px-10 sm:py-14 lg:min-h-[560px] lg:justify-center lg:px-14">
                 <p className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-brand-gold/20 bg-white/85 px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-brand-gold-dark shadow-sm sm:text-xs">
                   <ShieldCheck className="h-4 w-4" />
                   Premium Sydney rentals
                 </p>
-                <h1 className="text-4xl font-black leading-[1.04] text-[#0b1f36] sm:text-6xl lg:text-7xl">
+                <h1 className="font-serif text-4xl font-bold leading-[1.04] text-[#0b1f36] sm:text-6xl lg:text-7xl">
                   Premium Car Rentals Made Simple
                 </h1>
                 <p className="mt-6 max-w-xl text-base leading-8 text-slate-600 sm:text-lg">
@@ -174,9 +187,9 @@ export default function Home() {
             </div>
             <div className="grid gap-6 md:grid-cols-3">
               {fleetCards.map((vehicle) => (
-                <article key={vehicle.badge} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(11,31,54,0.08)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(11,31,54,0.13)]">
+                <article key={vehicle.badge} className="group overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(11,31,54,0.08)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(11,31,54,0.13)]">
                   <div className="aspect-[4/3] overflow-hidden bg-slate-100">
-                    <img src={vehicle.image} alt={vehicle.title} className="h-full w-full object-cover" loading="lazy" />
+                    <img src={vehicle.image} alt={vehicle.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
                   </div>
                   <div className="p-6">
                     <p className="inline-flex rounded-full bg-brand-gold/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-brand-gold-dark">

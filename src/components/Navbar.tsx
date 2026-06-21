@@ -74,7 +74,14 @@ export default function Navbar() {
                 {link.name}
               </Link>
             ))}
-            <div className="pt-6 border-t border-slate-100">
+            <div className="space-y-3 border-t border-slate-100 pt-6">
+              <Link
+                to="/apply"
+                onClick={() => setIsOpen(false)}
+                className="block rounded-full bg-brand-gold py-3.5 text-center text-[11px] font-black uppercase tracking-[0.2em] text-brand-navy shadow-[0_14px_34px_rgba(185,146,24,0.22)] transition-colors hover:bg-brand-gold-light"
+              >
+                Apply Now
+              </Link>
               <a
                 href="tel:1300555828"
                 className="block rounded-full border border-brand-gold/40 py-3 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-brand-navy"

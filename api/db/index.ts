@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { WebSocketLikeConstructor } from '@supabase/realtime-js';
+import WebSocket from 'ws';
 import { verifyProductionSchemaContract } from '../schemaContract.js';
 
 type GalaSupabaseClient = SupabaseClient;
@@ -30,6 +32,7 @@ const supabaseUrl = normalizeHttpUrl(supabaseUrlRaw);
 const supabaseServiceRoleKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
 const supabaseAnonKey =
   readEnv('SUPABASE_ANON_KEY') || readEnv('SUPABASE_ANON_PUBLIC_KEY');
+const realtimeTransport = WebSocket as unknown as WebSocketLikeConstructor;
 
 let serviceClient: GalaSupabaseClient | null = null;
 
@@ -39,6 +42,9 @@ const createScopedClient = (url: string, key: string) =>
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
+    },
+    realtime: {
+      transport: realtimeTransport,
     },
   });
 

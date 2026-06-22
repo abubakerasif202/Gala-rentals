@@ -64,6 +64,15 @@ describe('checkDBHealth', () => {
     expect(mockFrom).toHaveBeenCalledWith('cars');
     expect(mockSelect).toHaveBeenCalledWith('id', { head: true });
     expect(mockLimit).toHaveBeenCalledWith(1);
+    expect(mockCreateClient).toHaveBeenCalledWith(
+      'https://example.supabase.co',
+      'service-role-key',
+      expect.objectContaining({
+        realtime: expect.objectContaining({
+          transport: expect.any(Function),
+        }),
+      })
+    );
     expect(warnSpy).toHaveBeenCalledWith(
       'Production schema contract validation failed during database health check; continuing with compatibility mode.',
       expect.any(Error)

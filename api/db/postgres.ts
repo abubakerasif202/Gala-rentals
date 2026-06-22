@@ -19,6 +19,11 @@ const REQUIRED_PAYMENT_SCHEMA_COLUMNS: Record<string, string[]> = {
     'payment_link_version',
     'pending_checkout_session_id',
     'paid_at',
+    'stripe_checkout_session_id',
+    'stripe_customer_id',
+    'stripe_invoice_id',
+    'stripe_payment_intent_id',
+    'stripe_subscription_id',
   ],
   cars: ['id', 'status'],
   rentals: [

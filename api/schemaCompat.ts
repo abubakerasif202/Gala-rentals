@@ -41,6 +41,11 @@ type SchemaCompat = {
   applicationAssignedVehicleTextColumn: string | null;
   applicationLicenceStateColumn: string;
   applicationPaidAtColumn: string;
+  applicationStripeCheckoutSessionColumn: string | null;
+  applicationStripeCustomerColumn: string | null;
+  applicationStripeInvoiceColumn: string | null;
+  applicationStripePaymentIntentColumn: string | null;
+  applicationStripeSubscriptionColumn: string | null;
   applicationPaymentLinkSentAtColumn: string;
   applicationPaymentLinkVersionColumn: string;
   applicationPendingCheckoutSessionColumn: string;
@@ -82,6 +87,11 @@ const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationAssignedVehicleTextColumn: 'assigned_vehicle_text',
   applicationLicenceStateColumn: 'licence_state',
   applicationPaidAtColumn: 'paid_at',
+  applicationStripeCheckoutSessionColumn: 'stripe_checkout_session_id',
+  applicationStripeCustomerColumn: 'stripe_customer_id',
+  applicationStripeInvoiceColumn: 'stripe_invoice_id',
+  applicationStripePaymentIntentColumn: 'stripe_payment_intent_id',
+  applicationStripeSubscriptionColumn: 'stripe_subscription_id',
   applicationPaymentLinkSentAtColumn: 'payment_link_sent_at',
   applicationPaymentLinkVersionColumn: 'payment_link_version',
   applicationPendingCheckoutSessionColumn: 'pending_checkout_session_id',
@@ -418,6 +428,46 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
             : coreMode === 'camel'
               ? 'pendingCheckoutSessionId'
               : 'pending_checkout_session_id';
+        const applicationStripeCheckoutSessionColumn = hasProperty(
+          applicationsDefinition,
+          'stripeCheckoutSessionId'
+        )
+          ? 'stripeCheckoutSessionId'
+          : hasProperty(applicationsDefinition, 'stripe_checkout_session_id')
+            ? 'stripe_checkout_session_id'
+            : null;
+        const applicationStripeCustomerColumn = hasProperty(
+          applicationsDefinition,
+          'stripeCustomerId'
+        )
+          ? 'stripeCustomerId'
+          : hasProperty(applicationsDefinition, 'stripe_customer_id')
+            ? 'stripe_customer_id'
+            : null;
+        const applicationStripeSubscriptionColumn = hasProperty(
+          applicationsDefinition,
+          'stripeSubscriptionId'
+        )
+          ? 'stripeSubscriptionId'
+          : hasProperty(applicationsDefinition, 'stripe_subscription_id')
+            ? 'stripe_subscription_id'
+            : null;
+        const applicationStripePaymentIntentColumn = hasProperty(
+          applicationsDefinition,
+          'stripePaymentIntentId'
+        )
+          ? 'stripePaymentIntentId'
+          : hasProperty(applicationsDefinition, 'stripe_payment_intent_id')
+            ? 'stripe_payment_intent_id'
+            : null;
+        const applicationStripeInvoiceColumn = hasProperty(
+          applicationsDefinition,
+          'stripeInvoiceId'
+        )
+          ? 'stripeInvoiceId'
+          : hasProperty(applicationsDefinition, 'stripe_invoice_id')
+            ? 'stripe_invoice_id'
+            : null;
         const applicationCancelledAtColumn = hasProperty(applicationsDefinition, 'cancelledAt')
           ? 'cancelledAt'
           : hasProperty(applicationsDefinition, 'cancelled_at')
@@ -464,6 +514,11 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           applicationAssignedVehicleTextColumn,
           applicationLicenceStateColumn,
           applicationPaidAtColumn,
+          applicationStripeCheckoutSessionColumn,
+          applicationStripeCustomerColumn,
+          applicationStripeInvoiceColumn,
+          applicationStripePaymentIntentColumn,
+          applicationStripeSubscriptionColumn,
           applicationPaymentLinkSentAtColumn,
           applicationPaymentLinkVersionColumn,
           applicationPendingCheckoutSessionColumn,
@@ -587,6 +642,11 @@ export const getApplicationSelectColumns = async () => {
     applicationPaymentLinkSentAtColumn,
     applicationApprovedAtColumn,
     applicationPaidAtColumn,
+    applicationStripeCheckoutSessionColumn,
+    applicationStripeCustomerColumn,
+    applicationStripeInvoiceColumn,
+    applicationStripePaymentIntentColumn,
+    applicationStripeSubscriptionColumn,
     applicationPendingCheckoutSessionColumn,
     applicationCancelledAtColumn,
     applicationCancelReasonColumn,
@@ -644,6 +704,31 @@ export const getApplicationSelectColumns = async () => {
     applicationPaidAtColumn === 'paid_at'
       ? 'paid_at'
       : `paid_at:${applicationPaidAtColumn}`;
+  const stripeCheckoutSessionSelect = applicationStripeCheckoutSessionColumn
+    ? applicationStripeCheckoutSessionColumn === 'stripe_checkout_session_id'
+      ? 'stripe_checkout_session_id'
+      : `stripe_checkout_session_id:${applicationStripeCheckoutSessionColumn}`
+    : null;
+  const stripeCustomerSelect = applicationStripeCustomerColumn
+    ? applicationStripeCustomerColumn === 'stripe_customer_id'
+      ? 'stripe_customer_id'
+      : `stripe_customer_id:${applicationStripeCustomerColumn}`
+    : null;
+  const stripeSubscriptionSelect = applicationStripeSubscriptionColumn
+    ? applicationStripeSubscriptionColumn === 'stripe_subscription_id'
+      ? 'stripe_subscription_id'
+      : `stripe_subscription_id:${applicationStripeSubscriptionColumn}`
+    : null;
+  const stripePaymentIntentSelect = applicationStripePaymentIntentColumn
+    ? applicationStripePaymentIntentColumn === 'stripe_payment_intent_id'
+      ? 'stripe_payment_intent_id'
+      : `stripe_payment_intent_id:${applicationStripePaymentIntentColumn}`
+    : null;
+  const stripeInvoiceSelect = applicationStripeInvoiceColumn
+    ? applicationStripeInvoiceColumn === 'stripe_invoice_id'
+      ? 'stripe_invoice_id'
+      : `stripe_invoice_id:${applicationStripeInvoiceColumn}`
+    : null;
   const pendingCheckoutSessionSelect =
     applicationPendingCheckoutSessionColumn === 'pending_checkout_session_id'
       ? 'pending_checkout_session_id'
@@ -711,6 +796,11 @@ export const getApplicationSelectColumns = async () => {
         agreementSignatureSelect,
         agreementTemplateVersionSelect,
         paidAtSelect,
+        ...(stripeCheckoutSessionSelect ? [stripeCheckoutSessionSelect] : []),
+        ...(stripeCustomerSelect ? [stripeCustomerSelect] : []),
+        ...(stripeSubscriptionSelect ? [stripeSubscriptionSelect] : []),
+        ...(stripePaymentIntentSelect ? [stripePaymentIntentSelect] : []),
+        ...(stripeInvoiceSelect ? [stripeInvoiceSelect] : []),
         pendingCheckoutSessionSelect,
         cancelledAtSelect,
         cancelReasonSelect,
@@ -770,6 +860,11 @@ export const getApplicationSelectColumns = async () => {
         agreementSignatureSelect,
         agreementTemplateVersionSelect,
         paidAtSelect,
+        ...(stripeCheckoutSessionSelect ? [stripeCheckoutSessionSelect] : []),
+        ...(stripeCustomerSelect ? [stripeCustomerSelect] : []),
+        ...(stripeSubscriptionSelect ? [stripeSubscriptionSelect] : []),
+        ...(stripePaymentIntentSelect ? [stripePaymentIntentSelect] : []),
+        ...(stripeInvoiceSelect ? [stripeInvoiceSelect] : []),
         pendingCheckoutSessionSelect,
         cancelledAtSelect,
         cancelReasonSelect,
@@ -934,6 +1029,11 @@ export const toApplicationPaymentWritePayload = async (payload: {
   payment_link_sent_at?: string | null;
   approved_at?: string | null;
   paid_at?: string | null;
+  stripe_checkout_session_id?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_invoice_id?: string | null;
+  stripe_payment_intent_id?: string | null;
+  stripe_subscription_id?: string | null;
   pending_checkout_session_id?: string | null;
   cancelled_at?: string | null;
   cancel_reason?: string | null;
@@ -1012,6 +1112,40 @@ export const toApplicationPaymentWritePayload = async (payload: {
 
   if ('paid_at' in payload) {
     mappedPayload[compat.applicationPaidAtColumn] = payload.paid_at ?? null;
+  }
+
+  if (
+    'stripe_checkout_session_id' in payload &&
+    compat.applicationStripeCheckoutSessionColumn
+  ) {
+    mappedPayload[compat.applicationStripeCheckoutSessionColumn] =
+      payload.stripe_checkout_session_id ?? null;
+  }
+
+  if ('stripe_customer_id' in payload && compat.applicationStripeCustomerColumn) {
+    mappedPayload[compat.applicationStripeCustomerColumn] =
+      payload.stripe_customer_id ?? null;
+  }
+
+  if (
+    'stripe_subscription_id' in payload &&
+    compat.applicationStripeSubscriptionColumn
+  ) {
+    mappedPayload[compat.applicationStripeSubscriptionColumn] =
+      payload.stripe_subscription_id ?? null;
+  }
+
+  if (
+    'stripe_payment_intent_id' in payload &&
+    compat.applicationStripePaymentIntentColumn
+  ) {
+    mappedPayload[compat.applicationStripePaymentIntentColumn] =
+      payload.stripe_payment_intent_id ?? null;
+  }
+
+  if ('stripe_invoice_id' in payload && compat.applicationStripeInvoiceColumn) {
+    mappedPayload[compat.applicationStripeInvoiceColumn] =
+      payload.stripe_invoice_id ?? null;
   }
 
   if ('pending_checkout_session_id' in payload) {

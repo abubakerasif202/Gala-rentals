@@ -22,6 +22,11 @@ type ApplicationPaymentWritePayload = {
   payment_link_sent_at?: string | null;
   payment_link_version?: number;
   pending_checkout_session_id?: string | null;
+  stripe_checkout_session_id?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_invoice_id?: string | null;
+  stripe_payment_intent_id?: string | null;
+  stripe_subscription_id?: string | null;
   status?: string;
 };
 
@@ -93,15 +98,34 @@ export const transitionApplicationToPaymentReviewIfCurrentVersion = async ({
   applicationId,
   paidAt,
   pendingCheckoutSessionId,
+  stripeCheckoutSessionId,
+  stripeCustomerId,
+  stripeInvoiceId,
+  stripePaymentIntentId,
+  stripeSubscriptionId,
 }: {
   applicationId: string;
   paidAt?: string | null;
   pendingCheckoutSessionId?: string | null;
+  stripeCheckoutSessionId?: string | null;
+  stripeCustomerId?: string | null;
+  stripeInvoiceId?: string | null;
+  stripePaymentIntentId?: string | null;
+  stripeSubscriptionId?: string | null;
 }) => {
   const selectColumns = await getApplicationSelectColumns();
   const mappedPayload = await toApplicationPaymentWritePayload({
     paid_at: paidAt,
     pending_checkout_session_id: pendingCheckoutSessionId,
+    stripe_checkout_session_id: stripeCheckoutSessionId,
+    ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+    ...(stripeInvoiceId ? { stripe_invoice_id: stripeInvoiceId } : {}),
+    ...(stripePaymentIntentId
+      ? { stripe_payment_intent_id: stripePaymentIntentId }
+      : {}),
+    ...(stripeSubscriptionId
+      ? { stripe_subscription_id: stripeSubscriptionId }
+      : {}),
     status: 'Payment Review',
   });
 
@@ -124,16 +148,21 @@ export const persistPendingCheckoutSessionIdIfCurrentVersion = async ({
   applicationId,
   expectedPaymentLinkVersion,
   sessionId,
+  stripeCheckoutSessionId,
 }: {
   applicationId: string;
   expectedPaymentLinkVersion: number;
   sessionId: string | null;
+  stripeCheckoutSessionId?: string | null;
 }) => {
   const updatedApplication = await updateApplicationPaymentStateIfCurrentVersion({
     applicationId,
     expectedPaymentLinkVersion,
     payload: {
       pending_checkout_session_id: sessionId,
+      ...(stripeCheckoutSessionId
+        ? { stripe_checkout_session_id: stripeCheckoutSessionId }
+        : {}),
     },
   });
 

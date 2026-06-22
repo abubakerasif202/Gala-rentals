@@ -46,6 +46,11 @@ export interface Application {
   payment_link_sent_at?: string | null;
   payment_link_version?: number;
   pending_checkout_session_id?: string | null;
+  stripe_checkout_session_id?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_invoice_id?: string | null;
+  stripe_payment_intent_id?: string | null;
+  stripe_subscription_id?: string | null;
   status: 'Pending' | 'Paid' | 'Approved' | 'Rejected' | 'Payment Review' | 'Cancelled';
   created_at: string;
 }

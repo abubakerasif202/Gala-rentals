@@ -9,6 +9,10 @@ import {
 } from '../services/stripeCheckoutService.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import {
+  getAdminActor,
+  recordAdminAuditEvent,
+} from '../adminAudit.js';
+import {
   uuidSchema,
   vehicleCheckoutLinkSchema,
   vehicleCheckoutSessionSchema,
@@ -304,6 +308,14 @@ router.post('/vehicle-checkout-link', authenticateAdmin, async (req, res) => {
     const { application_id } = vehicleCheckoutLinkSchema.parse(req.body);
     const response = await createVehicleCheckoutLink({
       applicationId: application_id,
+    });
+    await recordAdminAuditEvent({
+      action: 'application.regenerate_payment_link',
+      actor: getAdminActor(req),
+      applicationId: application_id,
+      metadata: {
+        checkout_token_expires_at: response.checkout_token_expires_at,
+      },
     });
     res.json(response);
   } catch (error) {

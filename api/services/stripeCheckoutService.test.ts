@@ -16,6 +16,7 @@ vi.mock('../stripeClient.js', () => ({
 
 import {
   buildHostedCheckoutSessionIdempotencyKey,
+  buildSubscriptionLineItemsFromCatalog,
   expirePendingCheckoutSession,
   resolvePendingCheckoutSession,
 } from './stripeCheckoutService.js';
@@ -137,5 +138,58 @@ describe('stripeCheckoutService checkout helpers', () => {
 
     expect(mockCheckoutSessionRetrieve).toHaveBeenCalledWith('cs_complete_vehicle');
     expect(mockCheckoutSessionExpire).not.toHaveBeenCalled();
+  });
+
+  it('builds one-time bond and setup items on the initial subscription invoice when amounts are non-zero', () => {
+    const lineItems = buildSubscriptionLineItemsFromCatalog({
+      billingBreakdown: {
+        bond: 500,
+        currency: 'AUD',
+        initialRental: 250,
+        recurringAmount: 250,
+        recurringInterval: 'week',
+        recurringIntervalCount: 1,
+        recurringLabel: 'per week',
+        setupFees: 75,
+        upfrontDue: 825,
+      },
+      stripeCatalog: {
+        onboardingSetup: {
+          productId: 'prod_onboarding_setup',
+          source: 'env',
+        },
+        securityBond: {
+          productId: 'prod_security_bond',
+          source: 'env',
+        },
+        weeklyRental: {
+          productId: 'prod_weekly_rental',
+          source: 'env',
+        },
+      },
+    });
+
+    const bondItem = lineItems.find(
+      (item) => item.price_data?.product === 'prod_security_bond'
+    );
+    const setupItem = lineItems.find(
+      (item) => item.price_data?.product === 'prod_onboarding_setup'
+    );
+    const recurringItem = lineItems.find(
+      (item) => item.price_data?.product === 'prod_weekly_rental'
+    );
+
+    expect(lineItems).toHaveLength(3);
+    expect(bondItem?.price_data?.unit_amount).toBe(50000);
+    expect(bondItem?.price_data).not.toHaveProperty('recurring');
+    expect(setupItem?.price_data?.unit_amount).toBe(7500);
+    expect(setupItem?.price_data).not.toHaveProperty('recurring');
+    expect(recurringItem?.price_data).toMatchObject({
+      recurring: {
+        interval: 'week',
+        interval_count: 1,
+      },
+      unit_amount: 25000,
+    });
   });
 });

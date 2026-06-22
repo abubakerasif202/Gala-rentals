@@ -30,6 +30,87 @@ const VEHICLE_CHECKOUT_FULFILLMENT_EVENT_TYPE =
 const buildVehicleCheckoutFulfillmentLedgerId = (sessionId: string) =>
   `fulfill:vehicle-checkout:${sessionId}`;
 
+type StripePaymentIdentifiers = {
+  stripeCheckoutSessionId: string;
+  stripeCustomerId?: string | null;
+  stripeInvoiceId?: string | null;
+  stripePaymentIntentId?: string | null;
+  stripeSubscriptionId: string;
+};
+
+const getStripeObjectId = (
+  value:
+    | string
+    | { id?: string | null }
+    | null
+    | undefined
+) => (typeof value === 'string' ? value : value?.id || null);
+
+const getSessionInvoiceId = (session: Stripe.Checkout.Session) =>
+  getStripeObjectId(
+    (session as Stripe.Checkout.Session & {
+      invoice?: string | Stripe.Invoice | null;
+    }).invoice
+  );
+
+const getSessionPaymentIntentId = (session: Stripe.Checkout.Session) => {
+  const directPaymentIntent = getStripeObjectId(
+    (session as Stripe.Checkout.Session & {
+      payment_intent?: string | Stripe.PaymentIntent | null;
+    }).payment_intent
+  );
+
+  if (directPaymentIntent) {
+    return directPaymentIntent;
+  }
+
+  const invoice = (session as Stripe.Checkout.Session & {
+    invoice?: Stripe.Invoice | string | null;
+  }).invoice;
+  if (!invoice || typeof invoice === 'string') {
+    return null;
+  }
+
+  return getStripeObjectId(
+    (invoice as Stripe.Invoice & {
+      payment_intent?: string | Stripe.PaymentIntent | null;
+    }).payment_intent
+  );
+};
+
+const getSessionCustomerId = (session: Stripe.Checkout.Session) =>
+  getStripeObjectId(session.customer);
+
+const getSessionSubscriptionId = (session: Stripe.Checkout.Session) =>
+  getStripeObjectId(session.subscription);
+
+const getSessionStripePaymentIdentifiers = (
+  session: Stripe.Checkout.Session,
+  subscriptionId: string
+): StripePaymentIdentifiers => ({
+  stripeCheckoutSessionId: session.id,
+  stripeCustomerId: getSessionCustomerId(session),
+  stripeInvoiceId: getSessionInvoiceId(session),
+  stripePaymentIntentId: getSessionPaymentIntentId(session),
+  stripeSubscriptionId: subscriptionId,
+});
+
+const toStripeIdentifierPaymentPayload = (
+  identifiers: StripePaymentIdentifiers
+) => ({
+  stripe_checkout_session_id: identifiers.stripeCheckoutSessionId,
+  ...(identifiers.stripeCustomerId
+    ? { stripe_customer_id: identifiers.stripeCustomerId }
+    : {}),
+  ...(identifiers.stripeInvoiceId
+    ? { stripe_invoice_id: identifiers.stripeInvoiceId }
+    : {}),
+  ...(identifiers.stripePaymentIntentId
+    ? { stripe_payment_intent_id: identifiers.stripePaymentIntentId }
+    : {}),
+  stripe_subscription_id: identifiers.stripeSubscriptionId,
+});
+
 const assertSupabaseWrite = (
   result: { error: { code?: string; message?: string } | null } | null | undefined,
   context: string
@@ -60,12 +141,14 @@ const updateApplicationPaymentState = async ({
   expectedPaymentLinkVersion,
   paidAt,
   pendingCheckoutSessionId,
+  stripeIdentifiers,
   status,
 }: {
   applicationId: string;
   expectedPaymentLinkVersion?: number;
   paidAt?: string | null;
   pendingCheckoutSessionId?: string | null;
+  stripeIdentifiers?: StripePaymentIdentifiers;
   status?: string;
 }) => {
   if (
@@ -76,15 +159,32 @@ const updateApplicationPaymentState = async ({
       applicationId,
       paidAt,
       pendingCheckoutSessionId,
+      stripeCheckoutSessionId: stripeIdentifiers?.stripeCheckoutSessionId,
+      stripeCustomerId: stripeIdentifiers?.stripeCustomerId,
+      stripeInvoiceId: stripeIdentifiers?.stripeInvoiceId,
+      stripePaymentIntentId: stripeIdentifiers?.stripePaymentIntentId,
+      stripeSubscriptionId: stripeIdentifiers?.stripeSubscriptionId,
     });
   }
 
   const payload = await toApplicationPaymentWritePayload({
-    paid_at: paidAt,
-    pending_checkout_session_id: pendingCheckoutSessionId,
-    status,
+    ...(paidAt !== undefined ? { paid_at: paidAt } : {}),
+    ...(pendingCheckoutSessionId !== undefined
+      ? { pending_checkout_session_id: pendingCheckoutSessionId }
+      : {}),
+    ...(stripeIdentifiers
+      ? toStripeIdentifierPaymentPayload(stripeIdentifiers)
+      : {}),
+    ...(status ? { status } : {}),
   });
-  const result = await db.from('applications').update(payload).eq('id', applicationId);
+  let query = db.from('applications').update(payload).eq('id', applicationId);
+  if (typeof expectedPaymentLinkVersion === 'number') {
+    const { applicationPaymentLinkVersionColumn } = await getSchemaCompat();
+    query = query
+      .eq(applicationPaymentLinkVersionColumn, expectedPaymentLinkVersion)
+      .in('status', ['Approved', 'Paid', 'Payment Review']);
+  }
+  const result = await query;
   assertSupabaseWrite(result, 'Failed to update application payment state');
   return null;
 };
@@ -245,15 +345,18 @@ const applyVehicleCheckoutPaymentOnlyWrites = async ({
   expectedPaymentLinkVersion,
   fulfillmentSessionId,
   paidAt,
+  stripeIdentifiers,
 }: {
   applicationId: string;
   expectedPaymentLinkVersion: number;
   fulfillmentSessionId: string;
   paidAt: string;
+  stripeIdentifiers: StripePaymentIdentifiers;
 }) => {
   const applicationPaymentPayload = await toApplicationPaymentWritePayload({
     paid_at: paidAt,
     pending_checkout_session_id: null,
+    ...toStripeIdentifierPaymentPayload(stripeIdentifiers),
     status: 'Paid',
   });
 
@@ -421,9 +524,19 @@ export const handleVehicleCheckoutCompletion = async (
   if (!applicationId || !subscriptionId) {
     return 'skipped' as const;
   }
+  const stripeIdentifiers = getSessionStripePaymentIdentifiers(
+    session,
+    subscriptionId
+  );
 
   return withVehicleCheckoutProcessingLock(applicationId, async () => {
     if (await hasVehicleCheckoutFulfillmentMarker(session.id)) {
+      await updateApplicationPaymentState({
+        applicationId,
+        expectedPaymentLinkVersion: sessionPaymentLinkVersion,
+        pendingCheckoutSessionId: null,
+        stripeIdentifiers,
+      });
       console.info(
         `Ignoring replayed checkout completion ${session.id} because fulfillment is already recorded.`
       );
@@ -473,6 +586,7 @@ export const handleVehicleCheckoutCompletion = async (
         expectedPaymentLinkVersion: sessionPaymentLinkVersion,
         paidAt: recordedPaidAt,
         pendingCheckoutSessionId: session.id,
+        stripeIdentifiers,
         status: 'Payment Review',
       });
 
@@ -566,6 +680,7 @@ export const handleVehicleCheckoutCompletion = async (
         expectedPaymentLinkVersion: sessionPaymentLinkVersion,
         fulfillmentSessionId: session.id,
         paidAt: recordedPaidAt,
+        stripeIdentifiers,
       });
     } catch (error) {
       return moveApplicationToPaymentReview(

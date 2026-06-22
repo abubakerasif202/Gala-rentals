@@ -78,14 +78,14 @@ export const sendDriverPaymentLinkEmail = async ({
           <p>Your application review is complete and your secure checkout link is now ready.</p>
           <p><strong>Approved vehicle:</strong> ${safeApprovedVehicle}</p>
           <p><strong>Bond:</strong> ${formatCurrency(approvedBond)}</p>
-          <p><strong>Weekly payment:</strong> ${formatCurrency(approvedWeeklyPrice)}</p>
+          <p><strong>First weekly rental payment:</strong> ${formatCurrency(approvedWeeklyPrice)}</p>
           ${
             hasSetupFees
               ? `<p><strong>Setup fees:</strong> ${formatCurrency(setupFees)}</p>`
               : ''
           }
           <p><strong>Total due now:</strong> ${formatCurrency(upfrontDue)}</p>
-          <p>After the upfront payment, Stripe automatically charges ${formatCurrency(approvedWeeklyPrice)} each week.</p>
+          <p>At checkout, Stripe collects the bond, any setup fees, and the first weekly rental payment. Future weekly subscription invoices continue at ${formatCurrency(approvedWeeklyPrice)}.</p>
           <p>Once Stripe confirms payment, Gala Rentals finalises onboarding and handover with you directly.</p>
           <p>
             <a

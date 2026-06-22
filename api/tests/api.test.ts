@@ -64,6 +64,11 @@ const PNG_FIXTURE_MAGIC = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
 ]);
 const JPEG_FIXTURE_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+const WEBP_FIXTURE_MAGIC = Buffer.concat([
+  Buffer.from("RIFF"),
+  Buffer.from([0x08, 0x00, 0x00, 0x00]),
+  Buffer.from("WEBP"),
+]);
 
 const buildValidImageBuffer = (contentType: string, payload: Buffer) => {
   const normalized = contentType.toLowerCase();
@@ -73,6 +78,10 @@ const buildValidImageBuffer = (contentType: string, payload: Buffer) => {
 
   if (normalized === "image/jpeg" || normalized === "image/jpg") {
     return Buffer.concat([JPEG_FIXTURE_MAGIC, payload]);
+  }
+
+  if (normalized === "image/webp") {
+    return Buffer.concat([WEBP_FIXTURE_MAGIC, payload]);
   }
 
   return payload;
@@ -231,6 +240,7 @@ const {
     bookings: [] as Array<Record<string, any>>,
     toll_transfer_notices: [] as Array<Record<string, any>>,
     toll_transfer_notice_audit_events: [] as Array<Record<string, any>>,
+    admin_audit_events: [] as Array<Record<string, any>>,
     manual_invoices: [] as Array<Record<string, any>>,
     manual_invoice_items: [] as Array<Record<string, any>>,
     stripe_webhook_events: [] as Array<Record<string, any>>,
@@ -413,6 +423,10 @@ vi.mock("../db/index.js", () => {
       return mockState.toll_transfer_notice_audit_events;
     }
 
+    if (table === "admin_audit_events") {
+      return mockState.admin_audit_events;
+    }
+
     if (table === "manual_invoices") {
       return mockState.manual_invoices;
     }
@@ -476,6 +490,11 @@ vi.mock("../db/index.js", () => {
 
     if (table === "toll_transfer_notice_audit_events") {
       mockState.toll_transfer_notice_audit_events = rows;
+      return;
+    }
+
+    if (table === "admin_audit_events") {
+      mockState.admin_audit_events = rows;
       return;
     }
 
@@ -1077,6 +1096,16 @@ vi.mock("../db/index.js", () => {
       ];
     }
 
+    if (table === "admin_audit_events") {
+      mockState.admin_audit_events = [
+        ...mockState.admin_audit_events,
+        {
+          created_at: new Date().toISOString(),
+          ...insertedRow,
+        },
+      ];
+    }
+
     if (table === "manual_invoices") {
       mockState.manual_invoices = [
         ...mockState.manual_invoices,
@@ -1506,6 +1535,7 @@ beforeEach(() => {
   mockState.stripe_webhook_events = [];
   mockState.toll_transfer_notices = [];
   mockState.toll_transfer_notice_audit_events = [];
+  mockState.admin_audit_events = [];
   mockState.manual_invoices = [];
   mockState.manual_invoice_items = [];
 
@@ -1905,6 +1935,19 @@ describe("Cars API", () => {
     expect(res.body.error).toContain("JPG, PNG, or WebP");
   });
 
+  it("POST /api/cars/image rejects files whose MIME type does not match their bytes", async () => {
+    const res = await request(app)
+      .post("/api/cars/image")
+      .set("Authorization", "Bearer fake-token")
+      .attach("image", Buffer.from("not-a-real-png"), {
+        contentType: "image/png",
+        filename: "vehicle.png",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("file contents");
+  });
+
   it("POST /api/cars/image rejects oversized files", async () => {
     const res = await request(app)
       .post("/api/cars/image")
@@ -1955,6 +1998,43 @@ describe("Cars API", () => {
     expect(getPublicUrl).toHaveBeenCalledWith(expect.stringMatching(/^admin-uploads\/.+\.png$/));
     expect(res.body.publicUrl).toContain("/storage/v1/object/public/vehicle-images/");
   });
+
+  it.each([
+    ["image/jpeg", "vehicle.jpg", ".jpg"],
+    ["image/webp", "vehicle.webp", ".webp"],
+  ])(
+    "POST /api/cars/image accepts valid %s signatures",
+    async (contentType, filename, extension) => {
+      const upload = vi.fn(async (path: string) => ({ data: { path }, error: null }));
+      const getPublicUrl = vi.fn((path: string) => ({
+        data: {
+          publicUrl: `https://project.supabase.co/storage/v1/object/public/vehicle-images/${path}`,
+        },
+      }));
+
+      mockStorageFrom.mockImplementation(() => ({
+        upload,
+        getPublicUrl,
+        createSignedUrl: vi.fn(),
+        remove: vi.fn(),
+      }));
+
+      const res = await request(app)
+        .post("/api/cars/image")
+        .set("Authorization", "Bearer fake-token")
+        .attach("image", buildValidImageBuffer(contentType, Buffer.from("vehicle-image")), {
+          contentType,
+          filename,
+        });
+
+      expect(res.status).toBe(201);
+      expect(upload).toHaveBeenCalledWith(
+        expect.stringMatching(new RegExp(`^admin-uploads/.+\\${extension}$`)),
+        expect.any(Buffer),
+        expect.objectContaining({ contentType }),
+      );
+    },
+  );
 
   it("DELETE /api/cars/image removes a managed uploaded vehicle image", async () => {
     const previousSupabaseUrl = process.env.SUPABASE_URL;
@@ -2357,6 +2437,14 @@ describe("Agreements API", () => {
       status: "generated",
       vehicle_label: "Any approved vehicle",
     });
+    expect(mockState.admin_audit_events.at(-1)).toMatchObject({
+      action: "agreement.generate",
+      application_id: APPROVED_APPLICATION_ID,
+      metadata: expect.objectContaining({
+        agreement_id: 1,
+        vehicle_label: "Any approved vehicle",
+      }),
+    });
   });
 
   it("POST /api/agreements does not require matching an available fleet car after payment", async () => {
@@ -2468,6 +2556,34 @@ describe("Agreements API", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Validation failed");
+  });
+
+  it("DELETE /api/agreements/:id records an admin audit event", async () => {
+    mockState.lease_agreements = [
+      {
+        id: 31,
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: null,
+        content: "# Agreement",
+        status: "generated",
+        created_at: "2026-03-08T00:00:00.000Z",
+      },
+    ];
+
+    const res = await request(app)
+      .delete("/api/agreements/31")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(mockState.lease_agreements).toHaveLength(0);
+    expect(mockState.admin_audit_events.at(-1)).toMatchObject({
+      action: "agreement.delete",
+      application_id: APPROVED_APPLICATION_ID,
+      metadata: expect.objectContaining({
+        agreement_id: 31,
+        status: "generated",
+      }),
+    });
   });
 });
 
@@ -3110,6 +3226,22 @@ describe("Applications API", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Validation failed");
+  });
+
+  it("PUT /api/applications/:id/status records an audit event for rejection", async () => {
+    const res = await request(app)
+      .put(`/api/applications/${PENDING_APPLICATION_ID}/status`)
+      .set("Authorization", "Bearer fake-token")
+      .send({ status: "Rejected" });
+
+    expect(res.status).toBe(200);
+    expect(mockState.applications[0].status).toBe("Rejected");
+    expect(mockState.admin_audit_events.at(-1)).toMatchObject({
+      action: "application.status_update",
+      application_id: PENDING_APPLICATION_ID,
+      new_status: "Rejected",
+      old_status: "Pending",
+    });
   });
 
   it("POST /api/applications blocks public overwrites for rejected applications", async () => {
@@ -4227,6 +4359,41 @@ describe("Stripe API", () => {
     expect(verified.version).toBe(4);
     expect(verified.carId).toBeNull();
     expect(mockState.applications[0].assigned_car_id).toBeNull();
+    expect(mockState.admin_audit_events.at(-1)).toMatchObject({
+      action: "application.approve_and_send_payment_link",
+      application_id: PENDING_APPLICATION_ID,
+      new_status: "Approved",
+      old_status: "Pending",
+    });
+  });
+
+  it("POST /api/applications/:id/approve-payment does not overwrite a concurrent paid webhook update", async () => {
+    mockState.applications[0].pending_checkout_session_id = "cs_paid_race";
+    mockState.applications[0].payment_link_version = 3;
+    mockBeforeApplicationsUpdate.mockImplementationOnce(() => {
+      mockState.applications[0].status = "Paid";
+      mockState.applications[0].paid_at = "2026-03-07T00:00:00.000Z";
+      mockState.applications[0].pending_checkout_session_id = null;
+    });
+
+    const res = await request(app)
+      .post(`/api/applications/${PENDING_APPLICATION_ID}/approve-payment`)
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        approved_vehicle: "Toyota Camry Hybrid",
+        approved_bond: 650,
+        approved_weekly_price: 285,
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("payment state changed");
+    expect(mockStripe.checkoutSessionsExpire).not.toHaveBeenCalled();
+    expect(mockState.applications[0]).toMatchObject({
+      paid_at: "2026-03-07T00:00:00.000Z",
+      payment_link_version: 3,
+      status: "Paid",
+    });
+    expect(mockState.admin_audit_events).toHaveLength(0);
   });
 
   it("POST /api/applications/:id/approve-payment does not expire a completed pending checkout session", async () => {
@@ -4383,13 +4550,8 @@ describe("Stripe API", () => {
     mockState.applications[0].pending_checkout_session_id = "cs_old_pending";
     mockState.applications[0].payment_link_version = 3;
     mockState.applications[1].assigned_car_id = 2;
-    mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
-      id: "cs_old_pending",
-      status: "open",
-    });
-    mockStripe.checkoutSessionsExpire.mockImplementationOnce(async () => {
+    mockBeforeApplicationsUpdate.mockImplementationOnce(() => {
       mockState.applications[0].payment_link_version = 4;
-      return { id: "cs_old_pending" };
     });
 
     const res = await request(app)
@@ -4403,7 +4565,14 @@ describe("Stripe API", () => {
       });
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toContain("payment details changed");
+    expect(res.body.error).toContain("payment state changed");
+    expect(mockStripe.checkoutSessionsExpire).not.toHaveBeenCalled();
+    expect(mockState.applications[0]).toMatchObject({
+      payment_link_version: 4,
+      pending_checkout_session_id: "cs_old_pending",
+      status: "Pending",
+    });
+    expect(mockState.admin_audit_events).toHaveLength(0);
   });
 
   it("POST /api/applications/:id/approve-payment allows a car to be re-approved after the prior rental is only historically paid", async () => {
@@ -4557,6 +4726,32 @@ describe("Stripe API", () => {
         pending_checkout_session_id: null,
         status: "Cancelled",
       });
+      expect(mockState.admin_audit_events.at(-1)).toMatchObject({
+        action: "application.cancel",
+        application_id: PENDING_APPLICATION_ID,
+        new_status: "Cancelled",
+        old_status: "Approved",
+      });
+    });
+
+    it("POST /api/applications/:id/cancel rejects already paid applications", async () => {
+      mockState.applications[0].status = "Paid";
+      mockState.applications[0].paid_at = "2026-03-07T00:00:00.000Z";
+      mockState.applications[0].payment_link_version = 3;
+
+      const res = await request(app)
+        .post(`/api/applications/${PENDING_APPLICATION_ID}/cancel`)
+        .set("Authorization", "Bearer fake-token")
+        .send({ cancel_reason: "Driver withdrew" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain("Stripe reconciliation");
+      expect(mockState.applications[0]).toMatchObject({
+        paid_at: "2026-03-07T00:00:00.000Z",
+        payment_link_version: 3,
+        status: "Paid",
+      });
+      expect(mockState.admin_audit_events).toHaveLength(0);
     });
 
     it("POST /api/applications/:id/cancel returns conflict when payment details change mid-cancel", async () => {
@@ -4858,10 +5053,13 @@ describe("Stripe API", () => {
     expect(mockState.applications[1].pending_checkout_session_id).toBe(
       "cs_test_123",
     );
+    expect(mockState.applications[1].stripe_checkout_session_id).toBe(
+      "cs_test_123",
+    );
 
     const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
     expect(payload.mode).toBe("subscription");
-    expect(payload.line_items).toHaveLength(1);
+    expect(payload.line_items).toHaveLength(3);
     expect(payload.metadata.checkout_kind).toBe("vehicle");
     expect(payload.metadata.application_id).toBe(APPROVED_APPLICATION_ID);
     expect(payload.metadata.approved_vehicle).toBe("Toyota Camry");
@@ -4877,6 +5075,9 @@ describe("Stripe API", () => {
     expect(payload.subscription_data.metadata.rental_subscription_start_date).toBe(
       mockState.applications[1].intended_start_date,
     );
+    expect(payload.subscription_data.metadata.rental_recurring_billing_start_date).toBe(
+      addDaysToDateOnly(mockState.applications[1].intended_start_date, 7),
+    );
     expect(
       payload.subscription_data.trial_end ||
         payload.subscription_data.billing_cycle_anchor,
@@ -4888,11 +5089,22 @@ describe("Stripe API", () => {
     expect(recurringItem).toBeTruthy();
     expect(recurringItem.price_data.unit_amount).toBe(25000);
     expect(recurringItem.price_data.product).toBe("prod_weekly_rental");
+    const firstWeekItem = payload.line_items.find(
+      (item: any) =>
+        item.price_data.product === "prod_weekly_rental" &&
+        !item.price_data.recurring,
+    );
+    expect(firstWeekItem).toBeTruthy();
+    expect(firstWeekItem.price_data.unit_amount).toBe(25000);
+    const bondItem = payload.line_items.find(
+      (item: any) => item.price_data.product === "prod_security_bond",
+    );
+    expect(bondItem).toBeTruthy();
+    expect(bondItem.price_data.unit_amount).toBe(50000);
+    expect(bondItem.price_data.recurring).toBeUndefined();
     expect(
-      payload.line_items.some((item: any) =>
-        ["prod_security_bond", "prod_onboarding_setup"].includes(
-          item.price_data.product,
-        ),
+      payload.line_items.some(
+        (item: any) => item.price_data.product === "prod_onboarding_setup",
       ),
     ).toBe(false);
     expect(payload.cancel_url).toContain(`/checkout/${APPROVED_APPLICATION_ID}`);
@@ -4926,6 +5138,33 @@ describe("Stripe API", () => {
     const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
     expect(payload.metadata.car_id).toBeUndefined();
     expect(payload.subscription_data.metadata.car_id).toBeUndefined();
+  });
+
+  it("POST /api/stripe/vehicle-checkout-session omits one-time upfront items when bond and setup fees are zero", async () => {
+    mockState.applications[1].approved_bond = 0;
+    mockState.applications[1].intended_start_date = getPastDateOnly(1);
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      carId: 1,
+      purpose: "vehicle",
+      version: 1,
+    });
+
+    const res = await request(app)
+      .post("/api/stripe/vehicle-checkout-session")
+      .send({
+        application_id: APPROVED_APPLICATION_ID,
+        car_id: 1,
+        checkout_token: token.token,
+      });
+
+    expect(res.status).toBe(200);
+
+    const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
+    expect(payload.line_items).toHaveLength(1);
+    expect(payload.line_items[0].price_data.product).toBe("prod_weekly_rental");
+    expect(payload.line_items[0].price_data.unit_amount).toBe(25000);
+    expect(payload.line_items[0].price_data.recurring).toBeTruthy();
   });
 
   it("POST /api/stripe/vehicle-checkout-session starts subscriptions immediately for past rental start dates", async () => {
@@ -5139,6 +5378,10 @@ describe("Stripe API", () => {
     });
     expect(verified.applicationId).toBe(APPROVED_APPLICATION_ID);
     expect(verified.carId).toBeNull();
+    expect(mockState.admin_audit_events.at(-1)).toMatchObject({
+      action: "application.regenerate_payment_link",
+      application_id: APPROVED_APPLICATION_ID,
+    });
   });
 
   it("POST /api/stripe/vehicle-checkout-link returns a signed payment link without a car id", async () => {
@@ -5736,6 +5979,10 @@ describe("Stripe API", () => {
       data: {
         object: {
           id: "cs_missing_car_id",
+          invoice: {
+            id: "in_missing_car",
+            payment_intent: "pi_missing_car",
+          },
           payment_status: "paid",
           metadata: {
             application_id: APPROVED_APPLICATION_ID,
@@ -5761,6 +6008,13 @@ describe("Stripe API", () => {
     expect(mockState.applications[1].status).toBe("Paid");
     expect(mockState.applications[1].pending_checkout_session_id).toBeNull();
     expect(mockState.applications[1].paid_at).toBeTruthy();
+    expect(mockState.applications[1]).toMatchObject({
+      stripe_checkout_session_id: "cs_missing_car_id",
+      stripe_customer_id: "cus_missing_car",
+      stripe_invoice_id: "in_missing_car",
+      stripe_payment_intent_id: "pi_missing_car",
+      stripe_subscription_id: "sub_missing_car",
+    });
     expect(mockState.rentals).toHaveLength(0);
   });
 
@@ -6209,6 +6463,11 @@ describe("Stripe API", () => {
     expect(second.status).toBe(200);
     expect(mockState.stripe_webhook_events).toHaveLength(2);
     expect(mockState.rentals).toHaveLength(0);
+    expect(mockState.applications[1]).toMatchObject({
+      stripe_checkout_session_id: "cs_live_vehicle",
+      stripe_customer_id: "cus_dup",
+      stripe_subscription_id: "sub_dup",
+    });
   });
 
   it("POST /api/stripe/webhook skips replayed fulfillment when the side effects were already committed before ledger finalization failed", async () => {

@@ -3,7 +3,13 @@ import rateLimit from "express-rate-limit";
 import multer, { MulterError } from "multer";
 import type Stripe from "stripe";
 
-import { updateApplicationPaymentStateIfCurrentVersion } from "../applicationPaymentState.js";
+import {
+  updateApplicationPaymentStateIfCurrentVersionAndStatus,
+} from "../applicationPaymentState.js";
+import {
+  getAdminActor,
+  recordAdminAuditEvent,
+} from "../adminAudit.js";
 import { db } from "../db/index.js";
 import { authenticateAdmin } from "../middleware/auth.js";
 import { getStripeClient } from "../stripeClient.js";
@@ -871,14 +877,11 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
     const approvedSubscriptionStartDate =
       payload.rental_subscription_start_date || null;
 
-    await expirePendingCheckoutSession(
-      applicationRecord.pending_checkout_session_id,
-    );
-
     const updatedApplication =
-      await updateApplicationPaymentStateIfCurrentVersion({
+      await updateApplicationPaymentStateIfCurrentVersionAndStatus({
         applicationId: payload.application_id,
         expectedPaymentLinkVersion: currentVersion,
+        expectedStatuses: ["Pending", "Approved"],
         payload: {
           approved_at: nowIso,
           approved_bond: payload.approved_bond,
@@ -904,9 +907,13 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
     if (!updatedApplication) {
       return res.status(409).json({
         error:
-          "Application payment details changed while approving. Refresh and try again.",
+          "Application payment state changed while approving. Refresh and try again.",
       });
     }
+
+    await expirePendingCheckoutSession(
+      applicationRecord.pending_checkout_session_id,
+    );
 
     const checkoutToken = createCheckoutToken({
       applicationId: payload.application_id,
@@ -935,6 +942,25 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
         setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
       });
     }
+
+    await recordAdminAuditEvent({
+      action: payload.send_payment_link
+        ? "application.approve_and_send_payment_link"
+        : "application.approve_payment",
+      actor: getAdminActor(req),
+      applicationId: payload.application_id,
+      metadata: {
+        approved_bond: payload.approved_bond,
+        approved_subscription_start_date: approvedSubscriptionStartDate,
+        approved_vehicle: approvedVehicleText,
+        approved_weekly_price: payload.approved_weekly_price,
+        checkout_token_expires_at: checkoutToken.expiresAt,
+        email_delivered: emailDelivery.delivered,
+        payment_link_version: nextVersion,
+      },
+      newStatus: "Approved",
+      oldStatus: applicationRecord.status,
+    });
 
     res.json({
       success: true,
@@ -1090,14 +1116,27 @@ router.post("/:id/cancel", authenticateAdmin, async (req, res) => {
         } as const;
       }
 
+      if (
+        applicationRecord.status === "Paid" ||
+        applicationRecord.status === "Payment Review"
+      ) {
+        return {
+          error: createRequestError(
+            409,
+            "Paid applications require Stripe reconciliation before cancellation.",
+          ),
+        } as const;
+      }
+
       const currentVersion = Number(applicationRecord.payment_link_version || 0);
       const nextVersion = currentVersion + 1;
       const nowIso = new Date().toISOString();
 
       const updatedApplication =
-        await updateApplicationPaymentStateIfCurrentVersion({
+        await updateApplicationPaymentStateIfCurrentVersionAndStatus({
           applicationId: id,
           expectedPaymentLinkVersion: currentVersion,
+          expectedStatuses: ["Pending", "Approved", "Rejected"],
           payload: {
             payment_link_version: nextVersion,
             pending_checkout_session_id: null,
@@ -1121,6 +1160,18 @@ router.post("/:id/cancel", authenticateAdmin, async (req, res) => {
         paymentLinkVersion: currentVersion,
         pendingCheckoutSessionId:
           applicationRecord.pending_checkout_session_id || null,
+      });
+
+      await recordAdminAuditEvent({
+        action: "application.cancel",
+        actor: getAdminActor(req),
+        applicationId: id,
+        metadata: {
+          cancel_reason: cancel_reason || null,
+          payment_link_version: nextVersion,
+        },
+        newStatus: "Cancelled",
+        oldStatus: applicationRecord.status,
       });
 
       return {
@@ -1158,7 +1209,7 @@ router.put("/:id/status", authenticateAdmin, async (req, res) => {
   try {
     const { id } = z.object({ id: uuidSchema }).parse(req.params);
     const { data: existingApplication, error: applicationLookupError } =
-      await db.from("applications").select("id").eq("id", id).maybeSingle();
+      await db.from("applications").select("id, status").eq("id", id).maybeSingle();
 
     if (applicationLookupError) {
       throw applicationLookupError;
@@ -1187,6 +1238,16 @@ router.put("/:id/status", authenticateAdmin, async (req, res) => {
       .update({ status })
       .eq("id", id);
     if (error) throw error;
+
+    await recordAdminAuditEvent({
+      action: "application.status_update",
+      actor: getAdminActor(req),
+      applicationId: id,
+      metadata: {},
+      newStatus: status,
+      oldStatus: String(existingApplication.status || ""),
+    });
+
     res.json({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {

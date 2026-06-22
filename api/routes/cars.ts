@@ -24,6 +24,10 @@ const router = express.Router();
 const VEHICLE_IMAGES_BUCKET = (process.env.SUPABASE_VEHICLE_IMAGES_BUCKET || 'vehicle-images').trim();
 const MAX_VEHICLE_IMAGE_BYTES = 15 * 1024 * 1024;
 const ALLOWED_VEHICLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const RIFF_MAGIC = Buffer.from('RIFF');
+const WEBP_MAGIC = Buffer.from('WEBP');
 const uploadVehicleImage = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -172,12 +176,46 @@ const toVehicleImageExtension = (mimeType: string) => {
   }
 };
 
+const detectVehicleImageMagicType = (buffer: Buffer) => {
+  if (
+    buffer.length >= PNG_MAGIC.length &&
+    buffer.subarray(0, PNG_MAGIC.length).equals(PNG_MAGIC)
+  ) {
+    return 'image/png';
+  }
+
+  if (
+    buffer.length >= JPEG_MAGIC.length &&
+    buffer.subarray(0, JPEG_MAGIC.length).equals(JPEG_MAGIC)
+  ) {
+    return 'image/jpeg';
+  }
+
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, RIFF_MAGIC.length).equals(RIFF_MAGIC) &&
+    buffer.subarray(8, 12).equals(WEBP_MAGIC)
+  ) {
+    return 'image/webp';
+  }
+
+  return null;
+};
+
 const createVehicleImagePath = (file: Express.Multer.File) =>
   `admin-uploads/${randomUUID()}.${toVehicleImageExtension(file.mimetype)}`;
 
 const uploadManagedVehicleImage = async (file: Express.Multer.File) => {
-  if (!ALLOWED_VEHICLE_IMAGE_TYPES.has(file.mimetype)) {
+  const declaredType = file.mimetype.toLowerCase();
+  if (!ALLOWED_VEHICLE_IMAGE_TYPES.has(declaredType)) {
     const error = new Error('Choose a JPG, PNG, or WebP image.');
+    (error as Error & { status?: number }).status = 400;
+    throw error;
+  }
+
+  const detectedType = detectVehicleImageMagicType(file.buffer);
+  if (!detectedType || detectedType !== declaredType) {
+    const error = new Error('Vehicle image file contents do not match a JPG, PNG, or WebP image.');
     (error as Error & { status?: number }).status = 400;
     throw error;
   }
@@ -185,7 +223,7 @@ const uploadManagedVehicleImage = async (file: Express.Multer.File) => {
   const path = createVehicleImagePath(file);
   const { error } = await db.storage.from(VEHICLE_IMAGES_BUCKET).upload(path, file.buffer, {
     cacheControl: '3600',
-    contentType: file.mimetype,
+    contentType: declaredType,
     upsert: false,
   });
 

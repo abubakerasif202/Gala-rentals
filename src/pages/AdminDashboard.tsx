@@ -1621,7 +1621,9 @@ export default function AdminDashboard() {
                 >
                   Close
                 </button>
-                {selectedApplication.status !== 'Cancelled' && (
+                {selectedApplication.status !== 'Paid' &&
+                  selectedApplication.status !== 'Payment Review' &&
+                  selectedApplication.status !== 'Cancelled' && (
                   <button
                     onClick={() => {
                       setCancelApplicationReason('');

@@ -6,6 +6,7 @@ import {
   withPostgresAdvisoryLock,
 } from '../db/postgres.js';
 import { ensureStripeCatalog } from '../stripeCatalog.js';
+import type { ResolvedStripeCatalog } from '../stripeCatalog.js';
 import { getStripeClient } from '../stripeClient.js';
 import {
   getApplicationSelectColumns,
@@ -25,7 +26,7 @@ import {
 } from '../paymentLinks.js';
 import {
   persistPendingCheckoutSessionIdIfCurrentVersion,
-  updateApplicationPaymentStateIfCurrentVersion,
+  updateApplicationPaymentStateIfCurrentVersionAndStatus,
 } from '../applicationPaymentState.js';
 import { LEASE_SETTINGS, RENTAL_PLAN_SETUP_FEES_AUD } from '../constants.js';
 import {
@@ -38,7 +39,7 @@ const getStripe = () => getStripeClient();
 const DEFAULT_VEHICLE_IMAGE = '/car-images/ai-gala-navy-sedan-front.png';
 const DEFAULT_APPROVED_VEHICLE_LABEL = 'Approved vehicle to be confirmed by Gala Rentals';
 
-type BillingBreakdown = {
+export type BillingBreakdown = {
   bond: number;
   currency: string;
   initialRental: number;
@@ -177,6 +178,19 @@ const getAustraliaSydneyStartOfDayUnix = (dateOnly: string) => {
   return Math.floor((Date.UTC(year, month - 1, day, 0, 0, 0) - offsetMs) / 1000);
 };
 
+const addRentalBillingInterval = (dateOnly: string) => {
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+
+  if (String(LEASE_SETTINGS.recurring_interval) === 'month') {
+    date.setUTCMonth(date.getUTCMonth() + 1);
+  } else {
+    date.setUTCDate(date.getUTCDate() + 7);
+  }
+
+  return date.toISOString().slice(0, 10);
+};
+
 const buildSubscriptionData = ({
   application,
   metadata,
@@ -197,7 +211,9 @@ const buildSubscriptionData = ({
     return subscriptionData;
   }
 
-  const startTimestamp = getAustraliaSydneyStartOfDayUnix(rentalStartDate);
+  const recurringBillingStartDate = addRentalBillingInterval(rentalStartDate);
+  metadata.rental_recurring_billing_start_date = recurringBillingStartDate;
+  const startTimestamp = getAustraliaSydneyStartOfDayUnix(recurringBillingStartDate);
   const nowSeconds = Math.floor(Date.now() / 1000);
   if (!Number.isSafeInteger(startTimestamp) || startTimestamp <= nowSeconds) {
     return subscriptionData;
@@ -255,13 +271,42 @@ const buildApprovedBillingBreakdown = (application: StripeApplication): BillingB
   };
 };
 
-const buildSubscriptionLineItems = async ({
+export const buildSubscriptionLineItemsFromCatalog = ({
   billingBreakdown,
+  includeInitialRentalUpfront = false,
+  stripeCatalog,
 }: {
   billingBreakdown: BillingBreakdown;
+  includeInitialRentalUpfront?: boolean;
+  stripeCatalog: ResolvedStripeCatalog;
 }) => {
-  const stripeCatalog = await ensureStripeCatalog(getStripe());
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+    {
+      price_data: {
+        currency: LEASE_SETTINGS.currency,
+        product: stripeCatalog.securityBond.productId,
+        unit_amount: toCents(billingBreakdown.bond),
+      },
+      quantity: 1,
+    },
+    {
+      price_data: {
+        currency: LEASE_SETTINGS.currency,
+        product: stripeCatalog.weeklyRental.productId,
+        unit_amount: includeInitialRentalUpfront
+          ? toCents(billingBreakdown.initialRental)
+          : 0,
+      },
+      quantity: 1,
+    },
+    {
+      price_data: {
+        currency: LEASE_SETTINGS.currency,
+        product: stripeCatalog.onboardingSetup.productId,
+        unit_amount: toCents(billingBreakdown.setupFees),
+      },
+      quantity: 1,
+    },
     {
       price_data: {
         currency: LEASE_SETTINGS.currency,
@@ -278,6 +323,19 @@ const buildSubscriptionLineItems = async ({
 
   return lineItems.filter((item) => (item.price_data?.unit_amount ?? 0) > 0);
 };
+
+const buildSubscriptionLineItems = async ({
+  billingBreakdown,
+  includeInitialRentalUpfront,
+}: {
+  billingBreakdown: BillingBreakdown;
+  includeInitialRentalUpfront: boolean;
+}) =>
+  buildSubscriptionLineItemsFromCatalog({
+    billingBreakdown,
+    includeInitialRentalUpfront,
+    stripeCatalog: await ensureStripeCatalog(getStripe()),
+  });
 
 const buildCancelUrl = ({
   applicationId,
@@ -329,6 +387,9 @@ const createHostedCheckoutSession = async ({
   };
 
   const subscriptionData = buildSubscriptionData({ application, metadata });
+  const includeInitialRentalUpfront = Boolean(
+    subscriptionData.trial_end || subscriptionData.billing_cycle_anchor
+  );
 
   console.info('Creating Stripe vehicle checkout session', {
     applicationId: application.id,
@@ -346,7 +407,10 @@ const createHostedCheckoutSession = async ({
       }),
       client_reference_id: String(application.id),
       customer_email: application.email,
-      line_items: await buildSubscriptionLineItems({ billingBreakdown }),
+      line_items: await buildSubscriptionLineItems({
+        billingBreakdown,
+        includeInitialRentalUpfront,
+      }),
       metadata,
       mode: 'subscription',
       subscription_data: subscriptionData,
@@ -540,6 +604,7 @@ const persistPendingCheckoutSessionId = async (
     applicationId,
     expectedPaymentLinkVersion: paymentLinkVersion,
     sessionId,
+    stripeCheckoutSessionId: sessionId,
   });
 };
 
@@ -912,11 +977,11 @@ export const createVehicleCheckoutLink = async ({
   });
 
   const nextVersion = Number(application.payment_link_version || 0) + 1;
-  await expirePendingCheckoutSession(application.pending_checkout_session_id);
   const updatedApplication =
-    await updateApplicationPaymentStateIfCurrentVersion({
+    await updateApplicationPaymentStateIfCurrentVersionAndStatus({
       applicationId,
       expectedPaymentLinkVersion: Number(application.payment_link_version || 0),
+      expectedStatuses: ['Approved'],
       payload: {
         payment_link_sent_at: new Date().toISOString(),
         payment_link_version: nextVersion,
@@ -927,6 +992,8 @@ export const createVehicleCheckoutLink = async ({
   if (!updatedApplication) {
     throw new Error('Payment link details changed while generating a new link. Refresh and try again.');
   }
+
+  await expirePendingCheckoutSession(application.pending_checkout_session_id);
 
   const checkoutToken = createCheckoutToken({
     applicationId,

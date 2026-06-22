@@ -1,5 +1,9 @@
 import express from 'express';
 import { db } from '../db/index.js';
+import {
+  getAdminActor,
+  recordAdminAuditEvent,
+} from '../adminAudit.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { renderActiveAgreementTemplate } from '../agreementTemplates.js';
 import { leaseAgreementSchema, createLeaseAgreementSchema } from '../validation.js';
@@ -132,6 +136,19 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const { data: inserted, error } = await db.from('lease_agreements').insert([insertPayload]).select('id').single();
 
     if (error) throw error;
+    await recordAdminAuditEvent({
+      action: 'agreement.generate',
+      actor: getAdminActor(req),
+      applicationId: data.application_id,
+      metadata: {
+        agreement_id: inserted.id,
+        car_id: data.car_id ?? null,
+        status: data.status,
+        vehicle_label: data.vehicle_label || null,
+      },
+      newStatus: String(applicationRecord.status || ''),
+      oldStatus: String(applicationRecord.status || ''),
+    });
     res.status(201).json({ id: String(inserted.id) });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -200,8 +217,27 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Validation failed', details: parsedParams.error.issues });
     }
 
+    const { data: existingAgreement, error: existingError } = await db
+      .from('lease_agreements')
+      .select('id, application_id, status')
+      .eq('id', parsedParams.data.id)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+
     const { error } = await db.from('lease_agreements').delete().eq('id', parsedParams.data.id);
     if (error) throw error;
+    await recordAdminAuditEvent({
+      action: 'agreement.delete',
+      actor: getAdminActor(req),
+      applicationId: existingAgreement?.application_id
+        ? String(existingAgreement.application_id)
+        : null,
+      metadata: {
+        agreement_id: parsedParams.data.id,
+        status: existingAgreement?.status || null,
+      },
+    });
     res.json({ success: true });
   } catch (error) {
     console.error('Lease agreement deletion error:', error);

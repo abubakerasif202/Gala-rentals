@@ -222,10 +222,10 @@ export default function Checkout() {
                       <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
                         Hosted Stripe session
                       </p>
-                        <p className="text-sm text-brand-grey font-light leading-relaxed">
-                      Payment happens only after Gala Rentals has reviewed your application.
-                        Stripe collects the approved bond, your first weekly payment, and any setup
-                        fees before recurring weekly billing starts.
+                      <p className="text-sm text-brand-grey font-light leading-relaxed">
+                        Payment happens only after Gala Rentals has reviewed your application.
+                        Stripe collects the approved bond, any setup fees, and your first weekly
+                        rental payment at checkout.
                       </p>
                     </div>
                   </div>
@@ -299,7 +299,7 @@ export default function Checkout() {
                         <span className="text-white font-bold">{formatCurrency(billing.bond)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-brand-grey font-light">First weekly payment</span>
+                        <span className="text-brand-grey font-light">First weekly rental payment</span>
                         <span className="text-white font-bold">{formatCurrency(billing.initialRental)}</span>
                       </div>
                       {hasSetupFees && (
@@ -323,7 +323,7 @@ export default function Checkout() {
                       <Info className="w-4 h-4 text-brand-gold" />
                     </div>
                     <p className="text-[10px] text-brand-grey leading-relaxed">
-                      After the upfront payment, your recurring rental will be{' '}
+                      After checkout, future weekly subscription invoices continue at{' '}
                       <strong>{formatCurrency(billing.recurringAmount)}</strong> {billing.recurringLabel}. Stripe
                       handles the payment securely and Gala Rentals completes the driver onboarding process after confirmation.
                     </p>

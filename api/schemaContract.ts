@@ -30,6 +30,26 @@ export const PRODUCTION_SCHEMA_CONTRACT_REQUIRED_COLUMNS = {
     { label: 'cancel_reason', acceptable: ['cancel_reason', 'cancelReason'] },
     { label: 'paid_at', acceptable: ['paid_at', 'paidAt'] },
     {
+      label: 'stripe_checkout_session_id',
+      acceptable: ['stripe_checkout_session_id', 'stripeCheckoutSessionId'],
+    },
+    {
+      label: 'stripe_customer_id',
+      acceptable: ['stripe_customer_id', 'stripeCustomerId'],
+    },
+    {
+      label: 'stripe_invoice_id',
+      acceptable: ['stripe_invoice_id', 'stripeInvoiceId'],
+    },
+    {
+      label: 'stripe_payment_intent_id',
+      acceptable: ['stripe_payment_intent_id', 'stripePaymentIntentId'],
+    },
+    {
+      label: 'stripe_subscription_id',
+      acceptable: ['stripe_subscription_id', 'stripeSubscriptionId'],
+    },
+    {
       label: 'payment_link_sent_at',
       acceptable: ['payment_link_sent_at', 'paymentLinkSentAt'],
     },
@@ -187,6 +207,11 @@ export const verifyProductionSchemaContract = async () => {
         { table: 'applications', column: compat.applicationApprovedBondColumn },
         { table: 'applications', column: compat.applicationApprovedWeeklyPriceColumn },
         { table: 'applications', column: compat.applicationPaidAtColumn },
+        { table: 'applications', column: compat.applicationStripeCheckoutSessionColumn },
+        { table: 'applications', column: compat.applicationStripeCustomerColumn },
+        { table: 'applications', column: compat.applicationStripeInvoiceColumn },
+        { table: 'applications', column: compat.applicationStripePaymentIntentColumn },
+        { table: 'applications', column: compat.applicationStripeSubscriptionColumn },
         { table: 'applications', column: compat.applicationPaymentLinkSentAtColumn },
         { table: 'applications', column: compat.applicationPaymentLinkVersionColumn },
         { table: 'applications', column: compat.applicationAgreementTemplateVersionColumn },

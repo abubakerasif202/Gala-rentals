@@ -43,12 +43,11 @@ describe('stripeCheckoutService checkout helpers', () => {
     ).toBe('vehicle-checkout:11111111-1111-4111-8111-111111111111:v7:retry:cs_retry_seed');
   });
 
-  it('reuses an open checkout session when it still matches the current application and version', async () => {
+  it('reuses an open checkout session when it still matches the current application and has no car_id', async () => {
     mockCheckoutSessionRetrieve.mockResolvedValueOnce({
       id: 'cs_open_vehicle',
       metadata: {
         application_id: '11111111-1111-4111-8111-111111111111',
-        car_id: '1',
         checkout_kind: 'vehicle',
         payment_link_version: '4',
       },
@@ -66,7 +65,6 @@ describe('stripeCheckoutService checkout helpers', () => {
           pending_checkout_session_id: 'cs_open_vehicle',
           status: 'Approved',
         },
-        carId: 1,
       })
     ).resolves.toEqual({
       retryKeySeed: null,
@@ -74,13 +72,42 @@ describe('stripeCheckoutService checkout helpers', () => {
         id: 'cs_open_vehicle',
         metadata: {
           application_id: '11111111-1111-4111-8111-111111111111',
-          car_id: '1',
           checkout_kind: 'vehicle',
           payment_link_version: '4',
         },
         status: 'open',
         url: 'https://checkout.stripe.com/pay/cs_open_vehicle',
       },
+    });
+  });
+
+  it('does not reuse legacy open checkout sessions that still include car_id metadata', async () => {
+    mockCheckoutSessionRetrieve.mockResolvedValueOnce({
+      id: 'cs_open_legacy_vehicle',
+      metadata: {
+        application_id: '11111111-1111-4111-8111-111111111111',
+        car_id: '1',
+        checkout_kind: 'vehicle',
+        payment_link_version: '4',
+      },
+      status: 'open',
+      url: 'https://checkout.stripe.com/pay/cs_open_legacy_vehicle',
+    });
+
+    await expect(
+      resolvePendingCheckoutSession({
+        application: {
+          id: '11111111-1111-4111-8111-111111111111',
+          email: 'driver@example.com',
+          name: 'Driver One',
+          payment_link_version: 4,
+          pending_checkout_session_id: 'cs_open_legacy_vehicle',
+          status: 'Approved',
+        },
+      })
+    ).resolves.toEqual({
+      retryKeySeed: 'cs_open_legacy_vehicle',
+      session: null,
     });
   });
 

@@ -9,7 +9,6 @@ import { ensureStripeCatalog } from '../stripeCatalog.js';
 import { getStripeClient } from '../stripeClient.js';
 import {
   getApplicationSelectColumns,
-  getCarSelectColumns,
   getRentalApplicationIdColumn,
   getRentalCarIdColumn,
   getRentalSelectColumns,
@@ -131,13 +130,6 @@ type StripeApplication = {
   status: string;
 };
 
-type CheckoutVehicle = {
-  archived_at?: string | null;
-  id: number | string;
-  name?: string | null;
-  status?: string | null;
-};
-
 const toCents = (value: number) => Math.round(value * 100);
 const fromCents = (value: number) => Number((value / 100).toFixed(2));
 const toFloat = (value: number | string | null | undefined) =>
@@ -240,21 +232,7 @@ const isVehicleCheckoutMetadataMatch = (
   return matchesApplicationId && matchesCheckoutKind && matchesVersion;
 };
 
-const getCheckoutTokenCarId = (carId: unknown) => {
-  if (carId == null || carId === '') {
-    return null;
-  }
-
-  const numericCarId = Number(carId || 0);
-
-  if (!Number.isInteger(numericCarId) || numericCarId <= 0) {
-    throw new Error(
-      'Payment link has an invalid vehicle assignment. Request a fresh payment link.'
-    );
-  }
-
-  return numericCarId;
-};
+const getCheckoutTokenCarId = (_carId: unknown) => null;
 
 const buildApprovedBillingBreakdown = (application: StripeApplication): BillingBreakdown => {
   const approvedBondCents = Math.round(Number(application.approved_bond || 0) * 100);
@@ -331,13 +309,11 @@ const buildSuccessUrl = ({
 const createHostedCheckoutSession = async ({
   application,
   billingBreakdown,
-  carId,
   checkoutToken,
   idempotencyKey,
 }: {
   application: StripeApplication;
   billingBreakdown: BillingBreakdown;
-  carId: number | null;
   checkoutToken: string;
   idempotencyKey: string;
 }) => {
@@ -352,14 +328,10 @@ const createHostedCheckoutSession = async ({
     payment_link_version: String(Number(application.payment_link_version || 0)),
   };
 
-  if (carId) {
-    metadata.car_id = String(carId);
-  }
   const subscriptionData = buildSubscriptionData({ application, metadata });
 
   console.info('Creating Stripe vehicle checkout session', {
     applicationId: application.id,
-    carId,
     idempotencyKey,
     paymentLinkVersion: application.payment_link_version,
     rentalSubscriptionStartDate: metadata.rental_subscription_start_date || null,
@@ -402,43 +374,6 @@ const fetchApplication = async (applicationId: string) => {
   }
 
   return application as unknown as StripeApplication;
-};
-
-const fetchCheckoutVehicle = async (carId: number) => {
-  const selectColumns = await getCarSelectColumns();
-  const { data: car, error } = await db
-    .from('cars')
-    .select(selectColumns)
-    .eq('id', carId)
-    .single();
-
-  if (error || !car) {
-    return null;
-  }
-
-  return car as unknown as CheckoutVehicle;
-};
-
-const requireCheckoutVehicleAvailable = async (carId: number) => {
-  const car = await fetchCheckoutVehicle(carId);
-
-  if (!car) {
-    throw new Error('Car not found');
-  }
-
-  if (car.archived_at) {
-    throw new Error(
-      'Vehicle is no longer available for checkout. Request a fresh payment link.'
-    );
-  }
-
-  if (String(car.status || '') !== 'Available') {
-    throw new Error(
-      'Vehicle is no longer available for checkout. Request a fresh payment link.'
-    );
-  }
-
-  return car;
 };
 
 const requireApprovedPaymentContext = ({
@@ -791,10 +726,8 @@ export const buildHostedCheckoutSessionIdempotencyKey = ({
 
 export const resolvePendingCheckoutSession = async ({
   application,
-  carId,
 }: {
   application: StripeApplication;
-  carId: number | null;
 }): Promise<PendingCheckoutSessionResolution> => {
   const pendingSessionId = application.pending_checkout_session_id;
   if (!pendingSessionId) {
@@ -808,12 +741,11 @@ export const resolvePendingCheckoutSession = async ({
     const session = await getStripe().checkout.sessions.retrieve(pendingSessionId);
     const sessionVersion = Number(session.metadata?.payment_link_version || 0);
     const sessionApplicationId = normalizeUuid(session.metadata?.application_id || '');
-    const sessionCarId = Number(session.metadata?.car_id || 0) || null;
     const isSameContext =
       sessionApplicationId === normalizeUuid(application.id) &&
       sessionVersion === Number(application.payment_link_version || 0) &&
       session.metadata?.checkout_kind === 'vehicle' &&
-      sessionCarId === carId;
+      !session.metadata?.car_id;
 
     if (isSameContext && (session.status === 'open' || session.status === 'complete')) {
       return {
@@ -855,9 +787,6 @@ export const getVehiclePaymentContext = async ({
     version: Number(application.payment_link_version || 0),
   });
   const carId = getCheckoutTokenCarId(checkoutTokenPayload.carId);
-  if (carId) {
-    await requireCheckoutVehicleAvailable(carId);
-  }
   requireApprovedPaymentContext({ application });
 
   return {
@@ -895,14 +824,10 @@ export const createVehicleCheckoutSession = async ({
       version: Number(application.payment_link_version || 0),
     });
     const carId = getCheckoutTokenCarId(checkoutTokenPayload.carId);
-    if (carId) {
-      await requireCheckoutVehicleAvailable(carId);
-    }
     requireApprovedPaymentContext({ application });
 
     const pendingSessionResolution = await resolvePendingCheckoutSession({
       application,
-      carId,
     });
 
     if (pendingSessionResolution.session) {
@@ -921,7 +846,6 @@ export const createVehicleCheckoutSession = async ({
     const session = await createHostedCheckoutSession({
       application,
       billingBreakdown: buildApprovedBillingBreakdown(application),
-      carId,
       checkoutToken,
       idempotencyKey: buildHostedCheckoutSessionIdempotencyKey({
         applicationId: application.id,

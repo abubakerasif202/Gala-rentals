@@ -13,21 +13,36 @@ const toNonEmptyString = (value: unknown, fallback: string) =>
 
 export const buildLeaseAgreementInput = (
   application: Record<string, any>,
-  car: Record<string, any>,
+  car: Record<string, any> = {},
   approvedWeeklyPrice: number,
   nowIso: string,
   approvedBond = calculateBondFromWeeklyRent(approvedWeeklyPrice)
 ) => {
-  const carName = String(car.name || 'Vehicle');
-  const carTokens = carName.split(' ').filter(Boolean);
-  const vehicleMake = carTokens[0] || 'Vehicle';
+  const manualVehicleText = toOptionalString(
+    application.assigned_vehicle_text ??
+      application.assignedVehicleText ??
+      application.assigned_vehicle_rego ??
+      application.assignedVehicleRego ??
+      application.approved_vehicle ??
+      application.approvedVehicle
+  );
+  const vehicleLabel = manualVehicleText || 'To be assigned';
+  const vehicleTokens = vehicleLabel.split(' ').filter(Boolean);
+  const vehicleMake = vehicleLabel === 'To be assigned'
+    ? 'To be assigned'
+    : vehicleTokens[0] || 'Vehicle';
   const weeklyRentText = `$${Number(approvedWeeklyPrice || 0).toFixed(2)} per week`;
   const leaseAgreementBusinessDetails = getLeaseAgreementBusinessDetails();
   const rentalStartDate = toOptionalString(
     application.intended_start_date ?? application.intendedStartDate
   );
   const vehicleVin = toOptionalString(
-    car.vin ?? car.vin_number ?? car.registration ?? car.car_registration
+    application.assigned_vehicle_rego ??
+      application.assignedVehicleRego ??
+      car.vin ??
+      car.vin_number ??
+      car.registration ??
+      car.car_registration
   );
 
   return {
@@ -51,9 +66,9 @@ export const buildLeaseAgreementInput = (
       'NSW'
     ),
     vehicleMake,
-    vehicleModel: carName,
+    vehicleModel: vehicleLabel,
     vehicleYear: car.model_year ? String(car.model_year) : 'Not recorded',
-    vehicleVin: vehicleVin || 'Not recorded',
+    vehicleVin: vehicleVin || 'To be assigned',
     weeklyRent: weeklyRentText,
     rentalStartDate: rentalStartDate ? toDateOnly(rentalStartDate) : toDateOnly(nowIso),
     rentalEndDate: 'Open-ended',

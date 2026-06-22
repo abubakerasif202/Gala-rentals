@@ -68,10 +68,54 @@ describe('renderApplicationLeaseAgreement', () => {
     expect(agreement).toContain('Contact: 1300 555 828');
     expect(agreement).toContain('Email: hello@gala-rentals.com.au');
     expect(agreement).toContain('Date of Birth: Not provided');
-    expect(agreement).toContain('VIN: Not recorded');
+    expect(agreement).toContain('VIN: To be assigned');
     expect(agreement).not.toContain('Business Address');
     expect(agreement).not.toContain('leasing@example.com');
     expect(agreement).not.toContain('TBD');
     expect(agreement).not.toContain('1990-01-01');
+  });
+
+  it('uses manually typed application vehicle text and rego instead of requiring a cars row', () => {
+    const agreement = renderApplicationLeaseAgreement(
+      {
+        name: 'Manual Vehicle Driver',
+        email: 'manual@example.com',
+        phone: '0400111222',
+        address: '22 Test Street',
+        license_number: 'NSW12345',
+        intended_start_date: '2026-03-20',
+        assigned_vehicle_text: 'Toyota Camry Hybrid DC95MA',
+        assigned_vehicle_rego: 'DC95MA',
+      },
+      {},
+      450,
+      '2026-03-19T08:00:00.000Z',
+      900
+    );
+
+    expect(agreement).toContain('Make: Toyota');
+    expect(agreement).toContain('Model: Toyota Camry Hybrid DC95MA');
+    expect(agreement).toContain('VIN: DC95MA');
+  });
+
+  it('renders a safe placeholder when no manual vehicle text is available', () => {
+    const agreement = renderApplicationLeaseAgreement(
+      {
+        name: 'Unassigned Driver',
+        email: 'unassigned@example.com',
+        phone: '0400111222',
+        address: '22 Test Street',
+        license_number: 'NSW12345',
+        intended_start_date: '2026-03-20',
+      },
+      {},
+      450,
+      '2026-03-19T08:00:00.000Z',
+      900
+    );
+
+    expect(agreement).toContain('Make: To be assigned');
+    expect(agreement).toContain('Model: To be assigned');
+    expect(agreement).toContain('VIN: To be assigned');
   });
 });

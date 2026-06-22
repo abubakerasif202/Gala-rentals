@@ -867,6 +867,9 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
     const currentVersion = Number(applicationRecord.payment_link_version || 0);
     const nextVersion = currentVersion + 1;
     const nowIso = new Date().toISOString();
+    const approvedVehicleText = payload.approved_vehicle.trim();
+    const approvedSubscriptionStartDate =
+      payload.rental_subscription_start_date || null;
 
     await expirePendingCheckoutSession(
       applicationRecord.pending_checkout_session_id,
@@ -879,11 +882,16 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
         payload: {
           approved_at: nowIso,
           approved_bond: payload.approved_bond,
-          approved_vehicle: payload.approved_vehicle.trim(),
+          approved_vehicle: approvedVehicleText,
           approved_weekly_price: payload.approved_weekly_price,
+          approved_weekly_price_cents: Math.round(
+            Number(payload.approved_weekly_price) * 100,
+          ),
+          approved_subscription_start_date: approvedSubscriptionStartDate,
+          assigned_vehicle_text: approvedVehicleText,
           assigned_car_id: null,
-          ...(payload.rental_subscription_start_date
-            ? { intended_start_date: payload.rental_subscription_start_date }
+          ...(approvedSubscriptionStartDate
+            ? { intended_start_date: approvedSubscriptionStartDate }
             : {}),
           paid_at: null,
           payment_link_sent_at: payload.send_payment_link ? nowIso : null,
@@ -922,7 +930,7 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
         applicantName: applicationRecord.name,
         approvedBond: payload.approved_bond,
         approvedWeeklyPrice: payload.approved_weekly_price,
-        approvedVehicle: payload.approved_vehicle.trim(),
+        approvedVehicle: approvedVehicleText,
         checkoutUrl,
         setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
       });

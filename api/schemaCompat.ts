@@ -34,7 +34,11 @@ type SchemaCompat = {
   applicationDateOfBirthColumn: string;
   applicationAssignedCarColumn: string | null;
   applicationApprovedBondColumn: string;
+  applicationApprovedSubscriptionStartDateColumn: string | null;
   applicationApprovedWeeklyPriceColumn: string;
+  applicationApprovedWeeklyPriceCentsColumn: string | null;
+  applicationAssignedVehicleRegoColumn: string | null;
+  applicationAssignedVehicleTextColumn: string | null;
   applicationLicenceStateColumn: string;
   applicationPaidAtColumn: string;
   applicationPaymentLinkSentAtColumn: string;
@@ -71,7 +75,11 @@ const DEFAULT_SCHEMA_COMPAT: SchemaCompat = {
   applicationDateOfBirthColumn: 'date_of_birth',
   applicationAssignedCarColumn: null,
   applicationApprovedBondColumn: 'approved_bond',
+  applicationApprovedSubscriptionStartDateColumn: 'approved_subscription_start_date',
   applicationApprovedWeeklyPriceColumn: 'approved_weekly_price',
+  applicationApprovedWeeklyPriceCentsColumn: 'approved_weekly_price_cents',
+  applicationAssignedVehicleRegoColumn: 'assigned_vehicle_rego',
+  applicationAssignedVehicleTextColumn: 'assigned_vehicle_text',
   applicationLicenceStateColumn: 'licence_state',
   applicationPaidAtColumn: 'paid_at',
   applicationPaymentLinkSentAtColumn: 'payment_link_sent_at',
@@ -287,6 +295,38 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
             : coreMode === 'camel'
               ? 'approvedWeeklyPrice'
               : 'approved_weekly_price';
+        const applicationApprovedWeeklyPriceCentsColumn = hasProperty(
+          applicationsDefinition,
+          'approvedWeeklyPriceCents'
+        )
+          ? 'approvedWeeklyPriceCents'
+          : hasProperty(applicationsDefinition, 'approved_weekly_price_cents')
+            ? 'approved_weekly_price_cents'
+            : null;
+        const applicationApprovedSubscriptionStartDateColumn = hasProperty(
+          applicationsDefinition,
+          'approvedSubscriptionStartDate'
+        )
+          ? 'approvedSubscriptionStartDate'
+          : hasProperty(applicationsDefinition, 'approved_subscription_start_date')
+            ? 'approved_subscription_start_date'
+            : null;
+        const applicationAssignedVehicleTextColumn = hasProperty(
+          applicationsDefinition,
+          'assignedVehicleText'
+        )
+          ? 'assignedVehicleText'
+          : hasProperty(applicationsDefinition, 'assigned_vehicle_text')
+            ? 'assigned_vehicle_text'
+            : null;
+        const applicationAssignedVehicleRegoColumn = hasProperty(
+          applicationsDefinition,
+          'assignedVehicleRego'
+        )
+          ? 'assignedVehicleRego'
+          : hasProperty(applicationsDefinition, 'assigned_vehicle_rego')
+            ? 'assigned_vehicle_rego'
+            : null;
         const applicationApprovedVehicleColumn = hasProperty(
           applicationsDefinition,
           'approvedVehicle'
@@ -417,7 +457,11 @@ export const getSchemaCompat = async (): Promise<SchemaCompat> => {
           applicationDateOfBirthColumn,
           applicationAssignedCarColumn,
           applicationApprovedBondColumn,
+          applicationApprovedSubscriptionStartDateColumn,
           applicationApprovedWeeklyPriceColumn,
+          applicationApprovedWeeklyPriceCentsColumn,
+          applicationAssignedVehicleRegoColumn,
+          applicationAssignedVehicleTextColumn,
           applicationLicenceStateColumn,
           applicationPaidAtColumn,
           applicationPaymentLinkSentAtColumn,
@@ -877,10 +921,14 @@ export const getApplicationAssignedCarColumn = async () => {
 };
 
 export const toApplicationPaymentWritePayload = async (payload: {
-  assigned_car_id?: number | null;
-  approved_bond?: number | null;
-  approved_vehicle?: string | null;
-  approved_weekly_price?: number | null;
+	  assigned_car_id?: number | null;
+	  assigned_vehicle_rego?: string | null;
+	  assigned_vehicle_text?: string | null;
+	  approved_bond?: number | null;
+	  approved_subscription_start_date?: string | null;
+	  approved_vehicle?: string | null;
+	  approved_weekly_price?: number | null;
+	  approved_weekly_price_cents?: number | null;
   intended_start_date?: string | null;
   payment_link_version?: number;
   payment_link_sent_at?: string | null;
@@ -898,17 +946,49 @@ export const toApplicationPaymentWritePayload = async (payload: {
     mappedPayload[compat.applicationAssignedCarColumn] = payload.assigned_car_id ?? null;
   }
 
-  if ('approved_bond' in payload) {
-    mappedPayload[compat.applicationApprovedBondColumn] = payload.approved_bond ?? null;
+	  if ('approved_bond' in payload) {
+	    mappedPayload[compat.applicationApprovedBondColumn] = payload.approved_bond ?? null;
+	  }
+
+  if (
+    'assigned_vehicle_text' in payload &&
+    compat.applicationAssignedVehicleTextColumn
+  ) {
+    mappedPayload[compat.applicationAssignedVehicleTextColumn] =
+      payload.assigned_vehicle_text ?? null;
+  }
+
+  if (
+    'assigned_vehicle_rego' in payload &&
+    compat.applicationAssignedVehicleRegoColumn
+  ) {
+    mappedPayload[compat.applicationAssignedVehicleRegoColumn] =
+      payload.assigned_vehicle_rego ?? null;
   }
 
   if ('approved_vehicle' in payload) {
     mappedPayload[compat.applicationApprovedVehicleColumn] = payload.approved_vehicle ?? null;
   }
 
-  if ('approved_weekly_price' in payload) {
-    mappedPayload[compat.applicationApprovedWeeklyPriceColumn] =
-      payload.approved_weekly_price ?? null;
+	  if ('approved_weekly_price' in payload) {
+	    mappedPayload[compat.applicationApprovedWeeklyPriceColumn] =
+	      payload.approved_weekly_price ?? null;
+	  }
+
+  if (
+    'approved_weekly_price_cents' in payload &&
+    compat.applicationApprovedWeeklyPriceCentsColumn
+  ) {
+    mappedPayload[compat.applicationApprovedWeeklyPriceCentsColumn] =
+      payload.approved_weekly_price_cents ?? null;
+  }
+
+  if (
+    'approved_subscription_start_date' in payload &&
+    compat.applicationApprovedSubscriptionStartDateColumn
+  ) {
+    mappedPayload[compat.applicationApprovedSubscriptionStartDateColumn] =
+      payload.approved_subscription_start_date ?? null;
   }
 
   if ('intended_start_date' in payload) {

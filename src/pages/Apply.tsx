@@ -1,11 +1,10 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, ShieldCheck, Upload, User, CarFront, FileText } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, ShieldCheck, Upload, User, FileText } from 'lucide-react';
 import * as z from 'zod';
 import Seo from '../components/Seo';
 import { submitApplication } from '../lib/api';
 import { getApiErrorMessage } from '../lib/errorHandling';
-import { featuredVehicleImages } from '../lib/publicVehicleImages';
 import {
   APPLICATION_DOCUMENT_CONTENT_TYPES,
   APPLICATION_IMAGE_CONTENT_TYPES,
@@ -407,24 +406,17 @@ export default function Apply() {
               ))}
             </div>
 
-            <div className="mt-10 overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.24)]">
-              <img
-                src={featuredVehicleImages[5]}
-                alt="Generated premium sedan with no registration plate"
-                className="aspect-[16/10] w-full rounded-[1.15rem] object-cover"
-              />
-              <div className="grid gap-2 p-3 sm:grid-cols-3">
-                {[
-                  { icon: User, label: 'Apply online' },
-                  { icon: CarFront, label: 'Review vehicle' },
-                  { icon: ShieldCheck, label: 'Secure handoff' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-center gap-2 rounded-2xl bg-brand-navy/65 px-3 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-brand-grey">
-                    <item.icon className="h-4 w-4 text-brand-gold" />
-                    {item.label}
-                  </div>
-                ))}
-              </div>
+            <div className="mt-10 grid gap-2 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:grid-cols-3">
+              {[
+                { icon: User, label: 'Driver details' },
+                { icon: FileText, label: 'Documents' },
+                { icon: ShieldCheck, label: 'Admin review' },
+              ].map((item) => (
+                <div key={item.label} className="flex min-h-20 items-center justify-center gap-2 rounded-2xl bg-brand-navy/65 px-3 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-brand-grey">
+                  <item.icon className="h-4 w-4 text-brand-gold" />
+                  {item.label}
+                </div>
+              ))}
             </div>
 
             <div className="mt-8 grid grid-cols-5 gap-2">

@@ -8,9 +8,13 @@ import {
 type ApplicationPaymentWritePayload = {
   approved_at?: string | null;
   approved_bond?: number | null;
+  approved_subscription_start_date?: string | null;
   approved_vehicle?: string | null;
   approved_weekly_price?: number | null;
+  approved_weekly_price_cents?: number | null;
   assigned_car_id?: number | null;
+  assigned_vehicle_rego?: string | null;
+  assigned_vehicle_text?: string | null;
   cancelled_at?: string | null;
   cancel_reason?: string | null;
   intended_start_date?: string | null;

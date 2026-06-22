@@ -36,7 +36,7 @@ function AppShell() {
       <main className="flex-grow">
         <Suspense
           fallback={
-            <div className="min-h-screen flex items-center justify-center bg-brand-navy text-white font-serif italic uppercase tracking-widest text-sm">
+            <div className="flex min-h-40 items-center justify-center bg-brand-navy text-sm font-semibold uppercase tracking-[0.24em] text-white/70">
               Loading Experience...
             </div>
           }

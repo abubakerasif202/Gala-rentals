@@ -32,52 +32,49 @@ const enrichLeaseAgreements = async (
         .filter((id) => id.length > 0)
     )
   );
-  const carIds = Array.from(
-    new Set(
-      agreements
-        .map((agreement) => Number(agreement.car_id || 0))
-        .filter((id) => Number.isInteger(id) && id > 0)
-    )
-  );
-
-  const [applicationsResult, carsResult] = await Promise.all([
+  const applicationsResult = await (
     applicationIds.length > 0
       ? db.from('applications').select('*').in('id', applicationIds)
-      : Promise.resolve({ data: [], error: null }),
-    carIds.length > 0
-      ? db.from('cars').select('id, name').in('id', carIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+      : Promise.resolve({ data: [], error: null })
+  );
 
   if (applicationsResult.error) {
     throw applicationsResult.error;
   }
 
-  if (carsResult.error) {
-    throw carsResult.error;
-  }
-
-  const applicationNames = new Map<string, string>();
+  const applicationDetails = new Map<
+    string,
+    { name: string; vehicleLabel: string | null }
+  >();
   const importedApplicationIds = getImportedApplicationIdSet(
     (applicationsResult.data || []) as Array<Record<string, any>>,
   );
   for (const application of applicationsResult.data || []) {
-    applicationNames.set(String(application.id), String(application.name || ''));
-  }
-
-  const carNames = new Map<number, string>();
-  for (const car of carsResult.data || []) {
-    carNames.set(Number(car.id), String(car.name || ''));
+    const vehicleLabel =
+      String(
+        application.assigned_vehicle_text ??
+          application.assignedVehicleText ??
+          application.assigned_vehicle_rego ??
+          application.assignedVehicleRego ??
+          application.approved_vehicle ??
+          application.approvedVehicle ??
+          ''
+      ).trim() || null;
+    applicationDetails.set(String(application.id), {
+      name: String(application.name || ''),
+      vehicleLabel,
+    });
   }
 
   return agreements
     .filter((agreement) => !importedApplicationIds.has(String(agreement.application_id)))
     .map((agreement) => ({
       ...agreement,
-      applicant_name: applicationNames.get(agreement.application_id) || undefined,
+      applicant_name:
+        applicationDetails.get(agreement.application_id)?.name || undefined,
       car_name:
-        carNames.get(Number(agreement.car_id || 0)) ||
         agreement.vehicle_label ||
+        applicationDetails.get(agreement.application_id)?.vehicleLabel ||
         undefined,
     }));
 };

@@ -1680,7 +1680,6 @@ beforeEach(() => {
       application_id: APPROVED_APPLICATION_ID,
       approved_bond: "500.00",
       approved_weekly_price: "250.00",
-      car_id: "1",
       checkout_kind: "vehicle",
       payment_link_version: "1",
     },
@@ -3046,6 +3045,29 @@ describe("Applications API", () => {
     expect(mockState.applications).toHaveLength(2);
   });
 
+  it("POST /api/applications accepts submissions without car_id or selected_car_id", async () => {
+    mockState.applications[1].status = "Paid";
+    mockState.applications[1].paid_at = "2026-03-07T00:00:00.000Z";
+
+    const res = await createApplicationSubmissionRequest({
+      selected_car_id: undefined,
+      name: "No Car Driver",
+      email: "no-car-driver@example.com",
+      license_number: "NSW77777",
+      license_expiry: getFutureDateOnly(365),
+      intended_start_date: getFutureDateOnly(7),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockState.applications.at(-1)).toMatchObject({
+      name: "No Car Driver",
+      email: "no-car-driver@example.com",
+      status: "Pending",
+    });
+    expect(mockState.applications.at(-1)?.car_id).toBeUndefined();
+    expect(mockState.applications.at(-1)?.selected_car_id).toBeUndefined();
+  });
+
   it("POST /api/applications stores applicant phone numbers in a normalized format", async () => {
     mockState.applications[1].status = "Paid";
     mockState.applications[1].paid_at = "2026-03-07T00:00:00.000Z";
@@ -4182,8 +4204,11 @@ describe("Stripe API", () => {
 
     expect(mockState.applications[0]).toMatchObject({
       approved_bond: 650,
+      approved_subscription_start_date: getFutureDateOnly(5),
       approved_vehicle: "Toyota Camry Hybrid",
       approved_weekly_price: 285,
+      approved_weekly_price_cents: 28500,
+      assigned_vehicle_text: "Toyota Camry Hybrid",
       intended_start_date: getFutureDateOnly(5),
       payment_link_version: 4,
       pending_checkout_session_id: null,
@@ -4418,7 +4443,6 @@ describe("Stripe API", () => {
         application_id: APPROVED_APPLICATION_ID,
         approved_bond: "500.00",
         approved_weekly_price: "250.00",
-        car_id: "1",
         checkout_kind: "vehicle",
         payment_link_version: "1",
       },
@@ -4750,7 +4774,6 @@ describe("Stripe API", () => {
         application_id: APPROVED_APPLICATION_ID,
         approved_bond: "500.00",
         approved_weekly_price: "250.00",
-        car_id: "1",
         checkout_kind: "vehicle",
         payment_link_version: "1",
       },
@@ -4790,7 +4813,6 @@ describe("Stripe API", () => {
         application_id: APPROVED_APPLICATION_ID,
         approved_bond: "500.00",
         approved_weekly_price: "250.00",
-        car_id: "1",
         checkout_kind: "vehicle",
         payment_link_version: "1",
       },
@@ -4846,12 +4868,12 @@ describe("Stripe API", () => {
     expect(payload.metadata.approved_bond).toBe("500.00");
     expect(payload.metadata.approved_weekly_price).toBe("250.00");
     expect(payload.metadata.applicant_email).toBe("approved@example.com");
-    expect(payload.metadata.car_id).toBe("1");
+    expect(payload.metadata.car_id).toBeUndefined();
     expect(payload.metadata.payment_type).toBe("vehicle_rental");
     expect(payload.metadata.rental_subscription_start_date).toBe(
       mockState.applications[1].intended_start_date,
     );
-    expect(payload.subscription_data.metadata.car_id).toBe("1");
+    expect(payload.subscription_data.metadata.car_id).toBeUndefined();
     expect(payload.subscription_data.metadata.rental_subscription_start_date).toBe(
       mockState.applications[1].intended_start_date,
     );
@@ -5285,7 +5307,7 @@ describe("Stripe API", () => {
       internal_status: "complete_paid",
       payment_method_type: "card",
       payment_status: "paid",
-      rental_status: "Active",
+      rental_status: null,
       state: "complete_paid",
       status: "complete",
     });
@@ -5304,7 +5326,6 @@ describe("Stripe API", () => {
           application_id: APPROVED_APPLICATION_ID,
           approved_bond: "500.00",
           approved_weekly_price: "250.00",
-          car_id: "1",
           checkout_kind: "vehicle",
           payment_link_version: "1",
         },
@@ -5349,7 +5370,6 @@ describe("Stripe API", () => {
       payment_method_types: ["card"],
       metadata: {
         application_id: APPROVED_APPLICATION_ID,
-        car_id: "1",
         checkout_kind: "vehicle",
         payment_link_version: "1",
       },
@@ -5397,8 +5417,8 @@ describe("Stripe API", () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.internal_status).toBe("manual_review");
-    expect(res.body.state).toBe("manual_review");
+    expect(res.body.internal_status).toBe("complete_paid");
+    expect(res.body.state).toBe("complete_paid");
     expect(res.body.application_status).toBe("Paid");
     expect(res.body.rental_status).toBeNull();
   });
@@ -5434,7 +5454,7 @@ describe("Stripe API", () => {
     expect(res.body.internal_status).toBe("complete_paid");
     expect(res.body.state).toBe("complete_paid");
     expect(res.body.application_status).toBe("Paid");
-    expect(res.body.rental_status).toBe("Active");
+    expect(res.body.rental_status).toBeNull();
   });
 
   it("GET /api/stripe/checkout-sessions/:id returns complete after activation even if the success token was scrubbed", async () => {
@@ -5463,7 +5483,7 @@ describe("Stripe API", () => {
     expect(res.body.internal_status).toBe("complete_paid");
     expect(res.body.state).toBe("complete_paid");
     expect(res.body.application_status).toBe("Paid");
-    expect(res.body.rental_status).toBe("Active");
+    expect(res.body.rental_status).toBeNull();
   });
 
   it("GET /api/stripe/checkout-sessions/:id returns manual_review when payment completed but activation was blocked", async () => {

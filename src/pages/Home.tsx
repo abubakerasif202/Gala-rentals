@@ -88,7 +88,7 @@ export default function Home() {
           'premium car rentals sydney',
           'toyota camry rental sydney',
           'weekly car rentals sydney',
-          'gala-rentals.com.au',
+          'galarentals.com.au',
         ]}
         jsonLd={homeJsonLd}
       />
@@ -96,11 +96,13 @@ export default function Home() {
       <div className="mx-auto max-w-7xl overflow-hidden rounded-[1.5rem] bg-white shadow-[0_28px_90px_rgba(11,31,54,0.14)] ring-1 ring-slate-200/80 sm:rounded-[2rem]">
         <nav className="flex items-center justify-between gap-4 border-b border-slate-100 bg-white/95 px-4 py-4 sm:px-8 lg:px-10">
           <Link to="/" className="flex min-w-0 items-center">
-            <img
-              src="/logo/gala-logo-navbar.png"
-              alt="Gala Rentals logo"
-              className="h-10 w-auto max-w-[150px] object-contain sm:h-12 sm:max-w-[180px]"
-            />
+	            <img
+	              src="/logo/gala-logo-navbar.png"
+	              alt="Gala Rentals logo"
+                  width="180"
+                  height="48"
+	              className="h-10 w-auto max-w-[150px] object-contain sm:h-12 sm:max-w-[180px]"
+	            />
           </Link>
 
           <div className="hidden items-center gap-7 lg:flex">
@@ -129,18 +131,23 @@ export default function Home() {
           <section className="px-4 pb-10 pt-5 sm:px-8 sm:pb-12 lg:px-10">
             <div className="relative min-h-[620px] overflow-hidden rounded-[1.35rem] bg-[#dfe5ec] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.52)] sm:rounded-[1.6rem] lg:min-h-[560px]">
               <img
-                src="/car-images/ai-gala-navy-sedan-hero.png"
-                alt="2026 Toyota Camry premium rental vehicle"
-                className="absolute inset-0 h-full w-full object-cover"
-              />
+	                src="/car-images/ai-gala-navy-sedan-hero.png"
+	                alt="2026 Toyota Camry premium rental vehicle"
+                    width="1440"
+                    height="900"
+                    fetchPriority="high"
+	                className="absolute inset-0 h-full w-full object-cover"
+	              />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.9)_46%,rgba(255,255,255,0.2)_100%)] lg:bg-[linear-gradient(90deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.84)_38%,rgba(255,255,255,0.16)_68%,rgba(255,255,255,0)_100%)]" />
               <div className="absolute bottom-5 right-5 hidden max-w-[360px] gap-3 lg:grid lg:grid-cols-2">
                 {featuredVehicleImages.slice(1, 5).map((image, index) => (
                   <div key={image} className="overflow-hidden rounded-2xl border border-white/70 bg-white/80 p-1 shadow-[0_16px_38px_rgba(11,31,54,0.18)] backdrop-blur">
                     <img
-                      src={image}
-                      alt={`Gala Rentals fleet vehicle preview ${index + 1}`}
-                      className="aspect-[4/3] h-full w-full rounded-xl object-cover"
+	                      src={image}
+	                      alt={`Gala Rentals fleet vehicle preview ${index + 1}`}
+                          width="360"
+                          height="270"
+	                      className="aspect-[4/3] h-full w-full rounded-xl object-cover"
                       loading="lazy"
                     />
                   </div>
@@ -151,7 +158,7 @@ export default function Home() {
                   <ShieldCheck className="h-4 w-4" />
                   Premium Sydney rentals
                 </p>
-                <h1 className="font-serif text-4xl font-bold leading-[1.04] text-[#0b1f36] sm:text-6xl lg:text-7xl">
+	                <h1 className="text-balance font-serif text-4xl font-bold leading-[1.04] text-[#0b1f36] sm:text-6xl lg:text-7xl">
                   Premium Car Rentals Made Simple
                 </h1>
                 <p className="mt-6 max-w-xl text-base leading-8 text-slate-600 sm:text-lg">
@@ -187,9 +194,9 @@ export default function Home() {
             </div>
             <div className="grid gap-6 md:grid-cols-3">
               {fleetCards.map((vehicle) => (
-                <article key={vehicle.badge} className="group overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(11,31,54,0.08)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(11,31,54,0.13)]">
+	                <article key={vehicle.badge} className="group overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(11,31,54,0.08)] transition-[box-shadow,transform] duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(11,31,54,0.13)]">
                   <div className="aspect-[4/3] overflow-hidden bg-slate-100">
-                    <img src={vehicle.image} alt={vehicle.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
+	                    <img src={vehicle.image} alt={vehicle.title} width="640" height="480" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
                   </div>
                   <div className="p-6">
                     <p className="inline-flex rounded-full bg-brand-gold/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-brand-gold-dark">
@@ -262,9 +269,11 @@ export default function Home() {
           <div className="grid gap-8 md:grid-cols-[1.3fr_1fr_1fr]">
             <div>
               <img
-                src="/logo/gala-logo-navbar.png"
-                alt="Gala Rentals logo"
-                className="h-10 w-auto max-w-[150px] object-contain sm:h-12 sm:max-w-[180px]"
+	                src="/logo/gala-logo-navbar.png"
+	                alt="Gala Rentals logo"
+                    width="180"
+                    height="48"
+	                className="h-10 w-auto max-w-[150px] object-contain sm:h-12 sm:max-w-[180px]"
                 loading="lazy"
               />
               <p className="mt-3 max-w-sm text-sm leading-7 text-slate-600">Drive smarter. Rent easier.</p>
@@ -281,7 +290,7 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-8 flex flex-col justify-between gap-3 border-t border-slate-100 pt-6 text-xs text-slate-500 sm:flex-row">
-            <p>© 2026 Gala Rentals, gala-rentals.com.au. All rights reserved.</p>
+            <p>© 2026 Gala Rentals, www.galarentals.com.au. All rights reserved.</p>
             <p>Drive smarter. Rent easier.</p>
           </div>
         </footer>

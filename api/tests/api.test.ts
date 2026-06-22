@@ -2110,7 +2110,7 @@ describe("Auth API", () => {
   it("POST /api/auth/login sets a cross-site compatible cookie when the frontend is on another host", async () => {
     const res = await request(app)
       .post("/api/auth/login")
-      .set("Origin", "https://admin.gala-rentals.com.au")
+      .set("Origin", "https://admin.galarentals.com.au")
       .send({ username: "hello@gala-rentals.com.au", password: "password" });
 
     expect(res.status).toBe(200);
@@ -2120,7 +2120,7 @@ describe("Auth API", () => {
 
   it("POST /api/auth/login allows a configured CORS origin with a trailing slash", async () => {
     const previousCorsOrigin = process.env.CORS_ORIGIN;
-    process.env.CORS_ORIGIN = "https://admin.gala-rentals.com.au/";
+    process.env.CORS_ORIGIN = "https://admin.galarentals.com.au/";
 
     try {
       const { createApp } = await import("../index.js");
@@ -2128,12 +2128,12 @@ describe("Auth API", () => {
 
       const res = await request(scopedApp)
         .post("/api/auth/login")
-        .set("Origin", "https://admin.gala-rentals.com.au")
+        .set("Origin", "https://admin.galarentals.com.au")
         .send({ username: "hello@gala-rentals.com.au", password: "password" });
 
       expect(res.status).toBe(200);
       expect(res.headers["access-control-allow-origin"]).toBe(
-        "https://admin.gala-rentals.com.au",
+        "https://admin.galarentals.com.au",
       );
       expect(res.headers["access-control-allow-credentials"]).toBe("true");
     } finally {

@@ -5,11 +5,11 @@ Gala Rentals is a full-stack rental platform for premium weekly car rentals in S
 ## Production Identity
 
 - Brand: Gala Rentals
-- Domain: `https://www.gala-rentals.com.au`
+- Domain: `https://www.galarentals.com.au`
 - Contact: `hello@gala-rentals.com.au`
 - Render service: `gala-rentals`
 - Repository: `https://github.com/abubakerasif202/gala-rentals.git`
-- Stripe webhook: `https://www.gala-rentals.com.au/api/stripe/webhook`
+- Stripe webhook: `https://www.galarentals.com.au/api/stripe/webhook`
 
 ## Stack
 
@@ -149,10 +149,10 @@ Deployment instructions are in [DEPLOY_RENDER.md](DEPLOY_RENDER.md).
 After an approved Gala deployment, verify:
 
 ```powershell
-curl.exe https://www.gala-rentals.com.au/api/live
-curl.exe https://www.gala-rentals.com.au/api/health
-curl.exe https://www.gala-rentals.com.au/
-curl.exe https://www.gala-rentals.com.au/apply
+curl.exe https://www.galarentals.com.au/api/live
+curl.exe https://www.galarentals.com.au/api/health
+curl.exe https://www.galarentals.com.au/
+curl.exe https://www.galarentals.com.au/apply
 ```
 
 Do not call deployment complete until the deployed commit and production health checks are verified.

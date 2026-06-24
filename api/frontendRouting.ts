@@ -6,14 +6,20 @@ export type RequestLike = {
 
 const SPA_ROUTE_PATTERNS = [
   /^\/$/,
+  /^\/fleet\/?$/,
+  /^\/fleet\/[^/]+\/?$/,
   /^\/pricing\/?$/,
   /^\/cars\/?$/,
   /^\/cars\/[^/]+\/?$/,
   /^\/checkout\/[^/]+\/?$/,
   /^\/apply\/?$/,
+  /^\/faq\/?$/,
+  /^\/contact\/?$/,
+  /^\/my-rental\/?$/,
   /^\/success\/?$/,
   /^\/admin\/login\/?$/,
   /^\/admin\/dashboard\/?$/,
+  /^\/admin\/agreements\/?$/,
   /^\/admin\/toll-notices\/?$/,
 ];
 

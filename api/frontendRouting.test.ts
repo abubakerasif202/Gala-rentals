@@ -23,9 +23,20 @@ const createRequest = ({
 describe('shouldServeSpaEntry', () => {
   it('allows known client routes', () => {
     expect(shouldServeSpaEntry(createRequest({ path: '/' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/fleet' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/fleet/1' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/pricing' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/cars' }))).toBe(true);
     expect(shouldServeSpaEntry(createRequest({ path: '/cars/1' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/apply' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/faq' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/contact' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/my-rental' }))).toBe(true);
     expect(
       shouldServeSpaEntry(createRequest({ path: '/admin/dashboard' }))
+    ).toBe(true);
+    expect(
+      shouldServeSpaEntry(createRequest({ path: '/admin/agreements' }))
     ).toBe(true);
     expect(
       shouldServeSpaEntry(createRequest({ path: '/admin/toll-notices' }))

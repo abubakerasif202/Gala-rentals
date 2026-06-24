@@ -8,7 +8,6 @@ const quickLinks = [
   { label: 'Apply', path: '/apply' },
   { label: 'FAQ', path: '/faq' },
   { label: 'Contact', path: '/contact' },
-  { label: 'Admin Login', path: '/admin/login' },
 ];
 
 export default function Footer() {
@@ -17,7 +16,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
           <div>
-            <Link to="/" className="mb-8 flex w-fit items-center group" aria-label="Gala Rentals home">
+            <Link to="/" className="focus-ring-dark mb-8 flex w-fit items-center group" aria-label="Gala Rentals home">
               <img
                 src="/logo/gala-logo-footer.png"
                 alt="Gala Rentals logo"
@@ -39,7 +38,7 @@ export default function Footer() {
             <ul className="space-y-5">
               {quickLinks.map((link) => (
                 <li key={link.path}>
-                  <Link to={link.path} className="text-sm hover:text-brand-gold transition-colors font-light">
+                  <Link to={link.path} className="focus-ring-dark rounded text-sm hover:text-brand-gold transition-colors font-light">
                     {link.label}
                   </Link>
                 </li>
@@ -52,11 +51,11 @@ export default function Footer() {
             <ul className="space-y-5">
               <li className="flex items-center gap-4">
                 <Phone className="h-4 w-4 text-brand-gold" />
-                <a href="tel:1300555828" className="text-sm hover:text-brand-gold transition-colors font-light tracking-wider">1300 555 828</a>
+                <a href="tel:1300555828" className="focus-ring-dark rounded text-sm hover:text-brand-gold transition-colors font-light tracking-wider">1300 555 828</a>
               </li>
               <li className="flex items-center gap-4">
                 <Mail className="h-4 w-4 text-brand-gold" />
-                <a href="mailto:hello@gala-rentals.com.au" className="text-sm hover:text-brand-gold transition-colors font-light">hello@gala-rentals.com.au</a>
+                <a href="mailto:hello@gala-rentals.com.au" className="focus-ring-dark rounded text-sm hover:text-brand-gold transition-colors font-light">hello@gala-rentals.com.au</a>
               </li>
               <li className="flex items-start gap-4">
                 <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />

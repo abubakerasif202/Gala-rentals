@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { Car as CarIcon, Calendar, Gauge, Shield, ChevronRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Seo from '../components/Seo';
@@ -19,7 +19,7 @@ const statusStyles: Record<Car['status'], string> = {
 };
 
 const VehicleImagePlaceholder = ({ name }: { name: string }) => (
-  <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top_right,rgba(223,177,37,0.24),transparent_34%),linear-gradient(135deg,#0b1f36_0%,#123152_55%,#061425_100%)] p-6 text-center">
+  <div className="flex h-full w-full items-center justify-center bg-brand-navy p-6 text-center">
     <div>
       <CarIcon className="mx-auto mb-4 h-12 w-12 text-brand-gold" />
       <p className="text-[10px] font-black uppercase tracking-[0.24em] text-brand-gold">
@@ -31,6 +31,7 @@ const VehicleImagePlaceholder = ({ name }: { name: string }) => (
 );
 
 export default function Cars() {
+  const shouldReduceMotion = useReducedMotion();
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +75,7 @@ export default function Cars() {
     return (
       <>
         {pageSeo}
-        <div className="min-h-screen bg-[#eef1f5] flex items-center justify-center">
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center">
           <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
         </div>
       </>
@@ -84,12 +85,12 @@ export default function Cars() {
   return (
     <>
       {pageSeo}
-      <div className="min-h-screen bg-[#eef1f5] bg-[radial-gradient(circle_at_top_left,rgba(223,177,37,0.14),transparent_34%)] pb-20 pt-24 md:pb-24 md:pt-32">
+      <div className="min-h-screen bg-slate-100 pb-20 pt-24 md:pb-24 md:pt-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-10 grid gap-8 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_24px_70px_rgba(11,31,54,0.10)] sm:p-8 lg:grid-cols-[1fr_0.82fr] lg:items-end">
             <motion.div
-              initial="hidden"
-              animate="visible"
+              initial={shouldReduceMotion ? false : 'hidden'}
+              animate={shouldReduceMotion ? undefined : 'visible'}
               variants={fadeIn}
             >
               <p className="mb-4 text-xs font-black uppercase tracking-[0.28em] text-brand-gold-dark">
@@ -108,8 +109,10 @@ export default function Cars() {
               {['All', 'Available', 'Rented', 'Maintenance'].map((filter) => (
                 <button
                   key={filter}
+                  type="button"
                   onClick={() => setActiveFilter(filter)}
-                  className={`min-h-11 shrink-0 rounded-full px-5 py-2.5 text-xs font-bold uppercase tracking-widest transition-all ${
+                  aria-pressed={activeFilter === filter}
+                  className={`focus-ring-light min-h-11 shrink-0 rounded-full px-5 py-2.5 text-xs font-bold uppercase tracking-widest transition-all ${
                     activeFilter === filter
                       ? 'bg-brand-gold text-brand-navy'
                       : 'text-slate-500 hover:text-brand-navy'
@@ -143,20 +146,24 @@ export default function Cars() {
                 return (
                   <motion.div
                     key={car.id}
-                    initial="hidden"
-                    animate="visible"
+                    initial={shouldReduceMotion ? false : 'hidden'}
+                    animate={shouldReduceMotion ? undefined : 'visible'}
                     variants={{
                       hidden: { opacity: 0, y: 20 },
-                      visible: { opacity: 1, y: 0, transition: { delay: index * 0.08 } }
+                      visible: {
+                        opacity: 1,
+                        y: 0,
+                        transition: { delay: shouldReduceMotion ? 0 : index * 0.08 },
+                      }
                     }}
-                    className="group overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(11,31,54,0.08)] transition-all duration-500 hover:-translate-y-1 hover:border-brand-gold/40 hover:shadow-[0_24px_60px_rgba(11,31,54,0.13)]"
+                    className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg transition-all duration-500 motion-reduce:transform-none motion-reduce:transition-none hover:-translate-y-1 hover:border-brand-gold/40 hover:shadow-2xl"
                   >
                     <div className="relative aspect-[16/11] overflow-hidden bg-slate-100">
                       {hasImage ? (
                         <img
                           src={vehicleImage}
                           alt={`${car.name} rental vehicle`}
-                          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          className="h-full w-full object-cover transition-transform duration-700 motion-reduce:transform-none motion-reduce:transition-none group-hover:scale-105"
                           loading={index < 3 ? 'eager' : 'lazy'}
                         />
                       ) : (
@@ -210,7 +217,7 @@ export default function Cars() {
 
                       <Link
                         to={`/cars/${car.id}`}
-                        className="flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-brand-navy/10 bg-brand-navy py-4 text-xs font-bold uppercase tracking-widest text-white transition-all hover:border-brand-gold hover:bg-brand-gold hover:text-brand-navy group-hover:shadow-lg group-hover:shadow-brand-gold/10"
+                        className="focus-ring-light flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-brand-navy/10 bg-brand-navy py-4 text-xs font-bold uppercase tracking-widest text-white transition-all hover:border-brand-gold hover:bg-brand-gold hover:text-brand-navy group-hover:shadow-lg group-hover:shadow-brand-gold/10"
                       >
                         View Details
                         <ChevronRight className="h-4 w-4" />

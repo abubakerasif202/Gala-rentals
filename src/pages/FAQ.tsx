@@ -68,7 +68,7 @@ export default function FAQ() {
         </div>
       </section>
 
-      <section className="border-t border-white/10 bg-[#071120]">
+      <section className="border-t border-white/10 bg-brand-charcoal">
         <div className="mx-auto grid max-w-7xl gap-6 px-6 py-16 lg:grid-cols-3 lg:px-8">
           {[
             {
@@ -98,7 +98,7 @@ export default function FAQ() {
         </div>
       </section>
 
-      <section className="border-t border-white/10 bg-[#0b1a2d]">
+      <section className="border-t border-white/10 bg-brand-navy">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-16 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">Next step</p>
@@ -106,7 +106,7 @@ export default function FAQ() {
           </div>
           <Link
             to="/apply"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy transition-colors hover:bg-brand-gold-light"
+            className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy transition-colors hover:bg-brand-gold-light"
           >
             Start Application <ChevronRight className="h-4 w-4" />
           </Link>

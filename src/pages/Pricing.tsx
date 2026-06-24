@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check, ShieldCheck, Star, AlertCircle, Loader2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import Seo from '../components/Seo';
 import { fetchRentalPlans } from '../lib/api';
 import { featuredVehicleImages } from '../lib/publicVehicleImages';
 
 export default function Pricing() {
+  const shouldReduceMotion = useReducedMotion();
   const {
     data: rentalPlans = [],
     isLoading,
@@ -17,7 +18,7 @@ export default function Pricing() {
   });
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8] text-brand-navy selection:bg-brand-gold selection:text-black">
+    <div className="min-h-screen bg-slate-100 text-brand-navy selection:bg-brand-gold selection:text-black">
       <Seo
         title="Pricing | Gala Rentals"
         description="Compare Gala Rentals weekly plans, bond requirements, and subscription structure before you apply."
@@ -35,25 +36,25 @@ export default function Pricing() {
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
           <div>
             <motion.p
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.4 }}
               className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-brand-gold"
             >
               Flexible Plans
             </motion.p>
             <motion.h1
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 18 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.5 }}
               className="mb-6 max-w-3xl text-4xl font-black tracking-tight text-white md:text-6xl"
             >
               Sydney rental plans built for professional drivers.
             </motion.h1>
             <motion.p
-              initial={{ opacity: 0, y: 22 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 22 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
               className="max-w-2xl text-lg leading-8 text-slate-300"
             >
               Compare each plan&apos;s billing cadence, support level, and included services before
@@ -63,10 +64,10 @@ export default function Pricing() {
           </div>
 
           <motion.div
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.55 }}
-            className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/10 p-2 shadow-[0_28px_90px_rgba(0,0,0,0.3)]"
+            initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.97 }}
+            animate={shouldReduceMotion ? undefined : { opacity: 1, scale: 1 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.55 }}
+            className="overflow-hidden rounded-3xl border border-white/10 bg-white/10 p-2 shadow-2xl"
           >
             <img
               src={featuredVehicleImages[1]}
@@ -107,7 +108,7 @@ export default function Pricing() {
               </p>
               <Link
                 to="/apply"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
+                className="focus-ring-light inline-flex items-center justify-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
               >
                 Start Application <ArrowRight className="w-4 h-4" />
               </Link>
@@ -125,7 +126,7 @@ export default function Pricing() {
               </p>
               <Link
                 to="/apply"
-                className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-navy px-6 py-4 text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors hover:bg-brand-navy-light"
+                className="focus-ring-light mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-navy px-6 py-4 text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors hover:bg-brand-navy-light"
               >
                 Start Application <ArrowRight className="w-4 h-4" />
               </Link>
@@ -137,9 +138,9 @@ export default function Pricing() {
               {rentalPlans.map((plan, index) => (
                 <motion.div
                   key={plan.id}
-                  initial={{ opacity: 0, y: 24 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.45, delay: index * 0.08 }}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 24 }}
+                  animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.45, delay: shouldReduceMotion ? 0 : index * 0.08 }}
                   className={`relative rounded-3xl border overflow-hidden flex flex-col ${plan.popular ? 'bg-brand-navy text-white border-brand-gold/50 shadow-[0_25px_70px_rgba(0,35,71,0.22)]' : 'bg-white text-brand-navy border-slate-200 shadow-sm'}`}
                 >
                   {plan.popular && (
@@ -184,13 +185,13 @@ export default function Pricing() {
                   <div className="p-8 pt-0 space-y-3">
                     <Link
                       to="/apply"
-                      className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full px-5 py-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors ${plan.popular ? 'bg-brand-gold text-brand-navy hover:bg-brand-gold-light' : 'bg-brand-navy text-white hover:bg-brand-navy-light'}`}
+                      className={`focus-ring-light inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full px-5 py-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors ${plan.popular ? 'bg-brand-gold text-brand-navy hover:bg-brand-gold-light' : 'bg-brand-navy text-white hover:bg-brand-navy-light'}`}
                     >
                       Start Application <ArrowRight className="w-4 h-4" />
                     </Link>
                     <Link
                       to="/"
-                      className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border px-5 py-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors ${plan.popular ? 'border-white/15 text-white hover:border-white/40' : 'border-slate-200 text-brand-navy hover:border-brand-navy/25'}`}
+                      className={`focus-ring-light inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border px-5 py-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors ${plan.popular ? 'border-white/15 text-white hover:border-white/40' : 'border-slate-200 text-brand-navy hover:border-brand-navy/25'}`}
                     >
                       Back to Home
                     </Link>

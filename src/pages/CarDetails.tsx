@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import {
   Car as CarIcon,
   Calendar,
@@ -24,7 +24,7 @@ const statusStyles: Record<Car['status'], string> = {
 };
 
 const VehicleHeroPlaceholder = ({ name }: { name: string }) => (
-  <div className="flex h-full min-h-[320px] w-full items-center justify-center bg-[radial-gradient(circle_at_top_right,rgba(223,177,37,0.28),transparent_34%),linear-gradient(135deg,#0b1f36_0%,#123152_54%,#061425_100%)] p-8 text-center sm:min-h-[420px]">
+  <div className="flex h-full min-h-[320px] w-full items-center justify-center bg-brand-navy p-8 text-center sm:min-h-[420px]">
     <div>
       <CarIcon className="mx-auto mb-5 h-16 w-16 text-brand-gold" />
       <p className="text-xs font-black uppercase tracking-[0.28em] text-brand-gold">
@@ -37,6 +37,7 @@ const VehicleHeroPlaceholder = ({ name }: { name: string }) => (
 
 export default function CarDetails() {
   const { id } = useParams();
+  const shouldReduceMotion = useReducedMotion();
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +86,7 @@ export default function CarDetails() {
     return (
       <>
         {pageSeo}
-        <div className="min-h-screen bg-[#eef1f5] flex items-center justify-center">
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center">
           <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
         </div>
       </>
@@ -96,14 +97,14 @@ export default function CarDetails() {
     return (
       <>
         {pageSeo}
-        <div className="min-h-screen bg-[#eef1f5] flex items-center justify-center p-6">
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
           <div className="text-center">
             <p className="text-red-500 font-bold uppercase tracking-widest mb-6">
               {error || 'Vehicle not found'}
             </p>
             <Link
               to="/cars"
-              className="text-brand-gold hover:text-white transition-colors flex items-center justify-center gap-2"
+              className="focus-ring-light rounded text-brand-gold hover:text-brand-navy transition-colors flex items-center justify-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" /> Back to Fleet
             </Link>
@@ -119,19 +120,19 @@ export default function CarDetails() {
   return (
     <>
       {pageSeo}
-      <div className="min-h-screen bg-[#eef1f5] bg-[radial-gradient(circle_at_top_left,rgba(223,177,37,0.14),transparent_34%)] pb-20 pt-24 md:pb-24 md:pt-32">
+      <div className="min-h-screen bg-slate-100 pb-20 pt-24 md:pb-24 md:pt-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Link
             to="/cars"
-            className="mb-12 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 transition-colors hover:text-brand-gold-dark"
+            className="focus-ring-light mb-12 inline-flex items-center gap-2 rounded text-[10px] font-bold uppercase tracking-widest text-slate-500 transition-colors hover:text-brand-gold-dark"
           >
             <ArrowLeft className="w-4 h-4" /> Back to Fleet
           </Link>
 
           <motion.section
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 18 }}
+            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
             className="mb-10 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(11,31,54,0.12)]"
           >
             <div className="relative aspect-[16/10] min-h-[320px] overflow-hidden bg-slate-100 sm:min-h-[420px] lg:aspect-[16/7]">
@@ -161,9 +162,9 @@ export default function CarDetails() {
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:gap-10">
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
+              initial={shouldReduceMotion ? false : { opacity: 0, x: -20 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, x: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
               className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_18px_45px_rgba(11,31,54,0.08)] sm:p-8"
             >
               <p className="mb-4 text-xs font-black uppercase tracking-[0.28em] text-brand-gold-dark">
@@ -205,9 +206,9 @@ export default function CarDetails() {
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
+              initial={shouldReduceMotion ? false : { opacity: 0, x: 20 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, x: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
               className="space-y-8"
             >
               <div className="rounded-3xl border border-brand-gold/30 bg-white p-7 shadow-[0_24px_60px_rgba(11,31,54,0.12)] sm:p-8">
@@ -236,9 +237,10 @@ export default function CarDetails() {
 
               <Link
                 to="/apply"
+                aria-disabled={car.status !== 'Available'}
                 className={`flex min-h-16 w-full items-center justify-center gap-3 py-5 text-sm font-bold uppercase tracking-widest shadow-2xl transition-all ${
                   car.status === 'Available'
-                    ? 'rounded-full bg-brand-gold hover:bg-brand-gold-light text-brand-navy'
+                    ? 'focus-ring-light rounded-full bg-brand-gold hover:bg-brand-gold-light text-brand-navy'
                     : 'rounded-full bg-white text-slate-400 cursor-not-allowed border border-slate-200'
                 }`}
                 onClick={(event) => car.status !== 'Available' && event.preventDefault()}

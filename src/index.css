@@ -25,3 +25,37 @@
     overflow-x: hidden;
   }
 }
+
+@layer components {
+  .focus-ring-light {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+  }
+
+  .focus-ring-dark {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:ring-offset-2 focus-visible:ring-offset-brand-navy;
+  }
+
+  .home-mobile-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(100%, calc(100vw - 3.5rem));
+  }
+
+  .public-mobile-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(100%, calc(100vw - 3.5rem));
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-mobile-links {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .public-mobile-links {
+    display: none;
+  }
+}

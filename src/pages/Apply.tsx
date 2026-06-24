@@ -115,11 +115,14 @@ const steps = [
 ] as const;
 
 const fieldClass =
-  'w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold [color-scheme:dark]';
+  'focus-ring-dark w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold [color-scheme:dark]';
+const labelClass = 'text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey';
+const applicationFieldId = (field: string) => `application-${field}`;
+const applicationErrorId = (field: string) => `${applicationFieldId(field)}-error`;
 
-function FieldError({ message }: { message?: string }) {
+function FieldError({ message, id }: { message?: string; id?: string }) {
   if (!message) return null;
-  return <p className="text-[11px] font-semibold text-red-300">{message}</p>;
+  return <p id={id} className="text-[11px] font-semibold text-red-300">{message}</p>;
 }
 
 function Section({
@@ -192,6 +195,12 @@ export default function Apply() {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: '' }));
   };
+
+  const fieldA11y = (field: keyof FormState) => ({
+    id: applicationFieldId(field),
+    'aria-invalid': errors[field] ? true : undefined,
+    'aria-describedby': errors[field] ? applicationErrorId(field) : undefined,
+  });
 
   const validateStep = () => {
     const nextErrors: Record<string, string> = {};
@@ -360,13 +369,13 @@ export default function Apply() {
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Link
                 to="/"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy"
+                className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy"
               >
                 Return Home
               </Link>
               <Link
                 to="/my-rental"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-white"
+                className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-white"
               >
                 My Rental
               </Link>
@@ -385,28 +394,28 @@ export default function Apply() {
         canonicalPath="/apply"
       />
 
-      <section className="mx-auto max-w-7xl px-6 py-24 lg:px-8 lg:py-28">
-        <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="lg:sticky lg:top-28">
+      <section className="mx-auto max-w-7xl overflow-hidden px-6 py-24 lg:px-8 lg:py-28">
+        <div className="grid min-w-0 gap-10 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="min-w-0 lg:sticky lg:top-28">
             <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">Apply now</p>
-            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-6xl">
+            <h1 className="mt-5 max-w-[15ch] text-3xl font-black leading-tight tracking-tight sm:max-w-xl sm:text-6xl">
               Premium rental approvals, organized in five steps.
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-stone-300">
+            <p className="mt-6 max-w-[32ch] text-base leading-8 text-stone-300 sm:max-w-xl sm:text-lg">
               Gala Rentals keeps the experience calm and professional. Submit your details, upload documents,
               and accept the agreement before the admin review begins.
             </p>
 
-            <div className="mt-10 flex flex-wrap gap-3">
+            <div className="mt-10 flex max-w-[320px] flex-wrap gap-3 sm:max-w-xl">
               {['Validated by Zod', 'Admin reviewed', 'Stripe-ready'].map((item) => (
-                <span key={item} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-grey">
+                <span key={item} className="inline-flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-grey sm:text-[11px] sm:tracking-[0.2em]">
                   <ShieldCheck className="h-3.5 w-3.5 text-brand-gold" />
                   {item}
                 </span>
               ))}
             </div>
 
-            <div className="mt-10 grid gap-2 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:grid-cols-3">
+            <div className="mt-10 grid max-w-[320px] gap-2 rounded-3xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl sm:max-w-none sm:grid-cols-3">
               {[
                 { icon: User, label: 'Driver details' },
                 { icon: FileText, label: 'Documents' },
@@ -419,7 +428,7 @@ export default function Apply() {
               ))}
             </div>
 
-            <div className="mt-8 grid grid-cols-5 gap-2">
+            <div className="mt-8 grid max-w-[320px] grid-cols-5 gap-2 sm:max-w-none">
               {steps.map((item) => (
                 <div
                   key={item.id}
@@ -438,7 +447,7 @@ export default function Apply() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {errors.form && (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-50">
+              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-50" role="alert">
                 {errors.form}
               </div>
             )}
@@ -447,50 +456,72 @@ export default function Apply() {
               <Section eyebrow="Step 1" title="Personal details" description="Tell us who you are and how we can reach you.">
                 <div className="grid gap-5 md:grid-cols-2">
                   <div className="space-y-2 md:col-span-2">
+                    <label htmlFor={applicationFieldId('name')} className={labelClass}>
+                      Full name
+                    </label>
                     <input
+                      {...fieldA11y('name')}
                       value={form.name}
                       onChange={(event) => setField('name', event.target.value)}
                       placeholder="Full name"
                       className={fieldClass}
                     />
-                    <FieldError message={errors.name} />
+                    <FieldError id={applicationErrorId('name')} message={errors.name} />
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('date_of_birth')} className={labelClass}>
+                      Date of birth
+                    </label>
                     <input
+                      {...fieldA11y('date_of_birth')}
                       type="date"
                       value={form.date_of_birth}
                       onChange={(event) => setField('date_of_birth', event.target.value)}
                       className={fieldClass}
                     />
-                    <FieldError message={errors.date_of_birth} />
+                    <FieldError id={applicationErrorId('date_of_birth')} message={errors.date_of_birth} />
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('phone')} className={labelClass}>
+                      Mobile number
+                    </label>
                     <input
+                      {...fieldA11y('phone')}
                       value={form.phone}
                       onChange={(event) => setField('phone', event.target.value)}
                       placeholder="Mobile number"
+                      autoComplete="tel"
                       className={fieldClass}
                     />
-                    <FieldError message={errors.phone} />
+                    <FieldError id={applicationErrorId('phone')} message={errors.phone} />
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('email')} className={labelClass}>
+                      Email address
+                    </label>
                     <input
+                      {...fieldA11y('email')}
                       value={form.email}
                       onChange={(event) => setField('email', event.target.value)}
                       placeholder="Email address"
+                      autoComplete="email"
                       className={fieldClass}
                     />
-                    <FieldError message={errors.email} />
+                    <FieldError id={applicationErrorId('email')} message={errors.email} />
                   </div>
                   <div className="space-y-2 md:col-span-2">
+                    <label htmlFor={applicationFieldId('address')} className={labelClass}>
+                      Residential address
+                    </label>
                     <textarea
+                      {...fieldA11y('address')}
                       value={form.address}
                       onChange={(event) => setField('address', event.target.value)}
                       placeholder="Residential address"
                       rows={3}
                       className={fieldClass}
                     />
-                    <FieldError message={errors.address} />
+                    <FieldError id={applicationErrorId('address')} message={errors.address} />
                   </div>
                 </div>
               </Section>
@@ -500,7 +531,11 @@ export default function Apply() {
               <Section eyebrow="Step 2" title="Driver details" description="We review licence and driving history details before approval.">
                 <div className="grid gap-5 md:grid-cols-2">
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('licence_state')} className={labelClass}>
+                      Licence state
+                    </label>
                     <select
+                      {...fieldA11y('licence_state')}
                       value={form.licence_state}
                       onChange={(event) => setField('licence_state', event.target.value)}
                       className={fieldClass}
@@ -514,28 +549,40 @@ export default function Apply() {
                       <option value="ACT">ACT</option>
                       <option value="NT">NT</option>
                     </select>
-                    <FieldError message={errors.licence_state} />
+                    <FieldError id={applicationErrorId('licence_state')} message={errors.licence_state} />
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('license_number')} className={labelClass}>
+                      Licence number
+                    </label>
                     <input
+                      {...fieldA11y('license_number')}
                       value={form.license_number}
                       onChange={(event) => setField('license_number', event.target.value)}
                       placeholder="Licence number"
                       className={fieldClass}
                     />
-                    <FieldError message={errors.license_number} />
+                    <FieldError id={applicationErrorId('license_number')} message={errors.license_number} />
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('license_expiry')} className={labelClass}>
+                      Licence expiry
+                    </label>
                     <input
+                      {...fieldA11y('license_expiry')}
                       type="date"
                       value={form.license_expiry}
                       onChange={(event) => setField('license_expiry', event.target.value)}
                       className={fieldClass}
                     />
-                    <FieldError message={errors.license_expiry} />
+                    <FieldError id={applicationErrorId('license_expiry')} message={errors.license_expiry} />
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('uber_status')} className={labelClass}>
+                      Rideshare status
+                    </label>
                     <select
+                      {...fieldA11y('uber_status')}
                       value={form.uber_status}
                       onChange={(event) => setField('uber_status', event.target.value as FormState['uber_status'])}
                       className={fieldClass}
@@ -544,10 +591,14 @@ export default function Apply() {
                       <option value="Applying">Applying</option>
                       <option value="Not Yet Registered">Not Yet Registered</option>
                     </select>
-                    <FieldError message={errors.uber_status} />
+                    <FieldError id={applicationErrorId('uber_status')} message={errors.uber_status} />
                   </div>
                   <div className="space-y-2 md:col-span-2">
+                    <label htmlFor={applicationFieldId('experience')} className={labelClass}>
+                      Driving experience
+                    </label>
                     <select
+                      {...fieldA11y('experience')}
                       value={form.experience}
                       onChange={(event) => setField('experience', event.target.value as FormState['experience'])}
                       className={fieldClass}
@@ -557,10 +608,14 @@ export default function Apply() {
                       <option value="1-3 years">1-3 years</option>
                       <option value="3+ years">3+ years</option>
                     </select>
-                    <FieldError message={errors.experience} />
+                    <FieldError id={applicationErrorId('experience')} message={errors.experience} />
                   </div>
                   <div className="space-y-2 md:col-span-2">
+                    <label htmlFor={applicationFieldId('driving_history_notes')} className={labelClass}>
+                      Driving history notes
+                    </label>
                     <textarea
+                      {...fieldA11y('driving_history_notes')}
                       value={form.driving_history_notes}
                       onChange={(event) => setField('driving_history_notes', event.target.value)}
                       placeholder="Driving history notes"
@@ -576,7 +631,11 @@ export default function Apply() {
               <Section eyebrow="Step 3" title="Rental preference" description="Tell us what you are looking for and when you want to start.">
                 <div className="grid gap-5 md:grid-cols-2">
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('preferred_category')} className={labelClass}>
+                      Preferred category
+                    </label>
                     <select
+                      {...fieldA11y('preferred_category')}
                       value={form.preferred_category || 'Economy'}
                       onChange={(event) => setField('preferred_category', event.target.value as FormState['preferred_category'])}
                       className={fieldClass}
@@ -588,7 +647,11 @@ export default function Apply() {
                     </select>
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('preferred_vehicle')} className={labelClass}>
+                      Preferred vehicle
+                    </label>
                     <input
+                      {...fieldA11y('preferred_vehicle')}
                       value={form.preferred_vehicle}
                       onChange={(event) => setField('preferred_vehicle', event.target.value)}
                       placeholder="Preferred vehicle"
@@ -596,16 +659,24 @@ export default function Apply() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('intended_start_date')} className={labelClass}>
+                      Preferred start date
+                    </label>
                     <input
+                      {...fieldA11y('intended_start_date')}
                       type="date"
                       value={form.intended_start_date}
                       onChange={(event) => setField('intended_start_date', event.target.value)}
                       className={fieldClass}
                     />
-                    <FieldError message={errors.intended_start_date} />
+                    <FieldError id={applicationErrorId('intended_start_date')} message={errors.intended_start_date} />
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('weekly_budget')} className={labelClass}>
+                      Weekly budget
+                    </label>
                     <input
+                      {...fieldA11y('weekly_budget')}
                       value={form.weekly_budget}
                       onChange={(event) => setField('weekly_budget', event.target.value)}
                       placeholder="Weekly budget"
@@ -613,7 +684,11 @@ export default function Apply() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('rental_duration_weeks')} className={labelClass}>
+                      Rental duration
+                    </label>
                     <input
+                      {...fieldA11y('rental_duration_weeks')}
                       type="number"
                       min="1"
                       value={
@@ -632,7 +707,11 @@ export default function Apply() {
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
+                    <label htmlFor={applicationFieldId('rental_notes')} className={labelClass}>
+                      Rental notes
+                    </label>
                     <textarea
+                      {...fieldA11y('rental_notes')}
                       value={form.rental_notes}
                       onChange={(event) => setField('rental_notes', event.target.value)}
                       rows={4}
@@ -647,7 +726,7 @@ export default function Apply() {
             {step === 4 && (
               <Section eyebrow="Step 4" title="Documents" description="Upload clear copies so review can move quickly.">
                 <div className="grid gap-5 md:grid-cols-2">
-                  <label className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <label htmlFor={applicationFieldId('license_photo')} className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <Upload className="h-5 w-5 text-brand-gold" />
                       <div>
@@ -655,11 +734,11 @@ export default function Apply() {
                         <p className="text-sm text-brand-grey">{form.license_photo ? form.license_photo.name : 'JPG or PNG'}</p>
                       </div>
                     </div>
-                    <input type="file" accept={APPLICATION_IMAGE_CONTENT_TYPES.join(',')} onChange={(event) => handleFileChange(event, 'license_photo', 'image')} className="mt-4 w-full text-sm text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.2em] file:text-brand-navy" />
-                    <FieldError message={errors.license_photo} />
+                    <input {...fieldA11y('license_photo')} type="file" accept={APPLICATION_IMAGE_CONTENT_TYPES.join(',')} onChange={(event) => handleFileChange(event, 'license_photo', 'image')} className="focus-ring-dark mt-4 w-full rounded text-sm text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.2em] file:text-brand-navy" />
+                    <FieldError id={applicationErrorId('license_photo')} message={errors.license_photo} />
                   </label>
 
-                  <label className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <label htmlFor={applicationFieldId('license_back_photo')} className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <Upload className="h-5 w-5 text-brand-gold" />
                       <div>
@@ -667,11 +746,11 @@ export default function Apply() {
                         <p className="text-sm text-brand-grey">{form.license_back_photo ? form.license_back_photo.name : 'JPG or PNG'}</p>
                       </div>
                     </div>
-                    <input type="file" accept={APPLICATION_IMAGE_CONTENT_TYPES.join(',')} onChange={(event) => handleFileChange(event, 'license_back_photo', 'image')} className="mt-4 w-full text-sm text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.2em] file:text-brand-navy" />
-                    <FieldError message={errors.license_back_photo} />
+                    <input {...fieldA11y('license_back_photo')} type="file" accept={APPLICATION_IMAGE_CONTENT_TYPES.join(',')} onChange={(event) => handleFileChange(event, 'license_back_photo', 'image')} className="focus-ring-dark mt-4 w-full rounded text-sm text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.2em] file:text-brand-navy" />
+                    <FieldError id={applicationErrorId('license_back_photo')} message={errors.license_back_photo} />
                   </label>
 
-                  <label className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <label htmlFor={applicationFieldId('proof_of_address_document')} className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-brand-gold" />
                       <div>
@@ -679,11 +758,11 @@ export default function Apply() {
                         <p className="text-sm text-brand-grey">{form.proof_of_address_document ? form.proof_of_address_document.name : 'JPG, PNG, or PDF'}</p>
                       </div>
                     </div>
-                    <input type="file" accept={APPLICATION_DOCUMENT_CONTENT_TYPES.join(',')} onChange={(event) => handleFileChange(event, 'proof_of_address_document', 'document')} className="mt-4 w-full text-sm text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.2em] file:text-brand-navy" />
-                    <FieldError message={errors.proof_of_address_document} />
+                    <input {...fieldA11y('proof_of_address_document')} type="file" accept={APPLICATION_DOCUMENT_CONTENT_TYPES.join(',')} onChange={(event) => handleFileChange(event, 'proof_of_address_document', 'document')} className="focus-ring-dark mt-4 w-full rounded text-sm text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.2em] file:text-brand-navy" />
+                    <FieldError id={applicationErrorId('proof_of_address_document')} message={errors.proof_of_address_document} />
                   </label>
 
-                  <label className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <label htmlFor={applicationFieldId('additional_document')} className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-brand-gold" />
                       <div>
@@ -691,7 +770,7 @@ export default function Apply() {
                         <p className="text-sm text-brand-grey">{form.additional_document ? form.additional_document.name : 'Optional'}</p>
                       </div>
                     </div>
-                    <input type="file" accept={APPLICATION_DOCUMENT_CONTENT_TYPES.join(',')} onChange={(event) => handleFileChange(event, 'additional_document', 'document')} className="mt-4 w-full text-sm text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.2em] file:text-brand-navy" />
+                    <input {...fieldA11y('additional_document')} type="file" accept={APPLICATION_DOCUMENT_CONTENT_TYPES.join(',')} onChange={(event) => handleFileChange(event, 'additional_document', 'document')} className="focus-ring-dark mt-4 w-full rounded text-sm text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.2em] file:text-brand-navy" />
                   </label>
                 </div>
               </Section>
@@ -710,25 +789,30 @@ export default function Apply() {
 
                   <label className="flex items-start gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5">
                     <input
+                      {...fieldA11y('agreement_accepted')}
                       type="checkbox"
                       checked={Boolean(form.agreement_accepted)}
                       onChange={(event) => setField('agreement_accepted', event.target.checked)}
-                      className="mt-1 h-5 w-5 rounded border-white/20 bg-brand-navy text-brand-gold"
+                      className="focus-ring-dark mt-1 h-5 w-5 rounded border-white/20 bg-brand-navy text-brand-gold"
                     />
                     <span className="text-sm leading-7 text-white">
                       I have read and agree to the rental agreement and the review process.
                     </span>
                   </label>
-                  <FieldError message={errors.agreement_accepted} />
+                  <FieldError id={applicationErrorId('agreement_accepted')} message={errors.agreement_accepted} />
 
                   <div className="space-y-2">
+                    <label htmlFor={applicationFieldId('agreement_signature')} className={labelClass}>
+                      Typed signature
+                    </label>
                     <input
+                      {...fieldA11y('agreement_signature')}
                       value={form.agreement_signature}
                       onChange={(event) => setField('agreement_signature', event.target.value)}
                       placeholder="Typed signature"
                       className={fieldClass}
                     />
-                    <FieldError message={errors.agreement_signature} />
+                    <FieldError id={applicationErrorId('agreement_signature')} message={errors.agreement_signature} />
                   </div>
                 </div>
               </Section>
@@ -739,7 +823,7 @@ export default function Apply() {
                 <button
                   type="button"
                   onClick={() => setStep((current) => Math.max(current - 1, 1))}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-white"
+                  className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-white"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Back
@@ -752,7 +836,7 @@ export default function Apply() {
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy"
+                  className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy"
                 >
                   Continue
                   <ArrowRight className="h-4 w-4" />
@@ -761,7 +845,7 @@ export default function Apply() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy disabled:opacity-60"
+                  className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy disabled:opacity-60"
                 >
                   {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   {isSubmitting ? 'Submitting' : 'Submit application'}

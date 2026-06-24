@@ -4,6 +4,10 @@ import { submitInquiry } from '../lib/api';
 import { useState, type FormEvent } from 'react';
 import { featuredVehicleImages } from '../lib/publicVehicleImages';
 
+const inputClass =
+  'focus-ring-dark rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold';
+const labelClass = 'text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey';
+
 export default function Contact() {
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -64,7 +68,7 @@ export default function Contact() {
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">{item.title}</p>
                     {item.href ? (
-                      <a href={item.href} className="text-sm text-white transition-colors hover:text-brand-gold">
+                      <a href={item.href} className="focus-ring-dark rounded text-sm text-white transition-colors hover:text-brand-gold">
                         {item.body}
                       </a>
                     ) : (
@@ -89,31 +93,50 @@ export default function Contact() {
             <h2 className="mt-4 text-3xl font-semibold text-white">Send an enquiry</h2>
 
             <div className="mt-8 grid gap-4">
-              <input name="name" required placeholder="Your name" className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold" />
-              <input name="email" type="email" required placeholder="Email address" className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold" />
-              <input name="phone" required placeholder="Phone number" className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold" />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <input name="startDate" type="date" required className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors focus:border-brand-gold [color-scheme:dark]" />
-                <input name="endDate" type="date" required className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors focus:border-brand-gold [color-scheme:dark]" />
+              <div className="grid gap-2">
+                <label htmlFor="contact-name" className={labelClass}>Your name</label>
+                <input id="contact-name" name="name" required autoComplete="name" placeholder="Your name" className={inputClass} />
               </div>
-              <textarea
-                name="message"
-                required
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                rows={6}
-                placeholder="Tell us what you need help with"
-                className="rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none placeholder:text-brand-grey/60 focus:border-brand-gold"
-              />
+              <div className="grid gap-2">
+                <label htmlFor="contact-email" className={labelClass}>Email address</label>
+                <input id="contact-email" name="email" type="email" required autoComplete="email" placeholder="Email address" className={inputClass} />
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="contact-phone" className={labelClass}>Phone number</label>
+                <input id="contact-phone" name="phone" required autoComplete="tel" placeholder="Phone number" className={inputClass} />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <label htmlFor="contact-start-date" className={labelClass}>Preferred start date</label>
+                  <input id="contact-start-date" name="startDate" type="date" required className={`${inputClass} [color-scheme:dark]`} />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="contact-end-date" className={labelClass}>Preferred end date</label>
+                  <input id="contact-end-date" name="endDate" type="date" required className={`${inputClass} [color-scheme:dark]`} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="contact-message" className={labelClass}>Message</label>
+                <textarea
+                  id="contact-message"
+                  name="message"
+                  required
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  rows={6}
+                  placeholder="Tell us what you need help with"
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             {status === 'sent' && (
-              <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50">
+              <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50" role="status">
                 Your message has been sent.
               </div>
             )}
             {status === 'error' && (
-              <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-50">
+              <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-50" role="alert">
                 We could not send your enquiry. Please try again.
               </div>
             )}
@@ -121,7 +144,7 @@ export default function Contact() {
             <button
               type="submit"
               disabled={status === 'sending'}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy transition-colors hover:bg-brand-gold-light disabled:opacity-60"
+              className="focus-ring-dark mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy transition-colors hover:bg-brand-gold-light disabled:opacity-60"
             >
               <Send className="h-4 w-4" />
               {status === 'sending' ? 'Sending' : 'Send enquiry'}

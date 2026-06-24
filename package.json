@@ -27,7 +27,10 @@
     "stripe:reset": "tsx scripts/stripe-reset.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "validate": "npm run lint && npm run test"
+    "validate": "npm run lint && npm run test",
+    "load:test": "node scripts/load-test.mjs --profile=read-only-api",
+    "load:test:smoke": "node scripts/load-test.mjs --profile=smoke --duration=15 --concurrency=2",
+    "load:test:pages": "node scripts/load-test.mjs --profile=public-pages"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

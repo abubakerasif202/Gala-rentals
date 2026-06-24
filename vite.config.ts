@@ -5,57 +5,11 @@ import { configDefaults } from 'vitest/config';
 import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
-  const isNodeModule = (id: string, packageName: string) =>
-    id.includes(`/node_modules/${packageName}/`) || id.includes(`\\node_modules\\${packageName}\\`);
-
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
-      },
-    },
-    build: {
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (!id.includes('node_modules')) {
-              return;
-            }
-
-            if (
-              isNodeModule(id, 'react') ||
-              isNodeModule(id, 'react-dom') ||
-              isNodeModule(id, 'react-router-dom')
-            ) {
-              return 'vendor';
-            }
-
-            if (isNodeModule(id, '@tanstack/react-query')) {
-              return 'react-query';
-            }
-
-            if (isNodeModule(id, 'axios')) {
-              return 'http';
-            }
-
-            if (
-              isNodeModule(id, 'react-hook-form') ||
-              isNodeModule(id, '@hookform/resolvers') ||
-              isNodeModule(id, 'zod')
-            ) {
-              return 'forms';
-            }
-
-            if (id.includes('motion')) {
-              return 'motion';
-            }
-
-            if (isNodeModule(id, 'lucide-react')) {
-              return 'icons';
-            }
-          },
-        },
       },
     },
     server: {

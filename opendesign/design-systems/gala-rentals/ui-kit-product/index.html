@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gala Rentals UI Kit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Playfair+Display:wght@700&amp;display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../tokens/colors_and_type.css" />
+  <style>
+    body {
+      margin: 0;
+      background: var(--surface-admin-page);
+      color: var(--text-admin-strong);
+      font-family: var(--font-body);
+    }
+    main {
+      padding: 40px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .panel {
+      border: 1px solid var(--border-admin-subtle);
+      border-radius: var(--radius-panel);
+      background: var(--surface-admin-panel);
+      box-shadow: var(--shadow-admin-panel);
+      padding: 24px;
+    }
+    .public {
+      background: var(--surface-public-panel);
+      color: var(--text-public-strong);
+    }
+    .eyebrow {
+      color: var(--accent-primary);
+      font-size: var(--type-micro);
+      font-weight: 900;
+      letter-spacing: var(--tracking-eyebrow);
+      text-transform: uppercase;
+    }
+    h1, h2 {
+      margin: 0;
+      line-height: 1;
+    }
+    h1 {
+      font-family: var(--font-display);
+      font-size: var(--type-display);
+    }
+    h2 {
+      font-size: var(--type-section);
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .btn {
+      min-height: 44px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 20px;
+      font-size: var(--type-micro);
+      font-weight: 900;
+      letter-spacing: var(--tracking-control);
+      text-transform: uppercase;
+    }
+    .btn-primary {
+      background: var(--accent-primary);
+      color: var(--gr-navy-900);
+      box-shadow: var(--shadow-gold-action);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: inherit;
+      border: 1px solid currentColor;
+    }
+    .badge {
+      border: 1px solid var(--border-admin-subtle);
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: var(--type-micro);
+      font-weight: 900;
+      letter-spacing: var(--tracking-control);
+      text-transform: uppercase;
+    }
+    .pending { color: var(--status-pending-text); background: var(--status-pending-bg); }
+    .approved { color: var(--status-approved-text); background: var(--status-approved-bg); }
+    .paid { color: var(--status-paid-text); background: var(--status-paid-bg); }
+    .review { color: var(--status-review-text); background: var(--status-review-bg); }
+    .rejected { color: var(--status-rejected-text); background: var(--status-rejected-bg); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--type-small);
+    }
+    th {
+      color: var(--text-admin-muted);
+      font-size: var(--type-micro);
+      letter-spacing: var(--tracking-control);
+      text-align: left;
+      text-transform: uppercase;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border-admin-subtle);
+      padding: 14px 10px;
+    }
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(70px, 1fr));
+      gap: 10px;
+    }
+    .swatch {
+      min-height: 74px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.14);
+      padding: 10px;
+      display: flex;
+      align-items: end;
+      color: white;
+      font-size: 10px;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Gala Rentals UI Kit</p>
+    <h1>Premium rental SaaS system</h1>
+    <div class="grid" style="margin-top: 28px;">
+      <section class="panel public">
+        <p class="eyebrow">Public hero</p>
+        <h2>Apply online. Pay only after approval.</h2>
+        <p>White shell, navy headline, gold primary CTA, vehicle imagery, and review-before-payment trust copy.</p>
+        <div class="row">
+          <button class="btn btn-primary">Apply Now</button>
+          <button class="btn btn-secondary">Browse Fleet</button>
+        </div>
+      </section>
+      <section class="panel">
+        <p class="eyebrow">Statuses</p>
+        <div class="row">
+          <span class="badge pending">Pending</span>
+          <span class="badge approved">Approved</span>
+          <span class="badge paid">Paid</span>
+          <span class="badge review">Payment Review</span>
+          <span class="badge rejected">Rejected</span>
+        </div>
+      </section>
+      <section class="panel">
+        <p class="eyebrow">Admin table</p>
+        <table>
+          <thead>
+            <tr><th>Driver</th><th>Status</th><th>Weekly</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Amelia Hart</td><td><span class="badge pending">Pending</span></td><td>$420</td><td>Review</td></tr>
+            <tr><td>Rafi Mahmoud</td><td><span class="badge approved">Approved</span></td><td>$465</td><td>Send Link</td></tr>
+            <tr><td>Grace Chen</td><td><span class="badge paid">Paid</span></td><td>$440</td><td>Agreement</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section class="panel">
+        <p class="eyebrow">Core palette</p>
+        <div class="swatches">
+          <div class="swatch" style="background: var(--gr-navy-950);">Navy 950</div>
+          <div class="swatch" style="background: var(--gr-navy-900);">Navy 900</div>
+          <div class="swatch" style="background: var(--gr-gold-500); color: #061425;">Gold 500</div>
+          <div class="swatch" style="background: var(--gr-slate-400); color: #061425;">Slate 400</div>
+          <div class="swatch" style="background: var(--gr-red-500);">Red 500</div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,83 @@
+{
+  "generated": "2026-06-24T04:07:24Z",
+  "sections": [
+    {
+      "id": "mockups",
+      "label": "Mockups",
+      "groups": [
+        {
+          "slug": "gala-rentals-ui-system",
+          "files": [
+            {
+              "label": "index.html",
+              "path": "mockups/gala-rentals-ui-system/index.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "design-systems",
+      "label": "Design Systems",
+      "groups": [
+        {
+          "slug": "gala-rentals",
+          "files": [
+            {
+              "label": "README.md",
+              "path": "design-systems/gala-rentals/README.md"
+            },
+            {
+              "label": "SKILL.md",
+              "path": "design-systems/gala-rentals/SKILL.md"
+            },
+            {
+              "label": "assets/imagery/ai-gala-navy-sedan-front.png",
+              "path": "design-systems/gala-rentals/assets/imagery/ai-gala-navy-sedan-front.png"
+            },
+            {
+              "label": "assets/imagery/ai-gala-navy-sedan-hero.png",
+              "path": "design-systems/gala-rentals/assets/imagery/ai-gala-navy-sedan-hero.png"
+            },
+            {
+              "label": "assets/imagery/ai-gala-silver-sedan-profile.png",
+              "path": "design-systems/gala-rentals/assets/imagery/ai-gala-silver-sedan-profile.png"
+            },
+            {
+              "label": "assets/logos/gala-logo-footer.png",
+              "path": "design-systems/gala-rentals/assets/logos/gala-logo-footer.png"
+            },
+            {
+              "label": "assets/logos/gala-logo-navbar.png",
+              "path": "design-systems/gala-rentals/assets/logos/gala-logo-navbar.png"
+            },
+            {
+              "label": "brand/style-notes.md",
+              "path": "design-systems/gala-rentals/brand/style-notes.md"
+            },
+            {
+              "label": "brand/voice-and-tone.md",
+              "path": "design-systems/gala-rentals/brand/voice-and-tone.md"
+            },
+            {
+              "label": "tokens/colors_and_type.css",
+              "path": "design-systems/gala-rentals/tokens/colors_and_type.css"
+            },
+            {
+              "label": "ui-kit-product/components/DetailCard.jsx",
+              "path": "design-systems/gala-rentals/ui-kit-product/components/DetailCard.jsx"
+            },
+            {
+              "label": "ui-kit-product/components/StatusBadge.jsx",
+              "path": "design-systems/gala-rentals/ui-kit-product/components/StatusBadge.jsx"
+            },
+            {
+              "label": "ui-kit-product/index.html",
+              "path": "design-systems/gala-rentals/ui-kit-product/index.html"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

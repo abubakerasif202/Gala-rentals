@@ -1,0 +1,96 @@
+:root {
+  /* Raw color tokens from current Gala Rentals codebase */
+  --gr-navy-950: #061425;
+  --gr-navy-900: #0b1f36;
+  --gr-navy-800: #123152;
+  --gr-navy-700: #1e3a5f;
+  --gr-gold-700: #b99218;
+  --gr-gold-500: #dfb125;
+  --gr-gold-400: #f0c94a;
+  --gr-red-500: #e31b23;
+  --gr-silver-100: #f8fafc;
+  --gr-silver-150: #eef1f5;
+  --gr-silver-200: #e5e4e2;
+  --gr-slate-400: #94a3b8;
+  --gr-white: #ffffff;
+  --gr-black: #020617;
+
+  /* Semantic color tokens */
+  --surface-public-page: var(--gr-silver-150);
+  --surface-public-panel: var(--gr-white);
+  --surface-admin-page: var(--gr-navy-950);
+  --surface-admin-panel: color-mix(in srgb, var(--gr-white) 5%, transparent);
+  --surface-admin-panel-strong: var(--gr-navy-900);
+  --surface-raised: var(--gr-white);
+  --text-public-strong: var(--gr-navy-900);
+  --text-public-muted: #64748b;
+  --text-admin-strong: var(--gr-white);
+  --text-admin-muted: var(--gr-slate-400);
+  --accent-primary: var(--gr-gold-500);
+  --accent-primary-hover: var(--gr-gold-400);
+  --accent-primary-pressed: var(--gr-gold-700);
+  --border-public-subtle: #e2e8f0;
+  --border-admin-subtle: color-mix(in srgb, var(--gr-white) 10%, transparent);
+  --border-gold-subtle: color-mix(in srgb, var(--gr-gold-500) 28%, transparent);
+
+  /* Status tokens */
+  --status-pending-bg: #061425;
+  --status-pending-text: #94a3b8;
+  --status-approved-bg: #052e1a;
+  --status-approved-text: #4ade80;
+  --status-paid-bg: #2d2205;
+  --status-paid-text: var(--gr-gold-400);
+  --status-review-bg: #332407;
+  --status-review-text: #fbbf24;
+  --status-rejected-bg: #3f0c12;
+  --status-rejected-text: #fca5a5;
+
+  /* Typography */
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-script: "Dancing Script", cursive;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+
+  --type-hero: clamp(3.5rem, 8vw, 7.5rem);
+  --type-display: clamp(2.5rem, 5vw, 4.5rem);
+  --type-title: clamp(1.75rem, 3vw, 2.75rem);
+  --type-section: clamp(1.25rem, 2vw, 1.75rem);
+  --type-body: 1rem;
+  --type-small: 0.875rem;
+  --type-caption: 0.75rem;
+  --type-micro: 0.625rem;
+
+  --tracking-eyebrow: 0.24em;
+  --tracking-control: 0.18em;
+  --tracking-dense: 0.08em;
+
+  /* Radius and shadow */
+  --radius-control: 0.75rem;
+  --radius-card: 1rem;
+  --radius-panel: 1.5rem;
+  --radius-hero: 2rem;
+  --shadow-public-card: 0 18px 45px rgba(11, 31, 54, 0.08);
+  --shadow-public-shell: 0 28px 90px rgba(11, 31, 54, 0.14);
+  --shadow-admin-panel: 0 24px 80px rgba(0, 0, 0, 0.22);
+  --shadow-gold-action: 0 14px 34px rgba(185, 146, 24, 0.22);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-fast: 140ms;
+  --motion-standard: 240ms;
+  --motion-panel: 360ms;
+}
+
+.gr-public-shell {
+  background: radial-gradient(circle at top left, rgba(223, 177, 37, 0.16), transparent 34%),
+    linear-gradient(180deg, #f8fafc 0%, #eef1f5 52%, #e6ebf1 100%);
+  color: var(--text-public-strong);
+  font-family: var(--font-body);
+}
+
+.gr-admin-shell {
+  background: radial-gradient(circle at top right, rgba(223, 177, 37, 0.11), transparent 30%),
+    linear-gradient(180deg, #061425 0%, #0b1f36 54%, #061425 100%);
+  color: var(--text-admin-strong);
+  font-family: var(--font-body);
+}

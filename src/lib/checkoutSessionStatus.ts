@@ -141,7 +141,7 @@ export const getCheckoutStatusPresentation = ({
       showSecurePaymentLink: false,
       showSpinner: false,
       state,
-      title: 'Activation Pending',
+      title: 'Payment Review Pending',
       tone: 'review',
     };
   }

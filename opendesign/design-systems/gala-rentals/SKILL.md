@@ -10,20 +10,20 @@ Use this system for Gala Rentals public rental pages, application workflows, adm
 ## Product Rules
 
 - Preserve the application lifecycle: apply, admin review, approve pricing, issue secure Stripe checkout, mark paid, then run operational follow-up manually.
-- Checkout completion is payment-only in the current app. Do not imply automatic rental row creation or automatic vehicle assignment after payment.
-- Admin approval uses manual vehicle and number-plate text. Do not design a required live fleet assignment step for payment approval.
+- Checkout completion is payment-only in the current app. Do not imply automatic rental row creation or automatic asset assignment after payment.
+- Admin approval uses manually reviewed rental details. Do not design a required live fleet assignment step for payment approval.
 - Public pages must not expose admin-only workflows.
 
 ## Visual Direction
 
-Gala is premium Australian vehicle rental: dark navy authority, warm gold trust, white public clarity, and operationally dense admin surfaces. The system should feel closer to a financial operations console than a marketplace template.
+Gala is a premium Australian rental application platform: dark navy authority, warm gold trust, white public clarity, and operationally dense admin surfaces. The system should feel closer to a financial operations console than a marketplace template.
 
 ## Core Patterns
 
-- Public surfaces use white or pale silver shells, large vehicle imagery, navy CTAs, gold primary actions, and trust-focused copy.
+- Public surfaces use white or pale silver shells, generic rental-service imagery, navy CTAs, gold primary actions, and trust-focused copy.
 - Admin surfaces use deep navy backgrounds, white or translucent panels, compact tables, status badges, detail drawers, and audit/timeline panels.
 - Forms are calm, step-based, and explicit about review before payment.
-- Payment screens must show approved vehicle, bond, weekly amount, secure Stripe handoff, and post-payment manual onboarding notes.
+- Payment screens must show approved rental details, bond, weekly amount, secure Stripe handoff, and post-payment manual onboarding notes.
 - Documents and notices use structured panels with history, generation actions, and signed/private document language.
 
 ## Components To Prefer

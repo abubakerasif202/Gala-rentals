@@ -2595,7 +2595,7 @@ describe("Agreements API", () => {
 describe("IndexNow admin route", () => {
   it("POST /admin/test-indexnow requires admin auth", async () => {
     const res = await request(app).post("/admin/test-indexnow").send({
-      url: "http://localhost:5173/cars/1",
+      url: "http://localhost:5173/apply",
     });
 
     expect(res.status).toBe(401);
@@ -2606,7 +2606,7 @@ describe("IndexNow admin route", () => {
       .post("/admin/test-indexnow")
       .set("Authorization", "Bearer fake-token")
       .send({
-        url: "http://localhost:5173/cars/1",
+        url: "http://localhost:5173/apply",
       });
 
     expect(res.status).toBe(200);

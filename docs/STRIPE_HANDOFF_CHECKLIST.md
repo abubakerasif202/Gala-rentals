@@ -12,7 +12,7 @@ Use this checklist before handing Gala Rental over to a client or switching from
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_ANON_KEY`
 
-Recommended for automatic activation:
+Recommended for transactional payment-state recording:
 
 - `SUPABASE_DB_URL` or `DATABASE_URL`
 
@@ -20,9 +20,10 @@ Recommended for automatic activation:
 
 - Checkout runs in `subscription` mode.
 - The app creates hosted Checkout Sessions on the server.
-- Rental activation depends on Stripe webhooks hitting `POST /api/stripe/webhook`.
-- Automatic activation requires a session-capable Postgres connection on port `5432`.
-- Without that direct Postgres connection, successful payments fall back to `Payment Review` instead of automatic rental activation.
+- Final paid state depends on verified Stripe webhooks hitting `POST /api/stripe/webhook`.
+- Gala Rentals is intentionally payment-only after checkout: successful payment marks the application `Paid`, stores Stripe identifiers, clears the pending session, and does not mutate car status or create rental rows automatically.
+- Transactional payment-state recording requires a session-capable Postgres connection on port `5432`.
+- Without that direct Postgres connection, successful payments can fall back to `Payment Review` for operator follow-up.
 
 ## Pre-handover commands
 
@@ -38,7 +39,7 @@ Expected results:
 
 - `npm run validate` passes.
 - `npm run verify:schema-contract` passes with no missing columns.
-- `npm run stripe:handoff` returns `overallStatus: "pass"` for full automatic activation, or `overallStatus: "warn"` if manual-review mode is the only remaining non-live issue.
+- `npm run stripe:handoff` returns `overallStatus: "pass"` for full payment-state readiness, or `overallStatus: "warn"` if manual-review mode is the only remaining non-live issue.
 
 If the schema check fails because `stripe_webhook_events` is missing `status` or `received_at`, run:
 
@@ -57,7 +58,9 @@ npm run migrate:stripe-webhook-ledger
   - `checkout.session.async_payment_succeeded`
   - `checkout.session.async_payment_failed`
   - `checkout.session.expired`
+  - `invoice.payment_succeeded`
   - `invoice.payment_failed`
+  - `customer.subscription.created`
   - `customer.subscription.updated`
   - `customer.subscription.deleted`
 - Confirm the reusable catalog exists:
@@ -77,20 +80,20 @@ npm run migrate:stripe-webhook-ledger
 }
 ```
 
-If the deployment intentionally runs without a session-capable Postgres connection, expect `paymentActivationMode: "restricted"` and verify the team is prepared to process paid applications from `Payment Review`.
+If the deployment intentionally runs without a session-capable Postgres connection, expect `paymentActivationMode: "restricted"` and verify the team is prepared to review paid applications from `Payment Review`.
 
-- Payment links open the correct public `/checkout/:carId` URL.
+- Payment links open the correct public `/checkout/:applicationId` URL with a signed checkout token.
 - Successful Checkout redirects back to `/success` on the same domain.
-- A successful payment creates or updates the rental and stores Stripe customer and subscription IDs.
-- Failed recurring invoices move rentals to `Overdue`.
-- Subscription deletion updates the rental state and releases the vehicle when appropriate.
+- A successful payment marks the application `Paid`, stores Stripe customer, checkout session, subscription, invoice, and payment intent identifiers when Stripe provides them, and does not auto-create rentals.
+- Failed recurring invoices and subscription lifecycle events only update rentals that already have a strict Stripe subscription identity.
+- Subscription deletion does not release any vehicle unless an existing rental identity proves it is safe.
 
 ## Test before go-live
 
 - Complete one successful sandbox Checkout flow.
 - Confirm the webhook is received and processed once.
-- Confirm replayed webhook deliveries do not duplicate activation.
-- Confirm the rental moves to `Active`.
+- Confirm replayed webhook deliveries do not duplicate payment fulfillment.
+- Confirm the application moves to `Paid`, the pending checkout session clears, and no car status or rental row is created automatically.
 - Confirm the customer receives the expected email if `RESEND_API_KEY` is configured.
 - Confirm admin financials can load Stripe payouts if that feature is expected in the handoff.
 

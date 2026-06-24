@@ -3,7 +3,6 @@ import {
   ArrowRight,
   BadgeCheck,
   CalendarClock,
-  Car,
   ChevronRight,
   ClipboardCheck,
   Headphones,
@@ -12,7 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import Seo from '../components/Seo';
-import { featuredVehicleImages } from '../lib/publicVehicleImages';
+import { featuredRentalImages } from '../lib/genericRentalImages';
 import { buildCanonicalUrl } from '../lib/seo';
 
 const homeJsonLd = {
@@ -21,7 +20,7 @@ const homeJsonLd = {
   name: 'Gala Rentals',
   url: buildCanonicalUrl('/'),
   description:
-    'Premium weekly car rentals in Sydney with easy approvals, secure payments, and modern Toyota Camry options.',
+    'Premium subscription rental applications in Sydney with easy approvals, secure payments, and professional handover support.',
   telephone: '+61 1300 555 828',
   email: 'hello@gala-rentals.com.au',
   address: {
@@ -33,43 +32,42 @@ const homeJsonLd = {
   areaServed: [{ '@type': 'City', name: 'Sydney' }],
 };
 
-const fleetCards = [
+const rentalSupportCards = [
   {
-    badge: 'Popular Choice',
-    title: '2026 Toyota Camry',
-    image: featuredVehicleImages[0],
-    note: 'Refined hybrid-style comfort for weekly rental plans.',
+    badge: 'Application Support',
+    title: 'Fast rental approval',
+    image: featuredRentalImages[1],
+    note: 'Submit your details online and let Gala review the right rental setup before payment.',
   },
   {
-    badge: 'Executive Option',
-    title: '2026 Toyota Camry',
-    image: featuredVehicleImages[3],
-    note: 'Premium presentation for business and everyday driving.',
+    badge: 'Secure Checkout',
+    title: 'Subscription billing',
+    image: featuredRentalImages[4],
+    note: 'Stripe-hosted checkout opens only after your quote and start date are approved.',
   },
   {
-    badge: 'Flexible Rental',
-    title: '2026 Toyota Camry',
-    image: featuredVehicleImages[5],
-    note: 'Simple application, approval, and secure checkout flow.',
+    badge: 'Handover Ready',
+    title: 'Customer onboarding',
+    image: featuredRentalImages[2],
+    note: 'The team confirms handover details after payment so the rental can start cleanly.',
   },
 ];
 
 const reasons = [
-  { icon: CalendarClock, title: 'Flexible Weekly Rentals', body: 'Clear weekly rental plans designed around practical Sydney driving needs.' },
+  { icon: CalendarClock, title: 'Flexible Weekly Rentals', body: 'Clear subscription rental plans designed around practical Sydney needs.' },
   { icon: ClipboardCheck, title: 'Fast Application Process', body: 'Apply online with a calm approval process before payment is requested.' },
-  { icon: Sparkles, title: 'Premium Vehicles', body: 'Modern Toyota Camry options with clean presentation and professional handover.' },
+  { icon: Sparkles, title: 'Premium Rental Support', body: 'Professional onboarding, clean paperwork, and handover support after approval.' },
   { icon: Headphones, title: 'Local Support', body: 'Sydney-based support for applications, onboarding, payments, and follow-up.' },
 ];
 
 const steps = [
-  { icon: Car, title: 'Choose your vehicle' },
+  { icon: ClipboardCheck, title: 'Confirm rental needs' },
   { icon: ClipboardCheck, title: 'Submit your application' },
   { icon: BadgeCheck, title: 'Get approved' },
-  { icon: KeyRound, title: 'Start driving' },
+  { icon: KeyRound, title: 'Complete handover' },
 ];
 
 const navLinks = [
-  { label: 'Fleet', to: '/fleet' },
   { label: 'Pricing', to: '/pricing' },
   { label: 'How It Works', to: '#how-it-works' },
   { label: 'About', to: '/faq' },
@@ -80,14 +78,14 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-100 bg-[radial-gradient(circle_at_top_left,rgba(223,177,37,0.16),transparent_34%)] px-3 py-4 text-brand-navy selection:bg-brand-gold selection:text-brand-navy sm:px-6 sm:py-8">
       <Seo
-        title="Gala Rentals | Premium Car Rentals Sydney"
-        description="Premium weekly car rentals in Sydney with easy approvals, secure payments, and modern Toyota Camry options."
+        title="Gala Rentals | Premium Subscription Rentals Sydney"
+        description="Premium subscription rental applications in Sydney with easy approvals, secure payments, and professional handover support."
         canonicalPath="/"
         keywords={[
           'gala rentals',
-          'premium car rentals sydney',
-          'toyota camry rental sydney',
-          'weekly car rentals sydney',
+          'subscription rental sydney',
+          'weekly rental applications sydney',
+          'secure rental approval sydney',
           'galarentals.com.au',
         ]}
         jsonLd={homeJsonLd}
@@ -124,7 +122,7 @@ export default function Home() {
             to="/apply"
             className="focus-ring-light hidden shrink-0 items-center justify-center rounded-full bg-brand-navy px-5 py-3 text-sm font-bold text-white shadow-lg transition-colors hover:bg-brand-navy-light sm:inline-flex"
           >
-            Book Now
+            Apply Now
           </Link>
           </div>
 
@@ -152,7 +150,7 @@ export default function Home() {
               to="/apply"
               className="focus-ring-light min-w-0 rounded-2xl bg-brand-navy px-3 py-3 text-center text-xs font-black text-white transition-colors hover:bg-brand-navy-light"
             >
-              Book Now
+              Apply Now
             </Link>
           </div>
         </nav>
@@ -161,8 +159,8 @@ export default function Home() {
           <section className="px-4 pb-10 pt-5 sm:px-8 sm:pb-12 lg:px-10">
             <div className="relative min-h-[620px] overflow-hidden rounded-3xl bg-slate-200 shadow-inner lg:min-h-[560px]">
               <img
-	                src="/car-images/ai-gala-navy-sedan-hero.png"
-	                alt="2026 Toyota Camry premium rental vehicle"
+	                src={featuredRentalImages[0]}
+	                alt="Secure rental approval process"
                     width="1440"
                     height="900"
                     fetchPriority="high"
@@ -170,11 +168,11 @@ export default function Home() {
 	              />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.9)_46%,rgba(255,255,255,0.2)_100%)] lg:bg-[linear-gradient(90deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.84)_38%,rgba(255,255,255,0.16)_68%,rgba(255,255,255,0)_100%)]" />
               <div className="absolute bottom-5 right-5 hidden max-w-[360px] gap-3 lg:grid lg:grid-cols-2">
-                {featuredVehicleImages.slice(1, 5).map((image, index) => (
+                {featuredRentalImages.slice(1, 5).map((image, index) => (
                   <div key={image} className="overflow-hidden rounded-2xl border border-white/70 bg-white/80 p-1 shadow-[0_16px_38px_rgba(11,31,54,0.18)] backdrop-blur">
                     <img
 	                      src={image}
-	                      alt={`Gala Rentals fleet vehicle preview ${index + 1}`}
+	                      alt={`Gala Rentals rental support preview ${index + 1}`}
                           width="360"
                           height="270"
 	                      className="aspect-[4/3] h-full w-full rounded-xl object-cover"
@@ -189,23 +187,23 @@ export default function Home() {
                   Premium Sydney rentals
                 </p>
 	                <h1 className="max-w-[14ch] text-balance font-serif text-3xl font-bold leading-tight text-brand-navy sm:max-w-full sm:text-6xl lg:text-7xl">
-                  Premium Car Rentals Made Simple
+                  Subscription Rentals Made Simple
                 </h1>
                 <p className="mt-6 max-w-[30ch] text-base leading-8 text-slate-600 sm:max-w-xl sm:text-lg">
-                  Book quality rental vehicles with flexible weekly plans, easy approvals, and professional service across Sydney.
+                  Start with a secure application, get a reviewed quote, and complete subscription checkout only when your rental is approved.
                 </p>
                 <div className="mt-9 flex flex-col gap-3 sm:flex-row">
                   <Link
-                    to="/fleet"
+                    to="/apply"
                     className="focus-ring-light inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-sm font-black text-brand-navy shadow-lg transition-colors hover:bg-brand-gold-light sm:w-auto"
                   >
-                    Browse Fleet <ArrowRight className="h-4 w-4" />
+                    Start Application <ArrowRight className="h-4 w-4" />
                   </Link>
                   <Link
-                    to="/apply"
+                    to="/pricing"
                     className="focus-ring-light inline-flex min-h-12 w-full max-w-xs items-center justify-center rounded-full border border-brand-navy/15 bg-white/85 px-7 py-4 text-sm font-black text-brand-navy transition-colors hover:border-brand-gold sm:w-auto"
                   >
-                    Apply Now
+                    View Pricing
                   </Link>
                 </div>
               </div>
@@ -215,25 +213,22 @@ export default function Home() {
           <section className="px-4 py-12 sm:px-8 lg:px-10">
             <div className="mb-8 flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-gold-dark">Featured Fleet Preview</p>
-                <h2 className="mt-3 text-3xl font-black tracking-tight text-brand-navy sm:text-4xl">Popular Fleet Options</h2>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-gold-dark">Rental Support</p>
+                <h2 className="mt-3 text-3xl font-black tracking-tight text-brand-navy sm:text-4xl">Application-first rental support</h2>
               </div>
-              <Link to="/fleet" className="focus-ring-light hidden items-center gap-2 rounded text-sm font-black text-brand-navy sm:inline-flex">
-                View all <ArrowRight className="h-4 w-4" />
-              </Link>
             </div>
             <div className="grid gap-6 md:grid-cols-3">
-              {fleetCards.map((vehicle) => (
-	                <article key={vehicle.badge} className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg transition-[box-shadow,transform] duration-300 motion-reduce:transform-none motion-reduce:transition-none hover:-translate-y-1 hover:shadow-2xl">
+              {rentalSupportCards.map((item) => (
+	                <article key={item.badge} className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg transition-[box-shadow,transform] duration-300 motion-reduce:transform-none motion-reduce:transition-none hover:-translate-y-1 hover:shadow-2xl">
                   <div className="aspect-[4/3] overflow-hidden bg-slate-100">
-	                    <img src={vehicle.image} alt={vehicle.title} width="640" height="480" className="h-full w-full object-cover transition-transform duration-700 motion-reduce:transform-none motion-reduce:transition-none group-hover:scale-105" loading="lazy" />
+	                    <img src={item.image} alt={item.title} width="640" height="480" className="h-full w-full object-cover transition-transform duration-700 motion-reduce:transform-none motion-reduce:transition-none group-hover:scale-105" loading="lazy" />
                   </div>
                   <div className="p-6">
                     <p className="inline-flex rounded-full bg-brand-gold/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-brand-gold-dark">
-                      {vehicle.badge}
+                      {item.badge}
                     </p>
-                    <h3 className="mt-4 text-2xl font-black text-brand-navy">{vehicle.title}</h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-600">{vehicle.note}</p>
+                    <h3 className="mt-4 text-2xl font-black text-brand-navy">{item.title}</h3>
+                    <p className="mt-3 text-sm leading-7 text-slate-600">{item.note}</p>
                   </div>
                 </article>
               ))}
@@ -261,7 +256,7 @@ export default function Home() {
           <section id="how-it-works" className="px-4 py-14 sm:px-8 lg:px-10">
             <div className="mb-10 text-center">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-gold-dark">How It Works</p>
-              <h2 className="mt-3 text-3xl font-black text-brand-navy sm:text-4xl">Four steps from browsing to driving.</h2>
+              <h2 className="mt-3 text-3xl font-black text-brand-navy sm:text-4xl">Four steps from application to handover.</h2>
             </div>
             <div className="grid gap-5 lg:grid-cols-4">
               {steps.map((step, index) => (
@@ -283,7 +278,7 @@ export default function Home() {
             <div className="flex flex-col items-start justify-between gap-6 rounded-3xl bg-brand-navy px-7 py-9 text-white shadow-2xl sm:px-10 lg:flex-row lg:items-center">
               <div>
                 <h2 className="text-3xl font-black">Ready to Get Started?</h2>
-                <p className="mt-3 text-base text-slate-300">Browse our premium rental vehicles and apply online today.</p>
+                <p className="mt-3 text-base text-slate-300">Start your rental application online and let Gala confirm the right plan.</p>
               </div>
               <Link
                 to="/apply"
@@ -306,10 +301,9 @@ export default function Home() {
 	                className="h-10 w-auto max-w-[150px] object-contain sm:h-12 sm:max-w-[180px]"
                 loading="lazy"
               />
-              <p className="mt-3 max-w-sm text-sm leading-7 text-slate-600">Drive smarter. Rent easier.</p>
+              <p className="mt-3 max-w-sm text-sm leading-7 text-slate-600">Apply confidently. Rent easier.</p>
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-3 text-sm font-semibold text-slate-600">
-              <Link className="focus-ring-light rounded" to="/fleet">Fleet</Link>
               <Link className="focus-ring-light rounded" to="/pricing">Pricing</Link>
               <Link className="focus-ring-light rounded" to="/faq">About</Link>
               <Link className="focus-ring-light rounded" to="/contact">Contact</Link>
@@ -321,7 +315,7 @@ export default function Home() {
           </div>
           <div className="mt-8 flex flex-col justify-between gap-3 border-t border-slate-100 pt-6 text-xs text-slate-500 sm:flex-row">
             <p>© 2026 Gala Rentals, www.galarentals.com.au. All rights reserved.</p>
-            <p>Drive smarter. Rent easier.</p>
+            <p>Apply confidently. Rent easier.</p>
           </div>
         </footer>
       </div>

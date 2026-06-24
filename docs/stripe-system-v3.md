@@ -4,11 +4,12 @@ Stripe System V3 is the current Gala Rentals Stripe architecture. It preserves t
 
 ## Overview
 
-V3 keeps the same payment truth model as V2:
+V3 keeps the same payment truth model as V2, with the current Gala business rule that checkout completion is payment-only:
 
 - Webhook-confirmed state is authoritative for final payment success.
 - The success page is informational only.
-- Fulfillment remains idempotent.
+- Paid-state fulfillment remains idempotent.
+- Paid checkout marks the application `Paid`; it does not create rental rows or mutate car status automatically.
 - Webhook retries are still classified as `transient`, `permanent`, or `business_blocked`.
 
 The V3 change is structural, not semantic:
@@ -27,8 +28,8 @@ V2 already established the following guarantees:
 | Final payment truth | The webhook-confirmed path is authoritative. |
 | Replay safety | Duplicate webhook deliveries do not create duplicate fulfillment. |
 | Fulfillment idempotency | Vehicle checkout fulfillment is protected by a marker record. |
-| Stale write protection | Payment activation uses version-gated writes. |
-| Concurrency control | Advisory locking protects activation against concurrent processing. |
+| Stale write protection | Payment-state recording uses version-gated writes. |
+| Concurrency control | Advisory locking protects paid-state fulfillment against concurrent processing. |
 | Retry model | Failures are classified into transient, permanent, and business-blocked outcomes. |
 
 V3 does not remove any of those guarantees. It makes them easier to reason about and safer to operate.
@@ -40,7 +41,7 @@ V3 does not remove any of those guarantees. It makes them easier to reason about
 | Final payment success | `POST /api/stripe/webhook` after Stripe signature verification | This is the only authoritative source of final success. |
 | Checkout orchestration | `api/services/stripeCheckoutService.ts` | Handles creation, reuse, and status lookup. |
 | Webhook processing | `api/services/stripeWebhookService.ts` | Handles claim/dedupe, dispatch, retry classification, and ledger finalization. |
-| Fulfillment writes | `api/paymentActivation.ts` | Owns the activation transaction and fulfillment marker. |
+| Payment fulfillment writes | `api/paymentActivation.ts` | Owns paid-state recording and the fulfillment marker. |
 | Application payment state | `api/applicationPaymentState.ts` | Version-gated writes prevent stale payment links from overwriting newer state. |
 | Webhook ledger | `stripe_webhook_events` | Stores the event claim, processing state, fulfillment state, and retry metadata. |
 
@@ -48,14 +49,14 @@ V3 does not remove any of those guarantees. It makes them easier to reason about
 
 1. Admin approval creates a signed payment link and increments `payment_link_version`.
 2. The customer starts checkout from the payment link.
-3. `api/services/stripeCheckoutService.ts` validates the application, car, and checkout token.
-4. The service reuses an open Stripe Checkout Session when the stored `pending_checkout_session_id` still matches the current application, car, and version.
+3. `api/services/stripeCheckoutService.ts` validates the application, checkout token, and current payment-link version.
+4. The service reuses an open Stripe Checkout Session when the stored `pending_checkout_session_id` still matches the current application and version. Current Gala checkout metadata omits `car_id`.
 5. If reuse is not possible, the service creates a new hosted Checkout Session and persists the session id only if the application is still on the same payment-link version.
 6. Stripe redirects the customer to the hosted Checkout Session and then back to `/success`.
 7. The success page polls `GET /api/stripe/checkout-sessions/:sessionId` for display only.
 8. Stripe sends a verified webhook event.
 9. `api/services/stripeWebhookService.ts` claims the event in `stripe_webhook_events`, dispatches the event, and hands paid vehicle checkouts to `api/paymentActivation.ts`.
-10. `api/paymentActivation.ts` performs the activation transaction and writes the fulfillment marker.
+10. `api/paymentActivation.ts` records payment state on the application, clears the pending session, stores Stripe identifiers, and writes the fulfillment marker.
 11. The webhook ledger is finalized with a processing result and replay classification.
 
 ## Checkout/session creation flow
@@ -66,13 +67,13 @@ V3 does not remove any of those guarantees. It makes them easier to reason about
 
 | Step | Behavior |
 |---|---|
-| Payment context loading | Reads application, car, billing, and agreement data needed for checkout. |
-| Session reuse | Reuses a live Checkout Session when the stored session is still valid for the current application/version/car. |
+| Payment context loading | Reads application and approved billing data needed for checkout. |
+| Session reuse | Reuses a live Checkout Session when the stored session is still valid for the current application/version and has no `car_id` metadata. |
 | Session creation | Creates a Stripe Checkout Session in `subscription` mode with the correct metadata and URLs. |
 | Idempotency | Uses a deterministic idempotency key derived from application id, payment-link version, and retry seed. |
 | Persistence | Stores `pending_checkout_session_id` only if the application row still matches the current version. |
 | Expiry cleanup | Expires a newly created Stripe session if persistence loses the version race. |
-| Status lookup | Returns Stripe session status plus local application/rental state for the success page. |
+| Status lookup | Returns Stripe session status plus local application payment state for the success page. |
 
 ### What still sits in the route
 
@@ -95,10 +96,10 @@ The success page can show:
 |---|---|
 | `open` | Stripe has not completed the session. |
 | `pending` | Stripe completed the session but local fulfillment has not finished yet. |
-| `manual_review` | Stripe confirmed payment, but activation could not complete automatically. |
-| `complete` | The application is paid and a live rental exists. |
+| `manual_review` | Stripe confirmed payment, but paid-state recording requires operator review. |
+| `complete` | The application is paid. |
 
-The page is non-authoritative because it can run before the webhook executes, while the activation transaction is still in progress, or during replay after a restart. Final payment success must still come from the webhook-confirmed path.
+The page is non-authoritative because it can run before the webhook executes, while paid-state fulfillment is still in progress, or during replay after a restart. Final payment success must still come from the webhook-confirmed path.
 
 ## Webhook verification and processing flow
 
@@ -125,7 +126,7 @@ That split means the same worker logic can be reused later if a real queue is ad
 | Claim / dedupe | Insert or reclaim the ledger row for the event. |
 | Classification | Distinguish retryable, terminal, and business-blocked failures. |
 | Dispatch | Route the event to checkout fulfillment or subscription lifecycle handling. |
-| Fulfillment | Call activation and replay-safe fulfillment markers when needed. |
+| Fulfillment | Call paid-state fulfillment and replay-safe fulfillment markers when needed. |
 | Finalization | Mark the ledger row as processed or failed with structured outcome data. |
 
 ## Webhook ledger lifecycle
@@ -140,7 +141,7 @@ The ledger remains `stripe_webhook_events`. V3 reuses the same table instead of 
 | `event_type` | Stripe event type, or a legacy processing marker. |
 | `status` | `received`, `processing`, `processed`, or `failed`. |
 | `application_id` | Observability and correlation. |
-| `car_id` | Observability and correlation. |
+| `car_id` | Legacy observability only. Current Gala checkout sessions omit this value. |
 | `checkout_kind` | Checkout category, usually `vehicle`. |
 | `checkout_session_id` | The Stripe Checkout Session id for checkout events. |
 | `payment_link_version` | Version correlation for stale-link debugging. |
@@ -182,15 +183,15 @@ The ledger remains `stripe_webhook_events`. V3 reuses the same table instead of 
 - `permanent` -> ledger `processed`, no retry expected.
 - `business_blocked` -> ledger `processed`, no retry expected, manual review required.
 
-## Fulfillment idempotency model
+## Paid-State Fulfillment Idempotency Model
 
-Vehicle checkout fulfillment is still idempotent and still protected by the fulfillment marker.
+Vehicle checkout paid-state fulfillment is still idempotent and still protected by the fulfillment marker.
 
 ### Marker design
 
 - Marker id format: `fulfill:vehicle-checkout:<checkout_session_id>`
 - Storage: `stripe_webhook_events`
-- Purpose: record that the activation transaction already completed for that checkout session
+- Purpose: record that paid-state fulfillment already completed for that checkout session
 
 ### Why it reuses `stripe_webhook_events`
 
@@ -200,39 +201,39 @@ The current repo already treats `stripe_webhook_events` as the durable webhook l
 
 This is the important failure mode V3 is designed to tolerate:
 
-1. The activation transaction succeeds and performs the side effect.
+1. Paid-state fulfillment succeeds and records the application payment state.
 2. The process fails before the webhook ledger is finalized.
 3. Stripe retries the event.
 4. The replay sees the fulfillment marker and skips the side effect.
 
-That gives us exactly-once side effects even if the final ledger write is lost or the process restarts at the wrong moment.
+That gives us exactly-once paid-state writes even if the final ledger write is lost or the process restarts at the wrong moment.
 
 ### Replay behavior
 
 | Situation | Result |
 |---|---|
 | Marker already exists | The replay is skipped as already fulfilled. |
-| Activation completed, finalization did not | Replay reaches the fulfillment marker and exits safely. |
-| Activation cannot proceed safely | The application is moved to `Payment Review`. |
+| Paid-state fulfillment completed, finalization did not | Replay reaches the fulfillment marker and exits safely. |
+| Paid-state recording cannot proceed safely | The application is moved to `Payment Review`. |
 
-## Application/rental/car state transitions
+## Application, Rental, and Car State Transitions
 
 ### Application states
 
 | State | Meaning in this system |
 |---|---|
 | `Approved` | Eligible to start payment checkout. |
-| `Payment Review` | Stripe confirmed payment, but automatic activation was blocked. |
-| `Paid` | Activation succeeded and the rental exists. |
+| `Payment Review` | Stripe confirmed payment, but paid-state recording requires operator review. |
+| `Paid` | Stripe payment was recorded on the application. Manual operational handover follows. |
 
 ### Rental and car behavior
 
 | State change | Source |
 |---|---|
-| Application -> `Paid` | `api/paymentActivation.ts` after successful activation writes. |
-| Rental -> `Active` | Activation transaction. |
-| Car -> `Rented` | Activation transaction. |
-| Car -> `Available` | Only after subscription deletion or other release flow proves no live rental remains. |
+| Application -> `Paid` | `api/paymentActivation.ts` after verified webhook payment state is recorded. |
+| Rental rows | Not created by checkout completion in the current Gala workflow. |
+| Car status | Not mutated by checkout completion in the current Gala workflow. |
+| Existing rental lifecycle updates | Subscription lifecycle webhooks only when a strict Stripe subscription identity resolves an existing rental. |
 
 ### Version-gated writes
 
@@ -255,9 +256,9 @@ The current processing model is still single-process inline execution, but the c
 |---|---|
 | Duplicate Stripe webhook delivery | The ledger dedupe path skips or reclaims safely. |
 | Same event retried after a stale processing claim | The stale claim can be reclaimed after five minutes. |
-| Side effect succeeded but ledger finalization failed | The fulfillment marker prevents duplicate activation on replay. |
+| Paid-state write succeeded but ledger finalization failed | The fulfillment marker prevents duplicate fulfillment on replay. |
 | Stripe temporarily unavailable | The event is marked retryable and the error is rethrown. |
-| Payment confirmed but automatic activation blocked | The application moves to `Payment Review`. |
+| Payment confirmed but paid-state recording is blocked | The application moves to `Payment Review`. |
 | Session replay after completion | The replay is skipped as already fulfilled or already processed. |
 
 ## Operational notes / troubleshooting
@@ -267,8 +268,7 @@ The current processing model is still single-process inline execution, but the c
 - `stripe_webhook_events`
 - application `status`
 - `pending_checkout_session_id`
-- rental row for the application
-- car status
+- Stripe identifiers on the application
 
 ### Useful signals
 
@@ -277,7 +277,7 @@ V3 writes structured webhook logs that include:
 - `eventId`
 - `checkoutSessionId`
 - `applicationId`
-- `carId`
+- `carId` when present on legacy webhook metadata; current Gala checkout sessions should omit it.
 - `processingSource`
 - `fulfillmentState`
 - retry classification
@@ -288,14 +288,14 @@ V3 writes structured webhook logs that include:
 | Symptom | Likely meaning |
 |---|---|
 | Event is `processing` too long | A worker crashed or stalled; the stale claim window may allow reclamation. |
-| Application is `Payment Review` | Payment succeeded but activation was blocked by a business rule or schema issue. |
+| Application is `Payment Review` | Payment succeeded but paid-state recording was blocked by a business rule or schema issue. |
 | Event is `processed` with `manual_review` | No retry is expected; human review is needed. |
 | Event is `failed` | Retryable failure; inspect `error_message` and infra health. |
 
 ## Known limitations
 
 - The system is queue-ready but not queue-backed yet.
-- Fulfillment markers still reuse `stripe_webhook_events` instead of a dedicated fulfillment table.
+- Fulfillment markers still reuse `stripe_webhook_events` instead of a dedicated payment-fulfillment table.
 - `api/routes/stripe.ts` is thinner than before, but it is still the HTTP adapter and still owns request validation and Stripe error mapping.
 - Legacy webhook ledger compatibility remains in the code path for older data shapes.
 - The current processing model still runs inline in the web process; a future worker should reuse `processStripeWebhookWorkItem()`.
@@ -303,7 +303,7 @@ V3 writes structured webhook logs that include:
 ## Recommended next steps
 
 1. Add a real worker/queue transport that calls `processStripeWebhookWorkItem()`.
-2. Decide whether fulfillment markers should stay in `stripe_webhook_events` or move to a dedicated fulfillment table.
+2. Decide whether fulfillment markers should stay in `stripe_webhook_events` or move to a dedicated payment-fulfillment table.
 3. Tighten the observability contract around `retry_count` and terminal replay reasons.
 4. Consider moving any remaining HTTP-specific Stripe logic out of `api/routes/stripe.ts` once the current boundaries settle.
 5. Keep `docs/stripe-system-v2.md` as the historical V2 baseline and use this document as the active operational reference.

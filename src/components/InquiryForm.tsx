@@ -46,7 +46,7 @@ export default function InquiryForm() {
       >
         <CheckCircle2 className="w-16 h-16 text-brand-gold mx-auto mb-6" />
         <h3 className="text-2xl font-serif font-bold text-white mb-4">Inquiry Received</h3>
-        <p className="text-brand-grey mb-8 font-light">Thank you for your interest. Our fleet manager will contact you shortly to discuss vehicle availability.</p>
+        <p className="text-brand-grey mb-8 font-light">Thank you for your interest. The Gala team will contact you shortly to discuss your rental application needs.</p>
         <button
           onClick={() => setIsSuccess(false)}
           className="text-brand-gold hover:text-white transition-colors text-sm font-bold uppercase tracking-widest"
@@ -66,8 +66,8 @@ export default function InquiryForm() {
     >
       <div className="absolute top-0 right-0 w-32 h-32 bg-brand-gold/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
 
-      <h3 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Check Availability</h3>
-      <p className="text-brand-grey text-sm font-light mb-10 uppercase tracking-widest">Reserve your professional fleet vehicle</p>
+      <h3 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Start an Enquiry</h3>
+      <p className="text-brand-grey text-sm font-light mb-10 uppercase tracking-widest">Ask about rental options and application support</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {submitError && (

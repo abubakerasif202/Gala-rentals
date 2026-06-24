@@ -78,7 +78,7 @@ export const rentalPlans: RentalPlan[] = [
   {
     id: 'weekly',
     name: 'Weekly Rental',
-    description: 'Fastest path to getting on the road with a low-commitment weekly cadence.',
+    description: 'Fastest path to an approved rental with a low-commitment weekly cadence.',
     priceAud: 450,
     cadence: 'per week',
     highlight: 'Best for trial runs',
@@ -92,16 +92,16 @@ export const rentalPlans: RentalPlan[] = [
       })
     ),
     features: [
-      'Toyota Camry Hybrid',
-      'Full insurance coverage',
-      '24/7 roadside assistance',
-      'Weekly vehicle inspection',
+      'Application-first approval',
+      'Clear subscription billing',
+      'Local rental support',
+      'Weekly account check-in',
     ],
   },
   {
     id: 'fortnightly',
     name: 'Fortnightly Rental',
-    description: 'Balanced pricing for active drivers who want stronger weekly economics.',
+    description: 'Balanced pricing for customers who want stronger weekly economics.',
     priceAud: 800,
     cadence: 'per fortnight',
     highlight: 'Most popular',
@@ -116,17 +116,17 @@ export const rentalPlans: RentalPlan[] = [
       })
     ),
     features: [
-      'Toyota Camry Hybrid',
-      'Full insurance coverage',
-      '24/7 roadside assistance',
-      'Bi-weekly vehicle inspection',
+      'Application-first approval',
+      'Clear subscription billing',
+      'Local rental support',
+      'Fortnightly account review',
       'Priority support',
     ],
   },
   {
     id: 'monthly',
     name: 'Monthly Rental',
-    description: 'Lowest blended rate for committed drivers who want predictable fleet access.',
+    description: 'Lowest blended rate for committed customers who want predictable rental support.',
     priceAud: 1500,
     cadence: 'per month',
     highlight: 'Best value',
@@ -140,12 +140,12 @@ export const rentalPlans: RentalPlan[] = [
       })
     ),
     features: [
-      'Toyota Camry Hybrid',
-      'Full insurance coverage',
-      '24/7 roadside assistance',
-      'Monthly vehicle inspection',
+      'Application-first approval',
+      'Clear subscription billing',
+      'Local rental support',
+      'Monthly account review',
       'Priority support',
-      'Free vehicle swap',
+      'Flexible renewal support',
     ],
   },
 ];

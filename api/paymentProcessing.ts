@@ -7,7 +7,7 @@ export const PUBLIC_PAYMENTS_UNAVAILABLE_MESSAGE =
 export const ADMIN_PAYMENTS_RESTRICTED_MESSAGE =
   'A session-capable Postgres connection is required before sending payment links.';
 export const AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON =
-  'Automatic payment activation is blocked until a session-capable Postgres connection is configured.';
+  'Automatic payment-state recording is blocked until a session-capable Postgres connection is configured.';
 
 export const getPaymentProcessingMode = (): PaymentProcessingMode =>
   hasDirectDatabaseConnection() ? 'transactional' : 'restricted';

@@ -1,6 +1,7 @@
 # Gala Rentals Production Handoff
 
 Generated: 2026-05-12
+Updated: 2026-06-25
 
 ## 1. Current Project Status
 
@@ -23,7 +24,7 @@ Verdict: handoff-ready from local code, build, and test validation. Production d
 - Express API route registration, including health, live, applications, admin, rentals, agreements, toll notices, cars, inquiries, and Stripe routes.
 - Frontend route surface for public pages, admin pages, checkout, and success recovery.
 - Supabase migration inventory through `supabase/migrations/20260509090000_add_agreement_templates.sql`.
-- Stripe Checkout session creation, session status recovery, webhook signature verification, webhook event handling, pending/BECS states, completed session expiry avoidance, and idempotent activation tests.
+- Stripe Checkout session creation, session status recovery, webhook signature verification, webhook event handling, pending/BECS states, completed session expiry avoidance, and idempotent payment-state tests.
 - Admin protection on agreement, application, rental, customer, invoice, financial, toll notice, and payment-link routes.
 - Application submission and upload flow tests.
 - Health endpoints: `/api/live` and `/api/health`.
@@ -97,10 +98,10 @@ Optional or legacy-supported values to confirm intentionally:
   - `customer.subscription.created`
   - `customer.subscription.updated`
   - `customer.subscription.deleted`
-- Confirm Checkout metadata includes `application_id`, `checkout_kind=vehicle`, `payment_link_version`, and `car_id` when a vehicle is assigned.
+- Confirm Checkout metadata includes `application_id`, `checkout_kind=vehicle`, and `payment_link_version`; Gala payment links intentionally omit `car_id`.
 - Confirm BECS or asynchronous payment methods show processing until Stripe reports success or failure.
 - Confirm paid completed sessions are never expired during retry/cleanup.
-- Confirm payment activation remains idempotent for duplicate or replayed webhooks.
+- Confirm webhook-confirmed paid-state recording remains idempotent for duplicate or replayed webhooks.
 
 ## 7. Render Deployment Checklist
 
@@ -108,8 +109,8 @@ Optional or legacy-supported values to confirm intentionally:
 - Confirm Render uses `npm start` as the start command.
 - Confirm health path is `/api/health`.
 - Confirm `NODE_ENV=production`.
-- Confirm `DATABASE_URL` points to a session-capable Render Postgres connection for transactional payment activation.
-- Do not point payment activation at a Supabase transaction pooler connection.
+- Confirm `DATABASE_URL` points to a session-capable Render Postgres connection for transactional payment-state recording.
+- Do not point payment processing at a Supabase transaction pooler connection.
 - Confirm all required env vars in section 5 are set on the API/web service before deploy.
 - Deploy only after `npm run verify:schema-contract` passes against the target production schema.
 
@@ -132,11 +133,11 @@ Optional or legacy-supported values to confirm intentionally:
 - Application submission succeeds with required uploads.
 - Admin login succeeds only for authorized admin users.
 - Admin dashboard loads applications, rentals, customers, invoices, agreements, and toll notices without missing-data crashes.
-- Admin approval creates a Stripe checkout link/session.
-- Stripe card checkout returns to success and shows paid/activated or manual review when appropriate.
+- Admin approval creates a Stripe checkout link/session with no `car_id` metadata.
+- Stripe card checkout returns to success and shows paid or manual review when appropriate.
 - BECS/asynchronous checkout returns to success and shows processing, not failed, until Stripe settles.
 - Stripe webhook delivery succeeds from the Stripe dashboard or Stripe CLI.
-- Duplicate webhook delivery is idempotent.
+- Duplicate webhook delivery is idempotent and does not create rental rows or mutate car status automatically.
 - Agreement generation saves and displays the correct active template version.
 - Toll notice endpoints remain admin-only.
 - Application cancellation returns conflict if the payment link version changes during cancel.

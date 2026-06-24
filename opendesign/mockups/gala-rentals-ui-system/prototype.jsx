@@ -17,9 +17,9 @@ const screens = [
 
 const seedApplications = [
   { id: 'APP-1048', name: 'Amelia Hart', email: 'amelia.hart@example.com', phone: '0412 482 915', status: 'Pending', experience: '3+ years', vehicle: 'To be assigned', weekly: 0, bond: 0, start: '2026-07-01' },
-  { id: 'APP-1047', name: 'Rafi Mahmoud', email: 'rafi.mahmoud@example.com', phone: '0431 902 774', status: 'Approved', experience: '1-3 years', vehicle: '2026 Toyota Camry - NSW Gala 42', weekly: 465, bond: 500, start: '2026-06-29' },
-  { id: 'APP-1046', name: 'Grace Chen', email: 'grace.chen@example.com', phone: '0490 181 337', status: 'Paid', experience: '3+ years', vehicle: '2026 Toyota Camry Hybrid - NSW Gala 18', weekly: 440, bond: 500, start: '2026-06-27' },
-  { id: 'APP-1045', name: 'Noah Williams', email: 'noah.williams@example.com', phone: '0406 333 119', status: 'Payment Review', experience: 'Less than 1 year', vehicle: '2026 Toyota Camry - NSW Gala 31', weekly: 420, bond: 500, start: '2026-06-28' },
+  { id: 'APP-1047', name: 'Rafi Mahmoud', email: 'rafi.mahmoud@example.com', phone: '0431 902 774', status: 'Approved', experience: '1-3 years', vehicle: 'Approved weekly rental package', weekly: 465, bond: 500, start: '2026-06-29' },
+  { id: 'APP-1046', name: 'Grace Chen', email: 'grace.chen@example.com', phone: '0490 181 337', status: 'Paid', experience: '3+ years', vehicle: 'Approved subscription rental package', weekly: 440, bond: 500, start: '2026-06-27' },
+  { id: 'APP-1045', name: 'Noah Williams', email: 'noah.williams@example.com', phone: '0406 333 119', status: 'Payment Review', experience: 'Less than 1 year', vehicle: 'Approved rental handover details', weekly: 420, bond: 500, start: '2026-06-28' },
   { id: 'APP-1044', name: 'Priya Singh', email: 'priya.singh@example.com', phone: '0422 118 405', status: 'Rejected', experience: 'New Driver', vehicle: 'To be assigned', weekly: 0, bond: 0, start: '2026-07-04' }
 ];
 
@@ -72,7 +72,7 @@ function App() {
   function approveAndSendLink() {
     updateSelected({
       status: 'Approved',
-      vehicle: '2026 Toyota Camry - NSW Gala 42',
+      vehicle: 'Approved weekly rental package',
       weekly: 465,
       bond: 500
     });
@@ -156,8 +156,8 @@ function PublicSite({ setScreen, variant }) {
       <div className="hero">
         <div className="panel">
           <p className="eyebrow">Premium Sydney rentals</p>
-          <h1>{variant === 'operations' ? 'Rental operations that feel controlled.' : 'Premium car rentals made simple.'}</h1>
-          <p className="lead">Quality Toyota Camry rentals with a calm application process, admin-reviewed approvals, locked pricing, and a secure Stripe checkout link only after review.</p>
+          <h1>{variant === 'operations' ? 'Rental operations that feel controlled.' : 'Subscription rentals made simple.'}</h1>
+          <p className="lead">Flexible rental applications with a calm review process, admin-approved pricing, and a secure Stripe checkout link only after review.</p>
           <div className="actions">
             <button className="btn btn-primary" onClick={() => setScreen('apply')}>Start application</button>
             <button className="btn btn-secondary" onClick={() => setScreen('customer')}>Preview customer status</button>
@@ -170,11 +170,11 @@ function PublicSite({ setScreen, variant }) {
           </div>
         </div>
         <div className="vehicle-frame">
-          <img src="../../design-systems/gala-rentals/assets/imagery/ai-gala-navy-sedan-hero.png" alt="Premium Gala Rentals sedan" />
+          <img src="/images/rental-service-hero.svg" alt="Secure rental approval process" />
           <div className="vehicle-caption">
-            <p className="eyebrow">Fleet preview</p>
-            <strong>2026 Toyota Camry</strong>
-            <p>Vehicle details are approved by admin before checkout.</p>
+            <p className="eyebrow">Application preview</p>
+            <strong>Approved rental summary</strong>
+            <p>Rental details are approved by admin before checkout.</p>
           </div>
         </div>
       </div>
@@ -214,7 +214,7 @@ function ApplyFlow({ applyStep, setApplyStep, setScreen, flash }) {
           )}
           {applyStep === 3 && (
             <>
-              <label>Preferred vehicle<input defaultValue="Toyota Camry" /></label>
+              <label>Rental preference<input defaultValue="Flexible weekly rental" /></label>
               <label>Preferred start<input defaultValue="2026-07-01" /></label>
               <label>Weekly budget<input defaultValue="$420 to $480" /></label>
               <label>Duration<input defaultValue="12 weeks" /></label>
@@ -330,7 +330,7 @@ function PaymentScreen({ selected, markPaidOnly, setScreen }) {
         <p className="lead">Customer payment screen shows only locked admin-approved values. The continue action leaves the prototype as a payment-only state transition.</p>
         <div className="detail-list">
           <div className="detail-row"><span>Application</span><strong>{selected.id}</strong></div>
-          <div className="detail-row"><span>Approved vehicle</span><strong>{selected.vehicle}</strong></div>
+          <div className="detail-row"><span>Approved rental</span><strong>{selected.vehicle}</strong></div>
           <div className="detail-row"><span>Bond</span><strong>${selected.bond || 500}.00</strong></div>
           <div className="detail-row"><span>Weekly rental</span><strong>${selected.weekly || 465}.00</strong></div>
           <div className="detail-row"><span>Start date</span><strong>{selected.start}</strong></div>
@@ -341,7 +341,7 @@ function PaymentScreen({ selected, markPaidOnly, setScreen }) {
         </div>
       </div>
       <div className="vehicle-frame">
-        <img src="../../design-systems/gala-rentals/assets/imagery/ai-gala-navy-sedan-front.png" alt="Approved vehicle preview" />
+        <img src="/images/rental-payment-security.svg" alt="Secure rental approval process" />
         <div className="vehicle-caption">
           <p className="eyebrow">Checkout note</p>
           <strong>Payment confirms billing only</strong>

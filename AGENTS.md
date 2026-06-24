@@ -102,7 +102,7 @@ Include:
 
 - Home page.
 - Pricing page.
-- Rental fleet/listing page.
+- Rental application/options page; do not expose public fleet browsing unless the business explicitly opts in.
 - FAQ page.
 - Contact page.
 - Apply now CTA.

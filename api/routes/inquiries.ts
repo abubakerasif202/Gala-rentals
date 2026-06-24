@@ -60,7 +60,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
             <h2 style="color: #D4AF37;">Inquiry Received</h2>
             <p>Hi ${safeName},</p>
             <p>We received your availability inquiry for ${safeStartDate} to ${safeEndDate}.</p>
-            <p>Our fleet manager will review current availability and contact you shortly.</p>
+            <p>Our rentals team will review your enquiry and contact you shortly.</p>
             <p>Best regards,<br /><strong>The Gala Rentals Team</strong></p>
           </div>
         `,

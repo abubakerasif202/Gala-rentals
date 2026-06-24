@@ -23,11 +23,7 @@ const createRequest = ({
 describe('shouldServeSpaEntry', () => {
   it('allows known client routes', () => {
     expect(shouldServeSpaEntry(createRequest({ path: '/' }))).toBe(true);
-    expect(shouldServeSpaEntry(createRequest({ path: '/fleet' }))).toBe(true);
-    expect(shouldServeSpaEntry(createRequest({ path: '/fleet/1' }))).toBe(true);
     expect(shouldServeSpaEntry(createRequest({ path: '/pricing' }))).toBe(true);
-    expect(shouldServeSpaEntry(createRequest({ path: '/cars' }))).toBe(true);
-    expect(shouldServeSpaEntry(createRequest({ path: '/cars/1' }))).toBe(true);
     expect(shouldServeSpaEntry(createRequest({ path: '/apply' }))).toBe(true);
     expect(shouldServeSpaEntry(createRequest({ path: '/faq' }))).toBe(true);
     expect(shouldServeSpaEntry(createRequest({ path: '/contact' }))).toBe(true);
@@ -41,6 +37,15 @@ describe('shouldServeSpaEntry', () => {
     expect(
       shouldServeSpaEntry(createRequest({ path: '/admin/toll-notices' }))
     ).toBe(true);
+  });
+
+  it('allows legacy fleet and vehicle URLs to reach the client redirect', () => {
+    expect(shouldServeSpaEntry(createRequest({ path: '/fleet' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/fleet/1' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/cars' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/cars/1' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/vehicles' }))).toBe(true);
+    expect(shouldServeSpaEntry(createRequest({ path: '/vehicles/1' }))).toBe(true);
   });
 
   it('allows root path regardless of accept header', () => {

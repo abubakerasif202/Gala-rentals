@@ -13,6 +13,7 @@ interface AgreementsTabProps {
   set_selected_agreement_application_id: (val: string) => void;
   selectedAgreementApplication?: Application;
   isGeneratingAgreement: boolean;
+  canGenerateLeaseAgreement: boolean;
   handleGenerateAgreement: () => void;
   canCopyVehicleCheckoutLink: boolean;
   generateCheckoutLinkMutation: UseMutationResult<
@@ -35,6 +36,7 @@ export default function AgreementsTab({
   set_selected_agreement_application_id,
   selectedAgreementApplication,
   isGeneratingAgreement,
+  canGenerateLeaseAgreement,
   handleGenerateAgreement,
   canCopyVehicleCheckoutLink,
   generateCheckoutLinkMutation,
@@ -396,8 +398,7 @@ export default function AgreementsTab({
             <button
               disabled={
                 isGeneratingAgreement ||
-                !selected_agreement_application_id ||
-                selectedAgreementApplication?.status !== 'Paid'
+                !canGenerateLeaseAgreement
               }
               onClick={handleGenerateAgreement}
               className="bg-brand-gold text-brand-navy h-[58px] font-bold uppercase tracking-widest text-[10px] hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
@@ -407,7 +408,7 @@ export default function AgreementsTab({
               ) : (
                 <RefreshCw className="w-4 h-4" />
               )}
-              Generate New Agreement
+              Generate Rental Agreement
             </button>
             <button
               disabled={
@@ -428,16 +429,21 @@ export default function AgreementsTab({
         </div>
         <p className="mt-4 text-[11px] text-brand-grey font-light">
           Secure payment links are signed and time-limited. Approve the
-          application first so the approved vehicle and pricing are locked before
+          application first so the approved rental details and pricing are locked before
           copying a fresh link.
         </p>
-        {selectedAgreementApplication &&
-          selectedAgreementApplication.status !== 'Paid' && (
+        {selectedAgreementApplication && !canGenerateLeaseAgreement && (
             <p className="mt-2 text-[11px] text-brand-grey font-light">
-              Lease agreements unlock after the driver completes the approved
-              payment.
+              Approved rental details and weekly price are required before generating
+              the rental agreement.
             </p>
           )}
+        {selectedAgreementApplication?.status === 'Approved' && canGenerateLeaseAgreement && (
+          <p className="mt-2 text-[11px] text-brand-grey font-light">
+            Draft generation is available now. Final save unlocks after the
+            driver completes payment.
+          </p>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">

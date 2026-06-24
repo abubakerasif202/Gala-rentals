@@ -5,8 +5,8 @@ Gala Rentals has a dependency-free load-test runner at `scripts/load-test.mjs`. 
 ## Profiles
 
 - `smoke`: `/api/live` and `/api/health`.
-- `read-only-api`: `/api/live`, `/api/health`, `/api/stripe/rental-plans`, `/api/stripe/lease-settings`, and `/api/cars/public`.
-- `public-pages`: public React routes such as `/`, `/fleet`, `/pricing`, `/cars`, `/apply`, `/faq`, and `/contact`.
+- `read-only-api`: `/api/live`, `/api/health`, `/api/stripe/rental-plans`, and `/api/stripe/lease-settings`.
+- `public-pages`: public React routes such as `/`, `/pricing`, `/apply`, `/faq`, and `/contact`.
 
 The runner does not submit applications, trigger Stripe checkout, call admin write endpoints, upload files, send email, or mutate rental/payment state.
 

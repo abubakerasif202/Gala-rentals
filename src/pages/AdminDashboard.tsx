@@ -1,36 +1,24 @@
 import React, { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Plus,
-  Search,
   CheckCircle2,
   XCircle,
-  Clock,
-  TrendingUp,
-  DollarSign,
   AlertCircle,
   Loader2,
-  Trash2,
-  Edit2,
   FileText,
-  ChevronRight,
   RefreshCw,
   ExternalLink,
   ShieldCheck,
-  Car,
   Users,
   Mail,
   Phone,
   MapPin,
   BadgeCheck,
   Menu,
-  Archive,
-  RotateCcw
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import OverviewTab from '../components/admin/tabs/OverviewTab';
 import ApplicationsTab from '../components/admin/tabs/ApplicationsTab';
-import FleetTab from '../components/admin/tabs/FleetTab';
 import RentalsTab from '../components/admin/tabs/RentalsTab';
 import FinancialsTab from '../components/admin/tabs/FinancialsTab';
 import CustomersTab from '../components/admin/tabs/CustomersTab';
@@ -42,14 +30,10 @@ import {
   getDateRangeForPreset,
   type DateRangeValue,
 } from '../components/admin/DateRangePicker';
-import VehicleFormModal from '../components/admin/vehicles/VehicleFormModal';
-import VehicleActionDialog from '../components/admin/vehicles/VehicleActionDialog';
 
 import * as api from '../lib/api';
 import { getApiErrorMessage } from '../lib/errorHandling';
-import { uploadVehicleImage } from '../lib/vehicleImageStorage';
 import {
-  Car as CarType,
   Application,
   Rental,
   DashboardStats,
@@ -60,25 +44,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/admin/Sidebar';
 import { getTodayInAustralia } from '../../shared/applicationSubmission';
-import type { VehicleDialogMode, VehicleFormValues } from '../components/admin/vehicles/types';
 
 const OPERATIONAL_PAGE_SIZE = 25;
-const DEFAULT_VEHICLE_IMAGE = '/car-images/ai-gala-navy-sedan-front.png';
-
-type VehicleFilter = 'active' | 'all' | 'archived';
-
-const createEmptyVehicleForm = (): VehicleFormValues => ({
-  name: '',
-  model_year: new Date().getFullYear(),
-  weekly_price: 0,
-  bond: 500,
-  status: 'Available',
-  image: DEFAULT_VEHICLE_IMAGE,
-});
 const adminTabLabels: Record<string, string> = {
   agreements: 'Agreements',
   applications: 'Applications',
-  cars: 'Fleet',
   customers: 'Customers',
   dashboard: 'Overview',
   financials: 'Financials',
@@ -141,20 +111,6 @@ export default function AdminDashboard() {
   const notificationTimeoutRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isAddingCar, setIsAddingCar] = useState(false);
-  const [editingCar, setEditingCar] = useState<CarType | null>(null);
-  const [vehicleForm, setVehicleForm] = useState<VehicleFormValues>(createEmptyVehicleForm);
-  const [vehicleInitialForm, setVehicleInitialForm] = useState<VehicleFormValues>(createEmptyVehicleForm);
-  const [vehicleFormErrors, setVehicleFormErrors] = useState<
-    Partial<Record<keyof VehicleFormValues, string>>
-  >({});
-  const [vehicleImageFile, setVehicleImageFile] = useState<File | null>(null);
-  const [vehicleImagePreview, setVehicleImagePreview] = useState(DEFAULT_VEHICLE_IMAGE);
-  const [isUploadingVehicleImage, setIsUploadingVehicleImage] = useState(false);
-  const [vehicleFilter, setVehicleFilter] = useState<VehicleFilter>('all');
-  const [vehicleSearch, setVehicleSearch] = useState('');
-  const [vehicleDialogMode, setVehicleDialogMode] = useState<VehicleDialogMode | null>(null);
-  const [vehicleActionTarget, setVehicleActionTarget] = useState<CarType | null>(null);
 
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
@@ -223,7 +179,6 @@ export default function AdminDashboard() {
   };
   const deferredApplicationSearch = useDeferredValue(applicationSearch.trim());
   const deferredRentalSearch = useDeferredValue(rentalSearch.trim());
-  const deferredVehicleSearch = useDeferredValue(vehicleSearch.trim());
 
   useEffect(() => {
     setCustomerPage(1);
@@ -241,14 +196,6 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (vehicleImagePreview.startsWith('blob:')) {
-        URL.revokeObjectURL(vehicleImagePreview);
-      }
-    };
-  }, [vehicleImagePreview]);
-
   const showNotification = (message: string, type: 'success' | 'error') => {
     if (notificationTimeoutRef.current !== null) {
       window.clearTimeout(notificationTimeoutRef.current);
@@ -261,203 +208,7 @@ export default function AdminDashboard() {
     }, 3000);
   };
 
-  function resetVehicleModal() {
-    setIsAddingCar(false);
-    setEditingCar(null);
-    setVehicleForm(createEmptyVehicleForm());
-    setVehicleInitialForm(createEmptyVehicleForm());
-    setVehicleFormErrors({});
-    setVehicleImageFile(null);
-    setVehicleImagePreview(DEFAULT_VEHICLE_IMAGE);
-    setIsUploadingVehicleImage(false);
-  }
-
-  function openAddVehicleModal() {
-    setEditingCar(null);
-    setIsAddingCar(true);
-    const emptyForm = createEmptyVehicleForm();
-    setVehicleForm(emptyForm);
-    setVehicleInitialForm(emptyForm);
-    setVehicleFormErrors({});
-    setVehicleImageFile(null);
-    setVehicleImagePreview(DEFAULT_VEHICLE_IMAGE);
-    setVehicleDialogMode(null);
-    setVehicleActionTarget(null);
-  }
-
-  function openEditVehicleModal(car: CarType) {
-    const nextForm = {
-      bond: Number(car.bond || 0),
-      image: car.image || DEFAULT_VEHICLE_IMAGE,
-      model_year: Number(car.model_year || new Date().getFullYear()),
-      name: car.name || '',
-      status: car.status,
-      weekly_price: Number(car.weekly_price || 0),
-    };
-
-    setEditingCar(car);
-    setIsAddingCar(false);
-    setVehicleForm(nextForm);
-    setVehicleInitialForm(nextForm);
-    setVehicleFormErrors({});
-    setVehicleImageFile(null);
-    setVehicleImagePreview(car.image || DEFAULT_VEHICLE_IMAGE);
-    setVehicleDialogMode(null);
-    setVehicleActionTarget(null);
-  }
-
-  const validateVehicleForm = () => {
-    const nextErrors: Partial<Record<keyof VehicleFormValues, string>> = {};
-
-    if (!vehicleForm.name.trim()) {
-      nextErrors.name = 'Vehicle name is required.';
-    }
-
-    if (!Number.isFinite(vehicleForm.model_year) || vehicleForm.model_year < 1900) {
-      nextErrors.model_year = 'Enter a valid model year.';
-    }
-
-    if (!Number.isFinite(vehicleForm.weekly_price) || vehicleForm.weekly_price <= 0) {
-      nextErrors.weekly_price = 'Enter a weekly rental amount above $0.';
-    }
-
-    if (!Number.isFinite(vehicleForm.bond) || vehicleForm.bond < 0) {
-      nextErrors.bond = 'Enter a valid bond amount.';
-    }
-
-    setVehicleFormErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
-  };
-
-  const handleVehicleImagePrepared = ({
-    file,
-    previewUrl,
-  }: {
-    file: File;
-    previewUrl: string;
-  }) => {
-    if (vehicleImagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(vehicleImagePreview);
-    }
-
-    setVehicleImageFile(file);
-    setVehicleImagePreview(previewUrl);
-  };
-
-  const handleRemoveVehicleImage = () => {
-    if (vehicleImagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(vehicleImagePreview);
-    }
-
-    setVehicleImageFile(null);
-    setVehicleImagePreview(DEFAULT_VEHICLE_IMAGE);
-    setVehicleForm((current) => ({ ...current, image: DEFAULT_VEHICLE_IMAGE }));
-  };
-
-  const closeVehicleActionDialog = () => {
-    setVehicleDialogMode(null);
-    setVehicleActionTarget(null);
-  };
-
-  const requestCloseVehicleModal = () => {
-    if (hasUnsavedVehicleChanges) {
-      setVehicleDialogMode('discard');
-      setVehicleActionTarget(editingCar);
-      return;
-    }
-
-    resetVehicleModal();
-  };
-
-  const handleSaveVehicle = async () => {
-    if (!validateVehicleForm()) {
-      showNotification('Please complete the required vehicle fields.', 'error');
-      return;
-    }
-
-    let imageUrl = vehicleForm.image || DEFAULT_VEHICLE_IMAGE;
-    let uploadedImage: { path: string; publicUrl: string } | null = null;
-
-    try {
-      if (vehicleImageFile) {
-        setIsUploadingVehicleImage(true);
-        uploadedImage = await uploadVehicleImage(vehicleImageFile);
-        imageUrl = uploadedImage.publicUrl;
-      }
-
-      const payload: CarType = {
-        id: editingCar?.id ?? 0,
-        archived_at: editingCar?.archived_at ?? null,
-        bond: Number(vehicleForm.bond),
-        image: imageUrl,
-        model_year: Number(vehicleForm.model_year),
-        name: vehicleForm.name.trim(),
-        status: vehicleForm.status,
-        weekly_price: Number(vehicleForm.weekly_price),
-      };
-
-      if (editingCar) {
-        await updateCarMutation.mutateAsync(payload);
-      } else {
-        await addCarMutation.mutateAsync(payload);
-      }
-    } catch (error) {
-      if (uploadedImage?.publicUrl) {
-        try {
-          await api.removeVehicleImageUpload(uploadedImage.publicUrl);
-        } catch (cleanupError) {
-          console.warn('Failed to clean up uploaded vehicle image after save failure:', cleanupError);
-        }
-      }
-
-      showNotification(
-        getApiErrorMessage(
-          error,
-          vehicleImageFile
-            ? uploadedImage
-              ? editingCar
-                ? 'Failed to update vehicle'
-                : 'Failed to add vehicle'
-              : 'Failed to upload vehicle image'
-            : editingCar
-              ? 'Failed to update vehicle'
-              : 'Failed to add vehicle'
-        ),
-        'error'
-      );
-    } finally {
-      setIsUploadingVehicleImage(false);
-    }
-  };
-
-  const handleConfirmVehicleAction = () => {
-    if (!vehicleDialogMode) {
-      return;
-    }
-
-    if (vehicleDialogMode === 'discard') {
-      closeVehicleActionDialog();
-      resetVehicleModal();
-      return;
-    }
-
-    if (!vehicleActionTarget) {
-      return;
-    }
-
-    if (vehicleDialogMode === 'delete') {
-      deleteCarMutation.mutate(vehicleActionTarget.id);
-      return;
-    }
-
-    archiveCarMutation.mutate({
-      id: vehicleActionTarget.id,
-      archived: vehicleDialogMode === 'archive',
-    });
-  };
-
   const shouldLoadStats = activeTab === 'dashboard' || activeTab === 'financials';
-  const shouldLoadCars = activeTab === 'dashboard' || activeTab === 'cars';
   const shouldLoadApplications =
     activeTab === 'dashboard' ||
     activeTab === 'applications' ||
@@ -473,12 +224,6 @@ export default function AdminDashboard() {
     queryKey: ['stats'],
     queryFn: () => api.fetchStats(),
     enabled: shouldLoadStats,
-  });
-
-  const carsQuery = useQuery<CarType[]>({
-    queryKey: ['cars'],
-    queryFn: () => api.fetchCars({ includeArchived: true }),
-    enabled: shouldLoadCars,
   });
 
   const applicationsQuery = useQuery<Application[]>({
@@ -534,60 +279,6 @@ export default function AdminDashboard() {
   });
 
   // Mutations
-  const addCarMutation = useMutation({
-    mutationFn: (car: Partial<CarType>) => api.createCar(car),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cars'] });
-      resetVehicleModal();
-      showNotification('Vehicle added successfully', 'success');
-    },
-    onError: (error) =>
-      showNotification(getApiErrorMessage(error, 'Failed to add vehicle'), 'error'),
-  });
-  const updateCarMutation = useMutation({
-    mutationFn: (car: CarType) => api.updateCar(car.id, car),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cars'] });
-      resetVehicleModal();
-      showNotification('Vehicle updated successfully', 'success');
-    },
-    onError: (error) =>
-      showNotification(getApiErrorMessage(error, 'Failed to update vehicle'), 'error'),
-  });
-
-  const deleteCarMutation = useMutation({
-    mutationFn: (id: number) => api.deleteCar(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cars'] });
-      closeVehicleActionDialog();
-      resetVehicleModal();
-      showNotification('Vehicle deleted successfully', 'success');
-    },
-    onError: (error) =>
-      showNotification(getApiErrorMessage(error, 'Failed to delete vehicle'), 'error'),
-  });
-
-  const archiveCarMutation = useMutation({
-    mutationFn: ({ id, archived }: { id: number; archived: boolean }) => api.archiveCar(id, archived),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['cars'] });
-      closeVehicleActionDialog();
-      resetVehicleModal();
-      showNotification(
-        variables.archived ? 'Vehicle archived successfully' : 'Vehicle restored successfully',
-        'success'
-      );
-    },
-    onError: (error, variables) =>
-      showNotification(
-        getApiErrorMessage(
-          error,
-          variables.archived ? 'Failed to archive vehicle' : 'Failed to restore vehicle'
-        ),
-        'error'
-      ),
-  });
-
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string, status: string }) => api.updateApplicationStatus(id, status),
     onSuccess: () => {
@@ -639,7 +330,6 @@ export default function AdminDashboard() {
     }) => api.approveApplicationForPayment(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      queryClient.invalidateQueries({ queryKey: ['cars'] });
     },
   });
 
@@ -648,7 +338,6 @@ export default function AdminDashboard() {
       api.createVehicleCheckoutLink(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      queryClient.invalidateQueries({ queryKey: ['cars'] });
     },
   });
 
@@ -656,7 +345,6 @@ export default function AdminDashboard() {
     mutationFn: (id: string) => api.retryApplicationPaymentActivation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      queryClient.invalidateQueries({ queryKey: ['cars'] });
       queryClient.invalidateQueries({ queryKey: ['rentals'] });
     },
   });
@@ -718,28 +406,55 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (selectedApplication.status !== 'Paid') {
-      showNotification('Driver payment must be completed before generating the agreement.', 'error');
+    if (selectedApplication.status !== 'Approved' && selectedApplication.status !== 'Paid') {
+      showNotification('Approve the application quote before generating a rental agreement.', 'error');
       return;
     }
+
+    const approvedWeeklyPrice = Number(selectedApplication.approved_weekly_price ?? 0);
+    const approvedBond = Number(selectedApplication.approved_bond ?? 0);
 
     setIsGeneratingAgreement(true);
     try {
       const vehicleLabel =
-        selectedApplication.approved_vehicle?.trim() || 'Approved vehicle';
+        selectedApplication.approved_vehicle?.trim();
+
+      if (!vehicleLabel || approvedWeeklyPrice <= 0) {
+        showNotification('Approved vehicle and weekly price are required before agreement generation.', 'error');
+        return;
+      }
 
       const payload = {
         agreementDate: new Date().toLocaleDateString('en-AU'),
         renteeName: selectedApplication?.name,
+        renteeDob: selectedApplication?.date_of_birth || undefined,
         renteeEmail: selectedApplication?.email,
         renteeContact: selectedApplication?.phone,
         renteeAddress: selectedApplication?.address,
         renteeLicenseNumber: selectedApplication?.license_number,
+        renteeLicenseState: selectedApplication?.licence_state || undefined,
         vehicleMake: 'Not recorded',
         vehicleModel: vehicleLabel,
         vehicleYear: agreementForm.vehicleYear || 'Not recorded',
-        weeklyRent: `$${Number(selectedApplication.approved_weekly_price ?? 0).toFixed(2)}`,
-        rentalStartDate: agreementForm.rentalStartDate,
+        vehicleVin: vehicleLabel,
+        weeklyRent: `$${approvedWeeklyPrice.toFixed(2)}`,
+        rentalStartDate: agreementForm.rentalStartDate || selectedApplication.intended_start_date,
+        fees: [
+          {
+            code: 'weekly_rent',
+            title: 'Weekly rent',
+            amount: `$${approvedWeeklyPrice.toFixed(2)}`,
+          },
+          ...(approvedBond > 0
+            ? [
+                {
+                  code: 'bond',
+                  title: 'Bond',
+                  amount: `$${approvedBond.toFixed(2)}`,
+                },
+              ]
+            : []),
+        ],
       };
 
       const res = await api.renderCarLeaseAgreement(payload);
@@ -798,7 +513,7 @@ export default function AdminDashboard() {
       applicationApprovalForm.rental_subscription_start_date.trim();
 
     if (!approvedVehicle || approvedBond < 0 || approvedWeeklyPrice <= 0) {
-      showNotification('Enter the approved vehicle, bond, and weekly payment amounts.', 'error');
+      showNotification('Enter the approved rental details, bond, and weekly payment amounts.', 'error');
       return;
     }
 
@@ -902,7 +617,7 @@ export default function AdminDashboard() {
       setSelectedApplication(null);
     } catch (error) {
       showNotification(
-        getApiErrorMessage(error, 'Failed to retry payment activation'),
+        getApiErrorMessage(error, 'Failed to retry payment recording'),
         'error'
       );
     }
@@ -928,21 +643,6 @@ export default function AdminDashboard() {
   };
 
   const stats = statsQuery.data;
-  const cars = carsQuery.data || [];
-  const activeCars = cars.filter((car) => !car.archived_at);
-  const filteredCars = cars.filter((car) => {
-    const matchesFilter =
-      vehicleFilter === 'all'
-        ? true
-        : vehicleFilter === 'active'
-          ? !car.archived_at
-          : Boolean(car.archived_at);
-
-    return (
-      matchesFilter &&
-      matchesSearch(deferredVehicleSearch, [car.name, car.model_year, car.status, car.weekly_price])
-    );
-  });
   const applications = applicationsQuery.data || [];
   const rentals = rentalsQuery.data || [];
   const customerDataset = customerDatasetQuery.data;
@@ -997,6 +697,15 @@ export default function AdminDashboard() {
   const selectedAgreementApplication = applications.find(
     (app) => app.id === selected_agreement_application_id
   );
+  const canGenerateLeaseAgreement =
+    Boolean(selectedAgreementApplication) &&
+    (selectedAgreementApplication?.status === 'Approved' ||
+      selectedAgreementApplication?.status === 'Paid') &&
+    Boolean(selectedAgreementApplication?.approved_vehicle?.trim()) &&
+    Number(selectedAgreementApplication?.approved_weekly_price ?? 0) > 0;
+  const canSaveLeaseAgreement =
+    Boolean(selectedAgreementApplication) &&
+    selectedAgreementApplication?.status === 'Paid';
   const canCopyVehicleCheckoutLink =
     Boolean(selectedAgreementApplication) &&
     selectedAgreementApplication?.status === 'Approved';
@@ -1039,13 +748,6 @@ export default function AdminDashboard() {
   const invoiceCurrentPage = invoiceDataset?.page || 1;
   const invoiceTotalPages = invoiceDataset?.totalPages || 1;
   const invoiceTotalItems = invoiceDataset?.totalItems || 0;
-  const isVehicleModalOpen = isAddingCar || Boolean(editingCar);
-  const isVehicleSubmitting =
-    isUploadingVehicleImage || addCarMutation.isPending || updateCarMutation.isPending;
-  const isVehicleActionPending =
-    archiveCarMutation.isPending || deleteCarMutation.isPending;
-  const hasUnsavedVehicleChanges =
-    vehicleImageFile !== null || JSON.stringify(vehicleForm) !== JSON.stringify(vehicleInitialForm);
   const renderLoadingPanel = (message: string) => (
     <div className="bg-white/5 border border-white/10 rounded-3xl p-10 flex items-center gap-4 text-sm text-brand-grey">
       <Loader2 className="w-5 h-5 animate-spin text-brand-gold" />
@@ -1107,7 +809,6 @@ export default function AdminDashboard() {
             <OverviewTab
               stats={stats}
               applications={applications}
-              cars={activeCars}
               setActiveTab={setActiveTab}
             />
           )}
@@ -1118,32 +819,6 @@ export default function AdminDashboard() {
               setApplicationSearch={setApplicationSearch}
               filteredApplications={filteredApplications}
               setSelectedApplication={setSelectedApplication}
-            />
-          )}
-
-          {activeTab === 'cars' && (
-            <FleetTab
-              cars={cars}
-              filter={vehicleFilter}
-              isLoading={carsQuery.isPending && !carsQuery.data}
-              onAddVehicle={openAddVehicleModal}
-              onArchiveVehicle={(car) => {
-                setVehicleDialogMode('archive');
-                setVehicleActionTarget(car);
-              }}
-              onDeleteVehicle={(car) => {
-                setVehicleDialogMode('delete');
-                setVehicleActionTarget(car);
-              }}
-              onEditVehicle={openEditVehicleModal}
-              onFilterChange={setVehicleFilter}
-              onRestoreVehicle={(car) => {
-                setVehicleDialogMode('restore');
-                setVehicleActionTarget(car);
-              }}
-              onSearchChange={setVehicleSearch}
-              searchTerm={vehicleSearch}
-              visibleCars={filteredCars}
             />
           )}
 
@@ -1223,6 +898,7 @@ export default function AdminDashboard() {
               set_selected_agreement_application_id={set_selected_agreement_application_id}
               selectedAgreementApplication={selectedAgreementApplication}
               isGeneratingAgreement={isGeneratingAgreement}
+              canGenerateLeaseAgreement={canGenerateLeaseAgreement}
               handleGenerateAgreement={handleGenerateAgreement}
               canCopyVehicleCheckoutLink={canCopyVehicleCheckoutLink}
               generateCheckoutLinkMutation={generateCheckoutLinkMutation}
@@ -1462,12 +1138,12 @@ export default function AdminDashboard() {
                 {selectedApplication.status === 'Payment Review' && (
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 space-y-3">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
-                      Payment received, activation pending
+                      Payment received, review pending
                     </p>
                     <p className="text-sm text-brand-grey font-light leading-relaxed">
-                      Stripe reported a completed payment, but activation is waiting on a vehicle
-                      conflict or maintenance hold. Resolve the blocker and the next matching Stripe
-                      completion can finish automatically, or use Retry Activation now.
+                      Stripe reported a completed payment, but paid-state recording needs review.
+                      Confirm the payment-link version and stored checkout session, then use Retry
+                      Payment Finalization if the same session should be recorded automatically.
                     </p>
                     {selectedApplication.paid_at && (
                       <p className="text-xs text-amber-200/80 font-light">
@@ -1492,7 +1168,7 @@ export default function AdminDashboard() {
                           Approval & Payment Quote
                         </h4>
                         <p className="text-sm text-brand-grey font-light mt-3 max-w-2xl">
-                          Confirm the approved vehicle, set the bond and weekly payment, then email a fresh secure Stripe payment link.
+                          Confirm the approved rental details, set the bond and weekly payment, then email a fresh secure Stripe payment link.
                         </p>
                       </div>
                       {selectedApplication.payment_link_sent_at && (
@@ -1515,7 +1191,7 @@ export default function AdminDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
-                          Vehicle / Number Plate
+                          Rental / Handover Details
                         </label>
                         <input
                           type="text"
@@ -1527,7 +1203,7 @@ export default function AdminDashboard() {
                             }))
                           }
                           className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
-                          placeholder="Toyota Camry Hybrid - ABC123"
+                          placeholder="Approved rental option and handover notes"
                         />
                       </div>
                       <div className="space-y-2">
@@ -1590,7 +1266,7 @@ export default function AdminDashboard() {
                           Approved payment summary
                         </p>
                         <p className="text-sm text-brand-grey font-light leading-relaxed">
-                          Vehicle: <span className="text-white font-bold">{applicationApprovalForm.approved_vehicle}</span>
+                          Details: <span className="text-white font-bold">{applicationApprovalForm.approved_vehicle}</span>
                           {' '}| Bond:{' '}
                           <span className="text-white font-bold">
                             ${Number(applicationApprovalForm.approved_bond || 0).toFixed(2)}
@@ -1663,6 +1339,18 @@ export default function AdminDashboard() {
                     {selectedApplication.status === 'Approved'
                       ? 'Update Quote & Resend Payment Link'
                       : 'Approve & Send Payment Link'}
+                  </button>
+                )}
+                {selectedApplication.status === 'Approved' && (
+                  <button
+                    onClick={() => {
+                      set_selected_agreement_application_id(selectedApplication.id.toString());
+                      setSelectedApplication(null);
+                      handleAdminTabChange('agreements');
+                    }}
+                    className="flex w-full items-center justify-center gap-3 border border-brand-gold/40 bg-white/5 py-5 text-xs font-bold uppercase tracking-widest text-white shadow-lg transition-all hover:bg-white/10 sm:flex-[2]"
+                  >
+                    <FileText className="w-4 h-4 text-brand-gold" /> Generate Agreement Draft
                   </button>
                 )}
                 {selectedApplication.status === 'Paid' && (
@@ -1783,50 +1471,6 @@ export default function AdminDashboard() {
         )}
       </AnimatePresence>
 
-      <VehicleFormModal
-        form={vehicleForm}
-        formErrors={vehicleFormErrors}
-        hasUnsavedChanges={hasUnsavedVehicleChanges}
-        imagePreviewUrl={vehicleImagePreview}
-        isOpen={isVehicleModalOpen}
-        isSubmitting={isVehicleSubmitting}
-        isUploading={isUploadingVehicleImage}
-        onArchiveOrRestore={() => {
-          if (!editingCar) {
-            return;
-          }
-
-          setVehicleDialogMode(editingCar.archived_at ? 'restore' : 'archive');
-          setVehicleActionTarget(editingCar);
-        }}
-        onDelete={() => {
-          if (!editingCar) {
-            return;
-          }
-
-          setVehicleDialogMode('delete');
-          setVehicleActionTarget(editingCar);
-        }}
-        onFieldChange={(field, value) => {
-          setVehicleForm((current) => ({ ...current, [field]: value }));
-          setVehicleFormErrors((current) => ({ ...current, [field]: undefined }));
-        }}
-        onImageNotify={showNotification}
-        onImageReady={handleVehicleImagePrepared}
-        onRemoveImage={handleRemoveVehicleImage}
-        onRequestClose={requestCloseVehicleModal}
-        onSave={handleSaveVehicle}
-        vehicle={editingCar}
-      />
-
-      <VehicleActionDialog
-        isLoading={vehicleDialogMode === 'discard' ? false : isVehicleActionPending}
-        mode={vehicleDialogMode}
-        onClose={closeVehicleActionDialog}
-        onConfirm={handleConfirmVehicleAction}
-        vehicle={vehicleDialogMode === 'discard' ? null : vehicleActionTarget}
-      />
-
       {/* Agreement Modal */}
       <AnimatePresence>
         {isAgreementModalOpen && (
@@ -1851,6 +1495,11 @@ export default function AdminDashboard() {
                   </pre>
                 </div>
               </div>
+              {agreementModalMode === 'draft' && !canSaveLeaseAgreement && (
+                <div className="border-t border-white/10 bg-amber-500/10 px-4 py-3 text-[11px] font-semibold uppercase tracking-widest text-amber-100 sm:px-8">
+                  Draft generated. Final save is available after the driver payment is completed.
+                </div>
+              )}
               <div className="flex flex-col-reverse gap-4 border-t border-white/10 bg-white/5 p-4 sm:flex-row sm:p-8">
                 <button
                   onClick={closeAgreementModal}
@@ -1862,7 +1511,7 @@ export default function AdminDashboard() {
                   <button
                     onClick={() => {
                       const application_id = selected_agreement_application_id;
-                      if (application_id) {
+                      if (application_id && canSaveLeaseAgreement) {
                         saveAgreementMutation.mutate({
                           application_id,
                           content: agreementContent,
@@ -1872,11 +1521,11 @@ export default function AdminDashboard() {
                         });
                       }
                     }}
-                    disabled={saveAgreementMutation.isPending}
+                    disabled={saveAgreementMutation.isPending || !canSaveLeaseAgreement}
                     className="flex w-full items-center justify-center gap-3 bg-brand-gold py-5 text-xs font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light disabled:opacity-50 sm:flex-[2]"
                   >
                     {saveAgreementMutation.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                    Finalize & Save Agreement
+                    {canSaveLeaseAgreement ? 'Finalize & Save Agreement' : 'Save Unlocks After Payment'}
                   </button>
                 )}
               </div>

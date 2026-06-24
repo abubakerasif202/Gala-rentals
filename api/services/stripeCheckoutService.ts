@@ -36,7 +36,7 @@ import {
 import { normalizeUuid } from '../../shared/uuid.js';
 
 const getStripe = () => getStripeClient();
-const DEFAULT_VEHICLE_IMAGE = '/car-images/ai-gala-navy-sedan-front.png';
+const DEFAULT_VEHICLE_IMAGE = '/images/rental-payment-security.svg';
 const DEFAULT_APPROVED_VEHICLE_LABEL = 'Approved vehicle to be confirmed by Gala Rentals';
 
 export type BillingBreakdown = {

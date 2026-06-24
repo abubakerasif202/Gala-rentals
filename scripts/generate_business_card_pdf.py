@@ -141,11 +141,11 @@ def draw_front(c: canvas.Canvas) -> None:
     c.roundRect(margin, PAGE_H - 9.4 * mm, 28 * mm, 4.8 * mm, 2.4 * mm, fill=1, stroke=0)
     c.setFillColor(NAVY)
     c.setFont(SANS_BOLD, 5.7)
-    c.drawString(margin + 2.3 * mm, PAGE_H - 7.8 * mm, "SYDNEY HYBRID FLEET")
+    c.drawString(margin + 2.3 * mm, PAGE_H - 7.8 * mm, "SYDNEY RENTAL SUPPORT")
 
     draw_wrapped_text(
         c,
-        "Professional car rentals for Uber drivers.",
+        "Professional rental support for Sydney customers.",
         margin,
         PAGE_H - 16 * mm,
         43 * mm,
@@ -157,7 +157,7 @@ def draw_front(c: canvas.Canvas) -> None:
 
     draw_wrapped_text(
         c,
-        "Toyota Camry Hybrids maintained, insured, and ready for long shifts across Sydney.",
+        "Application-first subscription rentals with clear approval, billing, and handover support.",
         margin,
         PAGE_H - 29 * mm,
         42 * mm,
@@ -171,7 +171,7 @@ def draw_front(c: canvas.Canvas) -> None:
     c.roundRect(margin, 11 * mm, 31 * mm, 6.3 * mm, 3.1 * mm, fill=1, stroke=0)
     c.setFillColor(GOLD_LIGHT)
     c.setFont(SANS_BOLD, 5.6)
-    c.drawString(margin + 2.3 * mm, 13.2 * mm, "FULLY INSURED  |  UBER-READY")
+    c.drawString(margin + 2.3 * mm, 13.2 * mm, "SECURE CHECKOUT  |  REVIEW-FIRST")
 
     c.setFillColor(Color(1, 1, 1, alpha=0.13))
     c.roundRect(PAGE_W - 34 * mm, 24.5 * mm, 27 * mm, 24.5 * mm, 6 * mm, fill=1, stroke=0)
@@ -214,11 +214,11 @@ def draw_back(c: canvas.Canvas) -> None:
     c.drawImage(ImageReader(LOGO_PATH), 5.2 * mm, PAGE_H - 20.5 * mm, 18.5 * mm, 18.5 * mm, mask="auto")
     c.setFillColor(colors.white)
     c.setFont(SANS_BOLD, 5.3)
-    c.drawCentredString(left_w / 2, PAGE_H - 23 * mm, "MAPLE RENTALS")
+    c.drawCentredString(left_w / 2, PAGE_H - 23 * mm, "GALA RENTALS")
     c.setFillColor(GOLD_LIGHT)
     draw_wrapped_text(
         c,
-        "Drive smarter. Earn more.",
+        "Apply confidently. Rent easier.",
         5.1 * mm,
         PAGE_H - 29 * mm,
         18.5 * mm,
@@ -229,7 +229,7 @@ def draw_back(c: canvas.Canvas) -> None:
     )
     draw_wrapped_text(
         c,
-        "Flexible Toyota Camry Hybrid rentals for professional drivers.",
+        "Flexible subscription rentals with professional handover support.",
         5.1 * mm,
         13.8 * mm,
         18.4 * mm,
@@ -247,17 +247,17 @@ def draw_back(c: canvas.Canvas) -> None:
     value_x = content_x
     c.setFillColor(GOLD)
     c.setFont(SANS_BOLD, 5.7)
-    c.drawString(content_x, PAGE_H - 8.2 * mm, "MAPLE RENTALS")
+    c.drawString(content_x, PAGE_H - 8.2 * mm, "GALA RENTALS")
     c.setFillColor(NAVY)
     c.setFont(SERIF, 12.6)
     c.drawString(content_x, PAGE_H - 14.1 * mm, CONTACT_NAME)
     c.setFillColor(SLATE)
     c.setFont(SANS, 6.5)
-    c.drawString(content_x, PAGE_H - 17.8 * mm, "Sydney fleet contact")
+    c.drawString(content_x, PAGE_H - 17.8 * mm, "Sydney rental support")
 
     draw_wrapped_text(
         c,
-        "Premium hybrid fleet for professional Uber drivers across Sydney.",
+        "Premium application-first rental support for customers across Sydney.",
         content_x,
         PAGE_H - 22.8 * mm,
         47 * mm,

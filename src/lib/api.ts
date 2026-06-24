@@ -1,6 +1,5 @@
 import axios from 'axios';
 import {
-  Car,
   Application,
   Rental,
   DashboardStats,
@@ -49,60 +48,6 @@ export interface AdminSessionResponse {
 
 export const verifyAdminSession = async (): Promise<AdminSessionResponse> => {
   const { data } = await api.get('/auth/verify');
-  return data;
-};
-
-export const fetchCars = async (options: { includeArchived?: boolean } = {}): Promise<Car[]> => {
-  const endpoint = options.includeArchived ? '/cars/admin/all' : '/cars';
-  const { data } = await api.get(endpoint);
-  return data;
-};
-
-export const fetchCar = async (id: string): Promise<Car> => {
-  const { data } = await api.get(`/cars/${id}`);
-  return data;
-};
-
-export const createCar = async (carData: Partial<Car>): Promise<{ id: string }> => {
-  const { data } = await api.post('/cars', carData);
-  return data;
-};
-
-export const updateCar = async (id: number, carData: Partial<Car>): Promise<{ success: boolean }> => {
-  const { data } = await api.put(`/cars/${id}`, carData);
-  return data;
-};
-
-export const deleteCar = async (id: number): Promise<{ success: boolean }> => {
-  const { data } = await api.delete(`/cars/${id}`);
-  return data;
-};
-
-export const removeVehicleImageUpload = async (
-  imageUrl: string
-): Promise<{ success: boolean }> => {
-  const { data } = await api.delete('/cars/image', {
-    data: { imageUrl },
-  });
-  return data;
-};
-
-export const uploadVehicleImageFile = async (
-  file: File
-): Promise<{ path: string; publicUrl: string }> => {
-  const payload = new FormData();
-  payload.append('image', file);
-
-  const { data } = await api.post('/cars/image', payload);
-
-  return data;
-};
-
-export const archiveCar = async (
-  id: number,
-  archived: boolean
-): Promise<{ success: boolean }> => {
-  const { data } = await api.patch(`/cars/${id}/archive`, { archived });
   return data;
 };
 

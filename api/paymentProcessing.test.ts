@@ -34,7 +34,7 @@ describe('paymentProcessing', () => {
       expect(ADMIN_PAYMENTS_RESTRICTED_MESSAGE.length).toBeGreaterThan(0);
     });
 
-    it('exports a non-empty automatic activation restricted reason', () => {
+    it('exports a non-empty automatic payment-state recording restricted reason', () => {
       expect(typeof AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON).toBe('string');
       expect(AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON.length).toBeGreaterThan(0);
     });

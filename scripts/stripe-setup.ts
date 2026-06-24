@@ -216,7 +216,7 @@ const verifyLocalRuntimeDependencies = async () => {
     addCheck(
       'payment_activation_mode',
       'warn',
-      'Automatic payment activation is in manual-review mode because no session-capable Postgres connection is configured.',
+      'Automatic payment-state recording is in manual-review mode because no session-capable Postgres connection is configured.',
       paymentActivationDetails
     );
   } else {
@@ -228,8 +228,8 @@ const verifyLocalRuntimeDependencies = async () => {
         'payment_activation_mode',
         paymentActivationMode === 'transactional' ? 'pass' : 'warn',
         paymentActivationMode === 'transactional'
-          ? 'Automatic payment activation is enabled.'
-          : 'Payment workflows can still run, but automatic activation is not fully transactional.',
+          ? 'Automatic payment-state recording is enabled.'
+          : 'Payment workflows can still run, but automatic payment-state recording is not fully transactional.',
         {
           ...paymentActivationDetails,
           connectionVerified: true,
@@ -258,7 +258,7 @@ const verifyLocalRuntimeDependencies = async () => {
     addCheck(
       'schema_contract',
       'pass',
-      'The production schema contract required by Stripe activation is satisfied.'
+      'The production schema contract required by Stripe payment-state recording is satisfied.'
     );
   } catch (error) {
     addCheck(

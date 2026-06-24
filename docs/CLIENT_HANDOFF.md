@@ -12,7 +12,7 @@ Close the pre-handover security and workflow gaps.
 - reject cross-site cookie-authenticated admin writes
 - keep public applications pending until admin approval
 - rate limit public inquiry submissions
-- allow seeded root-relative vehicle image paths in admin edits
+- preserve legacy seeded image-path compatibility without exposing a public fleet UI
 - lock down the legacy admins table with RLS and revoked client grants
 
 Deployment impact:
@@ -36,7 +36,7 @@ Deployment impact:
 
 ### Admin and Content Management
 
-- Vehicle image validation now accepts seeded root-relative asset paths such as `/car-images/ABC123.jpeg`, so existing records can be edited without rewriting image URLs.
+- Legacy image-path validation remains backend-compatible for existing records, but the public product surface no longer exposes fleet browsing or seeded vehicle imagery.
 
 ## Deployment Checklist
 
@@ -74,7 +74,7 @@ For a brand new environment:
 
 1. Apply the base schema from `supabase/migrations/01_schema.sql`.
 2. Apply all later SQL migrations under `supabase/migrations/`.
-3. Run any required JavaScript migration scripts from the repository README for payment and fleet workflow upgrades.
+3. Run any required JavaScript migration scripts from the repository README for payment and legacy data workflow upgrades.
 
 ### 3. Validate the release artifact
 
@@ -105,14 +105,14 @@ Render deployment path:
 
 Run these checks against production:
 
-1. Browse the public car listing and open a vehicle detail page.
-2. Submit a public application and confirm:
+1. Browse the public home, pricing, FAQ, contact, and apply pages and confirm there are no public fleet browsing links.
+2. Open `/fleet`, `/cars`, and `/vehicles` and confirm each route redirects users into the application flow.
+3. Submit a public application and confirm:
    - the UI shows a review-pending success state
    - there is no immediate checkout redirect
    - the new application appears in admin as `Pending`
-3. Approve that application through the admin workflow and confirm the payment-link flow still works.
-4. Submit repeated public inquiries from the same IP and confirm the limiter blocks excessive requests.
-5. Edit a seeded vehicle that uses a `/car-images/...` image path and confirm the save succeeds.
+4. Approve that application through the admin workflow and confirm the payment-link flow still works.
+5. Submit repeated public inquiries from the same IP and confirm the limiter blocks excessive requests.
 6. Log in and out of admin from the real production origin and confirm the session behaves normally.
 
 ## Operational Notes

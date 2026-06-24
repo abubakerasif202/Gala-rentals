@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="675" viewBox="0 0 900 675" role="img" aria-label="Customer rental handover">
+  <rect width="900" height="675" fill="#f6f7f9"/>
+  <rect x="86" y="118" width="728" height="440" rx="42" fill="#0b1f36"/>
+  <circle cx="310" cy="270" r="54" fill="#d4af25"/>
+  <path d="M218 450c25-72 66-108 92-108s67 36 92 108z" fill="#ffffff"/>
+  <circle cx="590" cy="270" r="54" fill="#ffffff"/>
+  <path d="M498 450c25-72 66-108 92-108s67 36 92 108z" fill="#d4af25"/>
+  <path d="M394 360c52-32 100-32 152 0" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="480" cy="350" r="18" fill="#d4af25"/>
+  <rect x="452" y="370" width="56" height="18" rx="9" fill="#d4af25"/>
+  <circle cx="522" cy="379" r="9" fill="#d4af25"/>
+</svg>

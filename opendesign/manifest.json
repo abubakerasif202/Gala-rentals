@@ -32,16 +32,16 @@
               "path": "design-systems/gala-rentals/SKILL.md"
             },
             {
-              "label": "assets/imagery/ai-gala-navy-sedan-front.png",
-              "path": "design-systems/gala-rentals/assets/imagery/ai-gala-navy-sedan-front.png"
+              "label": "public/images/rental-payment-security.svg",
+              "path": "public/images/rental-payment-security.svg"
             },
             {
-              "label": "assets/imagery/ai-gala-navy-sedan-hero.png",
-              "path": "design-systems/gala-rentals/assets/imagery/ai-gala-navy-sedan-hero.png"
+              "label": "public/images/rental-service-hero.svg",
+              "path": "public/images/rental-service-hero.svg"
             },
             {
-              "label": "assets/imagery/ai-gala-silver-sedan-profile.png",
-              "path": "design-systems/gala-rentals/assets/imagery/ai-gala-silver-sedan-profile.png"
+              "label": "public/images/rental-application-support.svg",
+              "path": "public/images/rental-application-support.svg"
             },
             {
               "label": "assets/logos/gala-logo-footer.png",

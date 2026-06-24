@@ -1,6 +1,6 @@
 # Gala Rentals
 
-Gala Rentals is a full-stack rental platform for premium weekly car rentals in Sydney. The same Express process serves the API and the built React/Vite frontend in production.
+Gala Rentals is a full-stack subscription rental application platform for Sydney customers. The same Express process serves the API and the built React/Vite frontend in production.
 
 ## Production Identity
 
@@ -76,15 +76,16 @@ LEASE_OWNER_EMAIL=hello@gala-rentals.com.au
 Public:
 
 - `/`
-- `/fleet`
 - `/pricing`
-- `/cars`
-- `/cars/:id`
 - `/apply`
 - `/checkout/:id`
 - `/success`
 - `/faq`
 - `/contact`
+
+Legacy public fleet URLs:
+
+- `/fleet`, `/fleet/:id`, `/cars`, `/cars/:id`, `/vehicles`, and `/vehicles/:id` redirect users into `/apply`.
 
 Admin:
 

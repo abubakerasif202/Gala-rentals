@@ -23,13 +23,10 @@ const PROFILES = {
       weight: 2,
       expectedStatuses: [200],
     },
-    { name: 'public-cars', path: '/api/cars/public', weight: 2, expectedStatuses: [200] },
   ],
   'public-pages': [
     { name: 'home', path: '/', weight: 3, expectedStatuses: [200] },
-    { name: 'fleet', path: '/fleet', weight: 2, expectedStatuses: [200] },
     { name: 'pricing', path: '/pricing', weight: 2, expectedStatuses: [200] },
-    { name: 'cars', path: '/cars', weight: 2, expectedStatuses: [200] },
     { name: 'apply', path: '/apply', weight: 1, expectedStatuses: [200] },
     { name: 'faq', path: '/faq', weight: 1, expectedStatuses: [200] },
     { name: 'contact', path: '/contact', weight: 1, expectedStatuses: [200] },

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="675" viewBox="0 0 900 675" role="img" aria-label="Customer rental onboarding">
+  <rect width="900" height="675" fill="#eef2f6"/>
+  <circle cx="320" cy="260" r="78" fill="#0b1f36"/>
+  <circle cx="320" cy="222" r="28" fill="#d4af25"/>
+  <path d="M246 344c19-51 52-78 74-78s55 27 74 78z" fill="#ffffff"/>
+  <rect x="500" y="130" width="220" height="414" rx="34" fill="#0b1f36"/>
+  <rect x="534" y="180" width="152" height="248" rx="18" fill="#ffffff"/>
+  <rect x="566" y="224" width="88" height="16" rx="8" fill="#0b1f36" opacity=".18"/>
+  <rect x="566" y="272" width="110" height="14" rx="7" fill="#0b1f36" opacity=".14"/>
+  <rect x="566" y="316" width="92" height="14" rx="7" fill="#0b1f36" opacity=".14"/>
+  <circle cx="610" cy="482" r="20" fill="#d4af25"/>
+  <path d="M360 442c52 42 106 42 160 0" fill="none" stroke="#d4af25" stroke-width="20" stroke-linecap="round"/>
+</svg>

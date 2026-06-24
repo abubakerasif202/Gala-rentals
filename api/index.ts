@@ -206,13 +206,13 @@ const logRuntimeConfigurationSummary = () => {
     }
 
     console.warn(
-      'SUPABASE_DB_URL is configured with a transaction-mode pooler. Payment links and automatic Stripe activation remain restricted until a session-capable DATABASE_URL or SUPABASE_DB_URL is provided.'
+      'SUPABASE_DB_URL is configured with a transaction-mode pooler. Payment links and automatic Stripe payment-state recording remain restricted until a session-capable DATABASE_URL or SUPABASE_DB_URL is provided.'
     );
     return;
   }
 
   console.warn(
-    'DATABASE_URL is not configured. Payment links and automatic Stripe activation remain restricted until a session-capable DATABASE_URL (preferred) or SUPABASE_DB_URL is configured.'
+    'DATABASE_URL is not configured. Payment links and automatic Stripe payment-state recording remain restricted until a session-capable DATABASE_URL (preferred) or SUPABASE_DB_URL is configured.'
   );
 };
 
@@ -516,7 +516,7 @@ const registerCoreRoutes = (app: express.Express) => {
       database === 'unavailable' || directDatabase === 'unavailable';
 
     // In production, a degraded (restricted/not_configured) direct-DB state is
-    // not acceptable: payment activation falls back to manual review silently.
+    // not acceptable: payment-state recording falls back to manual review silently.
     // Return 503 so Render surfaces the misconfiguration instead of serving
     // traffic that will fail at payment time.
     const hasProductionDegradation =

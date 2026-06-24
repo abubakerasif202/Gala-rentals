@@ -3,7 +3,6 @@ import { Mail, MapPin, Phone } from 'lucide-react';
 
 const quickLinks = [
   { label: 'Home', path: '/' },
-  { label: 'Fleet', path: '/fleet' },
   { label: 'Pricing', path: '/pricing' },
   { label: 'Apply', path: '/apply' },
   { label: 'FAQ', path: '/faq' },
@@ -25,7 +24,7 @@ export default function Footer() {
               />
             </Link>
             <p className="text-sm text-slate-400 max-w-xs leading-relaxed font-light">
-              Premium car rental and subscription programs for Australian drivers who want clean approvals,
+              Premium subscription rental programs for Australian customers who want clean approvals,
               clear pricing, and a polished handover process.
             </p>
             <p className="mt-5 text-[11px] uppercase tracking-[0.2em] text-slate-500 font-light max-w-sm">

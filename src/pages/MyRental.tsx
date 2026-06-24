@@ -1,11 +1,11 @@
-import { CalendarDays, ShieldCheck, Wallet, MessageSquareText, CarFront } from 'lucide-react';
+import { CalendarDays, ShieldCheck, Wallet, ClipboardCheck } from 'lucide-react';
 import Seo from '../components/Seo';
 
 const items = [
   {
-    icon: CarFront,
-    title: 'Approved vehicle',
-    value: 'Gala selected fleet vehicle',
+    icon: ClipboardCheck,
+    title: 'Approved rental',
+    value: 'Gala-approved rental details',
   },
   {
     icon: CalendarDays,

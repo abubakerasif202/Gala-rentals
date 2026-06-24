@@ -242,30 +242,14 @@ const uploadManagedVehicleImage = async (file: Express.Multer.File) => {
   };
 };
 
-const toPublicSiteOrigin = () => {
-  const candidate = process.env.SITE_URL || process.env.APP_URL;
-  if (!candidate) return null;
-  try {
-    return new URL(candidate).origin;
-  } catch {
-    return null;
-  }
-};
-
-const toCarPublicUrl = (id: string) => {
-  const siteOrigin = toPublicSiteOrigin();
-  if (!siteOrigin) {
-    return null;
-  }
-  return `${siteOrigin}/cars/${id}`;
-};
+const toCarPublicUrl = (_id: string) => null;
 
 const notifyIndexNowForCarChange = (id: string, reason: 'created' | 'updated' | 'deleted') => {
   // Hook into create/update/delete events so search engines discover fresh URLs quickly.
   // In a CMS flow, call similar logic from your publish/unpublish handlers.
   const publicUrl = toCarPublicUrl(id);
   if (!publicUrl) {
-    console.warn(`[IndexNow] Skipping ${reason} notification for car ${id}: SITE_URL is not configured.`);
+    console.warn(`[IndexNow] Skipping ${reason} notification for legacy car ${id}: public car pages are disabled.`);
     return;
   }
 

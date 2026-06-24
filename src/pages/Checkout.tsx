@@ -209,7 +209,7 @@ export default function Checkout() {
                     Secure <span className="text-brand-gold italic">Stripe Checkout</span>
                   </h1>
                   <p className="text-brand-grey font-light">
-                    Review the approved vehicle and payment breakdown, then continue to Stripe.
+                    Review the approved rental summary and payment breakdown, then continue to Stripe.
                   </p>
                 </div>
 
@@ -232,7 +232,7 @@ export default function Checkout() {
 
                   <div className="rounded-2xl border border-white/10 bg-brand-navy/40 px-5 py-5 space-y-3">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">
-                      Approved vehicle
+                      Approved rental details
                     </p>
                     <p className="text-xl font-semibold text-white">{approved_vehicle}</p>
                       <p className="text-sm text-brand-grey font-light leading-relaxed">
@@ -278,7 +278,7 @@ export default function Checkout() {
               >
                 <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
                   <div className="aspect-video relative">
-                    <img src={vehicle_image} alt="Gala Rentals approved vehicle preview" className="w-full h-full object-cover" />
+                    <img src={vehicle_image} alt="Secure rental approval process" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-brand-navy to-transparent opacity-60" />
                     <div className="absolute bottom-6 left-6">
                       <h3 className="text-xl font-bold text-white tracking-tight">{approved_vehicle}</h3>

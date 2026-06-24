@@ -574,7 +574,7 @@ export const handleVehicleCheckoutCompletion = async (
     }
 
     const moveApplicationToPaymentReview = async (reason: string) => {
-      console.warn('Vehicle checkout activation requires review', {
+      console.warn('Vehicle checkout payment recording requires review', {
         applicationId,
         checkoutSessionId: session.id,
         reason,
@@ -611,10 +611,10 @@ export const handleVehicleCheckoutCompletion = async (
         await sendResendEmail(resend, {
           from: 'Gala Rentals <noreply@gala-rentals.com.au>',
           to: adminEmail,
-          subject: `Activation review required for vehicle checkout ${session.id}`,
+          subject: `Payment review required for vehicle checkout ${session.id}`,
           html: `
             <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
-              <h2 style="color: #D4AF37;">Payment Received, Activation Pending</h2>
+              <h2 style="color: #D4AF37;">Payment Received, Review Pending</h2>
               <p><strong>Application ID:</strong> ${applicationId}</p>
               <p><strong>Applicant:</strong> ${safeApplicantName}</p>
               <p><strong>Approved vehicle:</strong> ${safeApprovedVehicle}</p>
@@ -625,7 +625,7 @@ export const handleVehicleCheckoutCompletion = async (
           `,
         });
       } catch (emailError) {
-        console.error('Failed to send activation review alert email:', emailError);
+        console.error('Failed to send payment review alert email:', emailError);
       }
 
       return 'manual_review' as const;
@@ -649,12 +649,12 @@ export const handleVehicleCheckoutCompletion = async (
       applicationStatus !== 'Payment Review'
     ) {
       return moveApplicationToPaymentReview(
-        `Paid Stripe session arrived while application ${applicationStatus || 'Unknown'} is not eligible for automatic activation.`
+        `Paid Stripe session arrived while application ${applicationStatus || 'Unknown'} is not eligible for automatic payment recording.`
       );
     }
 
-    // "Payment Review" means Stripe has already confirmed payment, but activation
-    // hit a transient blocker. If the same signed checkout session replays later,
+    // "Payment Review" means Stripe has already confirmed payment, but payment
+    // recording hit a transient blocker. If the same signed checkout session replays later,
     // allow it to complete automatically instead of forcing a brand-new payment.
     if (
       applicationStatus === 'Payment Review' &&

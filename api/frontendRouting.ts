@@ -8,6 +8,8 @@ const SPA_ROUTE_PATTERNS = [
   /^\/$/,
   /^\/fleet\/?$/,
   /^\/fleet\/[^/]+\/?$/,
+  /^\/vehicles\/?$/,
+  /^\/vehicles\/[^/]+\/?$/,
   /^\/pricing\/?$/,
   /^\/cars\/?$/,
   /^\/cars\/[^/]+\/?$/,

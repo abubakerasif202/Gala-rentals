@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="675" viewBox="0 0 900 675" role="img" aria-label="Secure rental payment process">
+  <rect width="900" height="675" fill="#f3f6f8"/>
+  <rect x="145" y="162" width="610" height="350" rx="40" fill="#0b1f36"/>
+  <rect x="205" y="244" width="290" height="46" rx="23" fill="#ffffff" opacity=".86"/>
+  <rect x="205" y="330" width="205" height="24" rx="12" fill="#ffffff" opacity=".44"/>
+  <rect x="205" y="386" width="255" height="24" rx="12" fill="#ffffff" opacity=".32"/>
+  <path d="M620 224l100 38v86c0 78-44 126-100 156-56-30-100-78-100-156v-86z" fill="#d4af25"/>
+  <path d="M578 348l30 30 58-76" fill="none" stroke="#0b1f36" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

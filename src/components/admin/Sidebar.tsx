@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Car, 
-  Calendar, 
+import {
+  LayoutDashboard,
+  Users,
+  Calendar,
   TrendingUp,
   DollarSign,
   LogOut,
   FileText,
   ScrollText,
   Settings,
+  ShieldCheck,
   X
 } from 'lucide-react';
 
@@ -35,7 +35,6 @@ export default function Sidebar({
     { id: 'customers', icon: Users, label: 'Customers' },
     { id: 'invoices', icon: DollarSign, label: 'Invoices' },
     { id: 'financials', icon: TrendingUp, label: 'Financials' },
-    { id: 'cars', icon: Car, label: 'Fleet' },
     { id: 'agreements', icon: FileText, label: 'Agreements' },
     { id: 'toll-notices', icon: ScrollText, label: 'Toll Notices' },
     { id: 'maintenance', icon: Settings, label: 'Maintenance' },
@@ -58,10 +57,10 @@ export default function Sidebar({
         <div className="flex items-center justify-between border-b border-white/10 p-6 lg:p-8">
           <Link to="/" className="flex items-center gap-3" onClick={onClose}>
             <div className="w-10 h-10 bg-brand-gold rounded-xl flex items-center justify-center">
-              <Car className="w-6 h-6 text-brand-navy" />
+              <ShieldCheck className="w-6 h-6 text-brand-navy" />
             </div>
             <div>
-              <h1 className="text-white font-bold tracking-tighter leading-none">AURORA</h1>
+              <h1 className="text-white font-bold tracking-tighter leading-none">GALA</h1>
               <p className="text-[8px] text-brand-gold font-bold tracking-[0.3em] uppercase">Rentals Admin</p>
             </div>
           </Link>

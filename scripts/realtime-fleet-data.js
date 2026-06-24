@@ -68,10 +68,10 @@ const MODEL_LABELS = {
 };
 
 const IMAGE_BY_MODEL_CODE = {
-  CMRY: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?q=80&w=1600&auto=format&fit=crop',
-  CRLA: 'https://images.unsplash.com/photo-1657872737697-737a2d123ef2?q=80&w=1600&auto=format&fit=crop',
-  JLN: 'https://images.unsplash.com/photo-1624578571415-09e9b1991929?q=80&w=1600&auto=format&fit=crop',
-  TRGO: 'https://images.unsplash.com/photo-1624578571415-09e9b1991929?q=80&w=1600&auto=format&fit=crop',
+  CMRY: '/images/rental-service-hero.svg',
+  CRLA: '/images/rental-application-support.svg',
+  JLN: '/images/rental-customer-handover.svg',
+  TRGO: '/images/rental-office.svg',
 };
 
 const REGISTRATION_ALIASES = {
@@ -102,7 +102,7 @@ export const getFleetCarName = (row) =>
   )})`;
 
 export const getFleetCarImage = (row) =>
-  `/car-images/${canonicalizeRegistration(row.registration)}.jpeg`;
+  IMAGE_BY_MODEL_CODE[row.modelCode] || '/images/rental-service-hero.svg';
 
 export const getFleetApplicationEmail = (row) =>
   `legacy-${canonicalizeRegistration(row.registration).toLowerCase()}@example.invalid`;

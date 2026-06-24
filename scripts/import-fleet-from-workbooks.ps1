@@ -376,9 +376,9 @@ foreach ($invoiceRow in $invoiceRows) {
 }
 
 $defaultImages = @(
-    'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?q=80&w=1600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1657872737697-737a2d123ef2?q=80&w=1600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1624578571415-09e9b1991929?q=80&w=1600&auto=format&fit=crop'
+    '/images/rental-service-hero.svg',
+    '/images/rental-application-support.svg',
+    '/images/rental-customer-handover.svg'
 )
 
 $carImports = @()

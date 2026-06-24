@@ -1,13 +1,11 @@
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
 const Home = lazy(() => import('./pages/Home'));
-const Fleet = lazy(() => import('./pages/Cars'));
 const Pricing = lazy(() => import('./pages/Pricing'));
-const CarDetails = lazy(() => import('./pages/CarDetails'));
 const Success = lazy(() => import('./pages/Success'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const Apply = lazy(() => import('./pages/Apply'));
@@ -43,11 +41,13 @@ function AppShell() {
         >
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/fleet" element={<Fleet />} />
-            <Route path="/cars" element={<Fleet />} />
+            <Route path="/fleet" element={<Navigate to="/apply" replace />} />
+            <Route path="/fleet/:id" element={<Navigate to="/apply" replace />} />
+            <Route path="/cars" element={<Navigate to="/apply" replace />} />
+            <Route path="/cars/:id" element={<Navigate to="/apply" replace />} />
+            <Route path="/vehicles" element={<Navigate to="/apply" replace />} />
+            <Route path="/vehicles/:id" element={<Navigate to="/apply" replace />} />
             <Route path="/pricing" element={<Pricing />} />
-            <Route path="/cars/:id" element={<CarDetails />} />
-            <Route path="/fleet/:id" element={<CarDetails />} />
             <Route path="/checkout/:id" element={<Checkout />} />
             <Route path="/apply" element={<Apply />} />
             <Route path="/faq" element={<FAQ />} />

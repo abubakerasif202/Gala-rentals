@@ -2,7 +2,7 @@ import { Mail, MapPin, Phone, Clock3, Send } from 'lucide-react';
 import Seo from '../components/Seo';
 import { submitInquiry } from '../lib/api';
 import { useState, type FormEvent } from 'react';
-import { featuredVehicleImages } from '../lib/publicVehicleImages';
+import { featuredRentalImages } from '../lib/genericRentalImages';
 
 const inputClass =
   'focus-ring-dark rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold';
@@ -38,7 +38,7 @@ export default function Contact() {
     <div className="min-h-screen bg-brand-navy text-white">
       <Seo
         title="Contact | Gala Rentals"
-        description="Contact Gala Rentals for fleet availability, rental questions, or application support."
+        description="Contact Gala Rentals for rental questions, application support, or subscription onboarding help."
         canonicalPath="/contact"
       />
 
@@ -50,8 +50,8 @@ export default function Contact() {
               Reach the team directly.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-stone-300">
-              Gala Rentals keeps enquiries simple: ask about fleet availability,
-              rental terms, start dates, or application support.
+              Gala Rentals keeps enquiries simple: ask about rental terms, start dates,
+              subscription billing, or application support.
             </p>
 
             <div className="mt-10 space-y-4">
@@ -81,8 +81,8 @@ export default function Contact() {
 
             <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
               <img
-                src={featuredVehicleImages[0]}
-                alt="Generated premium sedan with no registration plate"
+                src={featuredRentalImages[1]}
+                alt="Rental application support"
                 className="aspect-[16/9] w-full rounded-[1.1rem] object-cover"
               />
             </div>

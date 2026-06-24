@@ -36,7 +36,7 @@ This command fails unless all production-critical Stripe checks pass, including:
 - `APP_URL` validity
 - expected `/api/stripe/webhook` endpoint registration
 - required webhook events
-- payment activation mode (`transactional` or manual-review fallback)
+- payment-state recording mode (`transactional` or manual-review fallback)
 - production schema contract readiness
 
 Preview a destructive Stripe test-data reset without making changes:
@@ -73,25 +73,25 @@ Set the returned signing secret as `STRIPE_WEBHOOK_SECRET`.
 
 The server handler at `POST /api/stripe/webhook` reacts to:
 
-- `checkout.session.completed` and `checkout.session.async_payment_succeeded` — activate a paid vehicle rental (with idempotent ledger).
+- `checkout.session.completed` and `checkout.session.async_payment_succeeded` — record paid application state from verified Stripe payment state with an idempotent ledger.
 - `checkout.session.async_payment_failed` and `checkout.session.expired` — clear the application's `pending_checkout_session_id` when the terminated session still matches the current `payment_link_version`.
-- `invoice.payment_failed` — move rentals to `Overdue`.
-- `customer.subscription.updated` — reconcile rental status to `Active` or `Overdue`.
-- `customer.subscription.deleted` — move rentals to `Completed` or `Cancelled` and release the vehicle when the cancellation was explicit.
+- `invoice.payment_failed` — move rentals with a strict Stripe subscription identity to `Overdue`.
+- `invoice.payment_succeeded`, `customer.subscription.created`, and `customer.subscription.updated` — reconcile rentals only when an existing rental can be resolved by Stripe subscription identity.
+- `customer.subscription.deleted` — update existing rentals only when a strict Stripe subscription identity is present, and release a vehicle only when that existing rental relationship proves it is safe.
 
 Unsubscribed or unrecognised events are logged and acknowledged without side effects.
 
 ## QA checklist
 
-Run the following end-to-end before each production release or after any change to checkout, webhook, or activation code:
+Run the following end-to-end before each production release or after any change to checkout, webhook, or payment-recording code:
 
-1. Approve a pending application from the admin dashboard and confirm the applicant email contains a signed `/checkout/:carId?token=...` link.
+1. Approve a pending application from the admin dashboard and confirm the applicant email contains a signed `/checkout/:applicationId#checkout_token=...` link.
 2. Open the checkout link in an incognito window, complete payment with `4242 4242 4242 4242`, and confirm the redirect lands on `/success?session_id=cs_...&application_id=...` (no `{CHECKOUT_SESSION_ID}` literal in the URL).
-3. Confirm the admin applications modal shows the `pending_checkout_session_id` before payment, and the rentals tab exposes `stripe_subscription_id` and `stripe_customer_id` after activation.
-4. Replay the completion webhook from the Stripe dashboard and confirm the rental is not duplicated and the ledger row stays `processed`.
+3. Confirm the admin applications modal shows the `pending_checkout_session_id` before payment, then shows `Paid` with Stripe customer/subscription identifiers after the webhook.
+4. Replay the completion webhook from the Stripe dashboard and confirm the application remains `Paid`, no rental row is duplicated or created automatically, and the ledger row stays `processed`.
 5. Start a checkout, close the Stripe page without paying, wait for `checkout.session.expired`, and confirm `pending_checkout_session_id` is cleared for that application.
 6. Trigger an `async_payment_failed` (delayed-payment method) and confirm the same clearing behaviour.
-7. In Stripe, cancel the test subscription and confirm the rental transitions to `Completed` or `Cancelled` as expected.
+7. In Stripe, cancel the test subscription and confirm the application payment state remains auditable; rental-state changes should only occur for rentals that already have that Stripe subscription identity.
 8. Confirm `/api/health` returns `paymentActivationMode: "transactional"` in production.
 
 ## Deployment notes

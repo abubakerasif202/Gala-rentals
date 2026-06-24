@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import Seo from '../components/Seo';
 import { fetchRentalPlans } from '../lib/api';
-import { featuredVehicleImages } from '../lib/publicVehicleImages';
+import { featuredRentalImages } from '../lib/genericRentalImages';
 
 export default function Pricing() {
   const shouldReduceMotion = useReducedMotion();
@@ -24,11 +24,11 @@ export default function Pricing() {
         description="Compare Gala Rentals weekly plans, bond requirements, and subscription structure before you apply."
         canonicalPath="/pricing"
         keywords={[
-          'car rental plans sydney',
-          'weekly car rental sydney',
-          'uber rental plans sydney',
-          'merrylands car rental plans',
-          'parramatta car rental plans',
+          'subscription rental plans sydney',
+          'weekly rental application sydney',
+          'secure rental checkout sydney',
+          'merrylands rental plans',
+          'parramatta rental plans',
         ]}
       />
 
@@ -49,7 +49,7 @@ export default function Pricing() {
               transition={{ duration: shouldReduceMotion ? 0 : 0.5 }}
               className="mb-6 max-w-3xl text-4xl font-black tracking-tight text-white md:text-6xl"
             >
-              Sydney rental plans built for professional drivers.
+              Sydney rental plans built around approved applications.
             </motion.h1>
             <motion.p
               initial={shouldReduceMotion ? false : { opacity: 0, y: 22 }}
@@ -58,7 +58,7 @@ export default function Pricing() {
               className="max-w-2xl text-lg leading-8 text-slate-300"
             >
               Compare each plan&apos;s billing cadence, support level, and included services before
-              you apply. Gala Rentals confirms the approved vehicle, weekly amount, and payment
+              you apply. Gala Rentals confirms the approved rental details, weekly amount, and payment
               step only after review.
             </motion.p>
           </div>
@@ -70,8 +70,8 @@ export default function Pricing() {
             className="overflow-hidden rounded-3xl border border-white/10 bg-white/10 p-2 shadow-2xl"
           >
             <img
-              src={featuredVehicleImages[1]}
-              alt="Generated premium sedan with no registration plate"
+              src={featuredRentalImages[4]}
+              alt="Secure rental approval process"
               className="aspect-[16/10] w-full rounded-[1.5rem] object-cover"
             />
             <div className="grid gap-2 p-3 sm:grid-cols-3">
@@ -165,7 +165,7 @@ export default function Pricing() {
                       </p>
                       <p className="text-2xl font-bold">{plan.cadenceLabel}</p>
                       <p className={`mt-3 text-sm leading-7 ${plan.popular ? 'text-slate-300' : 'text-slate-600'}`}>
-                        Exact pricing and vehicle details are shared privately by Gala Rentals
+                        Exact pricing and rental details are shared privately by Gala Rentals
                         after your application is approved.
                       </p>
                     </div>
@@ -214,7 +214,7 @@ export default function Pricing() {
             {
               icon: Check,
               title: 'Review-first approval',
-              body: 'Gala Rentals confirms the approved vehicle, onboarding notes, and exact billing amount during review.',
+              body: 'Gala Rentals confirms the approved rental details, onboarding notes, and exact billing amount during review.',
             },
             {
               icon: Check,

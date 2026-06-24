@@ -2,29 +2,28 @@ import React from 'react';
 import { motion } from 'motion/react';
 import {
   Users,
-  Car as CarIcon,
   DollarSign,
   Clock,
   ChevronRight,
+  FileText,
   TrendingUp,
   CreditCard,
   ShieldCheck,
+  ClipboardCheck,
 } from 'lucide-react';
-import { Application, Car, DashboardStats } from '../../../types';
+import { Application, DashboardStats } from '../../../types';
 import EmptyState from '../EmptyState';
 import MetricCard from '../MetricCard';
 
 interface OverviewTabProps {
   stats?: DashboardStats;
   applications: Application[];
-  cars: Car[];
   setActiveTab: (tab: string) => void;
 }
 
 export default function OverviewTab({
   stats,
   applications,
-  cars,
   setActiveTab,
 }: OverviewTabProps) {
   return (
@@ -47,10 +46,10 @@ export default function OverviewTab({
               Gala Operations
             </p>
             <h2 className="mt-4 max-w-2xl text-4xl font-serif font-bold leading-tight text-white sm:text-5xl">
-              Premium rental control room for applications, fleet, and revenue.
+              Premium rental control room for applications, agreements, and revenue.
             </h2>
             <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300">
-              Review drivers, manage approved vehicles, issue secure payment links, and keep operational rental status visible from one dashboard.
+              Review drivers, generate rental agreements, issue secure payment links, and keep operational rental status visible from one dashboard.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
@@ -80,7 +79,10 @@ export default function OverviewTab({
               {[
                 ['Pending review', applications.filter((app) => app.status === 'Pending').length],
                 ['Active rentals', stats?.active_rentals || 0],
-                ['Available fleet', cars.filter((car) => car.status === 'Available').length],
+                [
+                  'Agreement ready',
+                  applications.filter((app) => app.status === 'Approved' || app.status === 'Paid').length,
+                ],
               ].map(([label, value]) => (
                 <div key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{label}</span>
@@ -107,8 +109,8 @@ export default function OverviewTab({
           value={stats?.total_applications || 0}
         />
         <MetricCard
-          helper="Drivers currently in a rental"
-          icon={CarIcon}
+          helper="Approved customers currently in a rental"
+          icon={ClipboardCheck}
           label="Active Rentals"
           numericValue={stats?.active_rentals || 0}
           value={stats?.active_rentals || 0}
@@ -173,47 +175,48 @@ export default function OverviewTab({
         <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-2xl text-brand-navy shadow-[0_20px_70px_rgba(2,8,23,0.16)]">
           <h3 className="text-white font-bold uppercase tracking-widest text-xs mb-8 flex items-center gap-3">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-brand-gold/15">
-              <CarIcon className="w-4 h-4 text-brand-gold-dark" />
+              <FileText className="w-4 h-4 text-brand-gold-dark" />
             </span>
-            <span className="text-brand-navy">Fleet Availability</span>
+            <span className="text-brand-navy">Agreement Queue</span>
           </h3>
           <div className="space-y-4">
-            {cars.slice(0, 5).map((car) => (
+            {applications
+              .filter((app) => app.status === 'Approved' || app.status === 'Paid')
+              .slice(0, 5)
+              .map((app) => (
               <div
-                key={car.id}
+                key={app.id}
                 className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4 transition-all hover:border-brand-gold/40 hover:bg-white"
               >
                 <div className="flex items-center gap-4">
-                  <img
-                    src={car.image}
-                    alt=""
-                    className="w-14 h-10 object-cover rounded-lg"
-                  />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gold text-brand-navy">
+                    <FileText className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className="text-sm font-bold text-brand-navy">{car.name}</p>
+                    <p className="text-sm font-bold text-brand-navy">{app.name}</p>
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest">
-                      {car.model_year} Model
+                      {app.approved_vehicle || 'Approved vehicle pending'}
                     </p>
                   </div>
                 </div>
                 <span
                   className={`px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest border ${
-                    car.status === 'Available'
+                    app.status === 'Paid'
                       ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                      : 'bg-brand-navy text-brand-grey border-white/10'
+                      : 'bg-brand-gold/10 text-brand-gold-dark border-brand-gold/20'
                   }`}
                 >
-                  {car.status}
+                  {app.status}
                 </span>
               </div>
             ))}
-            {cars.length === 0 && (
+            {applications.filter((app) => app.status === 'Approved' || app.status === 'Paid').length === 0 && (
               <EmptyState
-                actionLabel="Open Fleet"
-                description="Fleet availability appears here after vehicles are added."
-                icon={CarIcon}
-                onAction={() => setActiveTab('cars')}
-                title="No fleet vehicles"
+                actionLabel="Open Agreements"
+                description="Approved and paid applications will appear here when they are ready for agreement generation."
+                icon={FileText}
+                onAction={() => setActiveTab('agreements')}
+                title="No agreement-ready applications"
               />
             )}
           </div>

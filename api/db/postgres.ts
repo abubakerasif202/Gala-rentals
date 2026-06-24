@@ -138,7 +138,7 @@ export const getSessionModePostgresRequirementIssue = () => {
   const sourceName = source || 'the direct Postgres URL';
   return (
     `${sourceName} is configured for transaction-mode Postgres. ` +
-    'Checkout and webhook payment activation use advisory locks and direct transactions, ' +
+    'Checkout and webhook payment-state recording use advisory locks and direct transactions, ' +
     'so production must use a direct connection or Supabase session pooler on port 5432, not transaction pooler port 6543.'
   );
 };

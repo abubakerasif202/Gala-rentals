@@ -11,7 +11,11 @@ import {
 import { getPaymentProcessingMode } from '../api/paymentProcessing.js';
 import { verifyProductionSchemaContract } from '../api/schemaContract.js';
 import { clearStripeCatalogCache, ensureStripeCatalog } from '../api/stripeCatalog.js';
-import { createStripeClient, readStripeSecretKey } from '../api/stripeClient.js';
+import {
+  createStripeClient,
+  getStripeSecretKeyConfigurationIssue,
+  readStripeSecretKey,
+} from '../api/stripeClient.js';
 
 const args = new Set(process.argv.slice(2));
 const requireLiveKey = args.has('--require-live');
@@ -87,6 +91,16 @@ const toStripeKeyMode = (secretKey: string | null): StripeKeyMode => {
   }
 
   return 'unknown';
+};
+
+const hasPlaceholderValue = (value: string | undefined) => {
+  const normalized = String(value || '').trim().toUpperCase();
+  return (
+    normalized.includes('PASTE_') ||
+    normalized.includes('TEMP_REPLACE') ||
+    normalized.includes('REPLACE_') ||
+    normalized.includes('...')
+  );
 };
 
 const isStripeAuthenticationError = (
@@ -169,18 +183,26 @@ const verifyLocalRuntimeDependencies = async () => {
 
   addCheck(
     'stripe_webhook_secret',
-    stripeWebhookSecret ? 'pass' : statusForReadinessCheck(false),
-    stripeWebhookSecret
+    stripeWebhookSecret && !hasPlaceholderValue(stripeWebhookSecret)
+      ? 'pass'
+      : statusForReadinessCheck(false),
+    stripeWebhookSecret && !hasPlaceholderValue(stripeWebhookSecret)
       ? 'STRIPE_WEBHOOK_SECRET is configured.'
-      : 'STRIPE_WEBHOOK_SECRET is required to verify incoming Stripe webhook signatures.'
+      : stripeWebhookSecret
+        ? 'STRIPE_WEBHOOK_SECRET is still a placeholder. Set it to the signing secret from the matching Stripe webhook endpoint.'
+        : 'STRIPE_WEBHOOK_SECRET is required to verify incoming Stripe webhook signatures.'
   );
 
   addCheck(
     'checkout_link_secret',
-    checkoutLinkSecret ? 'pass' : statusForReadinessCheck(false),
-    checkoutLinkSecret
+    checkoutLinkSecret && !hasPlaceholderValue(checkoutLinkSecret)
+      ? 'pass'
+      : statusForReadinessCheck(false),
+    checkoutLinkSecret && !hasPlaceholderValue(checkoutLinkSecret)
       ? 'CHECKOUT_LINK_SECRET is configured.'
-      : 'CHECKOUT_LINK_SECRET is required to sign secure payment links.'
+      : checkoutLinkSecret
+        ? 'CHECKOUT_LINK_SECRET is still a placeholder. Generate a long random secret for signed checkout links.'
+        : 'CHECKOUT_LINK_SECRET is required to sign secure payment links.'
   );
 
   const paymentActivationDetails = {
@@ -258,14 +280,17 @@ const verifyStripeAccountConfiguration = async (
   secretKey: string | null
 ) => {
   const keyMode = toStripeKeyMode(secretKey);
+  const secretKeyIssue = getStripeSecretKeyConfigurationIssue(
+    process.env.STRIPE_SECRET_KEY
+  );
 
   addCheck(
     'stripe_secret_key',
-    secretKey ? 'pass' : 'fail',
-    secretKey ? 'STRIPE_SECRET_KEY is configured.' : 'STRIPE_SECRET_KEY is required.'
+    secretKeyIssue ? 'fail' : 'pass',
+    secretKeyIssue || 'STRIPE_SECRET_KEY is configured.'
   );
 
-  if (!secretKey) {
+  if (secretKeyIssue || !secretKey) {
     return {
       accountId: null,
       catalog: null,

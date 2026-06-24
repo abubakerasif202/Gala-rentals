@@ -70,4 +70,25 @@ describe('stripeClient', () => {
     expect(() => getStripeClient()).toThrowError('STRIPE_SECRET_KEY is required.');
     expect(mockStripeConstructor).not.toHaveBeenCalled();
   });
+
+  it('throws before constructing Stripe when the key is still a placeholder', async () => {
+    process.env.STRIPE_SECRET_KEY = 'PASTE_STANDARD_SECRET_KEY_FROM_STRIPE_SECRET_KEY_ROW';
+    const { getStripeClient, getOptionalStripeClient } = await import('./stripeClient.js');
+
+    expect(getOptionalStripeClient()).toBeNull();
+    expect(() => getStripeClient()).toThrowError(
+      'STRIPE_SECRET_KEY is still a placeholder. Set it to a real Stripe secret key.'
+    );
+    expect(mockStripeConstructor).not.toHaveBeenCalled();
+  });
+
+  it('throws before constructing Stripe when the key has an unsupported prefix', async () => {
+    process.env.STRIPE_SECRET_KEY = 'not_a_stripe_secret';
+    const { getStripeClient } = await import('./stripeClient.js');
+
+    expect(() => getStripeClient()).toThrowError(
+      'STRIPE_SECRET_KEY must start with sk_test_, sk_live_, rk_test_, or rk_live_.'
+    );
+    expect(mockStripeConstructor).not.toHaveBeenCalled();
+  });
 });

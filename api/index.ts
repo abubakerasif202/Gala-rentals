@@ -25,6 +25,7 @@ import {
   getSessionModePostgresRequirementIssue,
 } from './db/postgres.js';
 import { getAdminSessionSecretConfigurationIssue } from './middleware/auth.js';
+import { getStripeSecretKeyConfigurationIssue } from './stripeClient.js';
 import { shouldServeSpaEntry } from './frontendRouting.js';
 import { apiNotFoundHandler, errorHandler } from './middleware/errors.js';
 import { requestContext, requestLogger } from './middleware/requestLogger.js';
@@ -127,6 +128,29 @@ const validateProductionEnv = () => {
     getAdminSessionSecretConfigurationIssue({ required: true });
   if (adminSessionSecretIssue) {
     invalid.push(adminSessionSecretIssue);
+  }
+
+  const stripeSecretKeyIssue = getStripeSecretKeyConfigurationIssue();
+  if (stripeSecretKeyIssue) {
+    invalid.push(stripeSecretKeyIssue);
+  }
+
+  if (
+    process.env.STRIPE_WEBHOOK_SECRET &&
+    /TEMP_REPLACE|REPLACE_|PASTE_|\.\.\./i.test(process.env.STRIPE_WEBHOOK_SECRET)
+  ) {
+    invalid.push(
+      'STRIPE_WEBHOOK_SECRET is still a placeholder. Set it to the Stripe webhook signing secret.'
+    );
+  }
+
+  if (
+    process.env.CHECKOUT_LINK_SECRET &&
+    /TEMP_REPLACE|REPLACE_|PASTE_|\.\.\./i.test(process.env.CHECKOUT_LINK_SECRET)
+  ) {
+    invalid.push(
+      'CHECKOUT_LINK_SECRET is still a placeholder. Generate a long random checkout-link signing secret.'
+    );
   }
 
   const sessionModePostgresIssue = getSessionModePostgresRequirementIssue();

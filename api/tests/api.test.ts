@@ -1412,6 +1412,11 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   process.env.ADMIN_EMAIL = "hello@gala-rentals.com.au";
+  process.env.STRIPE_SECRET_KEY = "sk_test_123";
+  process.env.STRIPE_WEBHOOK_SECRET = "test-webhook-secret";
+  process.env.STRIPE_SECURITY_BOND_PRODUCT_ID = "prod_security_bond";
+  process.env.STRIPE_ONBOARDING_SETUP_PRODUCT_ID = "prod_onboarding_setup";
+  process.env.STRIPE_WEEKLY_RENTAL_PRODUCT_ID = "prod_weekly_rental";
   delete process.env.RESEND_API_KEY;
   delete process.env.LEASE_OWNER_NAME;
   delete process.env.LEASE_OWNER_ADDRESS;

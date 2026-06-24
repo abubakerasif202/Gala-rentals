@@ -54,8 +54,8 @@ if ($missing.Count -gt 0) {
 }
 
 if ($SeedIfMissing) {
-    node scripts/reset-admin.js $env:ADMIN_EMAIL $env:ADMIN_PASSWORD --create-if-missing
+    node scripts/reset-admin.js --create-if-missing
     exit $LASTEXITCODE
 }
 
-node scripts/reset-admin.js $env:ADMIN_EMAIL $env:ADMIN_PASSWORD
+node scripts/reset-admin.js

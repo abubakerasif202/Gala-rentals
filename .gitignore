@@ -36,9 +36,6 @@ metadata.json
 
 gala-rentals-generate-secrets.ps1
 
-
-gala-rentals-generate-secrets.ps1
-
 # Track Gala Rentals OpenDesign prototypes
 !opendesign/
 !opendesign/**

@@ -49,7 +49,7 @@ async function seedAdmin() {
         process.exit(1);
     }
 
-    console.log("Admin account created successfully!", user);
+    console.log(`Admin account created successfully: ${user.user?.id || 'unknown user id'}`);
 
     if (user && user.user) {
         console.log(`Adding ${adminEmail} to the admins table...`);

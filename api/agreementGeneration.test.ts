@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { renderApplicationLeaseAgreement } from './agreementGeneration.js';
 
@@ -10,6 +10,10 @@ const restoreLeaseAgreementEnv = () => {
 };
 
 afterEach(() => {
+  restoreLeaseAgreementEnv();
+});
+
+beforeEach(() => {
   restoreLeaseAgreementEnv();
 });
 

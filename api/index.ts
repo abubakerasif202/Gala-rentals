@@ -589,7 +589,6 @@ const registerCoreRoutes = (app: express.Express) => {
     res.redirect(307, '/api/stripe/rental-plans')
   );
 
-  app.use(apiNotFoundHandler);
 };
 
 const registerProductionFrontend = (app: express.Express) => {
@@ -680,6 +679,7 @@ export const startServer = async (): Promise<RunningResources> => {
     viteServer = await registerDevelopmentFrontend(app);
   }
 
+  app.use(apiNotFoundHandler);
   app.use(errorHandler);
 
   if (!shouldListen) {

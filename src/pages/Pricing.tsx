@@ -20,8 +20,8 @@ export default function Pricing() {
   return (
     <div className="min-h-screen bg-[#e9edf2] text-brand-navy selection:bg-brand-gold selection:text-black">
       <Seo
-        title="Pricing | Gala Rentals"
-        description="Compare Gala Rentals weekly plans, bond requirements, and subscription structure before you apply."
+        title="Pricing | Galarentals"
+        description="Compare Galarentals weekly plans, bond requirements, and subscription structure before you apply."
         canonicalPath="/pricing"
         keywords={[
           'subscription rental plans sydney',
@@ -58,7 +58,7 @@ export default function Pricing() {
               className="max-w-2xl text-lg leading-8 text-slate-600"
             >
               Compare each plan&apos;s billing cadence, support level, and included services before
-              you apply. Gala Rentals confirms the approved rental details, weekly amount, and payment
+              you apply. Galarentals confirms the approved rental details, weekly amount, and payment
               step only after review.
             </motion.p>
           </div>
@@ -121,7 +121,7 @@ export default function Pricing() {
                 Plans are being prepared
               </p>
               <p className="mx-auto mt-3 max-w-xl text-slate-600">
-                Continue with the application and Gala Rentals will confirm current approved
+                Continue with the application and Galarentals will confirm current approved
                 pricing during review.
               </p>
               <Link
@@ -165,7 +165,7 @@ export default function Pricing() {
                       </p>
                       <p className="text-2xl font-bold">{plan.cadenceLabel}</p>
                       <p className={`mt-3 text-sm leading-7 ${plan.popular ? 'text-slate-300' : 'text-slate-600'}`}>
-                        Exact pricing and rental details are shared privately by Gala Rentals
+                        Exact pricing and rental details are shared privately by Galarentals
                         after your application is approved.
                       </p>
                     </div>
@@ -214,7 +214,7 @@ export default function Pricing() {
             {
               icon: Check,
               title: 'Review-first approval',
-              body: 'Gala Rentals confirms the approved rental details, onboarding notes, and exact billing amount during review.',
+              body: 'Galarentals confirms the approved rental details, onboarding notes, and exact billing amount during review.',
             },
             {
               icon: Check,

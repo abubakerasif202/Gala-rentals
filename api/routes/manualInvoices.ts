@@ -16,7 +16,7 @@ const idParamSchema = z.object({
 });
 
 const safePdfFilename = (invoiceNumber: string) =>
-  `gala-rentals-invoice-${invoiceNumber.replace(/[^a-zA-Z0-9._-]/g, '-')}.pdf`;
+  `galarentals-invoice-${invoiceNumber.replace(/[^a-zA-Z0-9._-]/g, '-')}.pdf`;
 
 router.get('/', authenticateAdmin, async (_req, res) => {
   try {

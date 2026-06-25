@@ -1,7 +1,7 @@
 # Single-Admin Security Enhancement
 
 ## Purpose
-To secure the `gala-rentals` admin platform by restricting all administrative access to a single, authorized email address. This ensures that even if other users exist in the authentication system, only the designated administrator can view or modify platform data.
+To secure the `galarentals` admin platform by restricting all administrative access to a single, authorized email address. This ensures that even if other users exist in the authentication system, only the designated administrator can view or modify platform data.
 
 ## Understanding Summary
 - **What is being built:** A "Single-Admin Email Whitelist" security gate.

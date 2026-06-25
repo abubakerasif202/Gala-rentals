@@ -30,8 +30,8 @@ export default function Checkout() {
   const applicationId = isUuid(applicationIdParam || '') ? String(applicationIdParam) : '';
   const pageSeo = (
     <Seo
-      title="Secure Checkout | Gala Rentals"
-      description="Secure Gala Rentals checkout for approved applications."
+      title="Secure Checkout | Galarentals"
+      description="Secure Galarentals checkout for approved applications."
       canonicalPath={applicationId ? `/checkout/${applicationId}` : '/checkout'}
       robots="noindex,nofollow"
     />
@@ -103,7 +103,7 @@ export default function Checkout() {
 
       if (!session.checkout_url) {
         throw new Error(
-          'Stripe did not return a checkout URL. Request a fresh secure checkout link from the Gala Rentals team.'
+          'Stripe did not return a checkout URL. Request a fresh secure checkout link from the Galarentals team.'
         );
       }
 
@@ -133,7 +133,7 @@ export default function Checkout() {
               This payment page needs a valid checkout link
             </h1>
             <p className="text-brand-grey font-light">
-              Start with a Gala Rentals application so we can complete review, approve the vehicle,
+              Start with a Galarentals application so we can complete review, approve the vehicle,
               and issue a secure Stripe payment link.
             </p>
             <Link
@@ -167,7 +167,7 @@ export default function Checkout() {
           <div className="text-center space-y-4 max-w-xl">
             <p>Unable to load the payment details for this link.</p>
             <p className="text-sm text-brand-grey font-light">
-              Request a fresh checkout link from Gala Rentals if this one has expired or was
+              Request a fresh checkout link from Galarentals if this one has expired or was
               replaced by a newer application.
             </p>
             <Link to="/apply" className="text-brand-gold hover:underline">
@@ -223,7 +223,7 @@ export default function Checkout() {
                         Hosted Stripe session
                       </p>
                       <p className="text-sm text-brand-grey font-light leading-relaxed">
-                        Payment happens only after Gala Rentals has reviewed your application.
+                        Payment happens only after Galarentals has reviewed your application.
                         Stripe collects the approved bond, any setup fees, and your first weekly
                         rental payment at checkout.
                       </p>
@@ -236,7 +236,7 @@ export default function Checkout() {
                     </p>
                     <p className="text-xl font-semibold text-white">{approved_vehicle}</p>
                       <p className="text-sm text-brand-grey font-light leading-relaxed">
-                      Your application has already been reviewed by Gala Rentals. After Stripe
+                      Your application has already been reviewed by Galarentals. After Stripe
                       confirms payment, the team finalises onboarding, handover, and any remaining
                       operational steps directly with you.
                     </p>
@@ -283,7 +283,7 @@ export default function Checkout() {
                     <div className="absolute bottom-6 left-6">
                       <h3 className="text-xl font-bold text-white tracking-tight">{approved_vehicle}</h3>
                       <p className="text-brand-gold text-[10px] font-bold uppercase tracking-widest">
-                        Reviewed and approved by Gala Rentals
+                        Reviewed and approved by Galarentals
                       </p>
                     </div>
                   </div>
@@ -325,7 +325,7 @@ export default function Checkout() {
                     <p className="text-[10px] text-brand-grey leading-relaxed">
                       After checkout, future weekly subscription invoices continue at{' '}
                       <strong>{formatCurrency(billing.recurringAmount)}</strong> {billing.recurringLabel}. Stripe
-                      handles the payment securely and Gala Rentals completes the driver onboarding process after confirmation.
+                      handles the payment securely and Galarentals completes the driver onboarding process after confirmation.
                     </p>
                   </div>
                 </div>

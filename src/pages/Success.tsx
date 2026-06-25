@@ -145,8 +145,8 @@ export default function Success() {
   return (
     <div className="flex min-h-screen flex-col justify-center bg-brand-navy bg-[radial-gradient(circle_at_top_left,rgba(223,177,37,0.16),transparent_34%)] px-4 py-12 selection:bg-brand-gold selection:text-brand-charcoal sm:px-6 lg:px-8">
       <Seo
-        title="Payment Status | Gala Rentals"
-        description="Secure payment status page for Gala Rentals checkout sessions."
+        title="Payment Status | Galarentals"
+        description="Secure payment status page for Galarentals checkout sessions."
         canonicalPath="/success"
         robots="noindex,nofollow"
       />

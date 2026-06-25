@@ -1,6 +1,6 @@
 # Lease Agreement Management
 
-This document describes the current Gala Rentals agreement flow. It is aligned to the payment-only application workflow: admin approval and agreement drafting may happen before payment, but saved lease agreements are only persisted after the driver payment is complete.
+This document describes the current Galarentals agreement flow. It is aligned to the payment-only application workflow: admin approval and agreement drafting may happen before payment, but saved lease agreements are only persisted after the driver payment is complete.
 
 ## Current Contract
 

@@ -1,6 +1,6 @@
 # Stripe Handoff Checklist
 
-Use this checklist before handing Gala Rental over to a client or switching from sandbox to production.
+Use this checklist before handing Galarentals over to a client or switching from sandbox to production.
 
 ## Required environment variables
 
@@ -21,7 +21,7 @@ Recommended for transactional payment-state recording:
 - Checkout runs in `subscription` mode.
 - The app creates hosted Checkout Sessions on the server.
 - Final paid state depends on verified Stripe webhooks hitting `POST /api/stripe/webhook`.
-- Gala Rentals is intentionally payment-only after checkout: successful payment marks the application `Paid`, stores Stripe identifiers, clears the pending session, and does not mutate car status or create rental rows automatically.
+- Galarentals is intentionally payment-only after checkout: successful payment marks the application `Paid`, stores Stripe identifiers, clears the pending session, and does not mutate car status or create rental rows automatically.
 - Transactional payment-state recording requires a session-capable Postgres connection on port `5432`.
 - Without that direct Postgres connection, successful payments can fall back to `Payment Review` for operator follow-up.
 

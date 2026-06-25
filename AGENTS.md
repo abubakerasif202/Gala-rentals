@@ -6,18 +6,18 @@
 - Provide exact fixes, fallback only when needed.
 - Optimize for security, performance, maintainability.
 - Include validation commands after changes.
-- For complex tasks: Plan → Build → Verify → Optimize.
+- For complex tasks: Plan â†’ Build â†’ Verify â†’ Optimize.
 - If user says "ultra mode", optimize aggressively.
 - If user says "one-command", provide one executable script.
 - If user says "Retry", re-check the previous answer against these rules and regenerate.
 
 --- project-doc ---
 
-# AGENTS.md — Rental SaaS Engineering Guide
+# AGENTS.md â€” Rental SaaS Engineering Guide
 
-This is the main engineering guide for Codex agents working on a production-ready rental SaaS project in the Gala Rentals style. Use it for vehicle rental, equipment rental, hire cars, property rentals, subscription-based asset rental, and similar operational rental platforms.
+This is the main engineering guide for Codex agents working on a production-ready rental SaaS project in the Galarentals style. Use it for vehicle rental, equipment rental, hire cars, property rentals, subscription-based asset rental, and similar operational rental platforms.
 
-If this guide is being used inside an existing codebase, inspect the current application behavior before changing it. Preserve existing payment and rental workflows unless the user explicitly asks for a migration. In the current Gala Rentals app, payment completion is intentionally payment-only: successful checkout marks the application `Paid`, uses checkout token `carId: null`, does not mutate car status, and does not create rental rows automatically.
+If this guide is being used inside an existing codebase, inspect the current application behavior before changing it. Preserve existing payment and rental workflows unless the user explicitly asks for a migration. In the current Galarentals app, payment completion is intentionally payment-only: successful checkout marks the application `Paid`, uses checkout token `carId: null`, does not mutate car status, and does not create rental rows automatically.
 
 ## 1. Product Overview
 
@@ -90,7 +90,7 @@ Rental lifecycle rules:
 
 Existing-project rule:
 
-- If the current codebase deliberately separates payment completion from rental activation, preserve that design. For Gala Rentals specifically, admin enters `Vehicle / Number Plate` as plain text, payment-link creation must not send `car_id`, checkout tokens use `carId: null`, checkout completion marks the application `Paid` only, and car/rental records are not mutated automatically.
+- If the current codebase deliberately separates payment completion from rental activation, preserve that design. For Galarentals specifically, admin enters `Vehicle / Number Plate` as plain text, payment-link creation must not send `car_id`, checkout tokens use `carId: null`, checkout completion marks the application `Paid` only, and car/rental records are not mutated automatically.
 
 ## 4. Main Features To Generate
 
@@ -463,7 +463,7 @@ For every non-trivial task, finish with:
 - Deployment notes.
 - Remaining blockers.
 
-For Gala Rentals repo-facing work, use this more explicit close-out:
+For Galarentals repo-facing work, use this more explicit close-out:
 
 - Changed files and what changed.
 - Test results, including pass/fail for each command run.

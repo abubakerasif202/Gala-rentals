@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: gala-rentals
+    name: galarentals
     runtime: node
     plan: starter
     branch: main
@@ -40,10 +40,10 @@ services:
       - key: VITE_API_BASE_URL
         value: /api
       - key: LEASE_OWNER_NAME
-        value: "Gala Rentals"
+        value: "Galarentals"
       - key: LEASE_OWNER_ADDRESS
         value: "Sydney NSW"
       - key: LEASE_OWNER_CONTACT
         value: "1300 555 828"
       - key: LEASE_OWNER_EMAIL
-        value: "hello@gala-rentals.com.au"
+        value: "hello@galarentals.com.au"

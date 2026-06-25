@@ -252,6 +252,8 @@ export const fetchApplicationDocumentUrl = async (
     | 'license_photo'
     | 'license_back_photo'
     | 'passport_or_uber_profile_screenshot'
+    | 'proof_of_address_document'
+    | 'additional_document'
 ): Promise<{ url: string }> => {
   const { data } = await api.get(`/applications/${applicationId}/documents/${document}`);
   return data;

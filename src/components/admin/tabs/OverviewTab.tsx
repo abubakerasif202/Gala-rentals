@@ -39,7 +39,7 @@ export default function OverviewTab({
           <div>
             <img
               src="/logo/gala-logo-navbar.png"
-              alt="Gala Rentals logo"
+              alt="Galarentals logo"
               className="mb-6 h-12 w-auto max-w-[168px] object-contain sm:h-14 sm:max-w-[196px]"
             />
             <p className="text-[10px] font-bold uppercase tracking-[0.36em] text-brand-gold">

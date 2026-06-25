@@ -37,8 +37,8 @@ export default function Contact() {
   return (
     <div className="min-h-screen bg-[#e9edf2] text-brand-navy">
       <Seo
-        title="Contact | Gala Rentals"
-        description="Contact Gala Rentals for rental questions, application support, or subscription onboarding help."
+        title="Contact | Galarentals"
+        description="Contact Galarentals for rental questions, application support, or subscription onboarding help."
         canonicalPath="/contact"
       />
 
@@ -50,14 +50,14 @@ export default function Contact() {
               Reach the team directly.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              Gala Rentals keeps enquiries simple: ask about rental terms, start dates,
+              Galarentals keeps enquiries simple: ask about rental terms, start dates,
               subscription billing, or application support.
             </p>
 
             <div className="mt-10 space-y-4">
               {[
                 { icon: Phone, title: 'Phone', body: '1300 555 828', href: 'tel:1300555828' },
-                { icon: Mail, title: 'Email', body: 'hello@gala-rentals.com.au', href: 'mailto:hello@gala-rentals.com.au' },
+                { icon: Mail, title: 'Email', body: 'hello@galarentals.com.au', href: 'mailto:hello@galarentals.com.au' },
                 { icon: Clock3, title: 'Business hours', body: 'Mon-Fri, 8:30am to 5:30pm AEST' },
                 { icon: MapPin, title: 'Service area', body: 'Sydney metro and surrounding suburbs' },
               ].map((item) => (

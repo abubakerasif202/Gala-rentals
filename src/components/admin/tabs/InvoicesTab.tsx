@@ -166,7 +166,7 @@ export default function InvoicesTab({
       window.open(url, '_blank', 'noopener,noreferrer');
       const link = document.createElement('a');
       link.href = url;
-      link.download = `gala-rentals-invoice-${invoice.invoice_number}.pdf`;
+      link.download = `galarentals-invoice-${invoice.invoice_number}.pdf`;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setManualInvoiceSuccess('Manual invoice PDF generated.');
@@ -472,7 +472,7 @@ export default function InvoicesTab({
               Manual Invoices
             </h3>
             <p className="mt-1 text-sm text-brand-grey">
-              Create Gala Rentals tax invoices for manual admin billing, including
+              Create Galarentals tax invoices for manual admin billing, including
               bond tracking outside Stripe.
             </p>
           </div>

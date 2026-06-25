@@ -99,7 +99,7 @@ function App() {
       <div className="browser">
         <header className="topbar">
           <div className="brand">
-            <img src="../../design-systems/gala-rentals/assets/logos/gala-logo-navbar.png" alt="Gala Rentals" />
+            <img src="../../design-systems/galarentals/assets/logos/gala-logo-navbar.png" alt="Galarentals" />
           </div>
           <div className="switcher" aria-label="Design variations">
             {variants.map((item) => (
@@ -394,10 +394,10 @@ function Documents({ selected, generateAgreement, documentsGenerated, setScreen 
 
 function CustomerStatus({ selected, paymentLinkGenerated, setScreen }) {
   const statusCopy = selected.status === 'Paid'
-    ? 'Payment received. Gala Rentals will complete handover, documents, and operational follow-up.'
+    ? 'Payment received. Galarentals will complete handover, documents, and operational follow-up.'
     : selected.status === 'Approved'
       ? 'Approved. Your secure Stripe checkout link is ready.'
-      : 'Application received. Gala Rentals is reviewing your details before payment is requested.';
+      : 'Application received. Galarentals is reviewing your details before payment is requested.';
   return (
     <section className="page">
       <div className="phone">

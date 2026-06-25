@@ -152,6 +152,13 @@ const applicationUpload = multer({
   storage: multer.memoryStorage(),
 });
 
+type ApplicationDocumentField =
+  | "license_photo"
+  | "license_back_photo"
+  | "passport_or_uber_profile_screenshot"
+  | "proof_of_address_document"
+  | "additional_document";
+
 const applicationSubmissionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
@@ -233,7 +240,8 @@ const createSignedDocumentUrl = async (path: string | null | undefined) => {
 
   const storagePath = extractStoragePath(path);
   if (!storagePath) {
-    return path;
+    console.warn("Rejected unmanaged application document URL.");
+    return null;
   }
 
   const { data, error } = await db.storage
@@ -320,6 +328,21 @@ const getApplicationPassportDocumentValue = (application: Record<string, any>) =
   application.passport_or_uber_profile_screenshot ??
   application.passportOrUberProfileScreenshot ??
   null;
+
+const getApplicationDocumentValue = (
+  application: Record<string, any>,
+  document: ApplicationDocumentField,
+) => {
+  if (document === "license_back_photo") {
+    return getApplicationBackPhotoValue(application);
+  }
+
+  if (document === "passport_or_uber_profile_screenshot") {
+    return getApplicationPassportDocumentValue(application);
+  }
+
+  return application[document] ?? null;
+};
 
 const createRequestError = (status: number, message: string) =>
   Object.assign(new Error(message), { status });
@@ -461,19 +484,33 @@ router.get("/", authenticateAdmin, async (_req, res) => {
             license_photo: null,
             license_back_photo: null,
             passport_or_uber_profile_screenshot: null,
+            proof_of_address_document: null,
+            additional_document: null,
           };
         }
 
         return {
           ...rest,
           license_photo: await createSignedDocumentUrl(
-            application.license_photo,
+            getApplicationDocumentValue(application, "license_photo"),
           ),
           license_back_photo: await createSignedDocumentUrl(
-            getApplicationBackPhotoValue(application),
+            getApplicationDocumentValue(application, "license_back_photo"),
           ),
           passport_or_uber_profile_screenshot: await createSignedDocumentUrl(
-            getApplicationPassportDocumentValue(application),
+            getApplicationDocumentValue(
+              application,
+              "passport_or_uber_profile_screenshot",
+            ),
+          ),
+          proof_of_address_document: await createSignedDocumentUrl(
+            getApplicationDocumentValue(
+              application,
+              "proof_of_address_document",
+            ),
+          ),
+          additional_document: await createSignedDocumentUrl(
+            getApplicationDocumentValue(application, "additional_document"),
           ),
         };
       }),
@@ -495,6 +532,8 @@ router.get("/:id/documents/:document", authenticateAdmin, async (req, res) => {
           "license_photo",
           "license_back_photo",
           "passport_or_uber_profile_screenshot",
+          "proof_of_address_document",
+          "additional_document",
         ]),
       })
       .parse(req.params);
@@ -513,13 +552,7 @@ router.get("/:id/documents/:document", authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: "Application not found" });
     }
 
-    const documentValue =
-      application[document] ??
-      (document === "license_back_photo"
-        ? getApplicationBackPhotoValue(application)
-        : document === "passport_or_uber_profile_screenshot"
-          ? getApplicationPassportDocumentValue(application)
-        : null);
+    const documentValue = getApplicationDocumentValue(application, document);
     const signedUrl = await createSignedDocumentUrl(documentValue);
     if (!signedUrl) {
       return res.status(404).json({ error: "Document not found" });
@@ -740,7 +773,7 @@ router.post(
           );
           const emailResults = await Promise.allSettled([
             sendResendEmail(resend, {
-              from: "Gala Rentals Notifications <noreply@gala-rentals.com.au>",
+              from: "Galarentals Notifications <noreply@galarentals.com.au>",
               to: adminEmail,
               subject: `New Driver Application: ${applicantNameForSubject}`,
               html: `
@@ -761,17 +794,17 @@ router.post(
               `,
             }),
             sendResendEmail(resend, {
-              from: "Gala Rentals <noreply@gala-rentals.com.au>",
+              from: "Galarentals <noreply@galarentals.com.au>",
               to: normalizedApplicationData.email,
-              subject: "We received your Gala Rentals application",
+              subject: "We received your Galarentals application",
               html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
                   <h2 style="color: #D4AF37;">Application Received</h2>
                   <p>Hi ${safeApplicantName},</p>
-                  <p>Thanks for applying to drive with Gala Rentals.</p>
+                  <p>Thanks for applying to drive with Galarentals.</p>
                   <p>Our team is reviewing your documents now. If your application is approved, we will email you a secure checkout link with the final pricing and agreement.</p>
                   <p><strong>Application reference:</strong> ${applicationId}</p>
-                  <p>Best regards,<br /><strong>The Gala Rentals Team</strong></p>
+                  <p>Best regards,<br /><strong>The Galarentals Team</strong></p>
                 </div>
               `,
             }),

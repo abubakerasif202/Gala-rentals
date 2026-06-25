@@ -1,11 +1,11 @@
 ---
-name: gala-rentals-design-system
-description: Gala Rentals premium rental SaaS design system for public rental pages and dense admin operations.
+name: galarentals-design-system
+description: Galarentals premium rental SaaS design system for public rental pages and dense admin operations.
 ---
 
-# Gala Rentals Design System
+# Galarentals Design System
 
-Use this system for Gala Rentals public rental pages, application workflows, admin dashboards, payment review, documents, notices, invoices, rentals, and customer status views.
+Use this system for Galarentals public rental pages, application workflows, admin dashboards, payment review, documents, notices, invoices, rentals, and customer status views.
 
 ## Product Rules
 

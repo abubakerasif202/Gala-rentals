@@ -1,4 +1,4 @@
-export const SITE_NAME = 'Gala Rentals';
+export const SITE_NAME = 'Galarentals';
 export const SITE_URL = 'https://www.galarentals.com.au';
 export const DEFAULT_SOCIAL_IMAGE_PATH = '/images/rental-service-hero.svg';
 

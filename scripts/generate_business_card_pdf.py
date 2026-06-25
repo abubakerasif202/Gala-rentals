@@ -13,7 +13,7 @@ from reportlab.lib.utils import ImageReader
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_PATH = ROOT / "output" / "pdf" / "gala-rentals-business-card-double-sided.pdf"
+OUTPUT_PATH = ROOT / "output" / "pdf" / "galarentals-business-card-double-sided.pdf"
 LOGO_PATH = ROOT / "public" / "gala-logo.webp"
 HERO_PATH = ROOT / "public" / "hero-camry.webp"
 
@@ -30,7 +30,7 @@ SLATE = HexColor("#5B6676")
 RED = HexColor("#B8332E")
 
 PHONE = "0420 550 556"
-EMAIL = "hello@gala-rentals.com.au"
+EMAIL = "hello@galarentals.com.au"
 WEBSITE = "galarentals.com.au"  # inferred from the branded email domain in this repo
 CONTACT_NAME = "Sarfaraz Rajabi"
 LICENCE = "317786C"
@@ -307,8 +307,8 @@ def draw_back(c: canvas.Canvas) -> None:
 def main() -> None:
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     c = canvas.Canvas(str(OUTPUT_PATH), pagesize=(PAGE_W, PAGE_H), pageCompression=1)
-    c.setTitle("Gala Rentals Business Card")
-    c.setAuthor("Codex for Gala Rentals")
+    c.setTitle("Galarentals Business Card")
+    c.setAuthor("Codex for Galarentals")
     c.setSubject("Double-sided business card artwork")
     c.setCreator("scripts/generate_business_card_pdf.py")
 

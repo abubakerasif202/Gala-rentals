@@ -33,7 +33,7 @@ export default function FAQ() {
   return (
     <div className="min-h-screen bg-[#e9edf2] text-brand-navy">
       <Seo
-        title="FAQ | Gala Rentals"
+        title="FAQ | Galarentals"
         description="Answers to common questions about documents, payments, insurance, notices, cancellations, and rental start dates."
         canonicalPath="/faq"
       />
@@ -47,7 +47,7 @@ export default function FAQ() {
               Common questions, answered clearly.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-              Gala Rentals keeps the process transparent from application through payment,
+              Galarentals keeps the process transparent from application through payment,
               notices, and rental handover.
             </p>
           </div>

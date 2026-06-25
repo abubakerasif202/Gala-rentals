@@ -36,13 +36,13 @@ const PROFILES = {
 const KNOWN_PRODUCTION_HOSTS = new Set([
   'galarentals.com.au',
   'www.galarentals.com.au',
-  'gala-rentals.com.au',
-  'www.gala-rentals.com.au',
-  'gala-rentals.onrender.com',
+  'galarentals.com.au',
+  'www.galarentals.com.au',
+  'galarentals.onrender.com',
 ]);
 
 const HELP = `
-Gala Rentals read-only load test runner
+Galarentals read-only load test runner
 
 Usage:
   node scripts/load-test.mjs [options]
@@ -328,7 +328,7 @@ const runRequest = async ({ endpoint, config }) => {
     const response = await fetch(url, {
       headers: {
         accept: 'application/json,text/html;q=0.9,*/*;q=0.8',
-        'user-agent': 'gala-rentals-load-test/1.0',
+        'user-agent': 'galarentals-load-test/1.0',
       },
       redirect: 'follow',
       signal: AbortSignal.timeout(config.timeoutMs),
@@ -463,7 +463,7 @@ const printReport = (report) => {
   console.log(
     [
       '',
-      'Gala Rentals load test result',
+      'Galarentals load test result',
       `Target: ${report.config.baseUrl}`,
       `Profile: ${report.config.profile}`,
       `Duration: ${round(report.elapsedSeconds, 2)}s`,

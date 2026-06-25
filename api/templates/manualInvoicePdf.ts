@@ -31,8 +31,8 @@ export const renderManualInvoicePdf = (invoice: ManualInvoice) =>
     doc.on('error', reject);
     doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-    doc.info.Title = `Gala Rentals Invoice ${invoice.invoice_number}`;
-    doc.info.Author = 'Gala Rentals';
+    doc.info.Title = `Galarentals Invoice ${invoice.invoice_number}`;
+    doc.info.Author = 'Galarentals';
     doc.info.Subject =
       'MAPLE RENTALS TAX INVOICE Payment Details BSB: 062202 Account Number: 11147699';
 
@@ -183,7 +183,7 @@ export const renderManualInvoicePdf = (invoice: ManualInvoice) =>
       .font('Helvetica')
       .fontSize(10)
       .fillColor('#111827')
-      .text('Account Name: Gala Rentals', 50, paymentY + 28)
+      .text('Account Name: Galarentals', 50, paymentY + 28)
       .text('BSB: 062202', 50, paymentY + 44)
       .text('Account Number: 11147699', 50, paymentY + 60);
 
@@ -205,7 +205,7 @@ export const renderManualInvoicePdf = (invoice: ManualInvoice) =>
       .fontSize(8)
       .fillColor('#6B7280')
       .text(
-        'Gala Rentals - Sydney NSW - contact details on file',
+        'Galarentals - Sydney NSW - contact details on file',
         50,
         790,
         { align: 'center', width: 495 }

@@ -6,7 +6,7 @@ import { escapeHtml, getResend, sanitizeEmailHeaderValue, sendResendEmail } from
 
 const router = express.Router();
 const SUPPORT_FALLBACK_MESSAGE =
-  'Availability inquiries are temporarily unavailable online. Please call or email Gala Rentals directly.';
+  'Availability inquiries are temporarily unavailable online. Please call or email Galarentals directly.';
 const inquirySubmissionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
@@ -24,7 +24,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
       return res.status(503).json({ error: SUPPORT_FALLBACK_MESSAGE });
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL || 'hello@gala-rentals.com.au';
+    const adminEmail = process.env.ADMIN_EMAIL || 'hello@galarentals.com.au';
     const resend = await getResend();
     const safeName = escapeHtml(inquiry.name);
     const safeEmail = escapeHtml(inquiry.email);
@@ -36,7 +36,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
 
     const [adminEmailResult, userEmailResult] = await Promise.allSettled([
       sendResendEmail(resend, {
-        from: 'Gala Rentals <noreply@gala-rentals.com.au>',
+        from: 'Galarentals <noreply@galarentals.com.au>',
         to: adminEmail,
         subject: `New availability inquiry from ${inquiryNameForSubject}`,
         html: `
@@ -52,16 +52,16 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
         `,
       }),
       sendResendEmail(resend, {
-        from: 'Gala Rentals <noreply@gala-rentals.com.au>',
+        from: 'Galarentals <noreply@galarentals.com.au>',
         to: inquiry.email,
-        subject: 'We received your Gala Rentals enquiry',
+        subject: 'We received your Galarentals enquiry',
         html: `
           <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
             <h2 style="color: #D4AF37;">Inquiry Received</h2>
             <p>Hi ${safeName},</p>
             <p>We received your availability inquiry for ${safeStartDate} to ${safeEndDate}.</p>
             <p>Our rentals team will review your enquiry and contact you shortly.</p>
-            <p>Best regards,<br /><strong>The Gala Rentals Team</strong></p>
+            <p>Best regards,<br /><strong>The Galarentals Team</strong></p>
           </div>
         `,
       }),

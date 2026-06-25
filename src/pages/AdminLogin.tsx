@@ -26,23 +26,23 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="flex min-h-[80vh] items-center justify-center bg-[#eef1f5] px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-[80vh] items-center justify-center bg-brand-mist px-4 py-12 sm:px-6 lg:px-8">
       <Seo
-        title="Admin Login | Gala Rentals"
-        description="Administrative login for Gala Rentals."
+        title="Admin Login | Galarentals"
+        description="Administrative login for Galarentals."
         canonicalPath="/admin/login"
         robots="noindex,nofollow"
       />
 
-      <div className="w-full max-w-md space-y-8 rounded-[1.75rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_rgba(11,31,54,0.16)] sm:p-10">
+      <div className="w-full max-w-md space-y-8 rounded-[1.75rem] border border-slate-200 bg-white p-8 ambient-shadow-lg sm:p-10">
         <div>
           <img
             src="/logo/gala-logo-navbar.png"
-            alt="Gala Rentals logo"
+            alt="Galarentals logo"
             className="mx-auto mb-5 h-14 w-auto max-w-[190px] object-contain"
           />
           <h2 className="text-center text-3xl font-serif font-bold text-brand-navy tracking-tight">Admin Access</h2>
-          <p className="mt-2 text-center text-xs text-brand-gold font-bold uppercase tracking-[0.3em]">Gala Rentals Operations</p>
+          <p className="mt-2 text-center text-xs text-brand-gold font-bold uppercase tracking-[0.3em]">Galarentals Operations</p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
@@ -54,32 +54,36 @@ export default function AdminLogin() {
 
           <div className="space-y-4">
             <div>
-              <label className="sr-only">Admin Email</label>
+              <label htmlFor="admin-username" className="sr-only">Admin Email</label>
               <input
+                id="admin-username"
                 type="email"
                 required
-                className="relative block w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-brand-navy placeholder:text-slate-400 transition-colors focus:z-10 focus:border-brand-gold focus:bg-white focus:outline-none sm:text-sm"
+                className="focus-ring-light relative block w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-brand-navy placeholder:text-slate-400 transition-colors focus:z-10 focus:border-brand-gold focus:bg-white sm:text-sm"
                 placeholder="Email Address"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
               />
             </div>
             <div>
-              <label className="sr-only">Password</label>
+              <label htmlFor="admin-password" className="sr-only">Password</label>
               <input
+                id="admin-password"
                 type="password"
                 required
-                className="relative block w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-brand-navy placeholder:text-slate-400 transition-colors focus:z-10 focus:border-brand-gold focus:bg-white focus:outline-none sm:text-sm"
+                className="focus-ring-light relative block w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-brand-navy placeholder:text-slate-400 transition-colors focus:z-10 focus:border-brand-gold focus:bg-white sm:text-sm"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
               />
             </div>
           </div>
 
           <button
             type="submit"
-            className="group relative flex w-full justify-center rounded-full border border-transparent bg-brand-gold px-4 py-4 text-sm font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light focus:outline-none"
+            className="focus-ring-light group relative flex w-full justify-center rounded-full border border-transparent bg-brand-gold px-4 py-4 text-sm font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light"
           >
             Sign in to Dashboard
           </button>

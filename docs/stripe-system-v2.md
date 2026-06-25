@@ -1,12 +1,12 @@
 # Stripe System V2
 
-This document is historical only. Do not use it as the operational handoff for the current Gala Rentals payment flow.
+This document is historical only. Do not use it as the operational handoff for the current Galarentals payment flow.
 
 The active reference is [`docs/stripe-system-v3.md`](./stripe-system-v3.md).
 
 ## Why This Is Deprecated
 
-Stripe System V2 described an older car-linked checkout path where a verified payment could create rental rows and mutate car status automatically. That is not the current Gala Rentals contract.
+Stripe System V2 described an older car-linked checkout path where a verified payment could create rental rows and mutate car status automatically. That is not the current Galarentals contract.
 
 The current payment flow is intentionally payment-only:
 

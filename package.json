@@ -1,5 +1,5 @@
 {
-  "name": "gala-rentals",
+  "name": "galarentals",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -90,7 +90,8 @@
     "node": "20.x"
   },
   "overrides": {
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.0",
+    "esbuild": "^0.28.1"
   },
   "allowScripts": {
     "esbuild@0.28.1": true

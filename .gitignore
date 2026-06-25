@@ -34,8 +34,10 @@ metadata.json
 .codex
 .codex-temp/
 
-gala-rentals-generate-secrets.ps1
+galarentals-generate-secrets.ps1
 
-# Track Gala Rentals OpenDesign prototypes
+# Track Galarentals OpenDesign prototypes
 !opendesign/
 !opendesign/**
+
+.env

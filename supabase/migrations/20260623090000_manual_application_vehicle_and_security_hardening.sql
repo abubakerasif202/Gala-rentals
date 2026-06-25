@@ -1,4 +1,4 @@
--- Gala Rentals applications are approved with manually typed vehicle/rego text.
+-- Galarentals applications are approved with manually typed vehicle/rego text.
 -- Public submissions must go through the Express API; anon Supabase inserts are disabled.
 
 ALTER TABLE public.applications

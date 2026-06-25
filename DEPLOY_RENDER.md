@@ -1,19 +1,19 @@
-# Deploy Gala Rentals to Render
+# Deploy Galarentals to Render
 
 ## Goal
 
-Deploy Gala Rentals as a single Render web service where Express serves the API under `/api/*`, serves the built Vite frontend from `dist/`, and exposes `/api/health` for Render health checks.
+Deploy Galarentals as a single Render web service where Express serves the API under `/api/*`, serves the built Vite frontend from `dist/`, and exposes `/api/health` for Render health checks.
 
 ## Render Blueprint
 
 This repository includes `render.yaml`.
 
 Blueprint repo:
-`https://github.com/abubakerasif202/gala-rentals.git`
+`https://github.com/abubakerasif202/galarentals.git`
 
 Expected service configuration:
 
-- Service name: `gala-rentals`
+- Service name: `galarentals`
 - Runtime: `Node`
 - Branch: `main`
 - Build command: `npm ci --include=dev && npm run validate && npm run build`
@@ -23,7 +23,7 @@ Expected service configuration:
 
 ## Required Environment Variables
 
-Set these in the Gala Rentals Render service. Do not reuse credentials from any other rental brand.
+Set these in the Galarentals Render service. Do not reuse credentials from any other rental brand.
 
 - `NODE_ENV=production`
 - `APP_URL=https://www.galarentals.com.au`
@@ -42,10 +42,10 @@ Set these in the Gala Rentals Render service. Do not reuse credentials from any 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_SUPABASE_VEHICLE_IMAGES_BUCKET=vehicle-images`
-- `LEASE_OWNER_NAME=Gala Rentals`
+- `LEASE_OWNER_NAME=Galarentals`
 - `LEASE_OWNER_ADDRESS=Sydney NSW`
 - `LEASE_OWNER_CONTACT=1300 555 828`
-- `LEASE_OWNER_EMAIL=hello@gala-rentals.com.au`
+- `LEASE_OWNER_EMAIL=hello@galarentals.com.au`
 
 ## Stripe Webhook
 
@@ -57,8 +57,8 @@ Keep webhook signing verification enabled and store the signing secret in `STRIP
 
 ## First Deploy Checklist
 
-1. Connect the Gala Rentals GitHub repository in Render.
-2. Create or apply the Blueprint for the `gala-rentals` service.
+1. Connect the Galarentals GitHub repository in Render.
+2. Create or apply the Blueprint for the `galarentals` service.
 3. Fill every required environment variable with Gala-specific values.
 4. Connect the Gala database and set `DATABASE_URL`.
 5. Configure a separate Gala Supabase project and storage buckets.

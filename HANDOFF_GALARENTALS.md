@@ -1,4 +1,4 @@
-# Gala Rentals Production Handoff
+# Galarentals Production Handoff
 
 Generated: 2026-05-12
 Updated: 2026-06-25

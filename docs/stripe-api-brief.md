@@ -1,12 +1,12 @@
-# Stripe API — Capability Brief
+# Stripe API â€” Capability Brief
 
 > Deprecated operationally. This file is a historical sandbox snapshot and is not the source of truth for client handoff, live account identity, webhook configuration, or production readiness.
 >
 > Use [docs/STRIPE_HANDOFF_CHECKLIST.md](./STRIPE_HANDOFF_CHECKLIST.md), [docs/STRIPE_SETUP.md](./STRIPE_SETUP.md), and `npm run stripe:handoff` instead.
 
-**Project:** Gala Rental
+**Project:** Galarentals
 **Account:** Gala rentals sandbox (`acct_1T8kakDaPc7L3S6e`)
-**Mode:** Test (sandbox — no real charges)
+**Mode:** Test (sandbox â€” no real charges)
 **Author:** Manus AI
 **Date:** March 2026
 
@@ -14,7 +14,7 @@
 
 ## Overview
 
-Stripe is a developer-first payments platform that provides a unified API surface for the full lifecycle of online commerce — from collecting a one-time payment to managing complex recurring billing, issuing invoices, handling disputes, and analysing financial data. This brief documents every major capability area available through the Stripe API, with live-tested results from the Gala Rental sandbox account.
+Stripe is a developer-first payments platform that provides a unified API surface for the full lifecycle of online commerce â€” from collecting a one-time payment to managing complex recurring billing, issuing invoices, handling disputes, and analysing financial data. This brief documents every major capability area available through the Stripe API, with live-tested results from the Galarentals sandbox account.
 
 ---
 
@@ -39,10 +39,10 @@ Customers are persistent objects that store contact information, payment methods
 
 **Key operations:**
 
-- `stripe.Customer.create()` — register a new customer with name, email, phone, address, and arbitrary metadata.
-- `stripe.Customer.modify()` — update any field, including the default payment method for invoices.
-- `stripe.Customer.list()` — paginate through all customers with optional email filter.
-- `stripe.Customer.search()` — full-text search using Stripe Query Language (e.g., `email~'galarental.demo'`).
+- `stripe.Customer.create()` â€” register a new customer with name, email, phone, address, and arbitrary metadata.
+- `stripe.Customer.modify()` â€” update any field, including the default payment method for invoices.
+- `stripe.Customer.list()` â€” paginate through all customers with optional email filter.
+- `stripe.Customer.search()` â€” full-text search using Stripe Query Language (e.g., `email~'galarental.demo'`).
 
 **Live test results:**
 
@@ -55,48 +55,48 @@ Customers are persistent objects that store contact information, payment methods
 
 ## 3. Product Catalogue
 
-Products represent what is being sold — in Gala Rental's case, individual rental properties or packages. Products are decoupled from pricing, allowing multiple price points (currencies, billing intervals) to be attached to a single product.
+Products represent what is being sold â€” in Galarentals's case, individual rental properties or packages. Products are decoupled from pricing, allowing multiple price points (currencies, billing intervals) to be attached to a single product.
 
 **Key operations:**
 
-- `stripe.Product.create()` — define a product with name, description, images, and metadata.
-- `stripe.Product.modify()` — update product details or deactivate a listing.
-- `stripe.Product.list()` — retrieve the full catalogue.
+- `stripe.Product.create()` â€” define a product with name, description, images, and metadata.
+- `stripe.Product.modify()` â€” update product details or deactivate a listing.
+- `stripe.Product.list()` â€” retrieve the full catalogue.
 
 **Live test results:**
 
 | Product | Type | ID |
 |---|---|---|
-| Gala Cabin — Weekend Rental | service | `prod_U709mb1avE9jCh` |
-| Gala Lakehouse — Monthly Subscription | service | `prod_U7098NCEpO8K6t` |
+| Gala Cabin â€” Weekend Rental | service | `prod_U709mb1avE9jCh` |
+| Gala Lakehouse â€” Monthly Subscription | service | `prod_U7098NCEpO8K6t` |
 
 ---
 
-## 4. Pricing — One-Time & Recurring
+## 4. Pricing â€” One-Time & Recurring
 
 Price objects define the monetary value attached to a product. Stripe supports **one-time** prices for single transactions and **recurring** prices for subscription billing, with flexible interval configuration (daily, weekly, monthly, yearly).
 
 **Key operations:**
 
-- `stripe.Price.create()` — create a price with `unit_amount` (in minor currency units), `currency`, and optional `recurring` interval.
-- `stripe.Price.list()` — list all prices, optionally filtered by product.
+- `stripe.Price.create()` â€” create a price with `unit_amount` (in minor currency units), `currency`, and optional `recurring` interval.
+- `stripe.Price.list()` â€” list all prices, optionally filtered by product.
 
 **Live test results:**
 
 | Price | Amount | Type | Interval | ID |
 |---|---|---|---|---|
-| Cabin weekend rate | AUD 350.00 | One-time | — | `price_1T8mBMDaPc7L3S6eF1hXwLtQ` |
+| Cabin weekend rate | AUD 350.00 | One-time | â€” | `price_1T8mBMDaPc7L3S6eF1hXwLtQ` |
 | Lakehouse monthly rate | AUD 1,200.00 | Recurring | Monthly | `price_1T8mBSDaPc7L3S6eY1behoYL` |
 
 ---
 
 ## 5. Payment Links
 
-Payment Links generate a hosted checkout URL that can be shared via email, SMS, or social media — no frontend code required. The customer is directed to a Stripe-hosted page to complete payment.
+Payment Links generate a hosted checkout URL that can be shared via email, SMS, or social media â€” no frontend code required. The customer is directed to a Stripe-hosted page to complete payment.
 
 **Key operations:**
 
-- `stripe.PaymentLink.create()` — supply a price and quantity to generate a shareable URL instantly.
+- `stripe.PaymentLink.create()` â€” supply a price and quantity to generate a shareable URL instantly.
 
 **Live test result:**
 
@@ -109,7 +109,7 @@ Payment Links are ideal for ad-hoc bookings, quote follow-ups, and situations wh
 
 ## 6. Invoicing
 
-Stripe's invoicing system supports a structured **draft → open → paid** lifecycle. Invoices can be created manually (for one-off billing) or generated automatically by the subscription engine.
+Stripe's invoicing system supports a structured **draft â†’ open â†’ paid** lifecycle. Invoices can be created manually (for one-off billing) or generated automatically by the subscription engine.
 
 **Workflow:**
 
@@ -137,10 +137,10 @@ A `PaymentIntent` is the canonical object representing a single payment attempt.
 
 **Key operations:**
 
-- `stripe.PaymentIntent.create()` — initiate a payment with amount, currency, customer, and metadata.
-- `stripe.PaymentIntent.list()` — retrieve all intents, optionally filtered by customer.
-- `stripe.PaymentIntent.confirm()` — confirm with a payment method to trigger processing.
-- `stripe.PaymentIntent.cancel()` — abort before capture.
+- `stripe.PaymentIntent.create()` â€” initiate a payment with amount, currency, customer, and metadata.
+- `stripe.PaymentIntent.list()` â€” retrieve all intents, optionally filtered by customer.
+- `stripe.PaymentIntent.confirm()` â€” confirm with a payment method to trigger processing.
+- `stripe.PaymentIntent.cancel()` â€” abort before capture.
 
 **Live test result:**
 
@@ -156,10 +156,10 @@ Subscriptions automate recurring billing by attaching a customer to a recurring 
 
 **Key operations:**
 
-- `stripe.Subscription.create()` — start a subscription with one or more price items.
-- `stripe.Subscription.modify()` — update items, quantities, proration behaviour, or metadata.
-- `stripe.Subscription.cancel()` — cancel immediately or at period end.
-- `stripe.Subscription.list()` — filter by customer, price, or status.
+- `stripe.Subscription.create()` â€” start a subscription with one or more price items.
+- `stripe.Subscription.modify()` â€” update items, quantities, proration behaviour, or metadata.
+- `stripe.Subscription.cancel()` â€” cancel immediately or at period end.
+- `stripe.Subscription.list()` â€” filter by customer, price, or status.
 
 **Subscription lifecycle states:**
 
@@ -179,8 +179,8 @@ Coupons apply percentage or fixed-amount discounts to invoices and subscriptions
 
 **Key operations:**
 
-- `stripe.Coupon.create()` — define a coupon with `percent_off` or `amount_off`, duration, and optional redemption limits.
-- `stripe.Coupon.list()` — retrieve all active coupons.
+- `stripe.Coupon.create()` â€” define a coupon with `percent_off` or `amount_off`, duration, and optional redemption limits.
+- `stripe.Coupon.list()` â€” retrieve all active coupons.
 
 **Live test results:**
 
@@ -198,8 +198,8 @@ Refunds reverse a charge, either fully or partially. They are attached to a `Pay
 
 **Key operations:**
 
-- `stripe.Refund.create()` — issue a full or partial refund with an optional reason (`duplicate`, `fraudulent`, `requested_by_customer`).
-- `stripe.Refund.list()` — retrieve refund history for a given charge or payment intent.
+- `stripe.Refund.create()` â€” issue a full or partial refund with an optional reason (`duplicate`, `fraudulent`, `requested_by_customer`).
+- `stripe.Refund.list()` â€” retrieve refund history for a given charge or payment intent.
 
 **Reason codes:**
 
@@ -217,8 +217,8 @@ When a cardholder disputes a charge with their bank, Stripe creates a `Dispute` 
 
 **Key operations:**
 
-- `stripe.Dispute.list()` — retrieve open and closed disputes.
-- `stripe.Dispute.modify()` — attach evidence fields (customer email, product description, shipping info, etc.) and set `submit=True` to send to the card network.
+- `stripe.Dispute.list()` â€” retrieve open and closed disputes.
+- `stripe.Dispute.modify()` â€” attach evidence fields (customer email, product description, shipping info, etc.) and set `submit=True` to send to the card network.
 
 **Evidence fields supported:** customer email, billing address, product description, receipt, refund policy, service date, shipping documentation, and free-form text.
 

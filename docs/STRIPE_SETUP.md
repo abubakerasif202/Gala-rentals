@@ -73,11 +73,11 @@ Set the returned signing secret as `STRIPE_WEBHOOK_SECRET`.
 
 The server handler at `POST /api/stripe/webhook` reacts to:
 
-- `checkout.session.completed` and `checkout.session.async_payment_succeeded` — record paid application state from verified Stripe payment state with an idempotent ledger.
-- `checkout.session.async_payment_failed` and `checkout.session.expired` — clear the application's `pending_checkout_session_id` when the terminated session still matches the current `payment_link_version`.
-- `invoice.payment_failed` — move rentals with a strict Stripe subscription identity to `Overdue`.
-- `invoice.payment_succeeded`, `customer.subscription.created`, and `customer.subscription.updated` — reconcile rentals only when an existing rental can be resolved by Stripe subscription identity.
-- `customer.subscription.deleted` — update existing rentals only when a strict Stripe subscription identity is present, and release a vehicle only when that existing rental relationship proves it is safe.
+- `checkout.session.completed` and `checkout.session.async_payment_succeeded` â€” record paid application state from verified Stripe payment state with an idempotent ledger.
+- `checkout.session.async_payment_failed` and `checkout.session.expired` â€” clear the application's `pending_checkout_session_id` when the terminated session still matches the current `payment_link_version`.
+- `invoice.payment_failed` â€” move rentals with a strict Stripe subscription identity to `Overdue`.
+- `invoice.payment_succeeded`, `customer.subscription.created`, and `customer.subscription.updated` â€” reconcile rentals only when an existing rental can be resolved by Stripe subscription identity.
+- `customer.subscription.deleted` â€” update existing rentals only when a strict Stripe subscription identity is present, and release a vehicle only when that existing rental relationship proves it is safe.
 
 Unsubscribed or unrecognised events are logged and acknowledged without side effects.
 
@@ -97,12 +97,12 @@ Run the following end-to-end before each production release or after any change 
 ## Deployment notes
 
 - Update the Stripe dashboard webhook endpoint's subscribed events to match the list above whenever `api/routes/webhooks.ts` gains or drops an event handler.
-- The webhook endpoint must be mounted with `express.raw({ type: 'application/json' })` — do not move it behind JSON body parsing or signature verification will fail.
+- The webhook endpoint must be mounted with `express.raw({ type: 'application/json' })` â€” do not move it behind JSON body parsing or signature verification will fail.
 - `CHECKOUT_LINK_SECRET`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET` must stay in sync across all app instances; rotating any of them without updating every instance will break live checkouts or webhook verification.
 - When rotating secrets, drain in-flight checkouts first: pause approvals, wait for pending sessions to expire, rotate, and re-enable approvals.
 - After any schema change that touches `applications.payment_link_version` or `stripe_webhook_events`, re-run `npm run verify:schema-contract` and `npm run stripe:handoff`.
 
 ## Notes
 
-- `scripts/stripe_demo.py` is a legacy API demo that intentionally creates test objects. It is not part of the Gala Rental checkout setup.
+- `scripts/stripe_demo.py` is a legacy API demo that intentionally creates test objects. It is not part of the Galarentals checkout setup.
 - If you need a truly pristine Stripe environment, prefer a fresh Stripe sandbox in the Dashboard instead of reusing a polluted long-lived test account.

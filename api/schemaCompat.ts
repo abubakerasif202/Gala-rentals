@@ -1173,11 +1173,15 @@ export const getApplicationDocumentColumn = async (
     | 'license_photo'
     | 'license_back_photo'
     | 'passport_or_uber_profile_screenshot'
+    | 'proof_of_address_document'
+    | 'additional_document'
 ) => {
   const {
     coreMode,
     applicationBackPhotoColumn,
     applicationPassportDocumentColumn,
+    applicationProofOfAddressDocumentColumn,
+    applicationAdditionalDocumentColumn,
   } = await getSchemaCompat();
 
   if (column === 'license_back_photo') {
@@ -1186,6 +1190,14 @@ export const getApplicationDocumentColumn = async (
 
   if (column === 'passport_or_uber_profile_screenshot') {
     return applicationPassportDocumentColumn;
+  }
+
+  if (column === 'proof_of_address_document') {
+    return applicationProofOfAddressDocumentColumn;
+  }
+
+  if (column === 'additional_document') {
+    return applicationAdditionalDocumentColumn;
   }
 
   return coreMode === 'camel' ? 'licensePhoto' : 'license_photo';

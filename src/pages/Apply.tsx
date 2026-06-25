@@ -346,8 +346,8 @@ export default function Apply() {
     return (
       <div className="min-h-screen bg-brand-navy text-white">
         <Seo
-          title="Application Received | Gala Rentals"
-          description="Gala Rentals application confirmation screen."
+          title="Application Received | Galarentals"
+          description="Galarentals application confirmation screen."
           canonicalPath="/apply"
           robots="noindex,nofollow"
         />
@@ -389,8 +389,8 @@ export default function Apply() {
   return (
     <div className="min-h-screen bg-brand-navy text-white">
       <Seo
-        title="Apply | Gala Rentals"
-        description="Apply for a premium Gala Rentals subscription in five clear steps."
+        title="Apply | Galarentals"
+        description="Apply for a premium Galarentals subscription in five clear steps."
         canonicalPath="/apply"
       />
 
@@ -402,7 +402,7 @@ export default function Apply() {
               Premium rental approvals, organized in five steps.
             </h1>
             <p className="mt-6 max-w-[32ch] text-base leading-8 text-stone-300 sm:max-w-xl sm:text-lg">
-              Gala Rentals keeps the experience calm and professional. Submit your details, upload documents,
+              Galarentals keeps the experience calm and professional. Submit your details, upload documents,
               and accept the agreement before the admin review begins.
             </p>
 

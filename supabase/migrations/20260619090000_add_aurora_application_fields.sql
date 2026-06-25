@@ -1,4 +1,4 @@
--- Gala Rentals application field expansion
+-- Galarentals application field expansion
 -- Adds optional rental-preference and document fields required by the new wizard.
 
 ALTER TABLE applications

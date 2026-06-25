@@ -10,14 +10,14 @@ const quickLinks = [
 
 export default function Footer() {
   return (
-    <footer id="contact" className="mt-24 rounded-t-[2rem] border-t border-white/10 bg-[#020916] text-gray-400">
+    <footer id="contact" className="public-footer mt-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-14 py-16 md:grid-cols-4">
           <div>
-            <Link to="/" className="focus-ring-dark mb-8 flex w-fit items-center group" aria-label="Gala Rentals home">
+            <Link to="/" className="focus-ring-dark mb-8 flex w-fit items-center group" aria-label="Galarentals home">
               <img
                 src="/logo/gala-logo-footer.png"
-                alt="Gala Rentals logo"
+                alt="Galarentals logo"
                 className="h-14 w-auto max-w-[172px] object-contain sm:h-16 sm:max-w-[210px]"
                 loading="lazy"
               />
@@ -30,7 +30,7 @@ export default function Footer() {
               Sydney based support. Application-first approval. Secure subscription checkout.
             </p>
             <p className="mt-6 text-xs text-slate-500">
-              &copy; {new Date().getFullYear()} Gala Rentals Sydney. All rights reserved.
+              &copy; {new Date().getFullYear()} Galarentals Sydney. All rights reserved.
             </p>
           </div>
 
@@ -77,7 +77,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-4">
                 <Mail className="h-4 w-4 text-brand-gold" />
-                <a href="mailto:hello@gala-rentals.com.au" className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">hello@gala-rentals.com.au</a>
+                <a href="mailto:hello@galarentals.com.au" className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">hello@galarentals.com.au</a>
               </li>
               <li className="flex items-start gap-4">
                 <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />

@@ -1395,7 +1395,7 @@ vi.mock("../db/postgres.js", () => {
 });
 
 process.env.NODE_ENV = "test";
-process.env.ADMIN_EMAIL = "hello@gala-rentals.com.au";
+process.env.ADMIN_EMAIL = "hello@galarentals.com.au";
 process.env.CHECKOUT_LINK_SECRET = "test-checkout-secret";
 process.env.JWT_SECRET = "test-jwt-secret";
 process.env.STRIPE_SECRET_KEY = "sk_test_123";
@@ -1411,7 +1411,7 @@ const { createCheckoutToken, verifyCheckoutToken } =
 beforeEach(() => {
   vi.clearAllMocks();
 
-  process.env.ADMIN_EMAIL = "hello@gala-rentals.com.au";
+  process.env.ADMIN_EMAIL = "hello@galarentals.com.au";
   process.env.STRIPE_SECRET_KEY = "sk_test_123";
   process.env.STRIPE_WEBHOOK_SECRET = "test-webhook-secret";
   process.env.STRIPE_SECURITY_BOND_PRODUCT_ID = "prod_security_bond";
@@ -1474,6 +1474,8 @@ beforeEach(() => {
       license_photo: "docs/license-1.png",
       license_back_photo: "docs/license-back-1.png",
       passport_or_uber_profile_screenshot: null,
+      proof_of_address_document: "docs/proof-of-address-1.pdf",
+      additional_document: "docs/additional-1.pdf",
       agreement_accepted_at: "2026-03-03T00:00:00.000Z",
       agreement_signature: "Jane Driver",
       agreement_template_version: 1,
@@ -1508,6 +1510,10 @@ beforeEach(() => {
       license_back_photo: null,
       passport_or_uber_profile_screenshot:
         "https://project.supabase.co/storage/v1/object/public/applications/docs/passport-2.png",
+      proof_of_address_document:
+        "https://project.supabase.co/storage/v1/object/public/applications/docs/proof-of-address-2.pdf",
+      additional_document:
+        "https://project.supabase.co/storage/v1/object/public/applications/docs/additional-2.pdf",
       agreement_accepted_at: "2026-03-04T00:00:00.000Z",
       agreement_signature: "Approved Driver",
       agreement_template_version: 1,
@@ -1628,7 +1634,7 @@ beforeEach(() => {
   ];
 
   mockGetUser.mockResolvedValue({
-    data: { user: { email: "hello@gala-rentals.com.au" } },
+    data: { user: { email: "hello@galarentals.com.au" } },
     error: null,
   });
   mockRefreshSession.mockImplementation(async () => ({
@@ -1638,7 +1644,7 @@ beforeEach(() => {
         expires_at: Math.floor(Date.now() / 1000) + 3600,
         refresh_token: "refresh-token",
       },
-      user: { email: "hello@gala-rentals.com.au" },
+      user: { email: "hello@galarentals.com.au" },
     },
     error: null,
   }));
@@ -2184,10 +2190,10 @@ describe("Auth API", () => {
   it("POST /api/auth/login should log in an admin", async () => {
     const res = await request(app)
       .post("/api/auth/login")
-      .send({ username: "hello@gala-rentals.com.au", password: "password" });
+      .send({ username: "hello@galarentals.com.au", password: "password" });
 
     expect(res.status).toBe(200);
-    expect(res.body.username).toBe("hello@gala-rentals.com.au");
+    expect(res.body.username).toBe("hello@galarentals.com.au");
     expect(res.headers["set-cookie"]).toBeDefined();
   });
 
@@ -2195,7 +2201,7 @@ describe("Auth API", () => {
     const res = await request(app)
       .post("/api/auth/login")
       .set("Origin", "https://admin.galarentals.com.au")
-      .send({ username: "hello@gala-rentals.com.au", password: "password" });
+      .send({ username: "hello@galarentals.com.au", password: "password" });
 
     expect(res.status).toBe(200);
     expect(res.headers["set-cookie"]?.[0]).toContain("SameSite=None");
@@ -2213,7 +2219,7 @@ describe("Auth API", () => {
       const res = await request(scopedApp)
         .post("/api/auth/login")
         .set("Origin", "https://admin.galarentals.com.au")
-        .send({ username: "hello@gala-rentals.com.au", password: "password" });
+        .send({ username: "hello@galarentals.com.au", password: "password" });
 
       expect(res.status).toBe(200);
       expect(res.headers["access-control-allow-origin"]).toBe(
@@ -2233,7 +2239,7 @@ describe("Auth API", () => {
     const agent = request.agent(app);
     const loginRes = await agent
       .post("/api/auth/login")
-      .send({ username: "hello@gala-rentals.com.au", password: "password" });
+      .send({ username: "hello@galarentals.com.au", password: "password" });
 
     expect(loginRes.status).toBe(200);
     const adminCookie = loginRes.headers["set-cookie"]?.[0]?.split(";")[0];
@@ -2247,7 +2253,7 @@ describe("Auth API", () => {
     const verifyRes = await agent.get("/api/auth/verify").set("Cookie", adminCookie);
 
     expect(verifyRes.status).toBe(200);
-    expect(verifyRes.body.user.username).toBe("hello@gala-rentals.com.au");
+    expect(verifyRes.body.user.username).toBe("hello@galarentals.com.au");
     expect(mockRefreshSession).toHaveBeenCalledWith({
       refresh_token: "refresh-token",
     });
@@ -2258,7 +2264,7 @@ describe("Auth API", () => {
     const agent = request.agent(app);
     const loginRes = await agent
       .post("/api/auth/login")
-      .send({ username: "hello@gala-rentals.com.au", password: "password" });
+      .send({ username: "hello@galarentals.com.au", password: "password" });
 
     expect(loginRes.status).toBe(200);
     const adminCookie = loginRes.headers["set-cookie"]?.[0]?.split(";")[0];
@@ -2932,6 +2938,18 @@ describe("Applications API", () => {
     expect(res.body[1].license_back_photo).toBe(
       "https://signed.example/applications/docs/license-back-1.png",
     );
+    expect(res.body[0].proof_of_address_document).toBe(
+      "https://signed.example/applications/docs/proof-of-address-2.pdf",
+    );
+    expect(res.body[0].additional_document).toBe(
+      "https://signed.example/applications/docs/additional-2.pdf",
+    );
+    expect(res.body[1].proof_of_address_document).toBe(
+      "https://signed.example/applications/docs/proof-of-address-1.pdf",
+    );
+    expect(res.body[1].additional_document).toBe(
+      "https://signed.example/applications/docs/additional-1.pdf",
+    );
   });
 
   it("GET /api/applications/:id/documents/:document rejects non-UUID ids", async () => {
@@ -2941,6 +2959,26 @@ describe("Applications API", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Validation failed");
+  });
+
+  it("GET /api/applications/:id/documents/:document returns signed URLs for private supporting documents", async () => {
+    const proofRes = await request(app)
+      .get(`/api/applications/${PENDING_APPLICATION_ID}/documents/proof_of_address_document`)
+      .set("Authorization", "Bearer fake-token");
+
+    expect(proofRes.status).toBe(200);
+    expect(proofRes.body.url).toBe(
+      "https://signed.example/applications/docs/proof-of-address-1.pdf",
+    );
+
+    const additionalRes = await request(app)
+      .get(`/api/applications/${PENDING_APPLICATION_ID}/documents/additional_document`)
+      .set("Authorization", "Bearer fake-token");
+
+    expect(additionalRes.status).toBe(200);
+    expect(additionalRes.body.url).toBe(
+      "https://signed.example/applications/docs/additional-1.pdf",
+    );
   });
 
   it("POST /api/applications supports camel-case Supabase application schemas", async () => {
@@ -3036,9 +3074,9 @@ describe("Applications API", () => {
   });
 
   it("POST /api/applications creates a pending application without generating an agreement or checkout link", async () => {
-    process.env.LEASE_OWNER_NAME = "Gala Rentals";
+    process.env.LEASE_OWNER_NAME = "Galarentals";
     process.env.LEASE_OWNER_ADDRESS = "Sydney NSW";
-    process.env.LEASE_OWNER_EMAIL = "hello@gala-rentals.com.au";
+    process.env.LEASE_OWNER_EMAIL = "hello@galarentals.com.au";
     mockState.applications[1].status = "Paid";
     mockState.applications[1].paid_at = "2026-03-07T00:00:00.000Z";
 
@@ -4009,7 +4047,7 @@ describe("Operational history API", () => {
     expect(res.status).toBe(409);
   });
 
-  it("GET /api/admin/manual-invoices/:id/pdf returns a Gala Rentals PDF", async () => {
+  it("GET /api/admin/manual-invoices/:id/pdf returns a Galarentals PDF", async () => {
     mockState.manual_invoices = [
       {
         id: "invoice-1",
@@ -4048,7 +4086,7 @@ describe("Operational history API", () => {
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/pdf");
     expect(res.headers["content-disposition"]).toContain(
-      "gala-rentals-invoice-MR-INV-PDF.pdf",
+      "galarentals-invoice-MR-INV-PDF.pdf",
     );
     expect(res.text || res.body.toString("latin1")).toContain("MAPLE RENTALS");
     expect(res.text || res.body.toString("latin1")).toContain("062202");

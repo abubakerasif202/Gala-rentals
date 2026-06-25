@@ -1,14 +1,14 @@
-# Gala Rentals Deployment Handoff
+# Galarentals Deployment Handoff
 
-Gala Rentals must be deployed as its own rental company project with its own repository, Render service, Supabase project, Stripe account resources, webhook endpoint, and environment variables.
+Galarentals must be deployed as its own rental company project with its own repository, Render service, Supabase project, Stripe account resources, webhook endpoint, and environment variables.
 
 ## Production Identity
 
-- Brand: Gala Rentals
+- Brand: Galarentals
 - Domain: `https://www.galarentals.com.au`
-- Email: `hello@gala-rentals.com.au`
-- Render service: `gala-rentals`
-- Repository: `https://github.com/abubakerasif202/gala-rentals.git`
+- Email: `hello@galarentals.com.au`
+- Render service: `galarentals`
+- Repository: `https://github.com/abubakerasif202/galarentals.git`
 - Stripe webhook: `https://www.galarentals.com.au/api/stripe/webhook`
 
 ## Deployment Rules
@@ -45,10 +45,10 @@ Static values are already in `render.yaml`:
 - `NODE_ENV=production`
 - `VITE_API_BASE_URL=/api`
 - `VITE_SUPABASE_VEHICLE_IMAGES_BUCKET=vehicle-images`
-- `LEASE_OWNER_NAME=Gala Rentals`
+- `LEASE_OWNER_NAME=Galarentals`
 - `LEASE_OWNER_ADDRESS=Sydney NSW`
 - `LEASE_OWNER_CONTACT=1300 555 828`
-- `LEASE_OWNER_EMAIL=hello@gala-rentals.com.au`
+- `LEASE_OWNER_EMAIL=hello@galarentals.com.au`
 
 ## Smoke Tests
 

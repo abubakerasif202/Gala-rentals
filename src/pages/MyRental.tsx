@@ -28,8 +28,8 @@ export default function MyRental() {
   return (
     <div className="min-h-screen bg-brand-navy text-white">
       <Seo
-        title="My Rental | Gala Rentals"
-        description="Mobile-style customer portal for Gala Rentals with rental status, support links, and key subscription information."
+        title="My Rental | Galarentals"
+        description="Mobile-style customer portal for Galarentals with rental status, support links, and key subscription information."
         canonicalPath="/my-rental"
         robots="noindex,nofollow"
       />

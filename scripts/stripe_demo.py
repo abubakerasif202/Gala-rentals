@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-stripe_demo.py — Gala Rental · Stripe API Feature Demo
+stripe_demo.py â€” Galarentals Â· Stripe API Feature Demo
 ========================================================
 This script demonstrates the full breadth of Stripe API capabilities
-as integrated into the Gala Rental platform. It uses the official
+as integrated into the Galarentals platform. It uses the official
 Stripe Python SDK and covers the following feature areas:
 
-  1.  Account & Balance         — inspect the connected Stripe account
-  2.  Customer Management       — create, list, and look up customers
-  3.  Product Catalogue         — create and list rental products
-  4.  Pricing                   — one-time and recurring price objects
-  5.  Payment Links             — shareable checkout URLs (no-code)
-  6.  Invoicing                 — draft → item → finalise workflow
-  7.  Payment Intents           — inspect payment lifecycle objects
-  8.  Subscriptions             — recurring billing management
-  9.  Coupons & Discounts       — percentage and fixed-amount offers
-  10. Refunds                   — full and partial refund workflow
-  11. Disputes                  — list and evidence submission
-  12. Resource Search           — cross-object Stripe query syntax
+  1.  Account & Balance         â€” inspect the connected Stripe account
+  2.  Customer Management       â€” create, list, and look up customers
+  3.  Product Catalogue         â€” create and list rental products
+  4.  Pricing                   â€” one-time and recurring price objects
+  5.  Payment Links             â€” shareable checkout URLs (no-code)
+  6.  Invoicing                 â€” draft â†’ item â†’ finalise workflow
+  7.  Payment Intents           â€” inspect payment lifecycle objects
+  8.  Subscriptions             â€” recurring billing management
+  9.  Coupons & Discounts       â€” percentage and fixed-amount offers
+  10. Refunds                   â€” full and partial refund workflow
+  11. Disputes                  â€” list and evidence submission
+  12. Resource Search           â€” cross-object Stripe query syntax
 
 Prerequisites
 -------------
@@ -66,11 +66,11 @@ def header(title: str) -> None:
 
 
 def ok(label: str, value) -> None:
-    print(f"  {GREEN}✔{RESET}  {BOLD}{label}:{RESET} {value}")
+    print(f"  {GREEN}âœ”{RESET}  {BOLD}{label}:{RESET} {value}")
 
 
 def info(msg: str) -> None:
-    print(f"  {YELLOW}ℹ{RESET}  {msg}")
+    print(f"  {YELLOW}â„¹{RESET}  {msg}")
 
 
 def pretty(obj) -> str:
@@ -85,7 +85,7 @@ def pretty(obj) -> str:
 # ===========================================================================
 
 def demo_account_and_balance() -> None:
-    header("1 · Account & Balance")
+    header("1 Â· Account & Balance")
 
     account = stripe.Account.retrieve()
     ok("Account ID",      account.id)
@@ -109,7 +109,7 @@ def demo_account_and_balance() -> None:
 
 def demo_customers() -> dict:
     """Create two demo customers and return their IDs."""
-    header("2 · Customer Management")
+    header("2 Â· Customer Management")
 
     # Create customers
     alice = stripe.Customer.create(
@@ -130,7 +130,7 @@ def demo_customers() -> dict:
     customers = stripe.Customer.list(limit=5)
     info(f"Total customers retrieved: {len(customers.data)}")
     for c in customers.data:
-        print(f"     • {c.name:<25} {c.email:<35} id={c.id}")
+        print(f"     â€¢ {c.name:<25} {c.email:<35} id={c.id}")
 
     return {"alice_id": alice.id, "bob_id": bob.id}
 
@@ -141,17 +141,17 @@ def demo_customers() -> dict:
 
 def demo_products() -> dict:
     """Create two demo rental products and return their IDs."""
-    header("3 · Product Catalogue")
+    header("3 Â· Product Catalogue")
 
     cabin = stripe.Product.create(
-        name="Gala Cabin — Weekend Rental",
+        name="Gala Cabin â€” Weekend Rental",
         description="A cosy 2-bedroom cabin perfect for weekend getaways in the forest.",
         metadata={"category": "cabin", "bedrooms": "2"},
     )
     ok("Created product", f"{cabin.name} ({cabin.id})")
 
     lakehouse = stripe.Product.create(
-        name="Gala Lakehouse — Monthly Subscription",
+        name="Gala Lakehouse â€” Monthly Subscription",
         description="Premium lakehouse rental with monthly subscription billing.",
         metadata={"category": "lakehouse", "bedrooms": "4"},
     )
@@ -164,12 +164,12 @@ def demo_products() -> dict:
 
 
 # ===========================================================================
-# 4. PRICING — ONE-TIME & RECURRING
+# 4. PRICING â€” ONE-TIME & RECURRING
 # ===========================================================================
 
 def demo_prices(product_ids: dict) -> dict:
     """Create one-time and recurring prices; return price IDs."""
-    header("4 · Pricing — One-Time & Recurring")
+    header("4 Â· Pricing â€” One-Time & Recurring")
 
     # One-time price: AUD $350 per weekend
     cabin_price = stripe.Price.create(
@@ -178,7 +178,7 @@ def demo_prices(product_ids: dict) -> dict:
         currency="aud",
     )
     ok("One-time price (cabin)",
-       f"AUD {cabin_price.unit_amount / 100:.2f} — id={cabin_price.id}")
+       f"AUD {cabin_price.unit_amount / 100:.2f} â€” id={cabin_price.id}")
 
     # Recurring price: AUD $1,200/month for lakehouse
     lakehouse_price = stripe.Price.create(
@@ -188,7 +188,7 @@ def demo_prices(product_ids: dict) -> dict:
         recurring={"interval": "month"},
     )
     ok("Recurring price (lakehouse)",
-       f"AUD {lakehouse_price.unit_amount / 100:.2f}/month — id={lakehouse_price.id}")
+       f"AUD {lakehouse_price.unit_amount / 100:.2f}/month â€” id={lakehouse_price.id}")
 
     # List all prices for the cabin
     cabin_prices = stripe.Price.list(product=product_ids["cabin_id"])
@@ -205,7 +205,7 @@ def demo_prices(product_ids: dict) -> dict:
 # ===========================================================================
 
 def demo_payment_links(price_ids: dict) -> None:
-    header("5 · Payment Links (No-Code Checkout)")
+    header("5 Â· Payment Links (No-Code Checkout)")
 
     link = stripe.PaymentLink.create(
         line_items=[{"price": price_ids["cabin_price_id"], "quantity": 1}],
@@ -219,7 +219,7 @@ def demo_payment_links(price_ids: dict) -> None:
 # ===========================================================================
 
 def demo_invoicing(customer_ids: dict, price_ids: dict) -> None:
-    header("6 · Invoicing — Draft → Item → Finalise")
+    header("6 Â· Invoicing â€” Draft â†’ Item â†’ Finalise")
 
     # Step 1: Create a draft invoice
     invoice = stripe.Invoice.create(
@@ -237,7 +237,7 @@ def demo_invoicing(customer_ids: dict, price_ids: dict) -> None:
     )
     ok("Invoice item added", f"id={item.id}")
 
-    # Step 3: Finalise (moves status from 'draft' → 'open')
+    # Step 3: Finalise (moves status from 'draft' â†’ 'open')
     finalised = stripe.Invoice.finalize_invoice(invoice.id)
     ok("Invoice finalised",
        f"status={finalised.status}, amount_due=AUD {finalised.amount_due / 100:.2f}")
@@ -248,7 +248,7 @@ def demo_invoicing(customer_ids: dict, price_ids: dict) -> None:
     invoices = stripe.Invoice.list(customer=customer_ids["alice_id"], limit=5)
     info(f"Invoices for Alice: {len(invoices.data)}")
     for inv in invoices.data:
-        print(f"     • {inv.id}  status={inv.status:<8}  "
+        print(f"     â€¢ {inv.id}  status={inv.status:<8}  "
               f"due=AUD {inv.amount_due / 100:.2f}")
 
 
@@ -257,7 +257,7 @@ def demo_invoicing(customer_ids: dict, price_ids: dict) -> None:
 # ===========================================================================
 
 def demo_payment_intents(customer_ids: dict) -> None:
-    header("7 · Payment Intents")
+    header("7 Â· Payment Intents")
 
     # List existing payment intents for Alice
     intents = stripe.PaymentIntent.list(
@@ -266,7 +266,7 @@ def demo_payment_intents(customer_ids: dict) -> None:
     )
     info(f"Payment intents for Alice: {len(intents.data)}")
     for pi in intents.data:
-        print(f"     • {pi.id}  status={pi.status:<30}  "
+        print(f"     â€¢ {pi.id}  status={pi.status:<30}  "
               f"amount=AUD {pi.amount / 100:.2f}")
 
     # Create a standalone payment intent (e.g. for a deposit)
@@ -274,7 +274,7 @@ def demo_payment_intents(customer_ids: dict) -> None:
         amount=5000,   # AUD $50 security deposit
         currency="aud",
         customer=customer_ids["bob_id"],
-        description="Security deposit — Gala Cabin booking",
+        description="Security deposit â€” Gala Cabin booking",
         metadata={"booking_ref": "MCB-2026-001"},
     )
     ok("Deposit PaymentIntent created",
@@ -287,7 +287,7 @@ def demo_payment_intents(customer_ids: dict) -> None:
 # ===========================================================================
 
 def demo_subscriptions(customer_ids: dict, price_ids: dict) -> None:
-    header("8 · Subscriptions — Recurring Billing")
+    header("8 Â· Subscriptions â€” Recurring Billing")
 
     # NOTE: Creating a subscription requires a valid payment method attached
     # to the customer. In test mode, use a test payment method token.
@@ -321,7 +321,7 @@ def demo_subscriptions(customer_ids: dict, price_ids: dict) -> None:
     subs = stripe.Subscription.list(customer=customer_ids["bob_id"], limit=5)
     info(f"Active subscriptions for Bob: {len(subs.data)}")
 
-    # Update subscription (change quantity — illustrative)
+    # Update subscription (change quantity â€” illustrative)
     updated = stripe.Subscription.modify(
         sub.id,
         metadata={"updated_by": "stripe_demo.py"},
@@ -338,9 +338,9 @@ def demo_subscriptions(customer_ids: dict, price_ids: dict) -> None:
 # ===========================================================================
 
 def demo_coupons() -> None:
-    header("9 · Coupons & Discounts")
+    header("9 Â· Coupons & Discounts")
 
-    # Percentage coupon — one-time use
+    # Percentage coupon â€” one-time use
     coupon_pct = stripe.Coupon.create(
         name="MAPLE10",
         percent_off=10,
@@ -349,7 +349,7 @@ def demo_coupons() -> None:
     ok("Coupon created (10% off, once)",
        f"id={coupon_pct.id}, name={coupon_pct.name}")
 
-    # Repeating coupon — 3 months
+    # Repeating coupon â€” 3 months
     coupon_rep = stripe.Coupon.create(
         name="WELCOME20",
         percent_off=20,
@@ -359,7 +359,7 @@ def demo_coupons() -> None:
     ok("Coupon created (20% off, 3 months)",
        f"id={coupon_rep.id}, name={coupon_rep.name}")
 
-    # Fixed-amount coupon — AUD $25 off
+    # Fixed-amount coupon â€” AUD $25 off
     coupon_fixed = stripe.Coupon.create(
         name="SAVE25",
         amount_off=2500,   # in cents
@@ -375,7 +375,7 @@ def demo_coupons() -> None:
     for c in coupons.data:
         discount = (f"{c.percent_off}%" if c.percent_off
                     else f"AUD {c.amount_off / 100:.2f}")
-        print(f"     • {c.name:<15} {discount:<12} duration={c.duration}")
+        print(f"     â€¢ {c.name:<15} {discount:<12} duration={c.duration}")
 
 
 # ===========================================================================
@@ -383,7 +383,7 @@ def demo_coupons() -> None:
 # ===========================================================================
 
 def demo_refunds(customer_ids: dict) -> None:
-    header("10 · Refunds")
+    header("10 Â· Refunds")
 
     # List existing payment intents to find one to refund
     intents = stripe.PaymentIntent.list(
@@ -393,7 +393,7 @@ def demo_refunds(customer_ids: dict) -> None:
 
     succeeded = [pi for pi in intents.data if pi.status == "succeeded"]
     if not succeeded:
-        info("No succeeded PaymentIntents found for Alice — skipping refund demo.")
+        info("No succeeded PaymentIntents found for Alice â€” skipping refund demo.")
         info("In a real scenario, a succeeded PaymentIntent would be refunded here.")
         info("Example code:")
         print("""
@@ -423,23 +423,23 @@ def demo_refunds(customer_ids: dict) -> None:
 # ===========================================================================
 
 def demo_disputes() -> None:
-    header("11 · Disputes")
+    header("11 Â· Disputes")
 
     disputes = stripe.Dispute.list(limit=5)
     info(f"Open disputes: {len(disputes.data)}")
     if disputes.data:
         for d in disputes.data:
-            print(f"     • {d.id}  reason={d.reason}  "
+            print(f"     â€¢ {d.id}  reason={d.reason}  "
                   f"amount=AUD {d.amount / 100:.2f}  status={d.status}")
     else:
-        info("No disputes found — this is expected in a fresh sandbox account.")
+        info("No disputes found â€” this is expected in a fresh sandbox account.")
         info("To submit evidence on a dispute, use stripe.Dispute.modify():")
         print("""
         stripe.Dispute.modify(
             "dp_xxxx",
             evidence={
                 "customer_email_address": "alice@galarental.demo",
-                "product_description": "Gala Cabin — Weekend Rental",
+                "product_description": "Gala Cabin â€” Weekend Rental",
                 "uncategorized_text": "Customer confirmed stay via email.",
             },
             submit=True,
@@ -452,7 +452,7 @@ def demo_disputes() -> None:
 # ===========================================================================
 
 def demo_search() -> None:
-    header("12 · Resource Search (Stripe Query Syntax)")
+    header("12 Â· Resource Search (Stripe Query Syntax)")
 
     # Search customers by email domain
     results = stripe.Customer.search(
@@ -462,7 +462,7 @@ def demo_search() -> None:
     ok("Customer search (email~'galarental.demo')",
        f"{len(results.data)} result(s)")
     for c in results.data:
-        print(f"     • {c.name:<25} {c.email}")
+        print(f"     â€¢ {c.name:<25} {c.email}")
 
     # Search invoices by status
     inv_results = stripe.Invoice.search(
@@ -479,7 +479,7 @@ def demo_search() -> None:
 
 def main() -> None:
     print(f"\n{BOLD}{'=' * 60}")
-    print("  Gala Rental — Stripe API Feature Demo")
+    print("  Galarentals â€” Stripe API Feature Demo")
     print(f"{'=' * 60}{RESET}")
     print("  Account: Gala rentals sandbox")
     print("  Mode:    TEST (no real charges)")

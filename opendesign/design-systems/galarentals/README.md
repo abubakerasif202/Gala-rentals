@@ -1,6 +1,6 @@
-# Gala Rentals Design System
+# Galarentals Design System
 
-Reusable UI system draft for the Gala Rentals public website and rental operations admin console.
+Reusable UI system draft for the Galarentals public website and rental operations admin console.
 
 ## Sources Consulted
 
@@ -22,7 +22,7 @@ Reusable UI system draft for the Gala Rentals public website and rental operatio
 
 ## Brand Summary
 
-Gala Rentals is a premium Sydney rental application platform with a SaaS-style operations layer. The current brand language is dark navy, warm gold, white/silver public surfaces, generic rental-service imagery, high letter spacing, rounded panels, and precise operational copy.
+Galarentals is a premium Sydney rental application platform with a SaaS-style operations layer. The current brand language is dark navy, warm gold, white/silver public surfaces, generic rental-service imagery, high letter spacing, rounded panels, and precise operational copy.
 
 The design should feel:
 

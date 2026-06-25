@@ -1,6 +1,6 @@
 # Load Testing
 
-Gala Rentals has a dependency-free load-test runner at `scripts/load-test.mjs`. It is designed for local or staging checks first and only exercises read-only routes by default.
+Galarentals has a dependency-free load-test runner at `scripts/load-test.mjs`. It is designed for local or staging checks first and only exercises read-only routes by default.
 
 ## Profiles
 

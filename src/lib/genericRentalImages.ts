@@ -1,10 +1,10 @@
 const GENERIC_RENTAL_IMAGES = [
-  '/images/rental-service-hero.svg',
-  '/images/rental-application-support.svg',
-  '/images/rental-customer-handover.svg',
-  '/images/rental-office.svg',
-  '/images/rental-payment-security.svg',
-  '/images/rental-driver-onboarding.svg',
+  '/car-images/ai-gala-navy-sedan-hero.png',
+  '/car-images/ai-gala-silver-sedan-profile.png',
+  '/car-images/ai-gala-sedan-interior.png',
+  '/car-images/ai-gala-charcoal-sedan-rear.png',
+  '/car-images/ai-gala-navy-sedan-front.png',
+  '/car-images/ai-gala-white-sedan-side.png',
 ];
 
 export const featuredRentalImages = GENERIC_RENTAL_IMAGES.slice(0, 6);

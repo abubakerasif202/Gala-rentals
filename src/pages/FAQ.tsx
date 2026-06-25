@@ -31,22 +31,22 @@ const faqs = [
 
 export default function FAQ() {
   return (
-    <div className="min-h-screen bg-brand-navy text-white">
+    <div className="min-h-screen bg-[#e9edf2] text-brand-navy">
       <Seo
         title="FAQ | Gala Rentals"
         description="Answers to common questions about documents, payments, insurance, notices, cancellations, and rental start dates."
         canonicalPath="/faq"
       />
 
-      <section className="relative overflow-hidden border-b border-white/10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(223,177,37,0.16),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.06),transparent_24%)]" />
+      <section className="relative overflow-hidden bg-[#fbf9f4]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(223,177,37,0.12),transparent_30%)]" />
         <div className="relative mx-auto max-w-7xl px-6 py-24 lg:px-8 lg:py-28">
           <div className="max-w-3xl">
-            <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">Questions</p>
-            <h1 className="mt-5 text-5xl font-serif font-bold tracking-tight sm:text-6xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold-dark">Questions</p>
+            <h1 className="mt-5 text-5xl font-serif font-bold tracking-tight text-brand-navy sm:text-6xl">
               Common questions, answered clearly.
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-300">
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
               Gala Rentals keeps the process transparent from application through payment,
               notices, and rental handover.
             </p>
@@ -57,18 +57,18 @@ export default function FAQ() {
       <section className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
         <div className="grid gap-6 md:grid-cols-2">
           {faqs.map((item) => (
-            <article key={item.q} className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
+            <article key={item.q} className="ambient-shadow rounded-[1.75rem] border border-stone-200 bg-[#fbf9f4] p-7">
               <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-brand-gold/20 bg-brand-gold/10 text-brand-gold">
                 <HelpCircle className="h-5 w-5" />
               </div>
-              <h2 className="text-2xl font-semibold text-white">{item.q}</h2>
-              <p className="mt-3 text-sm leading-7 text-brand-grey">{item.a}</p>
+              <h2 className="text-2xl font-semibold text-brand-navy">{item.q}</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{item.a}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="border-t border-white/10 bg-brand-charcoal">
+      <section className="bg-[#fbf9f4]">
         <div className="mx-auto grid max-w-7xl gap-6 px-6 py-16 lg:grid-cols-3 lg:px-8">
           {[
             {
@@ -87,26 +87,26 @@ export default function FAQ() {
               body: 'Documents and notices stay searchable in the admin dashboard.',
             },
           ].map((item) => (
-            <article key={item.title} className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-6">
+            <article key={item.title} className="ambient-shadow rounded-[1.5rem] border border-stone-200 bg-white p-6">
               <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-gold/10 text-brand-gold">
                 <item.icon className="h-5 w-5" />
               </div>
-              <h3 className="text-xl font-semibold text-white">{item.title}</h3>
-              <p className="mt-2 text-sm leading-7 text-brand-grey">{item.body}</p>
+              <h3 className="text-xl font-semibold text-brand-navy">{item.title}</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">{item.body}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="border-t border-white/10 bg-brand-navy">
+      <section className="bg-[#e9edf2]">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-16 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold">Next step</p>
-            <h2 className="mt-4 text-3xl font-serif font-bold text-white">Ready to apply?</h2>
+            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-gold-dark">Next step</p>
+            <h2 className="mt-4 text-3xl font-serif font-bold text-brand-navy">Ready to apply?</h2>
           </div>
           <Link
             to="/apply"
-            className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy transition-colors hover:bg-brand-gold-light"
+            className="focus-ring-light inline-flex items-center justify-center gap-2 rounded-full bg-brand-navy px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-white transition-colors hover:bg-brand-navy-light"
           >
             Start Application <ChevronRight className="h-4 w-4" />
           </Link>

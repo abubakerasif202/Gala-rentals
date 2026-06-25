@@ -18,7 +18,7 @@ export default function Pricing() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-100 text-brand-navy selection:bg-brand-gold selection:text-black">
+    <div className="min-h-screen bg-[#e9edf2] text-brand-navy selection:bg-brand-gold selection:text-black">
       <Seo
         title="Pricing | Gala Rentals"
         description="Compare Gala Rentals weekly plans, bond requirements, and subscription structure before you apply."
@@ -32,14 +32,14 @@ export default function Pricing() {
         ]}
       />
 
-      <section className="bg-brand-navy bg-[radial-gradient(circle_at_top_left,rgba(223,177,37,0.18),transparent_34%)] px-4 py-20 md:py-24">
+      <section className="bg-[#fbf9f4] px-4 py-20 md:py-24">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
           <div>
             <motion.p
               initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
               animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: shouldReduceMotion ? 0 : 0.4 }}
-              className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-brand-gold"
+              className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-brand-gold-dark"
             >
               Flexible Plans
             </motion.p>
@@ -47,7 +47,7 @@ export default function Pricing() {
               initial={shouldReduceMotion ? false : { opacity: 0, y: 18 }}
               animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: shouldReduceMotion ? 0 : 0.5 }}
-              className="mb-6 max-w-3xl text-4xl font-black tracking-tight text-white md:text-6xl"
+              className="mb-6 max-w-3xl font-serif text-4xl font-bold tracking-tight text-brand-navy md:text-6xl"
             >
               Sydney rental plans built around approved applications.
             </motion.h1>
@@ -55,7 +55,7 @@ export default function Pricing() {
               initial={shouldReduceMotion ? false : { opacity: 0, y: 22 }}
               animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
-              className="max-w-2xl text-lg leading-8 text-slate-300"
+              className="max-w-2xl text-lg leading-8 text-slate-600"
             >
               Compare each plan&apos;s billing cadence, support level, and included services before
               you apply. Gala Rentals confirms the approved rental details, weekly amount, and payment
@@ -67,7 +67,7 @@ export default function Pricing() {
             initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.97 }}
             animate={shouldReduceMotion ? undefined : { opacity: 1, scale: 1 }}
             transition={{ duration: shouldReduceMotion ? 0 : 0.55 }}
-            className="overflow-hidden rounded-3xl border border-white/10 bg-white/10 p-2 shadow-2xl"
+            className="overflow-hidden rounded-[2rem] border border-white/80 bg-white p-2 ambient-shadow"
           >
             <img
               src={featuredRentalImages[4]}
@@ -76,7 +76,7 @@ export default function Pricing() {
             />
             <div className="grid gap-2 p-3 sm:grid-cols-3">
               {['Review first', 'Stripe secure', 'Weekly plans'].map((item) => (
-                <div key={item} className="rounded-2xl border border-white/10 bg-brand-navy/65 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-slate-200">
+                <div key={item} className="rounded-2xl border border-stone-200 bg-[#fbf9f4] px-4 py-3 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-brand-navy">
                   {item}
                 </div>
               ))}
@@ -85,10 +85,10 @@ export default function Pricing() {
         </div>
       </section>
 
-      <section className="py-20 md:py-24 px-4">
+      <section className="px-4 py-20 md:py-24">
         <div className="max-w-6xl mx-auto">
           {isLoading && (
-            <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="ambient-shadow rounded-3xl border border-stone-200 bg-[#fbf9f4] px-6 py-16 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-brand-gold mx-auto mb-4" />
               <p className="text-sm uppercase tracking-[0.2em] font-bold text-slate-500">
                 Loading plan options
@@ -97,7 +97,7 @@ export default function Pricing() {
           )}
 
           {isError && (
-            <div className="rounded-3xl border border-red-200 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="ambient-shadow rounded-3xl border border-red-200 bg-[#fbf9f4] px-6 py-16 text-center">
               <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
               <p className="text-sm uppercase tracking-[0.2em] font-bold text-red-500 mb-3">
                 Plans unavailable
@@ -116,7 +116,7 @@ export default function Pricing() {
           )}
 
           {!isLoading && !isError && rentalPlans.length === 0 && (
-            <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="ambient-shadow rounded-3xl border border-stone-200 bg-[#fbf9f4] px-6 py-16 text-center">
               <p className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500">
                 Plans are being prepared
               </p>
@@ -141,7 +141,7 @@ export default function Pricing() {
                   initial={shouldReduceMotion ? false : { opacity: 0, y: 24 }}
                   animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
                   transition={{ duration: shouldReduceMotion ? 0 : 0.45, delay: shouldReduceMotion ? 0 : index * 0.08 }}
-                  className={`relative rounded-3xl border overflow-hidden flex flex-col ${plan.popular ? 'bg-brand-navy text-white border-brand-gold/50 shadow-[0_25px_70px_rgba(0,35,71,0.22)]' : 'bg-white text-brand-navy border-slate-200 shadow-sm'}`}
+                  className={`relative flex flex-col overflow-hidden rounded-[2rem] border ${plan.popular ? 'border-brand-gold/50 bg-brand-navy text-white shadow-[0_25px_70px_rgba(0,35,71,0.22)]' : 'ambient-shadow border-stone-200 bg-[#fbf9f4] text-brand-navy'}`}
                 >
                   {plan.popular && (
                     <div className="absolute top-5 right-5 flex items-center gap-1 rounded-full bg-brand-gold px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-navy">
@@ -222,7 +222,7 @@ export default function Pricing() {
               body: 'Insurance, maintenance cadence, and support expectations are built into every tier.',
             },
           ].map((item) => (
-            <div key={item.title} className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+            <div key={item.title} className="ambient-shadow rounded-3xl border border-stone-200 bg-[#fbf9f4] p-7">
               <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-gold/15 text-brand-gold">
                 <item.icon className="w-5 h-5" />
               </div>

@@ -5,8 +5,8 @@ import { useState, type FormEvent } from 'react';
 import { featuredRentalImages } from '../lib/genericRentalImages';
 
 const inputClass =
-  'focus-ring-dark rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold';
-const labelClass = 'text-[10px] font-bold uppercase tracking-[0.24em] text-brand-grey';
+  'focus-ring-light rounded-2xl border border-stone-200 bg-white px-5 py-4 text-brand-navy outline-none transition-colors placeholder:text-slate-400 focus:border-brand-gold';
+const labelClass = 'text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500';
 
 export default function Contact() {
   const [message, setMessage] = useState('');
@@ -35,7 +35,7 @@ export default function Contact() {
   };
 
   return (
-    <div className="min-h-screen bg-brand-navy text-white">
+    <div className="min-h-screen bg-[#e9edf2] text-brand-navy">
       <Seo
         title="Contact | Gala Rentals"
         description="Contact Gala Rentals for rental questions, application support, or subscription onboarding help."
@@ -45,11 +45,11 @@ export default function Contact() {
       <section className="mx-auto max-w-7xl px-6 py-24 lg:px-8 lg:py-28">
         <div className="grid gap-12 lg:grid-cols-[0.95fr_1.05fr]">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">Contact</p>
-            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-6xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold-dark">Contact</p>
+            <h1 className="mt-5 font-serif text-4xl font-bold tracking-tight sm:text-6xl">
               Reach the team directly.
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-stone-300">
+            <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
               Gala Rentals keeps enquiries simple: ask about rental terms, start dates,
               subscription billing, or application support.
             </p>
@@ -61,36 +61,36 @@ export default function Contact() {
                 { icon: Clock3, title: 'Business hours', body: 'Mon-Fri, 8:30am to 5:30pm AEST' },
                 { icon: MapPin, title: 'Service area', body: 'Sydney metro and surrounding suburbs' },
               ].map((item) => (
-                <div key={item.title} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4">
+                <div key={item.title} className="ambient-shadow flex items-center gap-4 rounded-2xl border border-stone-200 bg-[#fbf9f4] px-5 py-4">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-gold/10 text-brand-gold">
                     <item.icon className="h-5 w-5" />
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">{item.title}</p>
                     {item.href ? (
-                      <a href={item.href} className="focus-ring-dark rounded text-sm text-white transition-colors hover:text-brand-gold">
+                      <a href={item.href} className="focus-ring-light rounded text-sm text-brand-navy transition-colors hover:text-brand-gold-dark">
                         {item.body}
                       </a>
                     ) : (
-                      <p className="text-sm text-white">{item.body}</p>
+                      <p className="text-sm text-brand-navy">{item.body}</p>
                     )}
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
+            <div className="ambient-shadow mt-6 overflow-hidden rounded-[1.5rem] border border-stone-200 bg-[#fbf9f4] p-2">
               <img
                 src={featuredRentalImages[1]}
-                alt="Rental application support"
+                alt="Premium silver rental sedan ready for customer handover"
                 className="aspect-[16/9] w-full rounded-[1.1rem] object-cover"
               />
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
-            <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold">Message</p>
-            <h2 className="mt-4 text-3xl font-semibold text-white">Send an enquiry</h2>
+          <form onSubmit={handleSubmit} className="ambient-shadow rounded-[2rem] border border-stone-200 bg-[#fbf9f4] p-7">
+            <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-brand-gold-dark">Message</p>
+            <h2 className="mt-4 text-3xl font-semibold text-brand-navy">Send an enquiry</h2>
 
             <div className="mt-8 grid gap-4">
               <div className="grid gap-2">
@@ -108,11 +108,11 @@ export default function Contact() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <label htmlFor="contact-start-date" className={labelClass}>Preferred start date</label>
-                  <input id="contact-start-date" name="startDate" type="date" required className={`${inputClass} [color-scheme:dark]`} />
+                  <input id="contact-start-date" name="startDate" type="date" required className={inputClass} />
                 </div>
                 <div className="grid gap-2">
                   <label htmlFor="contact-end-date" className={labelClass}>Preferred end date</label>
-                  <input id="contact-end-date" name="endDate" type="date" required className={`${inputClass} [color-scheme:dark]`} />
+                  <input id="contact-end-date" name="endDate" type="date" required className={inputClass} />
                 </div>
               </div>
               <div className="grid gap-2">
@@ -136,7 +136,7 @@ export default function Contact() {
               </div>
             )}
             {status === 'error' && (
-              <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-50" role="alert">
+              <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-700" role="alert">
                 We could not send your enquiry. Please try again.
               </div>
             )}
@@ -144,7 +144,7 @@ export default function Contact() {
             <button
               type="submit"
               disabled={status === 'sending'}
-              className="focus-ring-dark mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy transition-colors hover:bg-brand-gold-light disabled:opacity-60"
+              className="focus-ring-light mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-navy px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-white transition-colors hover:bg-brand-navy-light disabled:opacity-60"
             >
               <Send className="h-4 w-4" />
               {status === 'sending' ? 'Sending' : 'Send enquiry'}

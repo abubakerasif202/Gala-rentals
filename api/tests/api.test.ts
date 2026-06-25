@@ -53,10 +53,11 @@ type ApplicationUploadFixture = {
 
 type ApplicationSubmissionOverrides = Partial<
   ApplicationSubmissionFields & {
-    license_photo: string | ApplicationUploadFixture;
-    license_back_photo: string | ApplicationUploadFixture;
-    passport_or_uber_profile_screenshot: string | ApplicationUploadFixture;
-    proof_of_address_document: string | ApplicationUploadFixture;
+    license_photo: string | ApplicationUploadFixture | null;
+    license_back_photo: string | ApplicationUploadFixture | null;
+    passport_or_uber_profile_screenshot: string | ApplicationUploadFixture | null;
+    proof_of_address_document: string | ApplicationUploadFixture | null;
+    additional_document: string | ApplicationUploadFixture | null;
   }
 >;
 
@@ -69,8 +70,9 @@ const WEBP_FIXTURE_MAGIC = Buffer.concat([
   Buffer.from([0x08, 0x00, 0x00, 0x00]),
   Buffer.from("WEBP"),
 ]);
+const PDF_FIXTURE_MAGIC = Buffer.from("%PDF-");
 
-const buildValidImageBuffer = (contentType: string, payload: Buffer) => {
+const buildValidUploadBuffer = (contentType: string, payload: Buffer) => {
   const normalized = contentType.toLowerCase();
   if (normalized === "image/png") {
     return Buffer.concat([PNG_FIXTURE_MAGIC, payload]);
@@ -84,19 +86,31 @@ const buildValidImageBuffer = (contentType: string, payload: Buffer) => {
     return Buffer.concat([WEBP_FIXTURE_MAGIC, payload]);
   }
 
+  if (normalized === "application/pdf") {
+    return Buffer.concat([PDF_FIXTURE_MAGIC, payload]);
+  }
+
   return payload;
 };
 
+const buildValidImageBuffer = buildValidUploadBuffer;
+
 const DEFAULT_APPLICATION_UPLOAD: ApplicationUploadFixture = {
-  buffer: buildValidImageBuffer("image/png", Buffer.from("fake-image")),
+  buffer: buildValidUploadBuffer("image/png", Buffer.from("fake-image")),
   contentType: "image/png",
   filename: "license.png",
 };
 
 const DEFAULT_PASSPORT_UPLOAD: ApplicationUploadFixture = {
-  buffer: buildValidImageBuffer("image/png", Buffer.from("passport-image")),
+  buffer: buildValidUploadBuffer("image/png", Buffer.from("passport-image")),
   contentType: "image/png",
   filename: "passport.png",
+};
+
+const DEFAULT_PROOF_OF_ADDRESS_UPLOAD: ApplicationUploadFixture = {
+  buffer: buildValidUploadBuffer("application/pdf", Buffer.from("proof-of-address")),
+  contentType: "application/pdf",
+  filename: "proof-of-address.pdf",
 };
 
 const buildApplicationUploadFixture = (
@@ -128,7 +142,7 @@ const buildApplicationUploadFixture = (
         : contentType.split("/").at(-1) || "bin";
 
   return {
-    buffer: buildValidImageBuffer(contentType, Buffer.from(encoded, "base64")),
+    buffer: buildValidUploadBuffer(contentType, Buffer.from(encoded, "base64")),
     contentType,
     filename: `${basename}.${extension}`,
   };
@@ -142,6 +156,7 @@ const createApplicationSubmissionRequest = (
     license_back_photo,
     passport_or_uber_profile_screenshot,
     proof_of_address_document,
+    additional_document,
     ...fieldOverrides
   } = overrides;
   const payload: ApplicationSubmissionFields = {
@@ -177,14 +192,21 @@ const createApplicationSubmissionRequest = (
     license_back_photo,
     "license-back",
   );
-  const passportUpload = buildApplicationUploadFixture(
-    passport_or_uber_profile_screenshot ?? DEFAULT_PASSPORT_UPLOAD,
-    "passport",
-  );
+  const passportUpload =
+    passport_or_uber_profile_screenshot == null
+      ? null
+      : buildApplicationUploadFixture(
+          passport_or_uber_profile_screenshot,
+          "passport",
+        );
   const proofOfAddressUpload = buildApplicationUploadFixture(
-    proof_of_address_document ?? DEFAULT_PASSPORT_UPLOAD,
+    proof_of_address_document ?? DEFAULT_PROOF_OF_ADDRESS_UPLOAD,
     "proof-of-address",
   );
+  const additionalDocumentUpload =
+    additional_document == null
+      ? null
+      : buildApplicationUploadFixture(additional_document, "additional-document");
 
   req = req.attach("license_photo", frontUpload.buffer, {
     contentType: frontUpload.contentType,
@@ -194,18 +216,26 @@ const createApplicationSubmissionRequest = (
     contentType: backUpload.contentType,
     filename: backUpload.filename,
   });
-  req = req.attach(
-    "passport_or_uber_profile_screenshot",
-    passportUpload.buffer,
-    {
-      contentType: passportUpload.contentType,
-      filename: passportUpload.filename,
-    },
-  );
+  if (passportUpload) {
+    req = req.attach(
+      "passport_or_uber_profile_screenshot",
+      passportUpload.buffer,
+      {
+        contentType: passportUpload.contentType,
+        filename: passportUpload.filename,
+      },
+    );
+  }
   req = req.attach("proof_of_address_document", proofOfAddressUpload.buffer, {
     contentType: proofOfAddressUpload.contentType,
     filename: proofOfAddressUpload.filename,
   });
+  if (additionalDocumentUpload) {
+    req = req.attach("additional_document", additionalDocumentUpload.buffer, {
+      contentType: additionalDocumentUpload.contentType,
+      filename: additionalDocumentUpload.filename,
+    });
+  }
 
   return req;
 };
@@ -3105,6 +3135,40 @@ describe("Applications API", () => {
     });
   });
 
+  it("POST /api/applications accepts a PDF proof of address without the legacy passport field", async () => {
+    mockState.applications[1].status = "Paid";
+    mockState.applications[1].paid_at = "2026-03-07T00:00:00.000Z";
+
+    const res = await createApplicationSubmissionRequest({
+      selected_car_id: 1,
+      name: "PDF Proof Driver",
+      phone: "0400222111",
+      email: "pdf-proof@example.com",
+      license_number: "NSW56565",
+      license_expiry: getFutureDateOnly(365),
+      uber_status: "Applying",
+      experience: "New Driver",
+      address: "99 Evidence Street",
+      intended_start_date: getFutureDateOnly(7),
+      passport_or_uber_profile_screenshot: null,
+      proof_of_address_document: {
+        buffer: DEFAULT_PROOF_OF_ADDRESS_UPLOAD.buffer,
+        contentType: DEFAULT_PROOF_OF_ADDRESS_UPLOAD.contentType,
+        filename: DEFAULT_PROOF_OF_ADDRESS_UPLOAD.filename,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockState.applications.at(-1)).toMatchObject({
+      email: "pdf-proof@example.com",
+      passport_or_uber_profile_screenshot: null,
+    });
+    expect(String(mockState.applications.at(-1)?.proof_of_address_document || "")).toContain(
+      "proof-of-address-document",
+    );
+  });
+
   it("POST /api/applications escapes applicant-controlled HTML before sending emails", async () => {
     process.env.RESEND_API_KEY = "test-resend";
     mockResendEmailsSend.mockClear();
@@ -3168,6 +3232,33 @@ describe("Applications API", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("JPG or PNG");
+    expect(mockState.applications).toHaveLength(2);
+  });
+
+  it("POST /api/applications validates optional additional documents before upload", async () => {
+    mockState.applications[1].status = "Paid";
+    mockState.applications[1].paid_at = "2026-03-07T00:00:00.000Z";
+
+    const res = await createApplicationSubmissionRequest({
+      selected_car_id: 1,
+      name: "Optional Document Driver",
+      phone: "0400111999",
+      email: "optional-document@example.com",
+      license_number: "NSW23232",
+      license_expiry: getFutureDateOnly(365),
+      uber_status: "Applying",
+      experience: "New Driver",
+      address: "55 Optional Avenue",
+      intended_start_date: getFutureDateOnly(7),
+      additional_document: {
+        buffer: buildValidUploadBuffer("application/x-msdownload", Buffer.from("MZfake")),
+        contentType: "application/x-msdownload",
+        filename: "malware.exe",
+      },
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("JPG, PNG, or PDF");
     expect(mockState.applications).toHaveLength(2);
   });
 

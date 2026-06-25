@@ -71,6 +71,11 @@ const ALLOWED_APPLICATION_IMAGE_TYPES = new Set<string>(
 const ALLOWED_APPLICATION_DOCUMENT_TYPES = new Set<string>(
   APPLICATION_DOCUMENT_CONTENT_TYPES,
 );
+const APPLICATION_DOCUMENT_FIELDS = new Set<ApplicationUploadField>([
+  "passport_or_uber_profile_screenshot",
+  "proof_of_address_document",
+  "additional_document",
+]);
 const APPLICATION_FILE_EXTENSION_BY_CONTENT_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
@@ -370,16 +375,15 @@ const getUploadedApplicationFile = (
     throw createRequestError(400, `${fieldLabel} is required.`);
   }
 
-  const isPassportDocument =
-    field === "passport_or_uber_profile_screenshot";
-  const allowedTypes = isPassportDocument
+  const isDocumentField = APPLICATION_DOCUMENT_FIELDS.has(field);
+  const allowedTypes = isDocumentField
     ? ALLOWED_APPLICATION_DOCUMENT_TYPES
     : ALLOWED_APPLICATION_IMAGE_TYPES;
 
   if (!allowedTypes.has(file.mimetype.toLowerCase())) {
     throw createRequestError(
       400,
-      isPassportDocument
+      isDocumentField
         ? `${fieldLabel} must be a JPG, PNG, or PDF file.`
         : `${fieldLabel} must be a JPG or PNG image.`,
     );
@@ -396,16 +400,16 @@ const getUploadedApplicationFile = (
   // Header-only MIME checks are trivially spoofable. Require the file's magic
   // bytes to match the declared content type so an .exe renamed to .jpg can't
   // land in the applications bucket.
-  const detectedType = isPassportDocument
+  const detectedType = isDocumentField
     ? detectDocumentMagicType(file.buffer)
     : detectImageMagicType(file.buffer);
-  const declaredType = isPassportDocument
+  const declaredType = isDocumentField
     ? normalizeDeclaredDocumentType(file.mimetype)
     : normalizeDeclaredImageType(file.mimetype);
   if (!detectedType || detectedType !== declaredType) {
     throw createRequestError(
       400,
-      isPassportDocument
+      isDocumentField
         ? `${fieldLabel} file contents do not match a JPG, PNG, or PDF file.`
         : `${fieldLabel} file contents do not match a JPG or PNG image.`,
     );
@@ -417,7 +421,15 @@ const getUploadedApplicationFile = (
 const getOptionalUploadedApplicationFile = (
   files: UploadedApplicationFiles,
   field: ApplicationUploadField,
-) => files[field]?.[0] || null;
+  fieldLabel: string,
+) => {
+  const file = files[field]?.[0] || null;
+  if (!file) {
+    return null;
+  }
+
+  return getUploadedApplicationFile(files, field, fieldLabel);
+};
 
 const uploadApplicationFile = async ({
   file,
@@ -602,10 +614,10 @@ router.post(
         "license_back_photo",
         "Driver licence back photo",
       );
-      const passportDocumentFile = getUploadedApplicationFile(
+      const passportDocumentFile = getOptionalUploadedApplicationFile(
         files,
         "passport_or_uber_profile_screenshot",
-        "Proof of address document",
+        "Passport or rideshare profile document",
       );
       const proofOfAddressFile = getUploadedApplicationFile(
         files,
@@ -615,6 +627,7 @@ router.post(
       const additionalDocumentFile = getOptionalUploadedApplicationFile(
         files,
         "additional_document",
+        "Additional document",
       );
 
       const normalizedApplicationData = {
@@ -696,12 +709,14 @@ router.post(
         fieldLabel: "Driver licence back photo",
         uploadedPaths,
       });
-      const passportDocumentUrl = await uploadApplicationFile({
-        file: passportDocumentFile,
-        filePrefix: "passport-or-uber-profile-screenshot",
-        fieldLabel: "Proof of address document",
-        uploadedPaths,
-      });
+      const passportDocumentUrl = passportDocumentFile
+        ? await uploadApplicationFile({
+            file: passportDocumentFile,
+            filePrefix: "passport-or-uber-profile-screenshot",
+            fieldLabel: "Passport or rideshare profile document",
+            uploadedPaths,
+          })
+        : null;
       const proofOfAddressUrl = await uploadApplicationFile({
         file: proofOfAddressFile,
         filePrefix: "proof-of-address-document",

@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useDeferredValue, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   CheckCircle2,
@@ -17,15 +17,6 @@ import {
   Menu,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import OverviewTab from '../components/admin/tabs/OverviewTab';
-import ApplicationsTab from '../components/admin/tabs/ApplicationsTab';
-import RentalsTab from '../components/admin/tabs/RentalsTab';
-import FinancialsTab from '../components/admin/tabs/FinancialsTab';
-import CustomersTab from '../components/admin/tabs/CustomersTab';
-import InvoicesTab from '../components/admin/tabs/InvoicesTab';
-import AgreementsTab from '../components/admin/tabs/AgreementsTab';
-import TollStatDecTab from '../components/admin/tabs/TollStatDecTab';
-import MaintenanceTab from '../components/admin/tabs/MaintenanceTab';
 import {
   getDateRangeForPreset,
   type DateRangeValue,
@@ -46,6 +37,16 @@ import Sidebar from '../components/admin/Sidebar';
 import { getTodayInAustralia } from '../../shared/applicationSubmission';
 
 const OPERATIONAL_PAGE_SIZE = 25;
+const OverviewTab = lazy(() => import('../components/admin/tabs/OverviewTab'));
+const ApplicationsTab = lazy(() => import('../components/admin/tabs/ApplicationsTab'));
+const RentalsTab = lazy(() => import('../components/admin/tabs/RentalsTab'));
+const FinancialsTab = lazy(() => import('../components/admin/tabs/FinancialsTab'));
+const CustomersTab = lazy(() => import('../components/admin/tabs/CustomersTab'));
+const InvoicesTab = lazy(() => import('../components/admin/tabs/InvoicesTab'));
+const AgreementsTab = lazy(() => import('../components/admin/tabs/AgreementsTab'));
+const TollStatDecTab = lazy(() => import('../components/admin/tabs/TollStatDecTab'));
+const MaintenanceTab = lazy(() => import('../components/admin/tabs/MaintenanceTab'));
+
 const adminTabLabels: Record<string, string> = {
   agreements: 'Agreements',
   applications: 'Applications',
@@ -103,6 +104,18 @@ const isRestrictedPaymentLinkError = (error: unknown) =>
   getApiErrorMessage(error, '')
     .toLowerCase()
     .includes('session-capable postgres connection');
+
+const renderTabLoadingPanel = (label: string) => (
+  <div className="rounded-3xl border border-white/10 bg-white/5 p-10 text-sm text-brand-grey">
+    <div className="flex items-center gap-4">
+      <Loader2 className="h-5 w-5 animate-spin text-brand-gold" />
+      <div>
+        <p className="font-bold uppercase tracking-[0.24em] text-brand-gold/90">Loading</p>
+        <p className="mt-1 text-brand-grey">{label}</p>
+      </div>
+    </div>
+  </div>
+);
 
 export default function AdminDashboard() {
   const location = useLocation();
@@ -776,6 +789,12 @@ export default function AdminDashboard() {
     setAgreementModalMode('draft');
   };
 
+  const wrapTabPanel = (label: string, content: React.ReactNode) => (
+    <Suspense fallback={renderTabLoadingPanel(label)}>
+      {content}
+    </Suspense>
+  );
+
   return (
     <div className="min-h-screen bg-[#061425]">
       <Sidebar
@@ -806,117 +825,141 @@ export default function AdminDashboard() {
 
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
-            <OverviewTab
-              stats={stats}
-              applications={applications}
-              setActiveTab={setActiveTab}
-            />
+            wrapTabPanel(
+              'Loading dashboard overview',
+              <OverviewTab
+                stats={stats}
+                applications={applications}
+                setActiveTab={setActiveTab}
+              />
+            )
           )}
 
           {activeTab === 'applications' && (
-            <ApplicationsTab
-              applicationSearch={applicationSearch}
-              setApplicationSearch={setApplicationSearch}
-              filteredApplications={filteredApplications}
-              setSelectedApplication={setSelectedApplication}
-            />
+            wrapTabPanel(
+              'Loading applications',
+              <ApplicationsTab
+                applicationSearch={applicationSearch}
+                setApplicationSearch={setApplicationSearch}
+                filteredApplications={filteredApplications}
+                setSelectedApplication={setSelectedApplication}
+              />
+            )
           )}
 
           {activeTab === 'rentals' && (
-            <RentalsTab
-              rentalSearch={rentalSearch}
-              setRentalSearch={setRentalSearch}
-              filteredRentals={filteredRentals}
-              onCancelSubscription={(payload) =>
-                cancelRentalSubscriptionMutation.mutateAsync(payload)
-              }
-              onCreateTollNotice={(rental) =>
-                openTollNotices(
-                  String(rental.application_id || rental.applicant_name || rental.car_name || '')
-                )
-              }
-            />
+            wrapTabPanel(
+              'Loading rentals',
+              <RentalsTab
+                rentalSearch={rentalSearch}
+                setRentalSearch={setRentalSearch}
+                filteredRentals={filteredRentals}
+                onCancelSubscription={(payload) =>
+                  cancelRentalSubscriptionMutation.mutateAsync(payload)
+                }
+                onCreateTollNotice={(rental) =>
+                  openTollNotices(
+                    String(rental.application_id || rental.applicant_name || rental.car_name || '')
+                  )
+                }
+              />
+            )
           )}
 
           {activeTab === 'financials' && (
-            <FinancialsTab
-              dateRange={financialDateRange}
-              isLoadingWeeklyFinancials={isLoadingWeeklyFinancials}
-              weeklyFinancials={weeklyFinancials}
-              onDateRangeChange={setFinancialDateRange}
-              onRefresh={() => weeklyFinancialsQuery.refetch()}
-              formatCurrency={formatCurrency}
-            />
+            wrapTabPanel(
+              'Loading financials',
+              <FinancialsTab
+                dateRange={financialDateRange}
+                isLoadingWeeklyFinancials={isLoadingWeeklyFinancials}
+                weeklyFinancials={weeklyFinancials}
+                onDateRangeChange={setFinancialDateRange}
+                onRefresh={() => weeklyFinancialsQuery.refetch()}
+                formatCurrency={formatCurrency}
+              />
+            )
           )}
 
           {activeTab === 'customers' && (
-            <CustomersTab
-              customerSearch={customerSearch}
-              setCustomerSearch={setCustomerSearch}
-              isLoadingCustomerDataset={isLoadingCustomerDataset}
-              customerHistoryAvailable={customerHistoryAvailable}
-              deferredCustomerSearch={deferredCustomerSearch}
-              customerTotalItems={customerTotalItems}
-              customerTotals={customerTotals}
-              customerRecords={customerRecords}
-              currentCustomerPage={currentCustomerPage}
-              customerTotalPages={customerTotalPages}
-              isFetching={customerDatasetQuery.isFetching}
-              setCustomerPage={setCustomerPage}
-              formatCurrency={formatCurrency}
-              formatDate={formatDate}
-              operationalHistoryMessage={operationalHistoryMessage}
-            />
+            wrapTabPanel(
+              'Loading customers',
+              <CustomersTab
+                customerSearch={customerSearch}
+                setCustomerSearch={setCustomerSearch}
+                isLoadingCustomerDataset={isLoadingCustomerDataset}
+                customerHistoryAvailable={customerHistoryAvailable}
+                deferredCustomerSearch={deferredCustomerSearch}
+                customerTotalItems={customerTotalItems}
+                customerTotals={customerTotals}
+                customerRecords={customerRecords}
+                currentCustomerPage={currentCustomerPage}
+                customerTotalPages={customerTotalPages}
+                isFetching={customerDatasetQuery.isFetching}
+                setCustomerPage={setCustomerPage}
+                formatCurrency={formatCurrency}
+                formatDate={formatDate}
+                operationalHistoryMessage={operationalHistoryMessage}
+              />
+            )
           )}
 
           {activeTab === 'invoices' && (
-            <InvoicesTab
-              invoiceSearch={invoiceSearch}
-              setInvoiceSearch={setInvoiceSearch}
-              isLoadingInvoiceDataset={isLoadingInvoiceDataset}
-              invoiceHistoryAvailable={invoiceHistoryAvailable}
-              deferredInvoiceSearch={deferredInvoiceSearch}
-              invoiceTotalItems={invoiceTotalItems}
-              invoiceTotals={invoiceTotals}
-              invoiceRecords={invoiceRecords}
-              invoiceCurrentPage={invoiceCurrentPage}
-              invoiceTotalPages={invoiceTotalPages}
-              invoicePageSize={invoicePageSize}
-              isFetching={invoiceDatasetQuery.isFetching}
-              setInvoicePage={setInvoicePage}
-              setInvoicePageSize={setInvoicePageSize}
-              formatCurrency={formatCurrency}
-              formatDate={formatDate}
-              operationalHistoryMessage={operationalHistoryMessage}
-            />
+            wrapTabPanel(
+              'Loading invoices',
+              <InvoicesTab
+                invoiceSearch={invoiceSearch}
+                setInvoiceSearch={setInvoiceSearch}
+                isLoadingInvoiceDataset={isLoadingInvoiceDataset}
+                invoiceHistoryAvailable={invoiceHistoryAvailable}
+                deferredInvoiceSearch={deferredInvoiceSearch}
+                invoiceTotalItems={invoiceTotalItems}
+                invoiceTotals={invoiceTotals}
+                invoiceRecords={invoiceRecords}
+                invoiceCurrentPage={invoiceCurrentPage}
+                invoiceTotalPages={invoiceTotalPages}
+                invoicePageSize={invoicePageSize}
+                isFetching={invoiceDatasetQuery.isFetching}
+                setInvoicePage={setInvoicePage}
+                setInvoicePageSize={setInvoicePageSize}
+                formatCurrency={formatCurrency}
+                formatDate={formatDate}
+                operationalHistoryMessage={operationalHistoryMessage}
+              />
+            )
           )}
 
           {activeTab === 'agreements' && (
-            <AgreementsTab
-              approvedApplications={approvedApplications}
-              selected_agreement_application_id={selected_agreement_application_id}
-              set_selected_agreement_application_id={set_selected_agreement_application_id}
-              selectedAgreementApplication={selectedAgreementApplication}
-              isGeneratingAgreement={isGeneratingAgreement}
-              canGenerateLeaseAgreement={canGenerateLeaseAgreement}
-              handleGenerateAgreement={handleGenerateAgreement}
-              canCopyVehicleCheckoutLink={canCopyVehicleCheckoutLink}
-              generateCheckoutLinkMutation={generateCheckoutLinkMutation}
-              handleCopyVehicleCheckoutLink={handleCopyVehicleCheckoutLink}
-              savedAgreements={savedAgreements}
-              setAgreementModalMode={setAgreementModalMode}
-              setAgreementContent={setAgreementContent}
-              setIsAgreementModalOpen={setIsAgreementModalOpen}
-              deleteAgreementMutation={deleteAgreementMutation}
-            />
+            wrapTabPanel(
+              'Loading agreements',
+              <AgreementsTab
+                approvedApplications={approvedApplications}
+                selected_agreement_application_id={selected_agreement_application_id}
+                set_selected_agreement_application_id={set_selected_agreement_application_id}
+                selectedAgreementApplication={selectedAgreementApplication}
+                isGeneratingAgreement={isGeneratingAgreement}
+                canGenerateLeaseAgreement={canGenerateLeaseAgreement}
+                handleGenerateAgreement={handleGenerateAgreement}
+                canCopyVehicleCheckoutLink={canCopyVehicleCheckoutLink}
+                generateCheckoutLinkMutation={generateCheckoutLinkMutation}
+                handleCopyVehicleCheckoutLink={handleCopyVehicleCheckoutLink}
+                savedAgreements={savedAgreements}
+                setAgreementModalMode={setAgreementModalMode}
+                setAgreementContent={setAgreementContent}
+                setIsAgreementModalOpen={setIsAgreementModalOpen}
+                deleteAgreementMutation={deleteAgreementMutation}
+              />
+            )
           )}
 
           {activeTab === 'toll-notices' && (
-            <TollStatDecTab initialSearch={tollNoticeInitialSearch} />
+            wrapTabPanel(
+              'Loading toll notices',
+              <TollStatDecTab initialSearch={tollNoticeInitialSearch} />
+            )
           )}
 
           {activeTab === 'maintenance' && (
-            <MaintenanceTab />
+            wrapTabPanel('Loading maintenance', <MaintenanceTab />)
           )}
         </AnimatePresence>
       </div>

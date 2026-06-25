@@ -324,7 +324,6 @@ export default function Apply() {
       payload.set('agreement_signature', finalCheck.data.agreement_signature.trim());
       payload.set('license_photo', form.license_photo);
       payload.set('license_back_photo', form.license_back_photo);
-      payload.set('passport_or_uber_profile_screenshot', form.proof_of_address_document);
       payload.set('proof_of_address_document', form.proof_of_address_document);
       if (form.additional_document) {
         payload.set('additional_document', form.additional_document);

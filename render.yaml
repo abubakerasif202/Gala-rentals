@@ -40,10 +40,10 @@ services:
       - key: VITE_API_BASE_URL
         value: /api
       - key: LEASE_OWNER_NAME
-        value: "Galarentals"
+        value: "Sarfraz Ahmad"
       - key: LEASE_OWNER_ADDRESS
         value: "Sydney NSW"
       - key: LEASE_OWNER_CONTACT
-        value: "1300 555 828"
+        value: "+61415228557"
       - key: LEASE_OWNER_EMAIL
-        value: "hello@galarentals.com.au"
+        value: "admin@galarentals.com.au"

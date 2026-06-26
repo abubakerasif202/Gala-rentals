@@ -1425,7 +1425,7 @@ vi.mock("../db/postgres.js", () => {
 });
 
 process.env.NODE_ENV = "test";
-process.env.ADMIN_EMAIL = "hello@galarentals.com.au";
+process.env.ADMIN_EMAIL = "admin@galarentals.com.au";
 process.env.CHECKOUT_LINK_SECRET = "test-checkout-secret";
 process.env.JWT_SECRET = "test-jwt-secret";
 process.env.STRIPE_SECRET_KEY = "sk_test_123";
@@ -1441,7 +1441,7 @@ const { createCheckoutToken, verifyCheckoutToken } =
 beforeEach(() => {
   vi.clearAllMocks();
 
-  process.env.ADMIN_EMAIL = "hello@galarentals.com.au";
+  process.env.ADMIN_EMAIL = "admin@galarentals.com.au";
   process.env.STRIPE_SECRET_KEY = "sk_test_123";
   process.env.STRIPE_WEBHOOK_SECRET = "test-webhook-secret";
   process.env.STRIPE_SECURITY_BOND_PRODUCT_ID = "prod_security_bond";
@@ -1664,7 +1664,7 @@ beforeEach(() => {
   ];
 
   mockGetUser.mockResolvedValue({
-    data: { user: { email: "hello@galarentals.com.au" } },
+    data: { user: { email: "admin@galarentals.com.au" } },
     error: null,
   });
   mockRefreshSession.mockImplementation(async () => ({
@@ -1674,7 +1674,7 @@ beforeEach(() => {
         expires_at: Math.floor(Date.now() / 1000) + 3600,
         refresh_token: "refresh-token",
       },
-      user: { email: "hello@galarentals.com.au" },
+      user: { email: "admin@galarentals.com.au" },
     },
     error: null,
   }));
@@ -2220,10 +2220,10 @@ describe("Auth API", () => {
   it("POST /api/auth/login should log in an admin", async () => {
     const res = await request(app)
       .post("/api/auth/login")
-      .send({ username: "hello@galarentals.com.au", password: "password" });
+      .send({ username: "admin@galarentals.com.au", password: "password" });
 
     expect(res.status).toBe(200);
-    expect(res.body.username).toBe("hello@galarentals.com.au");
+    expect(res.body.username).toBe("admin@galarentals.com.au");
     expect(res.headers["set-cookie"]).toBeDefined();
   });
 
@@ -2231,7 +2231,7 @@ describe("Auth API", () => {
     const res = await request(app)
       .post("/api/auth/login")
       .set("Origin", "https://admin.galarentals.com.au")
-      .send({ username: "hello@galarentals.com.au", password: "password" });
+      .send({ username: "admin@galarentals.com.au", password: "password" });
 
     expect(res.status).toBe(200);
     expect(res.headers["set-cookie"]?.[0]).toContain("SameSite=None");
@@ -2249,7 +2249,7 @@ describe("Auth API", () => {
       const res = await request(scopedApp)
         .post("/api/auth/login")
         .set("Origin", "https://admin.galarentals.com.au")
-        .send({ username: "hello@galarentals.com.au", password: "password" });
+        .send({ username: "admin@galarentals.com.au", password: "password" });
 
       expect(res.status).toBe(200);
       expect(res.headers["access-control-allow-origin"]).toBe(
@@ -2269,7 +2269,7 @@ describe("Auth API", () => {
     const agent = request.agent(app);
     const loginRes = await agent
       .post("/api/auth/login")
-      .send({ username: "hello@galarentals.com.au", password: "password" });
+      .send({ username: "admin@galarentals.com.au", password: "password" });
 
     expect(loginRes.status).toBe(200);
     const adminCookie = loginRes.headers["set-cookie"]?.[0]?.split(";")[0];
@@ -2283,7 +2283,7 @@ describe("Auth API", () => {
     const verifyRes = await agent.get("/api/auth/verify").set("Cookie", adminCookie);
 
     expect(verifyRes.status).toBe(200);
-    expect(verifyRes.body.user.username).toBe("hello@galarentals.com.au");
+    expect(verifyRes.body.user.username).toBe("admin@galarentals.com.au");
     expect(mockRefreshSession).toHaveBeenCalledWith({
       refresh_token: "refresh-token",
     });
@@ -2294,7 +2294,7 @@ describe("Auth API", () => {
     const agent = request.agent(app);
     const loginRes = await agent
       .post("/api/auth/login")
-      .send({ username: "hello@galarentals.com.au", password: "password" });
+      .send({ username: "admin@galarentals.com.au", password: "password" });
 
     expect(loginRes.status).toBe(200);
     const adminCookie = loginRes.headers["set-cookie"]?.[0]?.split(";")[0];
@@ -3104,9 +3104,9 @@ describe("Applications API", () => {
   });
 
   it("POST /api/applications creates a pending application without generating an agreement or checkout link", async () => {
-    process.env.LEASE_OWNER_NAME = "Galarentals";
+    process.env.LEASE_OWNER_NAME = "Sarfraz Ahmad";
     process.env.LEASE_OWNER_ADDRESS = "Sydney NSW";
-    process.env.LEASE_OWNER_EMAIL = "hello@galarentals.com.au";
+    process.env.LEASE_OWNER_EMAIL = "admin@galarentals.com.au";
     mockState.applications[1].status = "Paid";
     mockState.applications[1].paid_at = "2026-03-07T00:00:00.000Z";
 

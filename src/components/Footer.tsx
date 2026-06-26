@@ -73,11 +73,11 @@ export default function Footer() {
             <ul className="space-y-5">
               <li className="flex items-center gap-4">
                 <Phone className="h-4 w-4 text-brand-gold" />
-                <a href="tel:1300555828" className="focus-ring-dark rounded text-sm font-light tracking-wider transition-colors hover:text-brand-gold">1300 555 828</a>
+                <a href="tel:+61415228557" className="focus-ring-dark rounded text-sm font-light tracking-wider transition-colors hover:text-brand-gold">+61415228557</a>
               </li>
               <li className="flex items-center gap-4">
                 <Mail className="h-4 w-4 text-brand-gold" />
-                <a href="mailto:hello@galarentals.com.au" className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">hello@galarentals.com.au</a>
+                <a href="mailto:admin@galarentals.com.au" className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">admin@galarentals.com.au</a>
               </li>
               <li className="flex items-start gap-4">
                 <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />

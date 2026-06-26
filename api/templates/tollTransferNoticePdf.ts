@@ -32,7 +32,7 @@ export const tollNoticeTemplatePublicPath = `/forms/${templateFileName}`;
 const companyDetails = {
   address: '13/27-33 Addlestone Rd, Merrylands NSW 2160',
   name: 'MAPLE PAINTING PTY LTD',
-  phone: '0420 550 556',
+  phone: '+61415228557',
 };
 
 const black = rgb(0.07, 0.07, 0.07);

@@ -29,10 +29,10 @@ OFFWHITE = HexColor("#F7F5EF")
 SLATE = HexColor("#5B6676")
 RED = HexColor("#B8332E")
 
-PHONE = "0420 550 556"
-EMAIL = "hello@galarentals.com.au"
+PHONE = "+61415228557"
+EMAIL = "admin@galarentals.com.au"
 WEBSITE = "galarentals.com.au"  # inferred from the branded email domain in this repo
-CONTACT_NAME = "Sarfaraz Rajabi"
+CONTACT_NAME = "Sarfraz Ahmad"
 LICENCE = "317786C"
 ABN = "16 623 061 941"
 ACN = "623 061 941"

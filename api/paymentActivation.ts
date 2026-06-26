@@ -609,7 +609,7 @@ export const handleVehicleCheckoutCompletion = async (
         const adminEmail = process.env.ADMIN_EMAIL || FALLBACK_ADMIN_EMAIL;
 
         await sendResendEmail(resend, {
-          from: 'Galarentals <noreply@galarentals.com.au>',
+          from: 'Galarentals <admin@galarentals.com.au>',
           to: adminEmail,
           subject: `Payment review required for vehicle checkout ${session.id}`,
           html: `

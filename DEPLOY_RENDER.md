@@ -42,10 +42,10 @@ Set these in the Galarentals Render service. Do not reuse credentials from any o
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_SUPABASE_VEHICLE_IMAGES_BUCKET=vehicle-images`
-- `LEASE_OWNER_NAME=Galarentals`
+- `LEASE_OWNER_NAME=Sarfraz Ahmad`
 - `LEASE_OWNER_ADDRESS=Sydney NSW`
-- `LEASE_OWNER_CONTACT=1300 555 828`
-- `LEASE_OWNER_EMAIL=hello@galarentals.com.au`
+- `LEASE_OWNER_CONTACT=+61415228557`
+- `LEASE_OWNER_EMAIL=admin@galarentals.com.au`
 
 ## Stripe Webhook
 

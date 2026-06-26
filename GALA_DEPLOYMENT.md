@@ -6,7 +6,7 @@ Galarentals must be deployed as its own rental company project with its own repo
 
 - Brand: Galarentals
 - Domain: `https://www.galarentals.com.au`
-- Email: `hello@galarentals.com.au`
+- Email: `admin@galarentals.com.au`
 - Render service: `galarentals`
 - Repository: `https://github.com/abubakerasif202/galarentals.git`
 - Stripe webhook: `https://www.galarentals.com.au/api/stripe/webhook`
@@ -45,10 +45,10 @@ Static values are already in `render.yaml`:
 - `NODE_ENV=production`
 - `VITE_API_BASE_URL=/api`
 - `VITE_SUPABASE_VEHICLE_IMAGES_BUCKET=vehicle-images`
-- `LEASE_OWNER_NAME=Galarentals`
+- `LEASE_OWNER_NAME=Sarfraz Ahmad`
 - `LEASE_OWNER_ADDRESS=Sydney NSW`
-- `LEASE_OWNER_CONTACT=1300 555 828`
-- `LEASE_OWNER_EMAIL=hello@galarentals.com.au`
+- `LEASE_OWNER_CONTACT=+61415228557`
+- `LEASE_OWNER_EMAIL=admin@galarentals.com.au`
 
 ## Smoke Tests
 

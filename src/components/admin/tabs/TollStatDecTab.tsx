@@ -31,7 +31,7 @@ interface TollStatDecTabProps {
 const COMPANY_DETAILS = {
   address: '13/27-33 Addlestone Rd, Merrylands NSW 2160',
   name: 'MAPLE PAINTING PTY LTD',
-  phone: '0420 550 556',
+  phone: '+61415228557',
 };
 
 const TOLL_NOTICE_TEMPLATE_URL = '/forms/tolling-notice-statutory-declaration-companies.pdf';

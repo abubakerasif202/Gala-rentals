@@ -77,6 +77,23 @@ export default function AgreementsTab({
   const hasTemplateChanges = Boolean(
     selectedTemplate && editorContent !== selectedTemplate.content
   );
+  const agreementWorkflow = [
+    {
+      label: 'Approved',
+      body: 'Select an approved application with locked vehicle text and weekly price.',
+      active: Boolean(selectedAgreementApplication),
+    },
+    {
+      label: 'Draft',
+      body: 'Generate an agreement draft for review before payment completion.',
+      active: Boolean(selectedAgreementApplication && canGenerateLeaseAgreement),
+    },
+    {
+      label: 'Paid',
+      body: 'Finalize and save agreement history only after driver payment is complete.',
+      active: selectedAgreementApplication?.status === 'Paid',
+    },
+  ];
 
   useEffect(() => {
     if (!selectedTemplate) {
@@ -211,9 +228,27 @@ export default function AgreementsTab({
             Lease <span className="text-brand-gold italic">Agreements</span>
           </h2>
           <p className="text-brand-grey font-light">
-            Edit active agreement templates and generate legally binding rental contracts.
+            Edit agreement templates, generate approved-application drafts, and save final agreements after payment.
           </p>
         </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {agreementWorkflow.map((item) => (
+          <div
+            key={item.label}
+            className={`rounded-2xl border p-5 ${
+              item.active
+                ? 'border-brand-gold/30 bg-brand-gold/10'
+                : 'border-white/10 bg-white/5'
+            }`}
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand-gold">
+              {item.label}
+            </p>
+            <p className="mt-3 text-sm leading-7 text-brand-grey">{item.body}</p>
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
@@ -432,6 +467,28 @@ export default function AgreementsTab({
           application first so the approved rental details and pricing are locked before
           copying a fresh link.
         </p>
+        {selectedAgreementApplication && (
+          <div className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-brand-navy/40 p-4 text-[11px] text-brand-grey sm:grid-cols-3">
+            <div>
+              <p className="font-bold uppercase tracking-widest text-brand-gold">Status</p>
+              <p className="mt-1 text-white">{selectedAgreementApplication.status}</p>
+            </div>
+            <div>
+              <p className="font-bold uppercase tracking-widest text-brand-gold">Approved weekly</p>
+              <p className="mt-1 text-white">
+                {selectedAgreementApplication.approved_weekly_price != null
+                  ? `$${Number(selectedAgreementApplication.approved_weekly_price).toFixed(2)}`
+                  : 'Not set'}
+              </p>
+            </div>
+            <div>
+              <p className="font-bold uppercase tracking-widest text-brand-gold">Vehicle / plate text</p>
+              <p className="mt-1 truncate text-white">
+                {selectedAgreementApplication.approved_vehicle || 'Not set'}
+              </p>
+            </div>
+          </div>
+        )}
         {selectedAgreementApplication && !canGenerateLeaseAgreement && (
             <p className="mt-2 text-[11px] text-brand-grey font-light">
               Approved rental details and weekly price are required before generating

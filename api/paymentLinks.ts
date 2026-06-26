@@ -68,7 +68,7 @@ export const sendDriverPaymentLinkEmail = async ({
 
   try {
     await sendResendEmail(resend, {
-      from: 'Galarentals <noreply@galarentals.com.au>',
+      from: 'Galarentals <admin@galarentals.com.au>',
       to: applicantEmail,
       subject: 'Your Galarentals checkout link is ready',
       html: `

@@ -47,7 +47,7 @@ export const renderManualInvoicePdf = (invoice: ManualInvoice) =>
       .fillColor('#374151')
       .text('13/27-33 Addlestone Rd, Merrylands NSW 2160', 50, 78)
       .text('ABN: 16 623 061 941', 50, 92)
-      .text('Mobile: 0420 550 556', 50, 106);
+      .text('Mobile: +61415228557', 50, 106);
 
     doc
       .font('Helvetica-Bold')

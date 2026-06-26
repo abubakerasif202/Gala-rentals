@@ -22,8 +22,8 @@ const homeJsonLd = {
   url: buildCanonicalUrl('/'),
   description:
     'Premium subscription rental applications in Sydney with easy approvals, secure payments, and professional handover support.',
-  telephone: '+61 1300 555 828',
-  email: 'hello@galarentals.com.au',
+  telephone: '+61415228557',
+  email: 'admin@galarentals.com.au',
   address: {
     '@type': 'PostalAddress',
     addressLocality: 'Sydney',
@@ -59,6 +59,12 @@ const reasons = [
   { icon: ClipboardCheck, title: 'Application-first approval', body: 'Your details are reviewed first so the approved quote and start date are confirmed before payment.' },
   { icon: LockKeyhole, title: 'Secure subscription checkout', body: 'Hosted checkout is issued only after approval, keeping billing clear and controlled.' },
   { icon: Headphones, title: 'Sydney-based rental support', body: 'Local support for applications, onboarding, payment questions, and handover follow-up.' },
+];
+
+const approvalWorkflow = [
+  { label: 'Application', title: 'Submit details and documents', body: 'Driver, contact, licence, and rental preference details are captured in one calm application flow.' },
+  { label: 'Admin review', title: 'Quote and start date are locked', body: 'Galarentals reviews the request, confirms the weekly payment, bond, and subscription start date.' },
+  { label: 'Payment', title: 'Secure checkout after approval', body: 'A hosted checkout link is issued only once the application is approved and pricing is ready.' },
 ];
 
 const steps = [
@@ -150,16 +156,19 @@ export default function Home() {
 
           <section className="bg-brand-sand px-4 py-18 sm:px-8 lg:px-10">
             <div className="mx-auto max-w-7xl">
-              <div className="mb-12 text-center">
-                <h2 className="text-3xl font-black text-brand-navy sm:text-4xl">Featured Fleet</h2>
-                <p className="mt-3 text-base text-slate-500">Premium vehicles ready for Sydney roads.</p>
+              <div className="mb-12 max-w-3xl">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-gold-dark">Application-first rental workflow</p>
+                <h2 className="mt-3 text-3xl font-black text-brand-navy sm:text-4xl">A premium approval process before payment.</h2>
+                <p className="mt-3 text-base leading-8 text-slate-600">
+                  Gala Rentals is built around reviewed applications, locked pricing, and secure payment links instead of public fleet shopping.
+                </p>
               </div>
 
-              <div className="public-card grid gap-10 rounded-[2.5rem] p-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:p-10">
+              <div className="public-card grid gap-10 rounded-[2rem] p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] lg:p-10">
                 <div className="overflow-hidden rounded-[1.5rem] bg-white">
                   <img
                     src={featuredRentalImages[5]}
-                    alt="Front profile of a white premium rental sedan"
+                    alt="Premium rental sedan prepared for a Sydney handover"
                     width="1100"
                     height="900"
                     className="aspect-[4/3] w-full object-cover transition-transform duration-500 ease-out motion-reduce:transition-none motion-safe:hover:scale-[1.02]"
@@ -169,34 +178,27 @@ export default function Home() {
 
                 <div className="flex flex-col justify-center">
                   <p className="inline-flex w-fit rounded-full bg-brand-navy px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">
-                    Available Now
+                    Reviewed before checkout
                   </p>
-                  <h3 className="mt-5 text-3xl font-black text-brand-navy">Toyota Camry 2026</h3>
-                  <p className="mt-2 text-base text-slate-500">Hybrid Sedan</p>
-                  <div className="mt-6 flex items-end gap-2 border-b border-stone-200 pb-6">
-                    <span className="text-3xl font-black text-brand-navy">$250</span>
-                    <span className="pb-1 text-sm text-slate-500">/ week</span>
+                  <h3 className="mt-5 text-3xl font-black text-brand-navy">From application to approved rental setup</h3>
+                  <p className="mt-3 text-base leading-8 text-slate-600">
+                    The public experience should guide renters into a controlled review flow where the admin team confirms the right vehicle, price, start date, and handover details.
+                  </p>
+                  <div className="mt-6 grid gap-3">
+                    {approvalWorkflow.map((item) => (
+                      <div key={item.label} className="rounded-2xl border border-stone-200 bg-white px-5 py-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-gold-dark">{item.label}</p>
+                        <h4 className="mt-2 text-base font-black text-brand-navy">{item.title}</h4>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p>
+                      </div>
+                    ))}
                   </div>
-                  <ul className="mt-6 space-y-4 text-sm text-slate-600">
-                    <li className="flex items-center gap-3">
-                      <ShieldCheck className="h-4 w-4 text-brand-gold-dark" aria-hidden="true" />
-                      Exceptional hybrid fuel economy
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <ShieldCheck className="h-4 w-4 text-brand-gold-dark" aria-hidden="true" />
-                      Premium leather interior
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <ShieldCheck className="h-4 w-4 text-brand-gold-dark" aria-hidden="true" />
-                      Advanced safety sensing
-                    </li>
-                  </ul>
                   <div className="mt-8">
                     <Link
                       to="/apply"
-                      className="focus-ring-light inline-flex min-h-11 items-center justify-center rounded-full border border-brand-navy/20 px-6 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-brand-navy transition-colors hover:bg-white"
+                      className="focus-ring-light inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-brand-navy/20 px-6 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-brand-navy transition-colors hover:bg-white"
                     >
-                      View Details
+                      Start Application <ArrowRight className="h-4 w-4" />
                     </Link>
                   </div>
                 </div>

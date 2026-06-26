@@ -16,7 +16,7 @@ const router = express.Router();
 const COMPANY_DETAILS = {
   organisation_address: '13/27-33 Addlestone Rd, Merrylands NSW 2160',
   organisation_name: 'MAPLE PAINTING PTY LTD',
-  organisation_phone: '0420 550 556',
+  organisation_phone: '+61415228557',
 };
 
 const responsibleTypeSchema = z
@@ -490,7 +490,7 @@ router.post('/:id/send', authenticateAdmin, async (req, res) => {
           filename: `toll-transfer-notice-${id}.pdf`,
         },
       ],
-      from: 'Galarentals <noreply@galarentals.com.au>',
+      from: 'Galarentals <admin@galarentals.com.au>',
       html: `
         <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
           <h2 style="color: #D4AF37;">Toll Transfer Notice</h2>

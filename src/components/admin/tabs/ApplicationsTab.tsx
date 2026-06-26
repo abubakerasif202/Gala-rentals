@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Download, FileText, Search, Users } from 'lucide-react';
+import { CalendarClock, CreditCard, Download, FileText, Search, ShieldCheck, Users } from 'lucide-react';
 import { Application } from '../../../types';
 import DataTable, { type DataTableColumn } from '../DataTable';
 
@@ -17,6 +17,16 @@ export default function ApplicationsTab({
   filteredApplications,
   setSelectedApplication,
 }: ApplicationsTabProps) {
+  const statusCounts = useMemo(
+    () => ({
+      approved: filteredApplications.filter((app) => app.status === 'Approved').length,
+      paid: filteredApplications.filter((app) => app.status === 'Paid').length,
+      pending: filteredApplications.filter((app) => app.status === 'Pending').length,
+      paymentReview: filteredApplications.filter((app) => app.status === 'Payment Review').length,
+    }),
+    [filteredApplications]
+  );
+
   const exportApplications = (applications: Application[]) => {
     const headers = ['Driver', 'Email', 'Phone', 'Status', 'Experience', 'Date'];
     const rows = applications.map((app) => [
@@ -87,6 +97,35 @@ export default function ApplicationsTab({
         ),
       },
       {
+        header: 'Approved Setup',
+        id: 'approved_setup',
+        minWidth: '220px',
+        sortValue: (app) => app.approved_weekly_price ?? 0,
+        cell: (app) => (
+          <div>
+            <p className="text-xs font-bold text-white">
+              {app.approved_weekly_price != null
+                ? `$${Number(app.approved_weekly_price).toFixed(2)} / week`
+                : 'Quote pending'}
+            </p>
+            <p className="mt-1 max-w-[180px] truncate text-[10px] uppercase tracking-widest text-slate-400">
+              {app.approved_vehicle || 'Rental details pending'}
+            </p>
+          </div>
+        ),
+      },
+      {
+        header: 'Start',
+        id: 'start',
+        minWidth: '150px',
+        sortValue: (app) => app.rental_subscription_start_date || app.intended_start_date,
+        cell: (app) => (
+          <span className="text-xs text-slate-400">
+            {app.rental_subscription_start_date || app.intended_start_date || 'Not set'}
+          </span>
+        ),
+      },
+      {
         header: 'Status',
         id: 'status',
         minWidth: '160px',
@@ -153,7 +192,7 @@ export default function ApplicationsTab({
             Driver <span className="text-brand-gold italic">Applications</span>
           </h2>
           <p className="text-brand-grey font-light">
-            Manage and review incoming driver requests.
+            Review applications, lock approved pricing, and issue secure payment links from server-derived state.
           </p>
         </div>
         <div className="flex w-full gap-4 md:w-auto">
@@ -169,11 +208,30 @@ export default function ApplicationsTab({
         </div>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-4">
+        {[
+          { icon: Users, label: 'Pending review', value: statusCounts.pending },
+          { icon: ShieldCheck, label: 'Approved quotes', value: statusCounts.approved },
+          { icon: CreditCard, label: 'Paid applications', value: statusCounts.paid },
+          { icon: CalendarClock, label: 'Payment review', value: statusCounts.paymentReview },
+        ].map((item) => (
+          <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-grey">
+                {item.label}
+              </p>
+              <item.icon className="h-4 w-4 text-brand-gold" />
+            </div>
+            <p className="mt-4 text-3xl font-black text-white">{item.value}</p>
+          </div>
+        ))}
+      </div>
+
       <DataTable
         rows={filteredApplications}
         columns={columns}
         getRowId={(app) => app.id}
-        minWidth="1040px"
+        minWidth="1320px"
         filters={[
           {
             id: 'status',

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, ShieldCheck, Upload, User, FileText } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, ShieldCheck, Upload, FileText } from 'lucide-react';
 import * as z from 'zod';
 import Seo from '../components/Seo';
 import { submitApplication } from '../lib/api';
@@ -113,6 +113,12 @@ const steps = [
   { id: 4, label: 'Documents' },
   { id: 5, label: 'Review' },
 ] as const;
+
+const reviewSignals = [
+  { label: 'Identity', value: 'Licence and contact details' },
+  { label: 'Rental setup', value: 'Preference, budget, and start date' },
+  { label: 'Approval', value: 'Admin quote before payment' },
+];
 
 const fieldClass =
   'focus-ring-dark w-full rounded-2xl border border-white/10 bg-brand-navy px-5 py-4 text-white outline-none transition-colors placeholder:text-brand-grey/60 focus:border-brand-gold [color-scheme:dark]';
@@ -402,11 +408,11 @@ export default function Apply() {
             </h1>
             <p className="mt-6 max-w-[32ch] text-base leading-8 text-stone-300 sm:max-w-xl sm:text-lg">
               Galarentals keeps the experience calm and professional. Submit your details, upload documents,
-              and accept the agreement before the admin review begins.
+              and get an approved quote before any secure payment link is issued.
             </p>
 
             <div className="mt-10 flex max-w-[320px] flex-wrap gap-3 sm:max-w-xl">
-              {['Validated by Zod', 'Admin reviewed', 'Stripe-ready'].map((item) => (
+              {['Private document upload', 'Admin reviewed', 'Payment after approval'].map((item) => (
                 <span key={item} className="inline-flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-grey sm:text-[11px] sm:tracking-[0.2em]">
                   <ShieldCheck className="h-3.5 w-3.5 text-brand-gold" />
                   {item}
@@ -414,15 +420,11 @@ export default function Apply() {
               ))}
             </div>
 
-            <div className="mt-10 grid max-w-[320px] gap-2 rounded-3xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl sm:max-w-none sm:grid-cols-3">
-              {[
-                { icon: User, label: 'Driver details' },
-                { icon: FileText, label: 'Documents' },
-                { icon: ShieldCheck, label: 'Admin review' },
-              ].map((item) => (
-                <div key={item.label} className="flex min-h-20 items-center justify-center gap-2 rounded-2xl bg-brand-navy/65 px-3 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-brand-grey">
-                  <item.icon className="h-4 w-4 text-brand-gold" />
-                  {item.label}
+            <div className="mt-10 grid max-w-[320px] gap-3 rounded-3xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl sm:max-w-none">
+              {reviewSignals.map((item) => (
+                <div key={item.label} className="rounded-2xl bg-brand-navy/65 px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-gold">{item.label}</p>
+                  <p className="mt-1 text-sm text-white">{item.value}</p>
                 </div>
               ))}
             </div>

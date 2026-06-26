@@ -56,8 +56,8 @@ export default function Contact() {
 
             <div className="mt-10 space-y-4">
               {[
-                { icon: Phone, title: 'Phone', body: '1300 555 828', href: 'tel:1300555828' },
-                { icon: Mail, title: 'Email', body: 'hello@galarentals.com.au', href: 'mailto:hello@galarentals.com.au' },
+                { icon: Phone, title: 'Phone', body: '+61415228557', href: 'tel:+61415228557' },
+                { icon: Mail, title: 'Email', body: 'admin@galarentals.com.au', href: 'mailto:admin@galarentals.com.au' },
                 { icon: Clock3, title: 'Business hours', body: 'Mon-Fri, 8:30am to 5:30pm AEST' },
                 { icon: MapPin, title: 'Service area', body: 'Sydney metro and surrounding suburbs' },
               ].map((item) => (

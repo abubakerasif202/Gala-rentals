@@ -37,17 +37,17 @@ describe('renderApplicationLeaseAgreement', () => {
       900
     );
 
-    expect(agreement).toContain('Name: Galarentals');
+    expect(agreement).toContain('Name: Sarfraz Ahmad');
     expect(agreement).toContain('Address: Sydney NSW');
-    expect(agreement).toContain('Contact: 1300 555 828');
-    expect(agreement).toContain('Email: hello@galarentals.com.au');
+    expect(agreement).toContain('Contact: +61415228557');
+    expect(agreement).toContain('Email: admin@galarentals.com.au');
   });
 
   it('fills lease agreements with configured owner details and non-placeholder fallbacks', () => {
-    process.env.LEASE_OWNER_NAME = 'Galarentals';
+    process.env.LEASE_OWNER_NAME = 'Sarfraz Ahmad';
     process.env.LEASE_OWNER_ADDRESS = 'Sydney NSW';
-    process.env.LEASE_OWNER_CONTACT = '1300 555 828';
-    process.env.LEASE_OWNER_EMAIL = 'hello@galarentals.com.au';
+    process.env.LEASE_OWNER_CONTACT = '+61415228557';
+    process.env.LEASE_OWNER_EMAIL = 'admin@galarentals.com.au';
 
     const agreement = renderApplicationLeaseAgreement(
       {
@@ -67,10 +67,10 @@ describe('renderApplicationLeaseAgreement', () => {
       900
     );
 
-    expect(agreement).toContain('Name: Galarentals');
+    expect(agreement).toContain('Name: Sarfraz Ahmad');
     expect(agreement).toContain('Address: Sydney NSW');
-    expect(agreement).toContain('Contact: 1300 555 828');
-    expect(agreement).toContain('Email: hello@galarentals.com.au');
+    expect(agreement).toContain('Contact: +61415228557');
+    expect(agreement).toContain('Email: admin@galarentals.com.au');
     expect(agreement).toContain('Date of Birth: Not provided');
     expect(agreement).toContain('VIN: To be assigned');
     expect(agreement).not.toContain('Business Address');

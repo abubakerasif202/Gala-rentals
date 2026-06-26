@@ -46,6 +46,7 @@ export interface Application {
   payment_link_sent_at?: string | null;
   payment_link_version?: number;
   pending_checkout_session_id?: string | null;
+  rental_subscription_start_date?: string | null;
   stripe_checkout_session_id?: string | null;
   stripe_customer_id?: string | null;
   stripe_invoice_id?: string | null;

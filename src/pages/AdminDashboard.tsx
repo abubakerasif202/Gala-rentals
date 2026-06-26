@@ -723,6 +723,27 @@ export default function AdminDashboard() {
     Boolean(selectedAgreementApplication) &&
     selectedAgreementApplication?.status === 'Approved';
   const formatCurrency = (value?: number | string | null) => `$${Number(value ?? 0).toFixed(2)}`;
+  const selectedApplicationLifecycle = selectedApplication
+    ? [
+        { label: 'Apply', active: true },
+        {
+          label: 'Approve',
+          active: ['Approved', 'Paid', 'Payment Review'].includes(selectedApplication.status),
+        },
+        {
+          label: 'Pay',
+          active: ['Paid', 'Payment Review'].includes(selectedApplication.status),
+        },
+        {
+          label: 'Prepare',
+          active: selectedApplication.status === 'Paid',
+        },
+      ]
+    : [];
+  const selectedApplicationStartDate =
+    selectedApplication?.rental_subscription_start_date ||
+    selectedApplication?.intended_start_date ||
+    'Not set';
   const formatDate = (value?: string | null) => {
     if (!value) {
       return 'N/A';
@@ -989,12 +1010,13 @@ export default function AdminDashboard() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-brand-navy shadow-2xl sm:rounded-3xl"
+              className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-brand-navy shadow-2xl sm:rounded-3xl"
             >
               <div className="flex items-center justify-between border-b border-white/10 bg-white/5 p-4 sm:p-8">
                 <div>
+                  <p className="text-[10px] text-brand-gold uppercase tracking-[0.24em] mb-2">Application command center</p>
                   <h3 className="text-xl font-bold text-white uppercase tracking-tighter">Review Application</h3>
-                  <p className="text-[10px] text-brand-grey uppercase tracking-widest mt-1">Driver profile and submitted documents</p>
+                  <p className="text-[10px] text-brand-grey uppercase tracking-widest mt-1">Driver profile, approval quote, payment link, and next operational action</p>
                 </div>
                 <button
                   onClick={() => setSelectedApplication(null)}
@@ -1005,6 +1027,24 @@ export default function AdminDashboard() {
               </div>
 
               <div className="max-h-[75vh] space-y-8 overflow-y-auto p-4 sm:p-8">
+                <div className="grid gap-3 rounded-3xl border border-brand-gold/15 bg-brand-gold/5 p-4 sm:grid-cols-4">
+                  {selectedApplicationLifecycle.map((item, index) => (
+                    <div
+                      key={item.label}
+                      className={`rounded-2xl border px-4 py-3 ${
+                        item.active
+                          ? 'border-brand-gold/30 bg-brand-gold/15 text-white'
+                          : 'border-white/10 bg-brand-navy/50 text-brand-grey'
+                      }`}
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-[0.22em]">
+                        {String(index + 1).padStart(2, '0')}
+                      </p>
+                      <p className="mt-1 text-sm font-bold">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
                     <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Applicant Details</h4>
@@ -1033,7 +1073,7 @@ export default function AdminDashboard() {
                       </div>
                       <div>
                         <p className="text-brand-grey uppercase tracking-widest mb-2">Start Date</p>
-                        <p className="text-white font-bold">{selectedApplication.intended_start_date}</p>
+                        <p className="text-white font-bold">{selectedApplicationStartDate}</p>
                       </div>
                       <div>
                         <p className="text-brand-grey uppercase tracking-widest mb-2">License #</p>
@@ -1198,6 +1238,18 @@ export default function AdminDashboard() {
                         Session: {selectedApplication.pending_checkout_session_id}
                       </p>
                     )}
+                  </div>
+                )}
+
+                {selectedApplication.status === 'Paid' && (
+                  <div className="rounded-3xl border border-brand-gold/20 bg-brand-gold/10 p-6">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">
+                      Paid application next step
+                    </p>
+                    <p className="mt-3 max-w-3xl text-sm font-light leading-7 text-brand-grey">
+                      Payment has been recorded. Continue with agreement finalization and operational documents.
+                      This screen does not activate a vehicle or create a rental automatically.
+                    </p>
                   </div>
                 )}
 

@@ -6,7 +6,7 @@ Galarentals is a full-stack subscription rental application platform for Sydney 
 
 - Brand: Galarentals
 - Domain: `https://www.galarentals.com.au`
-- Contact: `hello@galarentals.com.au`
+- Contact: `admin@galarentals.com.au`
 - Render service: `galarentals`
 - Repository: `https://github.com/abubakerasif202/galarentals.git`
 - Stripe webhook: `https://www.galarentals.com.au/api/stripe/webhook`
@@ -48,7 +48,7 @@ Copy `.env.example` to `.env.local` and fill in Gala-specific values. Do not com
 
 ```env
 APP_URL=http://localhost:3000
-ADMIN_EMAIL=hello@galarentals.com.au
+ADMIN_EMAIL=admin@galarentals.com.au
 SUPABASE_URL=https://your-gala-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 SUPABASE_ANON_KEY=your_anon_key
@@ -63,10 +63,10 @@ VITE_API_BASE_URL=/api
 VITE_SUPABASE_URL=https://your-gala-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your_anon_key
 VITE_SUPABASE_VEHICLE_IMAGES_BUCKET=vehicle-images
-LEASE_OWNER_NAME=Galarentals
+LEASE_OWNER_NAME=Sarfraz Ahmad
 LEASE_OWNER_ADDRESS=Sydney NSW
-LEASE_OWNER_CONTACT=1300 555 828
-LEASE_OWNER_EMAIL=hello@galarentals.com.au
+LEASE_OWNER_CONTACT=+61415228557
+LEASE_OWNER_EMAIL=admin@galarentals.com.au
 ```
 
 `DATABASE_URL` is preferred for transactional payment activation. `SUPABASE_DB_URL` remains a fallback for environments that have not moved to `DATABASE_URL`.

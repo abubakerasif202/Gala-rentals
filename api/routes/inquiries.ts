@@ -24,7 +24,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
       return res.status(503).json({ error: SUPPORT_FALLBACK_MESSAGE });
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL || 'hello@galarentals.com.au';
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@galarentals.com.au';
     const resend = await getResend();
     const safeName = escapeHtml(inquiry.name);
     const safeEmail = escapeHtml(inquiry.email);
@@ -36,7 +36,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
 
     const [adminEmailResult, userEmailResult] = await Promise.allSettled([
       sendResendEmail(resend, {
-        from: 'Galarentals <noreply@galarentals.com.au>',
+        from: 'Galarentals <admin@galarentals.com.au>',
         to: adminEmail,
         subject: `New availability inquiry from ${inquiryNameForSubject}`,
         html: `
@@ -52,7 +52,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
         `,
       }),
       sendResendEmail(resend, {
-        from: 'Galarentals <noreply@galarentals.com.au>',
+        from: 'Galarentals <admin@galarentals.com.au>',
         to: inquiry.email,
         subject: 'We received your Galarentals enquiry',
         html: `

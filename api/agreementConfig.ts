@@ -1,8 +1,9 @@
 import { LEASE_SETTINGS } from './constants.js';
+import { companyDetails, formatCompanyAddress } from '../shared/companyDetails.js';
 
-const DEFAULT_LEASE_OWNER_NAME = 'Sarfraz Ahmad';
-const DEFAULT_LEASE_OWNER_ADDRESS = 'Sydney NSW';
-const DEFAULT_LEASE_OWNER_CONTACT = '+61415228557';
+const DEFAULT_LEASE_OWNER_NAME = companyDetails.ownerName;
+const DEFAULT_LEASE_OWNER_ADDRESS = formatCompanyAddress();
+const DEFAULT_LEASE_OWNER_CONTACT = companyDetails.phone;
 const DEFAULT_LEASE_OWNER_EMAIL = 'admin@galarentals.com.au';
 const DEFAULT_KM_ALLOWANCE = 'As agreed in booking';
 const DEFAULT_RETURN_NOTICE_DAYS = 14;

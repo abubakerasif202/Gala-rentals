@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { renderApplicationLeaseAgreement } from './agreementGeneration.js';
+import { companyDetails, formatCompanyAddress } from '../shared/companyDetails.js';
 
 const restoreLeaseAgreementEnv = () => {
   delete process.env.LEASE_OWNER_NAME;
@@ -37,16 +38,21 @@ describe('renderApplicationLeaseAgreement', () => {
       900
     );
 
-    expect(agreement).toContain('Name: Sarfraz Ahmad');
-    expect(agreement).toContain('Address: Sydney NSW');
-    expect(agreement).toContain('Contact: +61415228557');
+    expect(agreement).toContain(`Name: ${companyDetails.ownerName}`);
+    expect(agreement).toContain(`Address: ${formatCompanyAddress()}`);
+    expect(agreement).toContain(`Contact: ${companyDetails.phone}`);
     expect(agreement).toContain('Email: admin@galarentals.com.au');
+    expect(agreement).not.toContain('MAPLE');
+    expect(agreement).not.toContain('Aurora');
+    expect(agreement).not.toContain('Addlestone');
+    expect(agreement).not.toContain('13/27-33');
+    expect(agreement).not.toContain('Merrylands');
   });
 
   it('fills lease agreements with configured owner details and non-placeholder fallbacks', () => {
     process.env.LEASE_OWNER_NAME = 'Sarfraz Ahmad';
-    process.env.LEASE_OWNER_ADDRESS = 'Sydney NSW';
-    process.env.LEASE_OWNER_CONTACT = '+61415228557';
+    process.env.LEASE_OWNER_ADDRESS = '24 Kinghorne St, Gledswood Hills NSW 2557';
+    process.env.LEASE_OWNER_CONTACT = '0400000000';
     process.env.LEASE_OWNER_EMAIL = 'admin@galarentals.com.au';
 
     const agreement = renderApplicationLeaseAgreement(
@@ -68,8 +74,8 @@ describe('renderApplicationLeaseAgreement', () => {
     );
 
     expect(agreement).toContain('Name: Sarfraz Ahmad');
-    expect(agreement).toContain('Address: Sydney NSW');
-    expect(agreement).toContain('Contact: +61415228557');
+    expect(agreement).toContain('Address: 24 Kinghorne St, Gledswood Hills NSW 2557');
+    expect(agreement).toContain('Contact: 0400000000');
     expect(agreement).toContain('Email: admin@galarentals.com.au');
     expect(agreement).toContain('Date of Birth: Not provided');
     expect(agreement).toContain('VIN: To be assigned');

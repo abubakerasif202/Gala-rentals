@@ -3,11 +3,22 @@ import { inflateSync } from 'node:zlib';
 import { PDFDocument } from 'pdf-lib';
 
 import { buildTollTransferNoticePdf, type TollTransferNoticePdfData } from './tollTransferNoticePdf.js';
+import { companyDetails } from '../../shared/companyDetails.js';
+
+const legacyCompanyFragments = [
+  'MAPLE',
+  'MAPLEPAINTINGPTYLTD',
+  'MAPLERENTALS',
+  'AURORA',
+  'ADDLESTONE',
+  '13/27-33',
+  'MERRYLANDS',
+] as const;
 
 const sampleNotice: TollTransferNoticePdfData = {
   authorised_officer_name: 'Sapfaraz Ali Rajabi',
   declaration_date: '2026-05-13',
-  declaration_place: 'Merrylands NSW 2160',
+  declaration_place: 'NSW',
   nominee_address: '11 Lytton St',
   nominee_country: 'Australia',
   nominee_dob: '2000-06-26',
@@ -195,7 +206,10 @@ describe('buildTollTransferNoticePdf', () => {
     expect(compactText).toContain('TN123456789');
     expect(compactText).toContain('DC95MA');
     expect(compactText).toContain('SAPFARAZALIRAJABI');
-    expect(compactText).toContain('MAPLEPAINTINGPTYLTD');
+    expect(compactText).toContain(companyDetails.displayName.replace(/\s+/g, ''));
+    for (const legacyFragment of legacyCompanyFragments) {
+      expect(compactText).not.toContain(legacyFragment);
+    }
     expect(compactText).toContain('MALIK');
     expect(compactText).toContain('MANDEEP');
     expect(compactText).toContain('26062000');

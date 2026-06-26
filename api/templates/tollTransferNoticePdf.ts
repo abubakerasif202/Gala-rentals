@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 
+import { companyDetails } from '../../shared/companyDetails.js';
+
 export type TollTransferNoticePdfData = {
   authorised_officer_name: string;
   declaration_date?: string | null;
@@ -28,12 +30,6 @@ export type TollTransferNoticePdfData = {
 const templateFileName = 'tolling-notice-statutory-declaration-companies.pdf';
 
 export const tollNoticeTemplatePublicPath = `/forms/${templateFileName}`;
-
-const companyDetails = {
-  address: '13/27-33 Addlestone Rd, Merrylands NSW 2160',
-  name: 'MAPLE PAINTING PTY LTD',
-  phone: '+61415228557',
-};
 
 const black = rgb(0.07, 0.07, 0.07);
 
@@ -396,7 +392,7 @@ export const buildTollTransferNoticePdf = async (
     size: 8,
     uppercase: true,
   });
-  drawText(context, companyDetails.name, 116, 624, {
+  drawText(context, companyDetails.displayName, 116, 624, {
     maxWidth: 445,
     size: 8,
   });

@@ -41,20 +41,20 @@ describe('resolveRealtimeFleetSyncSource', () => {
 
   it('keeps snapshot mode when forced even if workbook files are present', () => {
     const result = resolveRealtimeFleetSyncSource({
-      env: { MAPLE_FLEET_SOURCE: 'snapshot' },
+      env: { GALA_FLEET_SOURCE: 'snapshot' },
       fileExists: () => true,
     });
 
     expect(result.source).toBe('snapshot');
-    expect(result.reason).toContain('MAPLE_FLEET_SOURCE=snapshot');
+    expect(result.reason).toContain('GALA_FLEET_SOURCE=snapshot');
   });
 
   it('throws when workbook mode is forced but required files are missing', () => {
     expect(() =>
       resolveRealtimeFleetSyncSource({
-        env: { MAPLE_FLEET_SOURCE: 'workbook' },
+        env: { GALA_FLEET_SOURCE: 'workbook' },
         fileExists: () => false,
       })
-    ).toThrow(/MAPLE_FLEET_SOURCE=workbook requires all workbook files/i);
+    ).toThrow(/GALA_FLEET_SOURCE=workbook requires all workbook files/i);
   });
 });

@@ -91,6 +91,7 @@ Rental lifecycle rules:
 Existing-project rule:
 
 - If the current codebase deliberately separates payment completion from rental activation, preserve that design. For Galarentals specifically, admin enters `Vehicle / Number Plate` as plain text, payment-link creation must not send `car_id`, checkout tokens use `carId: null`, checkout completion marks the application `Paid` only, and car/rental records are not mutated automatically.
+- Do not use Maple, Maple Painting, Aurora, or any other legacy company details in Gala Rentals UI, PDFs, notices, agreements, seed data, examples, tests, or screenshots. Gala Rentals branding/company details must come from the repo's company/brand config.
 
 ## 4. Main Features To Generate
 
@@ -232,6 +233,7 @@ Document requirements:
 - Avoid public access to customer documents.
 - Store agreement template versions so regenerated PDFs remain auditable.
 - Make PDF generation resilient to missing optional values, long names, long addresses, and multi-page content.
+- Do not use Maple, Maple Painting, Aurora, or any other legacy company details in Gala Rentals documents. Notices, agreements, invoices, templates, tests, examples, and screenshots must use the repo's company/brand config.
 
 ## 5. Database Model Guidance
 

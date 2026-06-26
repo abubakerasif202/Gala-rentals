@@ -14,6 +14,7 @@ import {
 import Seo from '../components/Seo';
 import { featuredRentalImages } from '../lib/genericRentalImages';
 import { buildCanonicalUrl } from '../lib/seo';
+import { companyDetails } from '../../shared/companyDetails';
 
 const homeJsonLd = {
   '@context': 'https://schema.org',
@@ -22,7 +23,7 @@ const homeJsonLd = {
   url: buildCanonicalUrl('/'),
   description:
     'Premium subscription rental applications in Sydney with easy approvals, secure payments, and professional handover support.',
-  telephone: '+61415228557',
+  telephone: companyDetails.phone,
   email: 'admin@galarentals.com.au',
   address: {
     '@type': 'PostalAddress',

@@ -43,7 +43,7 @@ Set these in the Galarentals Render service. Do not reuse credentials from any o
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_SUPABASE_VEHICLE_IMAGES_BUCKET=vehicle-images`
 - `LEASE_OWNER_NAME=Sarfraz Ahmad`
-- `LEASE_OWNER_ADDRESS=Sydney NSW`
+- `LEASE_OWNER_ADDRESS=24 Kinghorne St, Gledswood Hills NSW 2557`
 - `LEASE_OWNER_CONTACT=+61415228557`
 - `LEASE_OWNER_EMAIL=admin@galarentals.com.au`
 

@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import type { ManualInvoice } from '../manualInvoices.js';
+import { companyDetails, formatCompanyAddress } from '../../shared/companyDetails.js';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-AU', {
@@ -32,22 +33,30 @@ export const renderManualInvoicePdf = (invoice: ManualInvoice) =>
     doc.on('end', () => resolve(Buffer.concat(chunks)));
 
     doc.info.Title = `Galarentals Invoice ${invoice.invoice_number}`;
-    doc.info.Author = 'Galarentals';
+    doc.info.Author = companyDetails.brandName;
     doc.info.Subject =
-      'MAPLE RENTALS TAX INVOICE Payment Details BSB: 062202 Account Number: 11147699';
+      `${companyDetails.displayName} TAX INVOICE Payment Details BSB: 062202 Account Number: 11147699`;
 
     doc
       .font('Helvetica-Bold')
       .fontSize(24)
       .fillColor('#111827')
-      .text('MAPLE RENTALS', 50, 48);
+      .text(companyDetails.displayName, 50, 48);
     doc
       .font('Helvetica')
       .fontSize(9)
-      .fillColor('#374151')
-      .text('13/27-33 Addlestone Rd, Merrylands NSW 2160', 50, 78)
-      .text('ABN: 16 623 061 941', 50, 92)
-      .text('Mobile: +61415228557', 50, 106);
+      .fillColor('#374151');
+
+    let businessInfoY = 78;
+    const businessInfo = [
+      companyDetails.address,
+      companyDetails.abn ? `ABN: ${companyDetails.abn}` : '',
+      companyDetails.phone ? `Mobile: ${companyDetails.phone}` : '',
+    ].filter(Boolean);
+    for (const line of businessInfo) {
+      doc.text(line, 50, businessInfoY);
+      businessInfoY += 14;
+    }
 
     doc
       .font('Helvetica-Bold')
@@ -205,7 +214,7 @@ export const renderManualInvoicePdf = (invoice: ManualInvoice) =>
       .fontSize(8)
       .fillColor('#6B7280')
       .text(
-        'Galarentals - Sydney NSW - contact details on file',
+        `${companyDetails.tradingName} - ${formatCompanyAddress()} - ${companyDetails.phone}`,
         50,
         790,
         { align: 'center', width: 495 }

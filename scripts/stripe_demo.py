@@ -342,7 +342,7 @@ def demo_coupons() -> None:
 
     # Percentage coupon â€” one-time use
     coupon_pct = stripe.Coupon.create(
-        name="MAPLE10",
+        name="GALA10",
         percent_off=10,
         duration="once",
     )

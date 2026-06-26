@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import * as api from '../../../lib/api';
 import { getApiErrorMessage } from '../../../lib/errorHandling';
+import { companyDetails } from '../../../../shared/companyDetails';
 
 type ResponsibleType = 'responsible' | 'new-owner' | 'previous-owner';
 
@@ -28,12 +29,6 @@ interface TollStatDecTabProps {
   initialSearch?: string;
 }
 
-const COMPANY_DETAILS = {
-  address: '13/27-33 Addlestone Rd, Merrylands NSW 2160',
-  name: 'MAPLE PAINTING PTY LTD',
-  phone: '+61415228557',
-};
-
 const TOLL_NOTICE_TEMPLATE_URL = '/forms/tolling-notice-statutory-declaration-companies.pdf';
 
 const createEmptyForm = (): TollTransferForm => ({
@@ -43,7 +38,7 @@ const createEmptyForm = (): TollTransferForm => ({
   car_name: '',
   customer_id: null,
   declaration_date: null,
-  declaration_place: 'Merrylands NSW',
+  declaration_place: 'NSW',
   nominee_address: '',
   nominee_country: 'AUSTRALIA',
   nominee_dob: null,
@@ -714,15 +709,15 @@ export default function TollStatDecTab({ initialSearch = '' }: TollStatDecTabPro
             <dl className="space-y-3 text-sm">
               <div>
                 <dt className="text-[10px] uppercase tracking-widest text-brand-grey">Company</dt>
-                <dd className="font-bold text-white">{COMPANY_DETAILS.name}</dd>
+                <dd className="font-bold text-white">{companyDetails.displayName}</dd>
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-widest text-brand-grey">Address</dt>
-                <dd className="text-white">{COMPANY_DETAILS.address}</dd>
+                <dd className="text-white">{companyDetails.address || 'Not configured'}</dd>
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-widest text-brand-grey">Phone</dt>
-                <dd className="text-white">{COMPANY_DETAILS.phone}</dd>
+                <dd className="text-white">{companyDetails.phone || 'Not configured'}</dd>
               </div>
             </dl>
           </section>

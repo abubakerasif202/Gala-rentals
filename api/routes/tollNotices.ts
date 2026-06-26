@@ -10,14 +10,9 @@ import {
 } from '../importedDataFilters.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { buildTollTransferNoticePdf } from '../templates/tollTransferNoticePdf.js';
+import { tollNoticeCompanyDefaults } from '../../shared/companyDetails.js';
 
 const router = express.Router();
-
-const COMPANY_DETAILS = {
-  organisation_address: '13/27-33 Addlestone Rd, Merrylands NSW 2160',
-  organisation_name: 'MAPLE PAINTING PTY LTD',
-  organisation_phone: '+61415228557',
-};
 
 const responsibleTypeSchema = z
   .enum(['responsible', 'new-owner', 'previous-owner'])
@@ -353,7 +348,7 @@ const toRecordPayload = (payload: TollNoticePayload, req: express.Request) => ({
 });
 
 router.get('/company-defaults', authenticateAdmin, (_req, res) => {
-  res.json(COMPANY_DETAILS);
+  res.json(tollNoticeCompanyDefaults);
 });
 
 router.get('/rental-options', authenticateAdmin, async (req, res) => {

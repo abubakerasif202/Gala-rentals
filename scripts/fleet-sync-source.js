@@ -17,11 +17,11 @@ const describeMissingWorkbookFiles = (missingFiles) =>
 
 export const getWorkbookImportPaths = (env = process.env) => ({
   clientPath: String(
-    env.MAPLE_FLEET_CLIENT_WORKBOOK_PATH || DEFAULT_WORKBOOK_IMPORT_PATHS.clientPath
+    env.GALA_FLEET_CLIENT_WORKBOOK_PATH || DEFAULT_WORKBOOK_IMPORT_PATHS.clientPath
   ),
-  fleetPath: String(env.MAPLE_FLEET_WORKBOOK_PATH || DEFAULT_WORKBOOK_IMPORT_PATHS.fleetPath),
+  fleetPath: String(env.GALA_FLEET_WORKBOOK_PATH || DEFAULT_WORKBOOK_IMPORT_PATHS.fleetPath),
   invoicePath: String(
-    env.MAPLE_FLEET_INVOICE_WORKBOOK_PATH || DEFAULT_WORKBOOK_IMPORT_PATHS.invoicePath
+    env.GALA_FLEET_INVOICE_WORKBOOK_PATH || DEFAULT_WORKBOOK_IMPORT_PATHS.invoicePath
   ),
 });
 
@@ -32,7 +32,7 @@ export const resolveRealtimeFleetSyncMode = (value) => {
 
   if (!VALID_SYNC_MODES.has(normalized)) {
     throw new Error(
-      `Unsupported MAPLE_FLEET_SOURCE value "${value}". Expected auto, snapshot, or workbook.`
+      `Unsupported GALA_FLEET_SOURCE value "${value}". Expected auto, snapshot, or workbook.`
     );
   }
 
@@ -43,7 +43,7 @@ export const resolveRealtimeFleetSyncSource = ({
   env = process.env,
   fileExists = fs.existsSync,
 } = {}) => {
-  const mode = resolveRealtimeFleetSyncMode(env.MAPLE_FLEET_SOURCE);
+  const mode = resolveRealtimeFleetSyncMode(env.GALA_FLEET_SOURCE);
   const workbookPaths = getWorkbookImportPaths(env);
   const missingFiles = [
     { key: 'fleetPath', label: 'Fleet', path: workbookPaths.fleetPath },
@@ -60,7 +60,7 @@ export const resolveRealtimeFleetSyncSource = ({
   if (mode === 'snapshot') {
     return {
       mode,
-      reason: 'MAPLE_FLEET_SOURCE=snapshot forced the static fleet snapshot.',
+      reason: 'GALA_FLEET_SOURCE=snapshot forced the static fleet snapshot.',
       source: 'snapshot',
       workbookImport,
     };
@@ -69,7 +69,7 @@ export const resolveRealtimeFleetSyncSource = ({
   if (mode === 'workbook') {
     if (!workbookImport.isAvailable) {
       throw new Error(
-        `MAPLE_FLEET_SOURCE=workbook requires all workbook files. Missing: ${describeMissingWorkbookFiles(
+        `GALA_FLEET_SOURCE=workbook requires all workbook files. Missing: ${describeMissingWorkbookFiles(
           missingFiles
         )}.`
       );
@@ -77,7 +77,7 @@ export const resolveRealtimeFleetSyncSource = ({
 
     return {
       mode,
-      reason: 'MAPLE_FLEET_SOURCE=workbook forced the workbook importer.',
+      reason: 'GALA_FLEET_SOURCE=workbook forced the workbook importer.',
       source: 'workbook',
       workbookImport,
     };

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Mail, MapPin, Phone } from 'lucide-react';
+import { companyDetails, formatCompanyAddress } from '../../shared/companyDetails';
 
 const quickLinks = [
   { label: 'Apply Now', path: '/apply' },
@@ -71,10 +72,12 @@ export default function Footer() {
           <div>
             <h3 className="mb-8 text-xs font-bold uppercase tracking-widest text-white">Contact</h3>
             <ul className="space-y-5">
-              <li className="flex items-center gap-4">
-                <Phone className="h-4 w-4 text-brand-gold" />
-                <a href="tel:+61415228557" className="focus-ring-dark rounded text-sm font-light tracking-wider transition-colors hover:text-brand-gold">+61415228557</a>
-              </li>
+              {companyDetails.phone && (
+                <li className="flex items-center gap-4">
+                  <Phone className="h-4 w-4 text-brand-gold" />
+                  <a href={`tel:${companyDetails.phone}`} className="focus-ring-dark rounded text-sm font-light tracking-wider transition-colors hover:text-brand-gold">{companyDetails.phone}</a>
+                </li>
+              )}
               <li className="flex items-center gap-4">
                 <Mail className="h-4 w-4 text-brand-gold" />
                 <a href="mailto:admin@galarentals.com.au" className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">admin@galarentals.com.au</a>
@@ -82,9 +85,7 @@ export default function Footer() {
               <li className="flex items-start gap-4">
                 <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />
                 <span className="text-sm font-light leading-relaxed">
-                  Sydney CBD service hub
-                  <br />
-                  Australia
+                  {formatCompanyAddress() || 'NSW, Australia'}
                 </span>
               </li>
               <li className="mt-8 space-y-2 text-xs font-light text-gray-600">

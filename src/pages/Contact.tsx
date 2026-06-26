@@ -3,6 +3,7 @@ import Seo from '../components/Seo';
 import { submitInquiry } from '../lib/api';
 import { useState, type FormEvent } from 'react';
 import { featuredRentalImages } from '../lib/genericRentalImages';
+import { companyDetails } from '../../shared/companyDetails';
 
 const inputClass =
   'focus-ring-light rounded-2xl border border-stone-200 bg-white px-5 py-4 text-brand-navy outline-none transition-colors placeholder:text-slate-400 focus:border-brand-gold';
@@ -56,11 +57,13 @@ export default function Contact() {
 
             <div className="mt-10 space-y-4">
               {[
-                { icon: Phone, title: 'Phone', body: '+61415228557', href: 'tel:+61415228557' },
+                companyDetails.phone
+                  ? { icon: Phone, title: 'Phone', body: companyDetails.phone, href: `tel:${companyDetails.phone}` }
+                  : null,
                 { icon: Mail, title: 'Email', body: 'admin@galarentals.com.au', href: 'mailto:admin@galarentals.com.au' },
                 { icon: Clock3, title: 'Business hours', body: 'Mon-Fri, 8:30am to 5:30pm AEST' },
                 { icon: MapPin, title: 'Service area', body: 'Sydney metro and surrounding suburbs' },
-              ].map((item) => (
+              ].filter((item): item is NonNullable<typeof item> => Boolean(item)).map((item) => (
                 <div key={item.title} className="ambient-shadow flex items-center gap-4 rounded-2xl border border-stone-200 bg-[#fbf9f4] px-5 py-4">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-gold/10 text-brand-gold">
                     <item.icon className="h-5 w-5" />

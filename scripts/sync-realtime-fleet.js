@@ -105,7 +105,7 @@ const buildProcessError = (result) => {
 
 const loadWorkbookFleetPayload = (workbookImport) => {
   const powerShellCommand =
-    process.env.MAPLE_FLEET_POWERSHELL_BIN || (process.platform === 'win32' ? 'powershell.exe' : 'pwsh');
+    process.env.GALA_FLEET_POWERSHELL_BIN || (process.platform === 'win32' ? 'powershell.exe' : 'pwsh');
   const args = [
     '-NoProfile',
     '-ExecutionPolicy',

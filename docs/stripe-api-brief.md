@@ -186,7 +186,7 @@ Coupons apply percentage or fixed-amount discounts to invoices and subscriptions
 
 | Coupon Name | Discount | Duration | ID |
 |---|---|---|---|
-| MAPLE10 | 10% off | Once | `reIC7uhx` |
+| GALA10 | 10% off | Once | `reIC7uhx` |
 | WELCOME20 | 20% off | 3 months (repeating) | `8erFAGGd` |
 | SAVE25 | AUD 25.00 off | Once | (created in demo script) |
 

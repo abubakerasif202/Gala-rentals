@@ -33,9 +33,9 @@ PHONE = "+61415228557"
 EMAIL = "admin@galarentals.com.au"
 WEBSITE = "galarentals.com.au"  # inferred from the branded email domain in this repo
 CONTACT_NAME = "Sarfraz Ahmad"
-LICENCE = "317786C"
-ABN = "16 623 061 941"
-ACN = "623 061 941"
+LICENCE = ""
+ABN = "35 657 943 596"
+ACN = "657 943 596"
 
 
 def register_font(name: str, path: str, fallback: str) -> str:

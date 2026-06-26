@@ -42,7 +42,7 @@ services:
       - key: LEASE_OWNER_NAME
         value: "Sarfraz Ahmad"
       - key: LEASE_OWNER_ADDRESS
-        value: "Sydney NSW"
+        value: "24 Kinghorne St, Gledswood Hills NSW 2557"
       - key: LEASE_OWNER_CONTACT
         value: "+61415228557"
       - key: LEASE_OWNER_EMAIL

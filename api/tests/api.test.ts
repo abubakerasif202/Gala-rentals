@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
+import { inflateSync } from "node:zlib";
 import { getTodayInAustralia } from "../../shared/applicationSubmission.js";
+import { companyDetails } from "../../shared/companyDetails.js";
 
 const addDaysToDateOnly = (dateOnly: string, days: number) => {
   const [year, month, day] = dateOnly.split("-").map(Number);
@@ -13,6 +15,49 @@ const getFutureDateOnly = (days: number) =>
 
 const getPastDateOnly = (days: number) =>
   addDaysToDateOnly(getTodayInAustralia(), -days);
+
+const decodeLiteralPdfString = (value: string) =>
+  value
+    .replace(/\\([()\\])/g, "$1")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\r")
+    .replace(/\\t/g, "\t");
+
+const decodePdfTextToken = (literal?: string, hex?: string) =>
+  literal !== undefined
+    ? decodeLiteralPdfString(literal)
+    : Buffer.from(hex || "", "hex").toString("latin1");
+
+const extractVisiblePdfText = (pdf: Buffer) => {
+  const raw = pdf.toString("latin1");
+  const chunks: string[] = [];
+
+  for (const match of raw.matchAll(/<<(?:.|\r|\n)*?>>\s*stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+    const objectSource = match[0];
+    const streamBytes = Buffer.from(match[1], "latin1");
+    const streamText = objectSource.includes("/FlateDecode")
+      ? inflateSync(streamBytes).toString("latin1")
+      : streamBytes.toString("latin1");
+
+    if ((!streamText.includes(" Tj") && !streamText.includes("] TJ")) || streamText.includes("\u0000")) {
+      continue;
+    }
+
+    for (const textMatch of streamText.matchAll(/(?:\(([^()]*)\)|<([0-9A-Fa-f]+)>)\s*Tj/g)) {
+      chunks.push(decodePdfTextToken(textMatch[1], textMatch[2]));
+    }
+
+    for (const arrayMatch of streamText.matchAll(/\[((?:.|\r|\n)*?)\]\s*TJ/g)) {
+      const parts: string[] = [];
+      for (const textMatch of arrayMatch[1].matchAll(/\(([^()]*)\)|<([0-9A-Fa-f]+)>/g)) {
+        parts.push(decodePdfTextToken(textMatch[1], textMatch[2]));
+      }
+      chunks.push(parts.join(""));
+    }
+  }
+
+  return chunks.join(" ").replace(/\s+/g, " ");
+};
 
 const PENDING_APPLICATION_ID = "11111111-1111-4111-8111-111111111111";
 const APPROVED_APPLICATION_ID = "22222222-2222-4222-8222-222222222222";
@@ -4172,14 +4217,29 @@ describe("Operational history API", () => {
 
     const res = await request(app)
       .get("/api/admin/manual-invoices/invoice-1/pdf")
-      .set("Authorization", "Bearer fake-token");
+      .set("Authorization", "Bearer fake-token")
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        response.on("end", () => callback(null, Buffer.concat(chunks)));
+      });
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/pdf");
     expect(res.headers["content-disposition"]).toContain(
       "galarentals-invoice-MR-INV-PDF.pdf",
     );
-    expect(res.text || res.body.toString("latin1")).toContain("MAPLE RENTALS");
+    const text = extractVisiblePdfText(res.body);
+    expect(text).toContain(companyDetails.displayName);
+    expect(text).toContain(companyDetails.address);
+    expect(text).toContain(`ABN: ${companyDetails.abn}`);
+    expect(text).toContain(`Mobile: ${companyDetails.phone}`);
+    expect(text).not.toContain("MAPLE");
+    expect(text).not.toContain("Aurora");
+    expect(text).not.toContain("Addlestone");
+    expect(text).not.toContain("13/27-33");
+    expect(text).not.toContain("Merrylands");
     expect(res.text || res.body.toString("latin1")).toContain("062202");
   });
 });
@@ -4191,7 +4251,7 @@ describe("Toll Transfer Notices API", () => {
     car_id: 1,
     customer_id: 1,
     declaration_date: "2026-04-30",
-    declaration_place: "Merrylands NSW",
+    declaration_place: "NSW",
     nominee_address: "10 Driver Street",
     nominee_country: "AUSTRALIA",
     nominee_dob: "1999-09-24",
@@ -4199,7 +4259,7 @@ describe("Toll Transfer Notices API", () => {
     nominee_phone: "0499999999",
     nominee_postcode: "2160",
     nominee_state: "NSW",
-    nominee_suburb: "MERRYLANDS",
+    nominee_suburb: "GLEDSWOOD HILLS",
     rental_id: 20,
     responsible_type: "responsible",
     toll_notice_number: "TN123456789",
@@ -4216,6 +4276,19 @@ describe("Toll Transfer Notices API", () => {
     expect(res.status).toBe(401);
   });
 
+  it("GET /api/toll-notices/company-defaults returns Gala company details from shared config", async () => {
+    const res = await request(app)
+      .get("/api/toll-notices/company-defaults")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      organisation_address: companyDetails.address,
+      organisation_name: companyDetails.displayName,
+      organisation_phone: companyDetails.phone,
+    });
+  });
+
   it("GET /api/toll-notices/rental-options prefills customer and vehicle details", async () => {
     mockState.cars[0].name = "Toyota Camry (CZ55XY)";
     mockState.rentals = [
@@ -4230,7 +4303,7 @@ describe("Toll Transfer Notices API", () => {
     ];
     mockState.customers[0] = {
       ...mockState.customers[0],
-      city: "Merrylands",
+      city: "Sydney",
       date_of_birth: "1999-09-24",
       email: "approved@example.com",
       full_name: "Approved Driver",
@@ -4358,6 +4431,16 @@ describe("Toll Transfer Notices API", () => {
     expect(res.headers["content-type"]).toContain("application/pdf");
     expect(Buffer.isBuffer(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThan(1000);
+    const pdfText = extractVisiblePdfText(res.body);
+    const compactPdfText = pdfText.replace(/\s+/g, "").toUpperCase();
+    expect(compactPdfText).toContain(companyDetails.displayName.replace(/\s+/g, ""));
+    expect(compactPdfText).not.toContain("MAPLE");
+    expect(compactPdfText).not.toContain("MAPLEPAINTINGPTYLTD");
+    expect(compactPdfText).not.toContain("MAPLERENTALS");
+    expect(compactPdfText).not.toContain("AURORA");
+    expect(compactPdfText).not.toContain("ADDLESTONE");
+    expect(compactPdfText).not.toContain("13/27-33");
+    expect(compactPdfText).not.toContain("MERRYLANDS");
     expect(mockState.toll_transfer_notice_audit_events.at(-1)).toMatchObject({
       action: "download",
       toll_transfer_notice_id: 1,

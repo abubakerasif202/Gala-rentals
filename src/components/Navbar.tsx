@@ -59,7 +59,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        <div className="public-mobile-links w-full max-w-[320px] gap-2 border-t border-slate-100 pb-4 pt-4">
+        <div className="public-mobile-links w-full gap-2 border-t border-slate-100 pb-4 pt-4 md:hidden">
           {navLinks.map((link) => (
             link.isAnchor ? (
               <a

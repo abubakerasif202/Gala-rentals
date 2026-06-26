@@ -108,7 +108,7 @@ export default function Pricing() {
               </p>
               <Link
                 to="/apply"
-                className="focus-ring-light inline-flex items-center justify-center gap-2 rounded-xl bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
+                className="focus-ring-light inline-flex items-center justify-center gap-2 rounded-full bg-brand-navy px-5 py-4 text-xs font-bold uppercase tracking-[0.22em] text-white transition-colors hover:bg-brand-navy-light"
               >
                 Start Application <ArrowRight className="w-4 h-4" />
               </Link>

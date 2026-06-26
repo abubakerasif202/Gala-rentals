@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Mail, MapPin, Phone } from 'lucide-react';
 
 const quickLinks = [
-  { label: 'Fleet Guide', path: '/apply' },
+  { label: 'Apply Now', path: '/apply' },
   { label: 'Pricing', path: '/pricing' },
   { label: 'About', path: '/faq' },
   { label: 'Contact', path: '/contact' },
@@ -35,7 +35,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="mb-8 text-xs font-bold uppercase tracking-widest text-white">Fleet</h3>
+            <h3 className="mb-8 text-xs font-bold uppercase tracking-widest text-white">Quick Links</h3>
             <ul className="space-y-5">
               {quickLinks.map((link) => (
                 <li key={link.path}>

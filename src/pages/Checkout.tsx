@@ -246,7 +246,7 @@ export default function Checkout() {
                     type="button"
                     onClick={handleStartCheckout}
                     disabled={isRedirecting}
-                    className="w-full bg-brand-gold text-brand-navy py-5 font-bold uppercase tracking-widest text-sm hover:bg-brand-gold-light transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                    className="focus-ring-dark flex w-full items-center justify-center gap-3 rounded-full bg-brand-gold py-5 text-sm font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light disabled:opacity-50"
                   >
                     {isRedirecting ? (
                       <>

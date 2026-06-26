@@ -107,13 +107,13 @@ export default function Home() {
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                   <Link
                     to="/apply"
-                    className="focus-ring-light inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-navy px-8 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-lg transition-colors hover:bg-brand-navy-light"
+                    className="focus-ring-light inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-navy px-8 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-lg transition-colors hover:bg-brand-navy-light sm:w-auto"
                   >
                     Apply Now <ArrowRight className="h-4 w-4" />
                   </Link>
                   <Link
                     to="/pricing"
-                    className="focus-ring-light inline-flex min-h-12 items-center justify-center rounded-full border border-brand-navy/20 bg-transparent px-8 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-brand-navy transition-colors hover:bg-white/70"
+                    className="focus-ring-light inline-flex min-h-12 w-full items-center justify-center rounded-full border border-brand-navy/20 bg-transparent px-8 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-brand-navy transition-colors hover:bg-white/70 sm:w-auto"
                   >
                     View Pricing
                   </Link>

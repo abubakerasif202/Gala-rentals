@@ -52,7 +52,7 @@
   .public-mobile-links {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: min(100%, calc(100vw - 3.5rem));
+    width: 100%;
   }
 
   .skip-link {

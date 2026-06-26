@@ -727,7 +727,7 @@ export default function Apply() {
             {step === 4 && (
               <Section eyebrow="Step 4" title="Documents" description="Upload clear copies so review can move quickly.">
                 <div className="grid gap-5 md:grid-cols-2">
-                  <label htmlFor={applicationFieldId('license_photo')} className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <label htmlFor={applicationFieldId('license_photo')} className="block cursor-pointer rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <Upload className="h-5 w-5 text-brand-gold" />
                       <div>
@@ -739,7 +739,7 @@ export default function Apply() {
                     <FieldError id={applicationErrorId('license_photo')} message={errors.license_photo} />
                   </label>
 
-                  <label htmlFor={applicationFieldId('license_back_photo')} className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <label htmlFor={applicationFieldId('license_back_photo')} className="block cursor-pointer rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <Upload className="h-5 w-5 text-brand-gold" />
                       <div>
@@ -751,7 +751,7 @@ export default function Apply() {
                     <FieldError id={applicationErrorId('license_back_photo')} message={errors.license_back_photo} />
                   </label>
 
-                  <label htmlFor={applicationFieldId('proof_of_address_document')} className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <label htmlFor={applicationFieldId('proof_of_address_document')} className="block cursor-pointer rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-brand-gold" />
                       <div>
@@ -763,7 +763,7 @@ export default function Apply() {
                     <FieldError id={applicationErrorId('proof_of_address_document')} message={errors.proof_of_address_document} />
                   </label>
 
-                  <label htmlFor={applicationFieldId('additional_document')} className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
+                  <label htmlFor={applicationFieldId('additional_document')} className="block cursor-pointer rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-brand-gold" />
                       <div>

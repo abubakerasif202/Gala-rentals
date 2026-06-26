@@ -117,6 +117,16 @@ const renderTabLoadingPanel = (label: string) => (
   </div>
 );
 
+const defaultApplicationApprovalForm = {
+  approved_vehicle: '',
+  approved_bond: '',
+  approved_weekly_price: '',
+  rental_subscription_start_date: '',
+};
+
+const applicationApprovalFieldId = (field: keyof typeof defaultApplicationApprovalForm) =>
+  `application-approval-${field}`;
+
 export default function AdminDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -130,12 +140,7 @@ export default function AdminDashboard() {
   const [openingDocument, setOpeningDocument] = useState<'license_photo' | 'license_back_photo' | 'passport_or_uber_profile_screenshot' | null>(null);
   const [isCancelApplicationModalOpen, setIsCancelApplicationModalOpen] = useState(false);
   const [cancelApplicationReason, setCancelApplicationReason] = useState('');
-  const [applicationApprovalForm, setApplicationApprovalForm] = useState({
-    approved_vehicle: '',
-    approved_bond: '',
-    approved_weekly_price: '',
-    rental_subscription_start_date: '',
-  });
+  const [applicationApprovalForm, setApplicationApprovalForm] = useState(defaultApplicationApprovalForm);
 
   // Agreement Management State
   const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
@@ -1262,7 +1267,10 @@ export default function AdminDashboard() {
                         <h4 className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
                           Approval & Payment Quote
                         </h4>
-                        <p className="text-sm text-brand-grey font-light mt-3 max-w-2xl">
+                        <p
+                          id="application-approval-form-helper"
+                          className="text-sm text-brand-grey font-light mt-3 max-w-2xl"
+                        >
                           Confirm the approved rental details, set the bond and weekly payment, then email a fresh secure Stripe payment link.
                         </p>
                       </div>
@@ -1285,10 +1293,11 @@ export default function AdminDashboard() {
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                        <label htmlFor={applicationApprovalFieldId('approved_vehicle')} className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
                           Rental / Handover Details
                         </label>
                         <input
+                          id={applicationApprovalFieldId('approved_vehicle')}
                           type="text"
                           value={applicationApprovalForm.approved_vehicle}
                           onChange={(e) =>
@@ -1297,15 +1306,17 @@ export default function AdminDashboard() {
                               approved_vehicle: e.target.value,
                             }))
                           }
+                          aria-describedby="application-approval-form-helper"
                           className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
                           placeholder="Approved rental option and handover notes"
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                        <label htmlFor={applicationApprovalFieldId('approved_bond')} className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
                           Approved Bond (AUD)
                         </label>
                         <input
+                          id={applicationApprovalFieldId('approved_bond')}
                           type="number"
                           min="0"
                           step="0.01"
@@ -1316,14 +1327,16 @@ export default function AdminDashboard() {
                               approved_bond: e.target.value,
                             }))
                           }
+                          aria-describedby="application-approval-form-helper"
                           className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                        <label htmlFor={applicationApprovalFieldId('approved_weekly_price')} className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
                           Approved Weekly Payment (AUD)
                         </label>
                         <input
+                          id={applicationApprovalFieldId('approved_weekly_price')}
                           type="number"
                           min="0"
                           step="0.01"
@@ -1334,14 +1347,16 @@ export default function AdminDashboard() {
                               approved_weekly_price: e.target.value,
                             }))
                           }
+                          aria-describedby="application-approval-form-helper"
                           className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
+                        <label htmlFor={applicationApprovalFieldId('rental_subscription_start_date')} className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">
                           Rental subscription start date
                         </label>
                         <input
+                          id={applicationApprovalFieldId('rental_subscription_start_date')}
                           type="date"
                           value={applicationApprovalForm.rental_subscription_start_date}
                           onChange={(e) =>
@@ -1350,6 +1365,7 @@ export default function AdminDashboard() {
                               rental_subscription_start_date: e.target.value,
                             }))
                           }
+                          aria-describedby="application-approval-form-helper"
                           className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white focus:border-brand-gold outline-none transition-all font-light"
                         />
                       </div>
@@ -1518,18 +1534,23 @@ export default function AdminDashboard() {
               </div>
 
               <div className="space-y-4 p-4 sm:p-6">
-                <div className="rounded-3xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm leading-7 text-red-50">
+                <div
+                  id="cancel-application-warning"
+                  className="rounded-3xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm leading-7 text-red-50"
+                >
                   This will mark the application as cancelled, clear pending checkout state,
                   and expire only the Stripe resources linked to this application.
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
+                  <label htmlFor="cancel-application-reason" className="text-[10px] font-bold uppercase tracking-widest text-brand-grey">
                     Cancellation reason
                   </label>
                   <textarea
+                    id="cancel-application-reason"
                     value={cancelApplicationReason}
                     onChange={(event) => setCancelApplicationReason(event.target.value)}
                     rows={4}
+                    aria-describedby="cancel-application-warning"
                     className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none transition-all placeholder:text-brand-grey/60 focus:border-brand-gold"
                     placeholder="Optional: add a short reason for the audit trail"
                   />

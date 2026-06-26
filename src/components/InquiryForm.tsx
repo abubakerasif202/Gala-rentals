@@ -7,6 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { submitInquiry } from '../lib/api';
 import { inquirySchema, type InquiryValues } from '../../shared/inquiry';
 
+const inquiryFieldId = (field: keyof InquiryValues) => `inquiry-${field}`;
+const inquiryErrorId = (field: keyof InquiryValues) => `${inquiryFieldId(field)}-error`;
+
 export default function InquiryForm() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -71,76 +74,90 @@ export default function InquiryForm() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {submitError && (
-          <div className="border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
+          <div
+            className="border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-100"
+            role="alert"
+          >
             {submitError}
           </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Full Name</label>
+            <label htmlFor={inquiryFieldId('name')} className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Full Name</label>
             <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gold/50" />
               <input
+                id={inquiryFieldId('name')}
                 {...register('name')}
+                aria-describedby={errors.name ? inquiryErrorId('name') : undefined}
                 placeholder="John Doe"
                 className={`w-full bg-brand-navy border ${errors.name ? 'border-red-500' : 'border-white/10'} p-4 pl-12 text-sm text-white focus:border-brand-gold outline-none transition-colors placeholder:text-white/20`}
               />
             </div>
-            {errors.name && <p className="text-red-500 text-[10px] uppercase tracking-widest">{errors.name.message}</p>}
+            {errors.name && <p id={inquiryErrorId('name')} className="text-red-500 text-[10px] uppercase tracking-widest">{errors.name.message}</p>}
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Email Address</label>
+            <label htmlFor={inquiryFieldId('email')} className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Email Address</label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gold/50" />
               <input
+                id={inquiryFieldId('email')}
                 {...register('email')}
+                aria-describedby={errors.email ? inquiryErrorId('email') : undefined}
                 placeholder="john@example.com"
                 className={`w-full bg-brand-navy border ${errors.email ? 'border-red-500' : 'border-white/10'} p-4 pl-12 text-sm text-white focus:border-brand-gold outline-none transition-colors placeholder:text-white/20`}
               />
             </div>
-            {errors.email && <p className="text-red-500 text-[10px] uppercase tracking-widest">{errors.email.message}</p>}
+            {errors.email && <p id={inquiryErrorId('email')} className="text-red-500 text-[10px] uppercase tracking-widest">{errors.email.message}</p>}
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Phone Number</label>
+            <label htmlFor={inquiryFieldId('phone')} className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Phone Number</label>
             <div className="relative">
               <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gold/50" />
               <input
+                id={inquiryFieldId('phone')}
                 {...register('phone')}
+                aria-describedby={errors.phone ? inquiryErrorId('phone') : undefined}
                 placeholder="0400 000 000"
                 className={`w-full bg-brand-navy border ${errors.phone ? 'border-red-500' : 'border-white/10'} p-4 pl-12 text-sm text-white focus:border-brand-gold outline-none transition-colors placeholder:text-white/20`}
               />
             </div>
-            {errors.phone && <p className="text-red-500 text-[10px] uppercase tracking-widest">{errors.phone.message}</p>}
+            {errors.phone && <p id={inquiryErrorId('phone')} className="text-red-500 text-[10px] uppercase tracking-widest">{errors.phone.message}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Start Date</label>
+              <label htmlFor={inquiryFieldId('startDate')} className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Start Date</label>
               <input
+                id={inquiryFieldId('startDate')}
                 type="date"
                 {...register('startDate')}
+                aria-describedby={errors.startDate ? inquiryErrorId('startDate') : undefined}
                 className={`w-full bg-brand-navy border ${errors.startDate ? 'border-red-500' : 'border-white/10'} p-4 text-sm text-white focus:border-brand-gold outline-none transition-colors`}
               />
-              {errors.startDate && <p className="text-red-500 text-[10px] uppercase tracking-widest">{errors.startDate.message}</p>}
+              {errors.startDate && <p id={inquiryErrorId('startDate')} className="text-red-500 text-[10px] uppercase tracking-widest">{errors.startDate.message}</p>}
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">End Date</label>
+              <label htmlFor={inquiryFieldId('endDate')} className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">End Date</label>
               <input
+                id={inquiryFieldId('endDate')}
                 type="date"
                 {...register('endDate')}
+                aria-describedby={errors.endDate ? inquiryErrorId('endDate') : undefined}
                 className={`w-full bg-brand-navy border ${errors.endDate ? 'border-red-500' : 'border-white/10'} p-4 text-sm text-white focus:border-brand-gold outline-none transition-colors`}
               />
-              {errors.endDate && <p className="text-red-500 text-[10px] uppercase tracking-widest">{errors.endDate.message}</p>}
+              {errors.endDate && <p id={inquiryErrorId('endDate')} className="text-red-500 text-[10px] uppercase tracking-widest">{errors.endDate.message}</p>}
             </div>
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Additional Notes (Optional)</label>
+          <label htmlFor={inquiryFieldId('message')} className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Additional Notes (Optional)</label>
           <textarea
+            id={inquiryFieldId('message')}
             {...register('message')}
             rows={3}
             placeholder="Tell us about your requirements..."

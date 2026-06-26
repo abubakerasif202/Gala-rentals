@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -28,6 +29,9 @@ export default function Sidebar({
   isOpen,
   onClose,
 }: SidebarProps) {
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
     { id: 'applications', icon: Users, label: 'Applications' },
@@ -40,6 +44,35 @@ export default function Sidebar({
     { id: 'maintenance', icon: Settings, label: 'Maintenance' },
   ];
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    returnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    drawerRef.current?.focus();
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      returnFocusRef.current?.focus();
+      returnFocusRef.current = null;
+    };
+  }, [isOpen, onClose]);
+
   return (
     <>
       <div
@@ -50,6 +83,11 @@ export default function Sidebar({
       />
 
       <aside
+        ref={drawerRef}
+        role={isOpen ? 'dialog' : undefined}
+        aria-modal={isOpen ? true : undefined}
+        aria-label={isOpen ? 'Admin navigation menu' : undefined}
+        tabIndex={isOpen ? -1 : undefined}
         className={`fixed inset-y-0 left-0 z-40 flex h-full w-72 max-w-[85vw] flex-col border-r border-white/10 bg-[#061425] shadow-[24px_0_80px_rgba(0,0,0,0.24)] transition-transform duration-300 lg:z-20 lg:max-w-none ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
@@ -67,6 +105,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close admin navigation menu"
             className="flex h-11 w-11 items-center justify-center rounded-full text-brand-grey transition-all hover:bg-white/5 hover:text-white lg:hidden"
           >
             <X className="h-5 w-5" />

@@ -264,6 +264,8 @@ export default function DataTable<T>({
         <div className="flex flex-wrap items-center gap-3">
           {filters.map((filterConfig) => {
             const selectedValues = activeFilters[filterConfig.id] ?? [];
+            const isFilterOpen = openFilterId === filterConfig.id;
+            const filterPopoverId = `datatable-filter-${filterConfig.id}`;
 
             return (
               <div key={filterConfig.id} className="relative">
@@ -274,6 +276,8 @@ export default function DataTable<T>({
                       current === filterConfig.id ? null : filterConfig.id
                     )
                   }
+                  aria-expanded={isFilterOpen}
+                  aria-controls={filterPopoverId}
                   className="inline-flex h-11 items-center gap-2 rounded-lg border border-[#1e3a5f] bg-[#061425] px-4 text-xs font-bold uppercase tracking-widest text-white transition-all hover:border-[#dfb125]/60"
                 >
                   <Filter className="h-4 w-4 text-[#dfb125]" />
@@ -285,8 +289,11 @@ export default function DataTable<T>({
                   )}
                 </button>
 
-                {openFilterId === filterConfig.id && (
-                  <div className="absolute left-0 z-30 mt-2 w-64 rounded-lg border border-[#1e3a5f] bg-[#061425] p-3 shadow-2xl">
+                {isFilterOpen && (
+                  <div
+                    id={filterPopoverId}
+                    className="absolute left-0 z-30 mt-2 w-64 rounded-lg border border-[#1e3a5f] bg-[#061425] p-3 shadow-2xl"
+                  >
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                         Filter {filterConfig.label}
@@ -450,6 +457,15 @@ export default function DataTable<T>({
                   return (
                     <th
                       key={column.id}
+                      aria-sort={
+                        isSortable
+                          ? isSorted
+                            ? sortState.direction === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : 'none'
+                          : undefined
+                      }
                       className={`px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 ${alignClasses[column.align ?? 'left']}`}
                       style={column.minWidth ? { minWidth: column.minWidth } : undefined}
                     >

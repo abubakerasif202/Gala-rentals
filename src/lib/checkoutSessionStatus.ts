@@ -14,14 +14,11 @@ export interface CheckoutSessionStatusView {
     | 'Payment Review'
     | 'Cancelled';
   checkout_kind: 'application' | 'vehicle' | null;
-  customer_id?: string | null;
   db_payment_activation_status?: {
     application_status: string;
     activated: boolean;
-    pending_checkout_session_id: string | null;
     rental_status: string | null;
   };
-  id: string;
   internal_status: CheckoutSessionStatusState;
   metadata_match?: {
     application_id?: boolean;
@@ -37,7 +34,6 @@ export interface CheckoutSessionStatusView {
   rental_status: 'Active' | 'Completed' | 'Cancelled' | 'Overdue' | string | null;
   state?: CheckoutSessionStatusState;
   status: string | null;
-  subscription_id?: string | null;
 }
 
 export type CheckoutStatusTone = 'success' | 'processing' | 'review' | 'failure';

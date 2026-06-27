@@ -48,6 +48,7 @@ import {
   APPLICATION_DOCUMENT_CONTENT_TYPES,
   normalizeApplicationEmail,
   MAX_APPLICATION_UPLOAD_BYTES,
+  MAX_APPLICATION_TOTAL_UPLOAD_BYTES,
 } from "../../shared/applicationSubmission.js";
 import {
   renderActiveAgreementTemplate,
@@ -153,9 +154,25 @@ const applicationUpload = multer({
   limits: {
     fileSize: MAX_APPLICATION_UPLOAD_BYTES,
     files: 5,
+    fields: 32,
+    parts: 37,
   },
   storage: multer.memoryStorage(),
 });
+
+const enforceApplicationRequestSize: express.RequestHandler = (req, res, next) => {
+  const contentLength = Number(req.header("content-length") || 0);
+  if (Number.isFinite(contentLength) && contentLength > MAX_APPLICATION_TOTAL_UPLOAD_BYTES) {
+    res.status(413).json({ error: "Application upload is too large." });
+    return;
+  }
+  next();
+};
+
+const getApplicationUploadTotalBytes = (files: UploadedApplicationFiles) =>
+  Object.values(files)
+    .flatMap((entries) => entries || [])
+    .reduce((total, file) => total + Number(file.size || file.buffer?.length || 0), 0);
 
 type ApplicationDocumentField =
   | "license_photo"
@@ -283,6 +300,7 @@ type ApplicationPaymentApprovalRecord = {
   name: string;
   payment_link_version?: number | null;
   pending_checkout_session_id?: string | null;
+  stripe_subscription_id?: string | null;
   status: string;
 };
 
@@ -586,6 +604,7 @@ router.get("/:id/documents/:document", authenticateAdmin, async (req, res) => {
 router.post(
   "/",
   applicationSubmissionLimiter,
+  enforceApplicationRequestSize,
   applicationUploadMiddleware,
   async (req, res) => {
     const uploadedPaths: string[] = [];
@@ -604,6 +623,9 @@ router.post(
       }
 
       const files = (req.files || {}) as UploadedApplicationFiles;
+      if (getApplicationUploadTotalBytes(files) > MAX_APPLICATION_TOTAL_UPLOAD_BYTES) {
+        return res.status(413).json({ error: "Application upload is too large." });
+      }
       const licensePhotoFile = getUploadedApplicationFile(
         files,
         "license_photo",
@@ -660,41 +682,10 @@ router.post(
       const existingRow = matchingApplications[0] ?? null;
 
       if (existingRow) {
-        if (
-          existingRow.phone !== normalizedApplicationData.phone ||
-          existingRow.license_number !==
-            normalizedApplicationData.license_number
-        ) {
-          return res.status(409).json({
-            error:
-              "An application already exists for this email. Contact support to continue.",
-          });
-        }
-
-        if (existingRow.status === "Pending") {
-          return res.status(409).json({
-            error:
-              "This application is already under review. Contact support if you need to update it.",
-          });
-        }
-
-        if (existingRow.status === "Rejected") {
-          return res.status(409).json({
-            error:
-              "This application has already been reviewed. Contact support to reopen it securely.",
-          });
-        }
-
-        if (
-          ["Approved", "Paid", "Payment Review"].includes(
-            String(existingRow.status),
-          )
-        ) {
-          return res.status(409).json({
-            error:
-              "This application has already been submitted and is being processed.",
-          });
-        }
+        return res.status(200).json({
+          success: true,
+          message: "Application received. Our team will contact you after review.",
+        });
       }
 
       licensePhotoUrl = await uploadApplicationFile({
@@ -842,9 +833,9 @@ router.post(
         }
       }
 
-      res.json({
+      res.status(200).json({
         success: true,
-        application_id: applicationId,
+        message: "Application received. Our team will contact you after review.",
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1180,6 +1171,43 @@ router.post("/:id/cancel", authenticateAdmin, async (req, res) => {
       const nextVersion = currentVersion + 1;
       const nowIso = new Date().toISOString();
 
+      try {
+        await cancelApplicationStripeResources({
+          applicationId: id,
+          paymentLinkVersion: currentVersion,
+          pendingCheckoutSessionId:
+            applicationRecord.pending_checkout_session_id || null,
+          storedSubscriptionId: applicationRecord.stripe_subscription_id || null,
+        });
+      } catch (stripeError) {
+        const reviewApplication =
+          await updateApplicationPaymentStateIfCurrentVersionAndStatus({
+            applicationId: id,
+            expectedPaymentLinkVersion: currentVersion,
+            expectedStatuses: ["Pending", "Approved", "Rejected"],
+            payload: { status: "Payment Review" },
+          });
+
+        if (reviewApplication) {
+          await recordAdminAuditEvent({
+            action: "application.cancel.payment_review",
+            actor: getAdminActor(req),
+            applicationId: id,
+            metadata: { reason: "stripe_reconciliation_failed" },
+            newStatus: "Payment Review",
+            oldStatus: applicationRecord.status,
+          });
+        }
+
+        console.error("Stripe reconciliation blocked application cancellation:", stripeError);
+        return {
+          error: createRequestError(
+            409,
+            "Cancellation requires Stripe reconciliation. The application was placed in Payment Review.",
+          ),
+        } as const;
+      }
+
       const updatedApplication =
         await updateApplicationPaymentStateIfCurrentVersionAndStatus({
           applicationId: id,
@@ -1202,13 +1230,6 @@ router.post("/:id/cancel", authenticateAdmin, async (req, res) => {
           ),
         } as const;
       }
-
-      await cancelApplicationStripeResources({
-        applicationId: id,
-        paymentLinkVersion: currentVersion,
-        pendingCheckoutSessionId:
-          applicationRecord.pending_checkout_session_id || null,
-      });
 
       await recordAdminAuditEvent({
         action: "application.cancel",

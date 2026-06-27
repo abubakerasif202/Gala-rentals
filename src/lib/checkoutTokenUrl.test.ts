@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCheckoutTokenHash,
   parseHashCheckoutToken,
+  readStoredCheckoutToken,
   resolveCheckoutToken,
   scrubCheckoutTokenFromUrl,
+  storeCheckoutToken,
 } from './checkoutTokenUrl';
 
 describe('checkoutTokenUrl', () => {
@@ -41,5 +43,17 @@ describe('checkoutTokenUrl', () => {
     expect(scrubbed.searchParams.get('checkout_token')).toBeNull();
     expect(scrubbed.searchParams.get('application_id')).toBe('2');
     expect(scrubbed.hash).toBe('');
+  });
+
+  it('stores a scrubbed token per application and checkout session', () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) || null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+
+    storeCheckoutToken(storage, 'app-id', 'session-id', 'secret');
+    expect(readStoredCheckoutToken(storage, 'app-id', 'session-id')).toBe('secret');
+    expect(readStoredCheckoutToken(storage, 'other-app', 'session-id')).toBe('');
   });
 });

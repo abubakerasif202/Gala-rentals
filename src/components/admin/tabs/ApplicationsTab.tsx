@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { CalendarClock, CreditCard, Download, FileText, Search, ShieldCheck, Users } from 'lucide-react';
 import { Application } from '../../../types';
 import DataTable, { type DataTableColumn } from '../DataTable';
+import { serializeCsv } from '../../../lib/csv';
 
 interface ApplicationsTabProps {
   applicationSearch: string;
@@ -37,11 +38,7 @@ export default function ApplicationsTab({
       app.experience,
       new Date(app.created_at).toLocaleDateString(),
     ]);
-    const csv = [headers, ...rows]
-      .map((row) =>
-        row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')
-      )
-      .join('\n');
+    const csv = serializeCsv([headers, ...rows]);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

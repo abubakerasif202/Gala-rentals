@@ -8,8 +8,10 @@ import { fetchCheckoutSessionStatus } from '../lib/api';
 import { getCheckoutStatusPresentation } from '../lib/checkoutSessionStatus';
 import {
   buildCheckoutTokenHash,
+  readStoredCheckoutToken,
   resolveCheckoutToken,
   scrubCheckoutTokenFromUrl,
+  storeCheckoutToken,
 } from '../lib/checkoutTokenUrl';
 import { isUuid } from '../../shared/uuid';
 
@@ -21,7 +23,9 @@ export default function Success() {
   const applicationIdParam = searchParams.get('application_id') || '';
   const applicationId = isUuid(applicationIdParam) ? applicationIdParam : '';
   const [checkoutToken, setCheckoutToken] = useState(
-    () => resolveCheckoutToken(searchParams, window.location.hash)
+    () =>
+      resolveCheckoutToken(searchParams, window.location.hash) ||
+      readStoredCheckoutToken(window.sessionStorage, applicationId, sessionId)
   );
   const [pollAttempts, setPollAttempts] = useState(0);
   const hasVerificationContext = Boolean(sessionId && applicationId);
@@ -48,9 +52,10 @@ export default function Success() {
       return;
     }
 
+    storeCheckoutToken(window.sessionStorage, applicationId, sessionId, checkoutToken);
     const scrubbedUrl = scrubCheckoutTokenFromUrl(new URL(window.location.href));
     window.history.replaceState(window.history.state, '', scrubbedUrl.toString());
-  }, [checkoutToken]);
+  }, [applicationId, checkoutToken, sessionId]);
 
   useEffect(() => {
     setPollAttempts(0);

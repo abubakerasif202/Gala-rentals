@@ -190,21 +190,11 @@ router.get('/payment-context', async (req, res) => {
       .object({
         application_id: uuidSchema,
         checkout_token: z.string().min(1).optional(),
-      })
+    })
       .parse(req.query);
     const resolvedCheckoutToken = getCheckoutTokenFromRequest(req, checkout_token);
-
     if (!resolvedCheckoutToken) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: [
-          {
-            code: 'custom',
-            message: 'checkout_token is required',
-            path: ['checkout_token'],
-          },
-        ],
-      });
+      return res.status(401).json({ error: 'Checkout token is required for this checkout session.' });
     }
 
     const response = await getVehiclePaymentContext({

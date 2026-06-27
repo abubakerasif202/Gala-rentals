@@ -1,4 +1,25 @@
 const TOKEN_KEYS = ['checkout_token', 'token'] as const;
+const SESSION_STORAGE_PREFIX = 'gala-checkout-token:';
+
+const getStorageKey = (applicationId: string, sessionId: string) =>
+  `${SESSION_STORAGE_PREFIX}${applicationId}:${sessionId}`;
+
+export const storeCheckoutToken = (
+  storage: Pick<Storage, 'setItem'>,
+  applicationId: string,
+  sessionId: string,
+  token: string
+) => {
+  if (applicationId && sessionId && token) {
+    storage.setItem(getStorageKey(applicationId, sessionId), token);
+  }
+};
+
+export const readStoredCheckoutToken = (
+  storage: Pick<Storage, 'getItem'>,
+  applicationId: string,
+  sessionId: string
+) => (applicationId && sessionId ? storage.getItem(getStorageKey(applicationId, sessionId)) || '' : '');
 
 export const buildCheckoutTokenHash = (token: string) => {
   const params = new URLSearchParams();

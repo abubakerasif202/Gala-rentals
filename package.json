@@ -20,6 +20,7 @@
     "migrate:application-indexes": "node scripts/migrate-application-indexes.js",
     "verify:schema-contract": "tsx scripts/verify-production-schema-contract.js",
     "verify-production-schema-contract": "npm run verify:schema-contract",
+    "check:migrations": "node scripts/check-destructive-migrations.mjs",
     "cron:fleet-sync": "tsx scripts/sync-realtime-fleet.js",
     "sync:realtime-fleet": "node scripts/sync-realtime-fleet.js",
     "stripe:setup": "tsx scripts/stripe-setup.ts",
@@ -27,7 +28,7 @@
     "stripe:reset": "tsx scripts/stripe-reset.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "validate": "npm run lint && npm run test",
+    "validate": "npm run lint && npm run check:migrations && npm run test",
     "load:test": "node scripts/load-test.mjs --profile=read-only-api",
     "load:test:smoke": "node scripts/load-test.mjs --profile=smoke --duration=15 --concurrency=2",
     "load:test:pages": "node scripts/load-test.mjs --profile=public-pages"

@@ -336,7 +336,7 @@ export default function Apply() {
       }
 
       const response = await submitApplication(payload);
-      setSubmittedApplicationId(response.application_id);
+      setSubmittedApplicationId(response.application_id || 'received');
     } catch (error) {
       setErrors((current) => ({
         ...current,
@@ -367,10 +367,6 @@ export default function Apply() {
               Your application was saved successfully. We will review the details, confirm the vehicle,
               and issue a secure Stripe payment link if you are approved.
             </p>
-            <div className="mt-8 rounded-3xl border border-white/10 bg-brand-navy/60 p-6">
-              <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">Reference</p>
-              <p className="mt-2 text-lg font-semibold text-white">Application #{submittedApplicationId}</p>
-            </div>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Link
                 to="/"

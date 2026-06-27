@@ -3307,6 +3307,39 @@ describe("Applications API", () => {
     expect(mockState.applications).toHaveLength(2);
   });
 
+  it("POST /api/applications rejects multipart submissions with too many files", async () => {
+    const extra = buildValidUploadBuffer("image/png", Buffer.from("extra"));
+    const res = await createApplicationSubmissionRequest({
+      email: "too-many-files@example.com",
+      passport_or_uber_profile_screenshot: DEFAULT_PASSPORT_UPLOAD,
+      additional_document: DEFAULT_PASSPORT_UPLOAD,
+    }).attach("additional_document", extra, {
+      contentType: "image/png",
+      filename: "second-additional.png",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Invalid multipart upload.");
+    expect(mockState.applications).toHaveLength(2);
+  });
+
+  it("POST /api/applications rejects multipart submissions above the total upload limit", async () => {
+    const largePng = buildValidUploadBuffer("image/png", Buffer.alloc(5 * 1024 * 1024));
+    const upload = { buffer: largePng, contentType: "image/png", filename: "large.png" };
+    const res = await createApplicationSubmissionRequest({
+      email: "oversized-total@example.com",
+      license_photo: upload,
+      license_back_photo: upload,
+      passport_or_uber_profile_screenshot: upload,
+      proof_of_address_document: upload,
+      additional_document: upload,
+    });
+
+    expect(res.status).toBe(413);
+    expect(res.body.error).toBe("Application upload is too large.");
+    expect(mockState.applications).toHaveLength(2);
+  });
+
   it("POST /api/applications validates phone and date fields on the server", async () => {
     const res = await createApplicationSubmissionRequest({
       selected_car_id: 1,
@@ -3453,8 +3486,11 @@ describe("Applications API", () => {
       license_back_photo: "data:image/png;base64,ZmFrZQ==",
     });
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toContain("already been reviewed");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      message: "Application received. Our team will contact you after review.",
+    });
     expect(mockState.applications).toHaveLength(2);
     expect(mockState.applications[0]).toMatchObject({
       id: PENDING_APPLICATION_ID,
@@ -3489,8 +3525,11 @@ describe("Applications API", () => {
       license_back_photo: "data:image/png;base64,ZmFrZQ==",
     });
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toContain("already under review");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      message: "Application received. Our team will contact you after review.",
+    });
     expect(mockState.applications[0].address).toBe("1 Test Street");
   });
 
@@ -3513,8 +3552,8 @@ describe("Applications API", () => {
       license_back_photo: "data:image/png;base64,ZmFrZQ==",
     });
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toContain("already been reviewed");
+    expect(res.status).toBe(200);
+    expect(res.body.error).toBeUndefined();
     expect(mockState.applications).toHaveLength(2);
     expect(mockState.applications[0]).toMatchObject({
       id: PENDING_APPLICATION_ID,
@@ -3543,8 +3582,8 @@ describe("Applications API", () => {
       license_back_photo: "data:image/png;base64,ZmFrZQ==",
     });
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toContain("already been reviewed");
+    expect(res.status).toBe(200);
+    expect(res.body.error).toBeUndefined();
     expect(mockState.applications).toHaveLength(2);
   });
 
@@ -3583,8 +3622,8 @@ describe("Applications API", () => {
       license_back_photo: "data:image/png;base64,ZmFrZQ==",
     });
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toContain("already been reviewed");
+    expect(res.status).toBe(200);
+    expect(res.body.error).toBeUndefined();
     expect(
       mockState.applications.find(
         (application) => application.id === UNDERSCORE_APPLICATION_ID,
@@ -4874,6 +4913,16 @@ describe("Stripe API", () => {
       mockState.applications[0].status = "Approved";
       mockState.applications[0].payment_link_version = 3;
       mockState.applications[0].pending_checkout_session_id = "cs_pending_cancel";
+      mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+        id: "cs_pending_cancel",
+        status: "open",
+        payment_status: "unpaid",
+        metadata: {
+          application_id: PENDING_APPLICATION_ID,
+          checkout_kind: "vehicle",
+          payment_link_version: "3",
+        },
+      });
       mockState.rentals = [
         {
           id: 201,
@@ -4975,6 +5024,16 @@ describe("Stripe API", () => {
       mockState.applications[0].status = "Approved";
       mockState.applications[0].payment_link_version = 3;
       mockState.applications[0].pending_checkout_session_id = "cs_pending_cancel";
+      mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+        id: "cs_pending_cancel",
+        status: "open",
+        payment_status: "unpaid",
+        metadata: {
+          application_id: PENDING_APPLICATION_ID,
+          checkout_kind: "vehicle",
+          payment_link_version: "3",
+        },
+      });
       mockBeforeApplicationsUpdate.mockImplementationOnce(() => {
         mockState.applications[0].payment_link_version = 4;
       });
@@ -4986,8 +5045,8 @@ describe("Stripe API", () => {
 
       expect(res.status).toBe(409);
       expect(res.body.error).toContain("changed while cancelling");
-      expect(mockStripe.checkoutSessionsRetrieve).not.toHaveBeenCalled();
-      expect(mockStripe.checkoutSessionsExpire).not.toHaveBeenCalled();
+      expect(mockStripe.checkoutSessionsRetrieve).toHaveBeenCalledWith("cs_pending_cancel");
+      expect(mockStripe.checkoutSessionsExpire).toHaveBeenCalledWith("cs_pending_cancel");
       expect(mockStripe.subscriptionsCancel).not.toHaveBeenCalled();
       expect(mockState.applications[0]).toMatchObject({
         cancelled_at: null,
@@ -5032,6 +5091,78 @@ describe("Stripe API", () => {
       expect(res.status).toBe(200);
       expect(mockState.applications[0].status).toBe("Cancelled");
       expect(mockState.applications[0].pending_checkout_session_id).toBeNull();
+      expect(mockState.rentals).toHaveLength(0);
+    });
+
+    it("cancels a completed Checkout subscription before cancellation and keeps it cancelled after webhook delivery", async () => {
+      mockState.applications[0].status = "Approved";
+      mockState.applications[0].payment_link_version = 3;
+      mockState.applications[0].pending_checkout_session_id = "cs_completed_before_webhook";
+      mockState.rentals = [];
+      let subscriptionStatus = "active";
+      mockStripe.checkoutSessionsRetrieve.mockResolvedValueOnce({
+        id: "cs_completed_before_webhook",
+        status: "complete",
+        payment_status: "paid",
+        subscription: "sub_completed_before_webhook",
+        metadata: {
+          application_id: PENDING_APPLICATION_ID,
+          checkout_kind: "vehicle",
+          payment_link_version: "3",
+        },
+      });
+      mockStripe.subscriptionsRetrieve.mockImplementationOnce(async () => ({
+          id: "sub_completed_before_webhook",
+          status: subscriptionStatus,
+          metadata: {
+            application_id: PENDING_APPLICATION_ID,
+            checkout_kind: "vehicle",
+            payment_link_version: "3",
+          },
+        }));
+      mockStripe.subscriptionsCancel.mockImplementationOnce(async () => {
+        subscriptionStatus = "canceled";
+        return { id: "sub_completed_before_webhook", status: subscriptionStatus };
+      });
+
+      const cancelResponse = await request(app)
+        .post(`/api/applications/${PENDING_APPLICATION_ID}/cancel`)
+        .set("Authorization", "Bearer fake-token")
+        .send({ cancel_reason: "Cancelled during webhook delay" });
+
+      expect(cancelResponse.status).toBe(200);
+      expect(mockStripe.subscriptionsCancel).toHaveBeenCalledWith(
+        "sub_completed_before_webhook",
+      );
+      expect(mockState.applications[0].status).toBe("Cancelled");
+
+      mockStripe.webhooksConstructEvent.mockReturnValue({
+        id: "evt_completed_after_cancel",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_completed_before_webhook",
+            status: "complete",
+            payment_status: "paid",
+            subscription: "sub_completed_before_webhook",
+            metadata: {
+              application_id: PENDING_APPLICATION_ID,
+              checkout_kind: "vehicle",
+              payment_link_version: "3",
+            },
+          },
+        },
+      });
+
+      const webhookResponse = await request(app)
+        .post("/api/stripe/webhook")
+        .set("stripe-signature", "test-signature")
+        .send("test-webhook-body");
+
+      expect(webhookResponse.status).toBe(200);
+      expect(mockStripe.subscriptionsCancel).toHaveBeenCalledTimes(1);
+      expect(subscriptionStatus).toBe("canceled");
+      expect(mockState.applications[0].status).toBe("Cancelled");
       expect(mockState.rentals).toHaveLength(0);
     });
 
@@ -5645,7 +5776,7 @@ describe("Stripe API", () => {
     expect(res.body.error).toBe("Validation failed");
   });
 
-  it("GET /api/stripe/checkout-sessions/:id recovers paid success redirects without a checkout token", async () => {
+  it("GET /api/stripe/checkout-sessions/:id rejects paid status recovery without a checkout token", async () => {
     mockState.applications[1].pending_checkout_session_id = "cs_test_123";
 
     const res = await request(app)
@@ -5654,16 +5785,8 @@ describe("Stripe API", () => {
         application_id: APPROVED_APPLICATION_ID,
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
-      application_status: "Approved",
-      checkout_kind: "vehicle",
-      id: "cs_test_123",
-      internal_status: "pending_webhook",
-      payment_status: "paid",
-      state: "pending_webhook",
-      status: "complete",
-    });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toContain("Checkout token is required");
   });
 
   it("GET /api/stripe/checkout-sessions/:id rejects open sessions without a checkout token", async () => {
@@ -5712,9 +5835,7 @@ describe("Stripe API", () => {
     expect(res.body).toMatchObject({
       application_status: "Approved",
       checkout_kind: "vehicle",
-      id: "cs_test_123",
       internal_status: "pending_webhook",
-      customer_id: "cus_123",
       metadata_match: {
         application_id: true,
         car_id: true,
@@ -5727,9 +5848,12 @@ describe("Stripe API", () => {
       payment_status: "paid",
       rental_status: null,
       state: "pending_webhook",
-      subscription_id: "sub_123",
       status: "complete",
     });
+    expect(res.body.customer_id).toBeUndefined();
+    expect(res.body.subscription_id).toBeUndefined();
+    expect(res.body.id).toBeUndefined();
+    expect(res.body.db_payment_activation_status.pending_checkout_session_id).toBeUndefined();
   });
 
   it("GET /api/stripe/checkout-sessions/:id returns complete_paid after card activation exists", async () => {
@@ -5809,15 +5933,15 @@ describe("Stripe API", () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
-        customer_id: "cus_becs",
         internal_status: "processing",
         payment_method_type: "au_becs_debit",
         payment_method_types: ["au_becs_debit"],
         payment_status: paymentStatus,
         state: "processing",
-        subscription_id: "sub_becs",
         status: "complete",
       });
+      expect(res.body.customer_id).toBeUndefined();
+      expect(res.body.subscription_id).toBeUndefined();
     },
   );
 
@@ -5917,7 +6041,7 @@ describe("Stripe API", () => {
     expect(res.body.rental_status).toBeNull();
   });
 
-  it("GET /api/stripe/checkout-sessions/:id returns complete after activation even if the success token was scrubbed", async () => {
+  it("GET /api/stripe/checkout-sessions/:id requires a token after activation", async () => {
     mockState.applications[1].status = "Paid";
     mockState.applications[1].pending_checkout_session_id = null;
     mockState.rentals = [
@@ -5939,11 +6063,8 @@ describe("Stripe API", () => {
         application_id: APPROVED_APPLICATION_ID,
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.internal_status).toBe("complete_paid");
-    expect(res.body.state).toBe("complete_paid");
-    expect(res.body.application_status).toBe("Paid");
-    expect(res.body.rental_status).toBeNull();
+    expect(res.status).toBe(401);
+    expect(res.body.error).toContain("Checkout token is required");
   });
 
   it("GET /api/stripe/checkout-sessions/:id returns manual_review when payment completed but activation was blocked", async () => {

@@ -163,7 +163,8 @@ export const fetchRentalPlans = async (): Promise<PublicRentalPlan[]> => {
 };
 
 export interface ApplicationSubmissionResponse {
-  application_id: string;
+  application_id?: string;
+  message?: string;
   checkout_token?: string;
   checkout_token_expires_at?: string;
   checkout_url?: string;
@@ -185,14 +186,11 @@ export interface CheckoutSessionStatusResponse {
     | 'Payment Review'
     | 'Cancelled';
   checkout_kind: 'application' | 'vehicle' | null;
-  customer_id: string | null;
   db_payment_activation_status: {
     application_status: string;
     activated: boolean;
-    pending_checkout_session_id: string | null;
     rental_status: string | null;
   };
-  id: string;
   internal_status: CheckoutSessionStatusState;
   metadata_match: {
     application_id: boolean;
@@ -207,7 +205,6 @@ export interface CheckoutSessionStatusResponse {
   rental_status: 'Active' | 'Completed' | 'Cancelled' | 'Overdue' | null;
   state: CheckoutSessionStatusState;
   status: string | null;
-  subscription_id: string | null;
 }
 
 export interface VehicleCheckoutLinkResponse {

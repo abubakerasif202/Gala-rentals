@@ -12,6 +12,7 @@ import {
 import { Rental } from '../../../types';
 import DataTable, { type DataTableColumn } from '../DataTable';
 import type { CancelSubscriptionResponse } from '../../../lib/api';
+import { serializeCsv } from '../../../lib/csv';
 
 interface RentalsTabProps {
   rentalSearch: string;
@@ -91,11 +92,7 @@ export default function RentalsTab({
       rental.status,
       rental.stripe_subscription_id || '',
     ]);
-    const csv = [headers, ...rows]
-      .map((row) =>
-        row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')
-      )
-      .join('\n');
+    const csv = serializeCsv([headers, ...rows]);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

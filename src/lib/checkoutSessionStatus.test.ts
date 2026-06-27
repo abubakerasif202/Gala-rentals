@@ -7,7 +7,6 @@ import {
 const baseStatus: CheckoutSessionStatusView = {
   application_status: 'Approved',
   checkout_kind: 'vehicle',
-  id: 'cs_test_123',
   internal_status: 'pending_webhook',
   payment_method_type: 'card',
   payment_method_types: ['card'],

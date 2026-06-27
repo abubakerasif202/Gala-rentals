@@ -1,118 +1,148 @@
 import './load-env.js';
 import { createClient } from '@supabase/supabase-js';
+import { pathToFileURL } from 'node:url';
 
 const APPLICATIONS_BUCKET = 'applications';
+export const CLEANUP_CONFIRMATION = 'DELETE ORPHANED APPLICATION DOCUMENTS';
+export const APPLICATION_DOCUMENT_COLUMNS = [
+  'license_photo',
+  'licensePhoto',
+  'license_back_photo',
+  'licenseBackPhoto',
+  'passport_or_uber_profile_screenshot',
+  'passportOrUberProfileScreenshot',
+  'proof_of_address_document',
+  'proofOfAddressDocument',
+  'additional_document',
+  'additionalDocument',
+  'uber_screenshot',
+  'uberScreenshot',
+] as const;
 
-const runCleanup = async () => {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const STORAGE_PATH_MARKERS = [
+  `/storage/v1/object/public/${APPLICATIONS_BUCKET}/`,
+  `/storage/v1/object/sign/${APPLICATIONS_BUCKET}/`,
+  `/object/public/${APPLICATIONS_BUCKET}/`,
+  `/object/sign/${APPLICATIONS_BUCKET}/`,
+];
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
-    process.exit(1);
+export const extractApplicationStoragePath = (urlOrPath: unknown) => {
+  const value = String(urlOrPath || '').trim();
+  if (!value) return null;
+  if (!/^https?:\/\//i.test(value)) return value.replace(/^\/+/, '');
+
+  try {
+    const pathname = new URL(value).pathname;
+    const marker = STORAGE_PATH_MARKERS.find((candidate) => pathname.includes(candidate));
+    if (!marker) return null;
+    return decodeURIComponent(pathname.slice(pathname.indexOf(marker) + marker.length));
+  } catch {
+    return null;
   }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
-
-  console.log(`Starting cleanup of orphaned files in bucket: ${APPLICATIONS_BUCKET}`);
-
-  // 1. Fetch all files from the bucket
-  const { data: files, error: listError } = await supabase.storage
-    .from(APPLICATIONS_BUCKET)
-    .list('', { limit: 10000 });
-
-  if (listError) {
-    console.error('Failed to list files in bucket:', listError);
-    process.exit(1);
-  }
-
-  if (!files || files.length === 0) {
-    console.log('No files found in the bucket. Nothing to clean up.');
-    return;
-  }
-
-  console.log(`Found ${files.length} total files in bucket.`);
-
-  // 2. Fetch all referenced file paths from applications
-  // Need to account for various schema formats (snake/camel case)
-  const { data: applications, error: dbError } = await supabase
-    .from('applications')
-    .select('license_photo, license_back_photo, licensePhoto, licenseBackPhoto, uber_screenshot, uberScreenshot');
-
-  if (dbError) {
-    console.error('Failed to fetch applications:', dbError);
-    process.exit(1);
-  }
-
-  const referencedPaths = new Set<string>();
-
-  const extractPath = (urlOrPath: string | null | undefined) => {
-    if (!urlOrPath) return null;
-    try {
-      if (urlOrPath.startsWith('http')) {
-        const url = new URL(urlOrPath);
-        // Extract the filename from the end of the URL
-        const parts = url.pathname.split('/');
-        return decodeURIComponent(parts[parts.length - 1]);
-      }
-      return urlOrPath; // Already a relative path/filename
-    } catch {
-      return urlOrPath;
-    }
-  };
-
-  for (const app of (applications || [])) {
-    const photo1 = extractPath(app.license_photo || app.licensePhoto);
-    if (photo1) referencedPaths.add(photo1);
-
-    const photo2 = extractPath(
-      app.license_back_photo ||
-        app.licenseBackPhoto ||
-        app.uber_screenshot ||
-        app.uberScreenshot
-    );
-    if (photo2) referencedPaths.add(photo2);
-  }
-
-  console.log(`Found ${referencedPaths.size} referenced files in the database.`);
-
-  // 3. Identify orphans
-  const orphanedFiles = files
-    .filter(file => file.name !== '.emptyFolderPlaceholder' && !referencedPaths.has(file.name))
-    .map(file => file.name);
-
-  if (orphanedFiles.length === 0) {
-    console.log('No orphaned files found. Cleanup complete.');
-    return;
-  }
-
-  console.log(`Found ${orphanedFiles.length} orphaned files to delete.`);
-
-  // 4. Delete orphans in batches to avoid URL length/payload limits
-  const batchSize = 100;
-  let deletedCount = 0;
-
-  for (let i = 0; i < orphanedFiles.length; i += batchSize) {
-    const batch = orphanedFiles.slice(i, i + batchSize);
-    console.log(`Deleting batch ${i / batchSize + 1}...`);
-    
-    const { data: deleteData, error: deleteError } = await supabase.storage
-      .from(APPLICATIONS_BUCKET)
-      .remove(batch);
-
-    if (deleteError) {
-      console.error(`Failed to delete batch ${i / batchSize + 1}:`, deleteError);
-    } else {
-      deletedCount += deleteData?.length || 0;
-    }
-  }
-
-  console.log(`Cleanup complete. Successfully deleted ${deletedCount} orphaned files.`);
 };
 
-runCleanup().catch((err) => {
-  console.error('Unexpected error during cleanup:', err);
-  process.exit(1);
-});
+const isMissingColumnError = (error: { code?: string; message?: string } | null) =>
+  Boolean(
+    error &&
+      (['42703', 'PGRST204'].includes(String(error.code || '')) ||
+        /column .* does not exist|could not find.*column/i.test(String(error.message || '')))
+  );
+
+export const loadReferencedDocumentPaths = async (supabase: any) => {
+  const referencedPaths = new Set<string>();
+  let availableColumnCount = 0;
+
+  for (const column of APPLICATION_DOCUMENT_COLUMNS) {
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from('applications')
+        .select(column)
+        .range(offset, offset + pageSize - 1);
+      if (error) {
+        if (offset === 0 && isMissingColumnError(error)) break;
+        throw new Error(`Failed to read applications.${column}: ${error.message || 'Unknown error'}`);
+      }
+
+      if (offset === 0) availableColumnCount += 1;
+      for (const row of data || []) {
+        const path = extractApplicationStoragePath(row[column]);
+        if (path) referencedPaths.add(path);
+      }
+      if ((data || []).length < pageSize) break;
+    }
+  }
+
+  if (availableColumnCount === 0) {
+    throw new Error('No known application document columns were available; refusing cleanup.');
+  }
+
+  return referencedPaths;
+};
+
+export const listAllStorageFiles = async (bucket: any, prefix = ''): Promise<string[]> => {
+  const files: string[] = [];
+  const folders: string[] = [];
+  const pageSize = 1000;
+
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await bucket.list(prefix, { limit: pageSize, offset, sortBy: { column: 'name', order: 'asc' } });
+    if (error) throw new Error(`Failed to list storage prefix ${prefix || '/'}: ${error.message}`);
+    const entries = data || [];
+    for (const entry of entries) {
+      const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.name === '.emptyFolderPlaceholder') continue;
+      if (entry.id || entry.metadata) files.push(path);
+      else folders.push(path);
+    }
+    if (entries.length < pageSize) break;
+  }
+
+  for (const folder of folders) {
+    files.push(...(await listAllStorageFiles(bucket, folder)));
+  }
+  return files;
+};
+
+export const assertDestructiveCleanupConfirmed = (apply: boolean, confirmation?: string) => {
+  if (apply && confirmation !== CLEANUP_CONFIRMATION) {
+    throw new Error(`Destructive cleanup requires --confirm="${CLEANUP_CONFIRMATION}".`);
+  }
+};
+
+export const runCleanup = async ({ apply = false, confirmation }: { apply?: boolean; confirmation?: string } = {}) => {
+  assertDestructiveCleanupConfirmed(apply, confirmation);
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  const bucket = supabase.storage.from(APPLICATIONS_BUCKET);
+  const [files, referencedPaths] = await Promise.all([
+    listAllStorageFiles(bucket),
+    loadReferencedDocumentPaths(supabase),
+  ]);
+  const orphanedFiles = files.filter((file) => !referencedPaths.has(file));
+
+  console.log(`${apply ? 'APPLY' : 'DRY RUN'}: ${files.length} stored, ${referencedPaths.size} referenced, ${orphanedFiles.length} orphaned.`);
+  if (!apply || orphanedFiles.length === 0) return { apply, orphanedFiles, deletedCount: 0 };
+
+  let deletedCount = 0;
+  for (let index = 0; index < orphanedFiles.length; index += 100) {
+    const batch = orphanedFiles.slice(index, index + 100);
+    const { data, error } = await bucket.remove(batch);
+    if (error) throw new Error(`Failed to delete orphan batch: ${error.message}`);
+    deletedCount += data?.length || 0;
+  }
+  return { apply, orphanedFiles, deletedCount };
+};
+
+const isMain = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+if (isMain) {
+  const apply = process.argv.includes('--apply');
+  const confirmationArg = process.argv.find((argument) => argument.startsWith('--confirm='));
+  runCleanup({ apply, confirmation: confirmationArg?.slice('--confirm='.length) }).catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

@@ -9,10 +9,17 @@ const REDACTED_QUERY_VALUE = '[REDACTED]';
 const REDACTED_QUERY_KEYS = new Set([
   'access_token',
   'admin_token',
+  'application_id',
   'checkout_token',
+  'customer_id',
+  'email',
   'refresh_token',
+  'session_id',
+  'subscription_id',
   'token',
 ]);
+const UUID_PATH_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STRIPE_ID_PATH_SEGMENT = /^(?:cs|cus|sub|pi|in|evt|seti|pm)_[A-Za-z0-9_]+$/;
 
 const shouldSkipLogging = (req: Request) =>
   TEST_MODE ||
@@ -31,11 +38,29 @@ const getRequestId = (req: Request) => {
   return crypto.randomUUID();
 };
 
-const sanitizeOriginalUrl = (originalUrl: string) => {
+const sanitizePath = (path: string) =>
+  path
+    .split('/')
+    .map((segment) => {
+      const decoded = (() => {
+        try {
+          return decodeURIComponent(segment);
+        } catch {
+          return segment;
+        }
+      })();
+      return UUID_PATH_SEGMENT.test(decoded) || STRIPE_ID_PATH_SEGMENT.test(decoded)
+        ? REDACTED_QUERY_VALUE
+        : segment;
+    })
+    .join('/');
+
+export const sanitizeOriginalUrl = (originalUrl: string) => {
   const [path, queryString] = originalUrl.split('?', 2);
+  const sanitizedPath = sanitizePath(path);
 
   if (!queryString) {
-    return originalUrl;
+    return sanitizedPath;
   }
 
   const query = new URLSearchParams(queryString);
@@ -46,7 +71,7 @@ const sanitizeOriginalUrl = (originalUrl: string) => {
   }
 
   const sanitizedQuery = query.toString();
-  return sanitizedQuery ? `${path}?${sanitizedQuery}` : path;
+  return sanitizedQuery ? `${sanitizedPath}?${sanitizedQuery}` : sanitizedPath;
 };
 
 export const requestContext = (

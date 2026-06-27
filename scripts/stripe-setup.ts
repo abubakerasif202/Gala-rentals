@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { config as loadDotenv } from 'dotenv';
+import type Stripe from 'stripe';
 
 import { STRIPE_API_VERSION } from '../api/constants.js';
 import {
@@ -18,7 +19,8 @@ import {
 } from '../api/stripeClient.js';
 
 const args = new Set(process.argv.slice(2));
-const requireLiveKey = args.has('--require-live');
+const syncWebhookEndpoint = args.has('--sync-webhook-endpoint');
+const requireLiveKey = args.has('--require-live') || syncWebhookEndpoint;
 const cwd = process.cwd();
 
 loadDotenv({ path: path.resolve(cwd, '.env'), quiet: true });
@@ -31,7 +33,7 @@ if (!requireLiveKey && process.env.NODE_ENV !== 'production') {
   });
 }
 
-const EXPECTED_WEBHOOK_EVENTS = [
+const EXPECTED_WEBHOOK_EVENTS: Stripe.WebhookEndpointCreateParams.EnabledEvent[] = [
   'checkout.session.completed',
   'checkout.session.async_payment_succeeded',
   'checkout.session.async_payment_failed',
@@ -116,6 +118,54 @@ const isStripeAuthenticationError = (
             String((error as { code?: string }).code || '')
           )))
   );
+
+const getWebhookSyncSafetyIssue = (
+  expectedWebhookUrl: string | null,
+  keyMode: StripeKeyMode
+) => {
+  if (!syncWebhookEndpoint) {
+    return null;
+  }
+
+  if (keyMode !== 'live') {
+    return {
+      details: { keyMode },
+      message: 'Webhook sync requires a live Stripe secret key.',
+    };
+  }
+
+  if (!expectedWebhookUrl) {
+    return {
+      details: {},
+      message: 'Webhook sync requires a production APP_URL before mutating Stripe.',
+    };
+  }
+
+  try {
+    const parsedWebhookUrl = new URL(expectedWebhookUrl);
+
+    if (parsedWebhookUrl.protocol !== 'https:') {
+      return {
+        details: { expectedWebhookUrl },
+        message: 'Webhook sync requires an HTTPS production APP_URL.',
+      };
+    }
+
+    if (isLocalhostUrl(parsedWebhookUrl)) {
+      return {
+        details: { expectedWebhookUrl },
+        message: 'Webhook sync cannot target localhost or loopback APP_URL values.',
+      };
+    }
+  } catch {
+    return {
+      details: { expectedWebhookUrl },
+      message: 'Webhook sync requires a valid production webhook URL.',
+    };
+  }
+
+  return null;
+};
 
 const collectAll = async <T>(listPromise: AsyncIterable<T>) => {
   const items: T[] = [];
@@ -309,12 +359,22 @@ const verifyStripeAccountConfiguration = async (
       clearStripeCatalogCache();
       return ensureStripeCatalog(stripe);
     })();
-    const webhookEndpoints = expectedWebhookUrl
+    let webhookEndpoints = expectedWebhookUrl
       ? await collectAll(stripe.webhookEndpoints.list({ limit: 100 }))
       : [];
-    const matchingWebhookEndpoints = webhookEndpoints.filter(
+    let matchingWebhookEndpoints = webhookEndpoints.filter(
       (endpoint) => normalizeUrl(endpoint.url) === normalizeUrl(expectedWebhookUrl || '')
     );
+    const webhookSyncSafetyIssue = getWebhookSyncSafetyIssue(expectedWebhookUrl, keyMode);
+
+    if (webhookSyncSafetyIssue) {
+      addCheck(
+        'stripe_webhook_sync_safety',
+        'fail',
+        webhookSyncSafetyIssue.message,
+        webhookSyncSafetyIssue.details
+      );
+    }
 
     addCheck(
       'stripe_account',
@@ -352,12 +412,40 @@ const verifyStripeAccountConfiguration = async (
         'Expected webhook URL could not be derived because APP_URL is invalid or missing.'
       );
     } else if (matchingWebhookEndpoints.length === 0) {
-      addCheck(
-        'stripe_webhook_endpoint',
-        statusForReadinessCheck(false),
-        'No Stripe webhook endpoint matches the configured APP_URL.',
-        { expectedWebhookUrl }
-      );
+      if (syncWebhookEndpoint && !webhookSyncSafetyIssue) {
+        const createdEndpoint = await stripe.webhookEndpoints.create({
+          enabled_events: [...EXPECTED_WEBHOOK_EVENTS],
+          metadata: {
+            gala_rental_app: 'galarentals',
+            managed_by: 'stripe-setup',
+          },
+          url: expectedWebhookUrl,
+        });
+        webhookEndpoints = [...webhookEndpoints, createdEndpoint];
+        matchingWebhookEndpoints = [createdEndpoint];
+
+        addCheck(
+          'stripe_webhook_endpoint',
+          'pass',
+          'Stripe webhook endpoint was created for the configured APP_URL. Copy its signing secret into STRIPE_WEBHOOK_SECRET in Render.',
+          {
+            enabledEvents: createdEndpoint.enabled_events,
+            expectedWebhookUrl,
+            webhookEndpointId: createdEndpoint.id,
+            webhookSecretAction:
+              'Copy the endpoint signing secret from Stripe Dashboard into STRIPE_WEBHOOK_SECRET.',
+            webhookStatus:
+              'status' in createdEndpoint ? createdEndpoint.status || null : null,
+          }
+        );
+      } else {
+        addCheck(
+          'stripe_webhook_endpoint',
+          statusForReadinessCheck(false),
+          'No Stripe webhook endpoint matches the configured APP_URL.',
+          { expectedWebhookUrl }
+        );
+      }
     } else {
       const enabledEndpoint =
         matchingWebhookEndpoints.find(
@@ -368,6 +456,34 @@ const verifyStripeAccountConfiguration = async (
         ? []
         : EXPECTED_WEBHOOK_EVENTS.filter((eventName) => !enabledEvents.includes(eventName));
 
+      if (syncWebhookEndpoint && !webhookSyncSafetyIssue && missingEvents.length > 0) {
+        const syncedEndpoint = await stripe.webhookEndpoints.update(
+          enabledEndpoint.id,
+          {
+            enabled_events: Array.from(
+              new Set([...enabledEvents, ...EXPECTED_WEBHOOK_EVENTS])
+            ) as Stripe.WebhookEndpointUpdateParams.EnabledEvent[],
+          }
+        );
+        matchingWebhookEndpoints = matchingWebhookEndpoints.map((endpoint) =>
+          endpoint.id === syncedEndpoint.id ? syncedEndpoint : endpoint
+        );
+
+        addCheck(
+          'stripe_webhook_endpoint',
+          'pass',
+          'Stripe webhook endpoint events were updated. Confirm STRIPE_WEBHOOK_SECRET still matches this endpoint in Render.',
+          {
+            expectedWebhookUrl,
+            previouslyMissingEvents: missingEvents,
+            webhookEndpointId: syncedEndpoint.id,
+            webhookSecretAction:
+              'Confirm the endpoint signing secret is set as STRIPE_WEBHOOK_SECRET.',
+            webhookStatus:
+              'status' in syncedEndpoint ? syncedEndpoint.status || null : null,
+          }
+        );
+      } else {
       addCheck(
         'stripe_webhook_endpoint',
         missingEvents.length === 0 ? 'pass' : statusForReadinessCheck(false),
@@ -381,6 +497,7 @@ const verifyStripeAccountConfiguration = async (
           webhookStatus: 'status' in enabledEndpoint ? enabledEndpoint.status || null : null,
         }
       );
+      }
     }
 
     addCheck('stripe_catalog', 'pass', 'Reusable Stripe catalog is available.', {
@@ -453,6 +570,7 @@ const summary = {
   matchingWebhookEndpoints: stripeSummary.matchingWebhookEndpoints,
   overallStatus,
   requireLiveKey,
+  syncWebhookEndpoint,
 };
 
 console.log(JSON.stringify(summary, null, 2));

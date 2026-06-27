@@ -4,6 +4,7 @@ import { submitInquiry } from '../lib/api';
 import { useState, type FormEvent } from 'react';
 import { featuredRentalImages } from '../lib/genericRentalImages';
 import { companyDetails } from '../../shared/companyDetails';
+import { publicContactEmail, publicContactMailto } from '../../shared/contactConfig';
 
 const inputClass =
   'focus-ring-light rounded-2xl border border-stone-200 bg-white px-5 py-4 text-brand-navy outline-none transition-colors placeholder:text-slate-400 focus:border-brand-gold';
@@ -12,10 +13,12 @@ const labelClass = 'text-[10px] font-bold uppercase tracking-[0.24em] text-slate
 export default function Contact() {
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [submitError, setSubmitError] = useState('We could not send your enquiry. Please try again.');
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatus('sending');
+    setSubmitError('We could not send your enquiry. Please try again.');
 
     const formData = new FormData(event.currentTarget);
     try {
@@ -30,7 +33,9 @@ export default function Contact() {
       setMessage('');
       setStatus('sent');
       event.currentTarget.reset();
-    } catch {
+    } catch (error) {
+      const responseError = error as { response?: { data?: { error?: string } } };
+      setSubmitError(responseError.response?.data?.error || 'We could not send your enquiry. Please try again.');
       setStatus('error');
     }
   };
@@ -60,7 +65,7 @@ export default function Contact() {
                 companyDetails.phone
                   ? { icon: Phone, title: 'Phone', body: companyDetails.phone, href: `tel:${companyDetails.phone}` }
                   : null,
-                { icon: Mail, title: 'Email', body: 'admin@galarentals.com.au', href: 'mailto:admin@galarentals.com.au' },
+                { icon: Mail, title: 'Email', body: publicContactEmail, href: publicContactMailto },
                 { icon: Clock3, title: 'Business hours', body: 'Mon-Fri, 8:30am to 5:30pm AEST' },
                 { icon: MapPin, title: 'Service area', body: 'Sydney metro and surrounding suburbs' },
               ].filter((item): item is NonNullable<typeof item> => Boolean(item)).map((item) => (
@@ -140,7 +145,7 @@ export default function Contact() {
             )}
             {status === 'error' && (
               <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-700" role="alert">
-                We could not send your enquiry. Please try again.
+                {submitError}
               </div>
             )}
 

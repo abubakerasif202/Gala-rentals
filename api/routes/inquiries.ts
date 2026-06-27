@@ -2,7 +2,13 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { inquirySchema } from '../../shared/inquiry.js';
-import { escapeHtml, getResend, sanitizeEmailHeaderValue, sendResendEmail } from '../email.js';
+import {
+  escapeHtml,
+  getContactEmailConfig,
+  getResend,
+  sanitizeEmailHeaderValue,
+  sendResendEmail,
+} from '../email.js';
 
 const router = express.Router();
 const SUPPORT_FALLBACK_MESSAGE =
@@ -24,7 +30,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
       return res.status(503).json({ error: SUPPORT_FALLBACK_MESSAGE });
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@galarentals.com.au';
+    const contactEmail = getContactEmailConfig();
     const resend = await getResend();
     const safeName = escapeHtml(inquiry.name);
     const safeEmail = escapeHtml(inquiry.email);
@@ -36,8 +42,9 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
 
     const [adminEmailResult, userEmailResult] = await Promise.allSettled([
       sendResendEmail(resend, {
-        from: 'Galarentals <admin@galarentals.com.au>',
-        to: adminEmail,
+        from: contactEmail.from,
+        to: contactEmail.to,
+        replyTo: inquiry.email,
         subject: `New availability inquiry from ${inquiryNameForSubject}`,
         html: `
           <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
@@ -52,7 +59,7 @@ router.post('/', inquirySubmissionLimiter, async (req, res) => {
         `,
       }),
       sendResendEmail(resend, {
-        from: 'Galarentals <admin@galarentals.com.au>',
+        from: contactEmail.from,
         to: inquiry.email,
         subject: 'We received your Galarentals enquiry',
         html: `

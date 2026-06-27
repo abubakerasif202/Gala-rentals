@@ -1,4 +1,4 @@
-import { escapeHtml, sendResendEmail } from './email.js';
+import { escapeHtml, getContactEmailConfig, getResend, sendResendEmail } from './email.js';
 
 const DEFAULT_APP_URL = 'http://localhost:3000';
 
@@ -58,8 +58,8 @@ export const sendDriverPaymentLinkEmail = async ({
     };
   }
 
-  const { Resend } = await import('resend');
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const resend = await getResend();
+  const contactEmail = getContactEmailConfig();
   const upfrontDue = approvedBond + approvedWeeklyPrice + setupFees;
   const safeApplicantName = escapeHtml(applicantName);
   const safeApprovedVehicle = escapeHtml(approvedVehicle);
@@ -68,7 +68,7 @@ export const sendDriverPaymentLinkEmail = async ({
 
   try {
     await sendResendEmail(resend, {
-      from: 'Galarentals <admin@galarentals.com.au>',
+      from: contactEmail.from,
       to: applicantEmail,
       subject: 'Your Galarentals checkout link is ready',
       html: `

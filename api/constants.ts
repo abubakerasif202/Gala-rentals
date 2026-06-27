@@ -1,6 +1,8 @@
 import type Stripe from 'stripe';
 
-export const FALLBACK_ADMIN_EMAIL = 'admin@galarentals.com.au';
+import { publicContactEmail } from '../shared/contactConfig.js';
+
+export const FALLBACK_ADMIN_EMAIL = publicContactEmail;
 
 export const LEASE_SETTINGS = {
   currency: 'aud',

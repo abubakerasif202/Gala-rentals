@@ -24,6 +24,7 @@
     "cron:fleet-sync": "tsx scripts/sync-realtime-fleet.js",
     "sync:realtime-fleet": "node scripts/sync-realtime-fleet.js",
     "stripe:setup": "tsx scripts/stripe-setup.ts",
+    "stripe:sync-webhook": "tsx scripts/stripe-setup.ts --require-live --sync-webhook-endpoint",
     "stripe:handoff": "tsx scripts/stripe-setup.ts --require-live",
     "stripe:reset": "tsx scripts/stripe-reset.ts",
     "lint": "tsc --noEmit",

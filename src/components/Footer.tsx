@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Mail, MapPin, Phone } from 'lucide-react';
 import { companyDetails, formatCompanyAddress } from '../../shared/companyDetails';
+import { publicContactEmail, publicContactMailto } from '../../shared/contactConfig';
 
 const quickLinks = [
   { label: 'Apply Now', path: '/apply' },
@@ -80,7 +81,7 @@ export default function Footer() {
               )}
               <li className="flex items-center gap-4">
                 <Mail className="h-4 w-4 text-brand-gold" />
-                <a href="mailto:admin@galarentals.com.au" className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">admin@galarentals.com.au</a>
+                <a href={publicContactMailto} className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">{publicContactEmail}</a>
               </li>
               <li className="flex items-start gap-4">
                 <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />

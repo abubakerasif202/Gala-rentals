@@ -1,3 +1,9 @@
+import {
+  emailSenderConfig,
+  formatEmailSender,
+  publicContactEmail,
+} from '../shared/contactConfig.js';
+
 export const escapeHtml = (value: string) =>
   value
     .replace(/&/g, '&amp;')
@@ -7,6 +13,24 @@ export const escapeHtml = (value: string) =>
     .replace(/'/g, '&#39;');
 
 export const sanitizeEmailHeaderValue = (value: string) => value.replace(/[\r\n]+/g, ' ').trim();
+
+const readTrimmedEnv = (key: string) => {
+  const value = process.env[key]?.trim();
+  return value || undefined;
+};
+
+export const getContactEmailConfig = ({
+  senderName = emailSenderConfig.defaultName,
+}: { senderName?: string } = {}) => ({
+  from: sanitizeEmailHeaderValue(
+    readTrimmedEnv('CONTACT_FROM_EMAIL') || formatEmailSender(senderName)
+  ),
+  to: sanitizeEmailHeaderValue(
+    readTrimmedEnv('CONTACT_TO_EMAIL') ||
+      readTrimmedEnv('ADMIN_EMAIL') ||
+      publicContactEmail
+  ),
+});
 
 let resendInstance: import('resend').Resend | null = null;
 

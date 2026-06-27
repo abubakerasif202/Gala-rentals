@@ -2,7 +2,13 @@ import express from 'express';
 import { z } from 'zod';
 
 import { db } from '../db/index.js';
-import { escapeHtml, getResend, sanitizeEmailHeaderValue, sendResendEmail } from '../email.js';
+import {
+  escapeHtml,
+  getContactEmailConfig,
+  getResend,
+  sanitizeEmailHeaderValue,
+  sendResendEmail,
+} from '../email.js';
 import {
   filterRealOperationalCustomers,
   filterRealRentals,
@@ -468,6 +474,7 @@ router.post('/:id/send', authenticateAdmin, async (req, res) => {
 
     const pdf = await buildTollTransferNoticePdf(notice as any);
     const resend = await getResend();
+    const contactEmail = getContactEmailConfig();
     const tollNoticeNumber = getSafeNoticeValue(notice, 'toll_notice_number');
     const vehicleRegistration = getSafeNoticeValue(notice, 'vehicle_registration');
     const nomineeName = getSafeNoticeValue(notice, 'nominee_full_name');
@@ -485,7 +492,7 @@ router.post('/:id/send', authenticateAdmin, async (req, res) => {
           filename: `toll-transfer-notice-${id}.pdf`,
         },
       ],
-      from: 'Galarentals <admin@galarentals.com.au>',
+      from: contactEmail.from,
       html: `
         <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; color: #1a202c;">
           <h2 style="color: #D4AF37;">Toll Transfer Notice</h2>

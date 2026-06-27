@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
+import { createServer } from "node:http";
+import { createConnection } from "node:net";
 import { inflateSync } from "node:zlib";
-import { getTodayInAustralia } from "../../shared/applicationSubmission.js";
+import {
+  getTodayInAustralia,
+  MAX_APPLICATION_TOTAL_UPLOAD_BYTES,
+} from "../../shared/applicationSubmission.js";
 import { companyDetails } from "../../shared/companyDetails.js";
 
 const addDaysToDateOnly = (dateOnly: string, days: number) => {
@@ -1483,6 +1488,62 @@ const { default: app } = await import("../index.js");
 const { createCheckoutToken, verifyCheckoutToken } =
   await import("../checkoutTokens.js");
 
+const readOversizedApplicationHeaderResponse = async () => {
+  const server = createServer(app);
+
+  try {
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Test server did not bind to a TCP port.");
+    }
+
+    return await new Promise<string>((resolve, reject) => {
+      const socket = createConnection(address.port, "127.0.0.1");
+      let response = "";
+      const timeout = setTimeout(() => {
+        socket.destroy();
+        reject(new Error("Timed out waiting for oversized upload rejection."));
+      }, 1000);
+
+      socket.on("connect", () => {
+        socket.write(
+          [
+            "POST /api/applications HTTP/1.1",
+            `Host: 127.0.0.1:${address.port}`,
+            "Content-Type: multipart/form-data; boundary=test-boundary",
+            `Content-Length: ${MAX_APPLICATION_TOTAL_UPLOAD_BYTES + 1}`,
+            "Connection: close",
+            "",
+            "",
+          ].join("\r\n"),
+        );
+      });
+
+      socket.on("data", (chunk) => {
+        response += chunk.toString("utf8");
+        if (response.includes("\r\n\r\n")) {
+          clearTimeout(timeout);
+          socket.destroy();
+          resolve(response);
+        }
+      });
+
+      socket.on("error", (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
 
@@ -1493,6 +1554,8 @@ beforeEach(() => {
   process.env.STRIPE_ONBOARDING_SETUP_PRODUCT_ID = "prod_onboarding_setup";
   process.env.STRIPE_WEEKLY_RENTAL_PRODUCT_ID = "prod_weekly_rental";
   delete process.env.RESEND_API_KEY;
+  delete process.env.CONTACT_FROM_EMAIL;
+  delete process.env.CONTACT_TO_EMAIL;
   delete process.env.LEASE_OWNER_NAME;
   delete process.env.LEASE_OWNER_ADDRESS;
   delete process.env.LEASE_OWNER_CONTACT;
@@ -2842,6 +2905,40 @@ describe("Applications API", () => {
     expect(mockResendEmailsSend).toHaveBeenCalledTimes(2);
   });
 
+  it("POST /api/inquiries uses configured contact email routing", async () => {
+    process.env.RESEND_API_KEY = "test-resend";
+    process.env.CONTACT_FROM_EMAIL = "Galarentals Contact <enquiries@galarentals.com.au>";
+    process.env.CONTACT_TO_EMAIL = "ops@galarentals.com.au";
+    const startDate = getFutureDateOnly(7);
+    const endDate = getFutureDateOnly(14);
+
+    const res = await request(app).post("/api/inquiries").send({
+      name: "Jordan Prospect",
+      email: "jordan.prospect@example.com",
+      phone: "0400 000 111",
+      startDate,
+      endDate,
+      message: "Looking for a Camry Hybrid for airport work.",
+    });
+
+    expect(res.status).toBe(202);
+    expect(mockResendEmailsSend).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        from: "Galarentals Contact <enquiries@galarentals.com.au>",
+        replyTo: "jordan.prospect@example.com",
+        to: "ops@galarentals.com.au",
+      }),
+    );
+    expect(mockResendEmailsSend).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        from: "Galarentals Contact <enquiries@galarentals.com.au>",
+        to: "jordan.prospect@example.com",
+      }),
+    );
+  });
+
   it("POST /api/inquiries returns 500 when Resend resolves with a provider error", async () => {
     process.env.RESEND_API_KEY = "test-resend";
     mockResendEmailsSend.mockResolvedValueOnce({
@@ -3216,6 +3313,7 @@ describe("Applications API", () => {
 
   it("POST /api/applications escapes applicant-controlled HTML before sending emails", async () => {
     process.env.RESEND_API_KEY = "test-resend";
+    process.env.CONTACT_TO_EMAIL = "applications@galarentals.com.au";
     mockResendEmailsSend.mockClear();
     mockState.applications[1].status = "Paid";
     mockState.applications[1].paid_at = "2026-03-07T00:00:00.000Z";
@@ -3241,13 +3339,18 @@ describe("Applications API", () => {
     expect(mockResendEmailsSend).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
+        from: "Galarentals Notifications <admin@galarentals.com.au>",
         html: expect.stringContaining("&lt;img src=x onerror=alert(1)&gt;"),
+        replyTo: "markup@example.com",
+        to: "applications@galarentals.com.au",
       }),
     );
     expect(mockResendEmailsSend).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
+        from: "Galarentals <admin@galarentals.com.au>",
         html: expect.stringContaining("&lt;img src=x onerror=alert(1)&gt;"),
+        to: "markup@example.com",
       }),
     );
     expect(mockResendEmailsSend.mock.calls[1]?.[0]?.html).not.toContain(
@@ -3337,6 +3440,13 @@ describe("Applications API", () => {
 
     expect(res.status).toBe(413);
     expect(res.body.error).toBe("Application upload is too large.");
+    expect(mockState.applications).toHaveLength(2);
+  });
+
+  it("POST /api/applications rejects oversized content length before reading the upload body", async () => {
+    const response = await readOversizedApplicationHeaderResponse();
+
+    expect(response).toContain("HTTP/1.1 413");
     expect(mockState.applications).toHaveLength(2);
   });
 
@@ -4508,6 +4618,7 @@ describe("Toll Transfer Notices API", () => {
 
   it("POST /api/toll-notices/:id/send emails the generated PDF and persists send metadata", async () => {
     process.env.RESEND_API_KEY = "test-resend";
+    process.env.CONTACT_FROM_EMAIL = "Galarentals Notices <notices@galarentals.com.au>";
     mockResendEmailsSend.mockClear();
 
     await request(app)
@@ -4535,6 +4646,7 @@ describe("Toll Transfer Notices API", () => {
             filename: "toll-transfer-notice-1.pdf",
           }),
         ],
+        from: "Galarentals Notices <notices@galarentals.com.au>",
         to: "tolls@example.invalid",
       }),
     );
@@ -4705,6 +4817,7 @@ describe("Stripe API", () => {
 
   it("POST /api/applications/:id/approve-payment escapes applicant-controlled HTML in payment emails", async () => {
     process.env.RESEND_API_KEY = "test-resend";
+    process.env.CONTACT_FROM_EMAIL = "Galarentals Payments <payments@galarentals.com.au>";
     mockResendEmailsSend.mockClear();
     mockState.applications[0].name = "<img src=x onerror=alert(1)>";
 
@@ -4724,6 +4837,7 @@ describe("Stripe API", () => {
     expect(mockResendEmailsSend).toHaveBeenCalledTimes(1);
     expect(mockResendEmailsSend).toHaveBeenCalledWith(
       expect.objectContaining({
+        from: "Galarentals Payments <payments@galarentals.com.au>",
         html: expect.stringContaining("&lt;img src=x onerror=alert(1)&gt;"),
       }),
     );

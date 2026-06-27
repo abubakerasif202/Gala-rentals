@@ -17,7 +17,7 @@ import {
   getSchemaCompat,
   toApplicationPaymentWritePayload,
 } from './schemaCompat.js';
-import { escapeHtml, getResend, sendResendEmail } from './email.js';
+import { escapeHtml, getContactEmailConfig, getResend, sendResendEmail } from './email.js';
 import {
   AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON,
   hasTransactionalPaymentProcessing,
@@ -606,10 +606,11 @@ export const handleVehicleCheckoutCompletion = async (
 
       try {
         const resend = await getResend();
-        const adminEmail = process.env.ADMIN_EMAIL || FALLBACK_ADMIN_EMAIL;
+        const contactEmail = getContactEmailConfig();
+        const adminEmail = contactEmail.to || FALLBACK_ADMIN_EMAIL;
 
         await sendResendEmail(resend, {
-          from: 'Galarentals <admin@galarentals.com.au>',
+          from: contactEmail.from,
           to: adminEmail,
           subject: `Payment review required for vehicle checkout ${session.id}`,
           html: `

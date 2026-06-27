@@ -50,11 +50,13 @@ import {
   MAX_APPLICATION_UPLOAD_BYTES,
   MAX_APPLICATION_TOTAL_UPLOAD_BYTES,
 } from "../../shared/applicationSubmission.js";
+import { emailSenderConfig } from "../../shared/contactConfig.js";
 import {
   renderActiveAgreementTemplate,
 } from "../agreementTemplates.js";
 import {
   escapeHtml,
+  getContactEmailConfig,
   getResend,
   sanitizeEmailHeaderValue,
   sendResendEmail,
@@ -163,7 +165,20 @@ const applicationUpload = multer({
 const enforceApplicationRequestSize: express.RequestHandler = (req, res, next) => {
   const contentLength = Number(req.header("content-length") || 0);
   if (Number.isFinite(contentLength) && contentLength > MAX_APPLICATION_TOTAL_UPLOAD_BYTES) {
-    res.status(413).json({ error: "Application upload is too large." });
+    const body = JSON.stringify({ error: "Application upload is too large." });
+    const finishResponse = () => {
+      if (!res.writableEnded) {
+        res.end(body);
+      }
+    };
+
+    res.statusCode = 413;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.flushHeaders();
+    req.on("data", () => undefined);
+    req.on("end", finishResponse);
+    req.on("error", finishResponse);
+    req.resume();
     return;
   }
   next();
@@ -754,7 +769,11 @@ router.post(
       if (process.env.RESEND_API_KEY) {
         try {
           const resend = await getResend();
-          const adminEmail = process.env.ADMIN_EMAIL || FALLBACK_ADMIN_EMAIL;
+          const contactEmail = getContactEmailConfig({
+            senderName: emailSenderConfig.notificationName,
+          });
+          const customerEmail = getContactEmailConfig();
+          const adminEmail = contactEmail.to || FALLBACK_ADMIN_EMAIL;
           const safeApplicantName = escapeHtml(normalizedApplicationData.name);
           const safeApplicantEmail = escapeHtml(
             normalizedApplicationData.email,
@@ -779,8 +798,9 @@ router.post(
           );
           const emailResults = await Promise.allSettled([
             sendResendEmail(resend, {
-              from: "Galarentals Notifications <admin@galarentals.com.au>",
+              from: contactEmail.from,
               to: adminEmail,
+              replyTo: normalizedApplicationData.email,
               subject: `New Driver Application: ${applicantNameForSubject}`,
               html: `
                 <div style="font-family: sans-serif; color: #1a202c;">
@@ -800,7 +820,7 @@ router.post(
               `,
             }),
             sendResendEmail(resend, {
-              from: "Galarentals <admin@galarentals.com.au>",
+              from: customerEmail.from,
               to: normalizedApplicationData.email,
               subject: "We received your Galarentals application",
               html: `

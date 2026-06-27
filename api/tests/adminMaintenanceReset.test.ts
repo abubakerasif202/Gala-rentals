@@ -20,6 +20,7 @@ const mockState = vi.hoisted(() => ({
   deleteOrder: [] as string[],
   failOnStep: null as string | null,
   missingTables: new Set<string>(),
+  schemaCacheMissingTables: new Set<string>(),
 }));
 
 vi.hoisted(() => {
@@ -73,6 +74,17 @@ vi.mock('../db/index.js', () => ({
           if (state.missingTables.has(table)) {
             return Promise.resolve(
               onFulfilled({ data: null, error: { code: '42P01', message: `relation "${table}" does not exist` } }),
+            );
+          }
+          if (state.schemaCacheMissingTables.has(table)) {
+            return Promise.resolve(
+              onFulfilled({
+                data: null,
+                error: {
+                  code: 'PGRST205',
+                  message: `Could not find the table 'public.${table}' in the schema cache`,
+                },
+              }),
             );
           }
           const rows = (state as any)[table] || [];
@@ -182,6 +194,7 @@ describe('adminMaintenanceReset', () => {
     mockState.deleteOrder = [];
     mockState.failOnStep = null;
     mockState.missingTables = new Set<string>();
+    mockState.schemaCacheMissingTables = new Set<string>();
   });
 
   it('dry run does not mutate data', async () => {
@@ -261,5 +274,15 @@ describe('adminMaintenanceReset', () => {
         expect.objectContaining({ table: 'payments', skipped: true }),
       ]),
     );
+  });
+
+  it('skips Supabase schema cache misses for optional invoice child tables', async () => {
+    mockState.schemaCacheMissingTables = new Set(['invoice_line_items']);
+
+    const plan = await getImportedDataResetPlan();
+
+    expect(plan.counts.invoices).toBe(1);
+    expect(plan.counts.invoiceLineItems).toBe(0);
+    expect(plan.skipped.invoiceLineItems).toBe(true);
   });
 });

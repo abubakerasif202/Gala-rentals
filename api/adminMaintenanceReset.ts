@@ -129,6 +129,10 @@ const isMissingTableOrColumnError = (error: any) => {
   return (
     code === '42p01' ||
     code === '42703' ||
+    code === 'pgrst204' ||
+    code === 'pgrst205' ||
+    message.includes('could not find the table') ||
+    message.includes('could not find the column') ||
     message.includes('does not exist') ||
     (message.includes('column') && message.includes('does not exist')) ||
     (message.includes('relation') && message.includes('does not exist'))
@@ -157,7 +161,9 @@ const fetchRowsSafe = async (table: string, client?: PoolClient): Promise<TableQ
       return {
         rows: [],
         skipped: true,
-        reason: String(error?.code || '').toLowerCase() === '42703' ? 'column_not_found' : 'table_not_found',
+        reason: ['42703', 'pgrst204'].includes(String(error?.code || '').toLowerCase())
+          ? 'column_not_found'
+          : 'table_not_found',
       };
     }
 

@@ -397,6 +397,27 @@ const ensureDB = async () => {
   return dbInitialized;
 };
 
+const ensureProductionDatabaseReadiness = async () => {
+  if (!isProduction) {
+    return;
+  }
+
+  await ensureDB();
+
+  const directHealth = await runDirectDBHealthCheck();
+  const directHealthStatus = resolveDirectDatabaseHealthStatus(directHealth);
+  if (directHealthStatus !== 'ok') {
+    const details = directHealth.schemaIssues?.length
+      ? ` Schema issues: ${directHealth.schemaIssues.join(', ')}.`
+      : '';
+    throw new Error(
+      `Direct database readiness check failed with status ${directHealthStatus}.${details}`
+    );
+  }
+
+  await validateProductionSchemaContract();
+};
+
 const buildCorsOrigins = () =>
   [
     toOrigin(process.env.APP_URL),
@@ -669,7 +690,7 @@ type RunningResources = {
 
 export const startServer = async (): Promise<RunningResources> => {
   validateProductionEnv();
-  await validateProductionSchemaContract();
+  await ensureProductionDatabaseReadiness();
   logRuntimeConfigurationSummary();
 
   let viteServer: ViteDevServer | null = null;
@@ -695,14 +716,14 @@ export const startServer = async (): Promise<RunningResources> => {
     createdServer.on('error', reject);
   });
 
-  // Render only needs the port to open quickly; keep DB warmup asynchronous and
-  // surface readiness through the healthcheck and API middleware instead.
-  void ensureDB().catch((error) => {
-    console.error('Database warmup failed:', error);
-  });
-  void runDirectDBHealthCheck().catch((error) => {
-    console.error('Direct database warmup failed:', error);
-  });
+  if (!isProduction) {
+    void ensureDB().catch((error) => {
+      console.error('Database warmup failed:', error);
+    });
+    void runDirectDBHealthCheck().catch((error) => {
+      console.error('Direct database warmup failed:', error);
+    });
+  }
 
   return { server, viteServer };
 };

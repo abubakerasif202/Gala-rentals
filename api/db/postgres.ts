@@ -10,7 +10,7 @@ export type DirectDatabaseConfig = {
   source: DirectDatabaseConfigSource;
 };
 
-const REQUIRED_PAYMENT_SCHEMA_COLUMNS: Record<string, string[]> = {
+const REQUIRED_DIRECT_SCHEMA_COLUMNS: Record<string, string[]> = {
   applications: [
     'id',
     'status',
@@ -45,7 +45,25 @@ const REQUIRED_PAYMENT_SCHEMA_COLUMNS: Record<string, string[]> = {
     'updated_at',
     'processed_at',
   ],
+  background_jobs: [
+    'id',
+    'queue_name',
+    'job_type',
+    'payload',
+    'status',
+    'attempts',
+    'max_attempts',
+    'error_message',
+    'run_at',
+    'locked_at',
+    'locked_until',
+    'completed_at',
+    'created_at',
+    'updated_at',
+  ],
 };
+
+export const POSTGRES_ADVISORY_LOCK_NAMESPACE = 'galarentals:lock:';
 
 const { Pool } = pg;
 
@@ -143,8 +161,8 @@ export const getSessionModePostgresRequirementIssue = () => {
   );
 };
 
-const checkPaymentActivationSchema = async (client: PoolClient) => {
-  const requiredTables = Object.keys(REQUIRED_PAYMENT_SCHEMA_COLUMNS);
+const checkDirectDatabaseSchema = async (client: PoolClient) => {
+  const requiredTables = Object.keys(REQUIRED_DIRECT_SCHEMA_COLUMNS);
   const { rows } = await client.query(
     `
       SELECT table_name, column_name
@@ -162,7 +180,7 @@ const checkPaymentActivationSchema = async (client: PoolClient) => {
   );
   const issues: string[] = [];
 
-  for (const [table, columns] of Object.entries(REQUIRED_PAYMENT_SCHEMA_COLUMNS)) {
+  for (const [table, columns] of Object.entries(REQUIRED_DIRECT_SCHEMA_COLUMNS)) {
     for (const column of columns) {
       const key = `${table}.${column}`;
       if (!availableColumns.has(key)) {
@@ -184,11 +202,10 @@ const getPostgresPool = () => {
   }
 
   if (postgresPool && postgresPoolConnectionString !== connectionString) {
-    void postgresPool.end().catch((error) => {
-      console.error('Failed to recycle PostgreSQL pool after configuration change:', error);
-    });
-    postgresPool = null;
-    postgresPoolConnectionString = null;
+    throw new Error(
+      'Direct PostgreSQL configuration changed after pool initialization. ' +
+        'Restart the process, or explicitly close the pool in test teardown before changing database configuration.'
+    );
   }
 
   if (!postgresPool) {
@@ -232,7 +249,7 @@ export const checkDirectDatabaseHealth = async () => {
 
   try {
     await client.query('SELECT 1');
-    const schemaIssues = await checkPaymentActivationSchema(client);
+    const schemaIssues = await checkDirectDatabaseSchema(client);
 
     return {
       configured: true,
@@ -268,8 +285,11 @@ export const withPostgresTransaction = async <T>(
   }
 };
 
-const toAdvisoryLockKeyParts = (lockKey: string): [number, number] => {
-  const digest = crypto.createHash('sha256').update(lockKey).digest();
+export const toAdvisoryLockKeyParts = (lockKey: string): [number, number] => {
+  const digest = crypto
+    .createHash('sha256')
+    .update(`${POSTGRES_ADVISORY_LOCK_NAMESPACE}${lockKey}`)
+    .digest();
   return [digest.readInt32BE(0), digest.readInt32BE(4)];
 };
 

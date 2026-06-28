@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch api/index.ts",
     "start": "node server-dist/api/index.js",
+    "start:worker": "node server-dist/api/workers/backgroundWorker.js",
     "build": "npm run build:client && npm run build:server",
     "build:client": "node scripts/run-vite.js build",
     "build:server": "tsc -p tsconfig.server.json",

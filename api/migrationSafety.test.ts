@@ -51,4 +51,27 @@ describe('migration safety guards', () => {
       'FOREIGN KEY (car_id) REFERENCES public.cars(id) ON DELETE SET NULL'
     );
   });
+
+  it('adds a locked-down durable background job queue with dequeue indexes', () => {
+    const migration = fs.readFileSync(
+      path.resolve(
+        process.cwd(),
+        'supabase/migrations/20260628120000_add_background_jobs.sql'
+      ),
+      'utf8'
+    );
+
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS public.background_jobs');
+    expect(migration).toContain(
+      "CHECK (status IN ('pending', 'processing', 'completed', 'failed'))"
+    );
+    expect(migration).toContain('idx_background_jobs_pending_dequeue');
+    expect(migration).toContain("WHERE status = 'pending'");
+    expect(migration).toContain('idx_background_jobs_stuck_processing');
+    expect(migration).toContain("WHERE status = 'processing'");
+    expect(migration).toContain('idx_background_jobs_job_type_status');
+    expect(migration).toContain(
+      'REVOKE ALL ON TABLE public.background_jobs FROM anon, authenticated'
+    );
+  });
 });

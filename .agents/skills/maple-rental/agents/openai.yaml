@@ -1,6 +1,6 @@
 interface:
-  display_name: "Maple Rental"
-  short_description: "Repo-specific patterns and workflows for maple-rental"
-  default_prompt: "Use the maple-rental repo skill to follow existing architecture, testing, and workflow conventions."
+  display_name: "Gala Rental"
+  short_description: "Repo-specific patterns and workflows for Gala Rentals"
+  default_prompt: "Use the Gala Rentals repo skill to follow existing architecture, testing, and payment-only workflow conventions."
 policy:
   allow_implicit_invocation: true

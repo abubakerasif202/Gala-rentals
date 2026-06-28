@@ -101,4 +101,15 @@ describe('accessibility source regressions', () => {
       expect(source).toContain(`id={applicationApprovalFieldId('${field}')}`);
     }
   });
+
+  it('keeps the application route clear for both new and existing drivers', () => {
+    const source = readSource('src/pages/Apply.tsx');
+
+    expectAll(source, [
+      'Already applied or currently renting?',
+      'to="/my-rental"',
+      'View My Rental',
+      'get an approved quote before any secure payment link is issued.',
+    ]);
+  });
 });

@@ -1,11 +1,11 @@
 ---
-name: maple-rental
-description: Maple Rentals repo rules for payment links, admin workflow, Stripe, Supabase, and Render.
+name: gala-rental
+description: Gala Rentals repo rules for payment links, admin workflow, Stripe, Supabase, and Render.
 ---
 
-# Maple Rental
+# Gala Rental
 
-Use this skill when working in the Maple Rental repository, especially when touching admin workflows, payment links, Stripe Checkout, Stripe webhooks, Supabase, Render deployment, or production validation.
+Use this skill when working in the Gala Rentals repository, especially when touching admin workflows, payment links, Stripe Checkout, Stripe webhooks, Supabase, Render deployment, or production validation.
 
 ## Critical Payment Rule
 

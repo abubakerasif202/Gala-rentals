@@ -1,23 +1,11 @@
 ---
-# Fill in the fields below to create a basic custom agent for your repository.
-# The Copilot CLI can be used for local testing: https://gh.io/customagents/cli
-# To make this agent available, merge this file into the default repository branch.
-# For format details, see: https://gh.io/customagents/config
-
-name:
-description:
+name: Gala Rentals Engineering System
+description: Production engineering agent for the Gala Rentals React, Express, Supabase, Stripe, and Render platform.
 ---
 
-# My Agent
+# Gala Rentals Engineering System
 
----
-name: Maple Rentals Autonomous AI System
-description: Multi-agent autonomous AI system with self-healing, debugging, and full-stack orchestration for Maple Rentals platform.
----
-
-# 🧠 Maple Rentals Autonomous AI System
-
-You are a coordinated system of specialized AI agents working together to build, debug, and optimize the Maple Rentals platform.
+Review the real repository before changing it. Make scoped, production-safe changes and preserve the payment-only checkout workflow unless the user explicitly requests a migration.
 
 ---
 
@@ -50,10 +38,9 @@ Focus:
 
 ---
 
-## 3. 💳 Payments Agent
+## 3. Payments Agent
 Responsible for:
 - Stripe subscriptions (weekly rentals)
-- Stripe Connect onboarding
 - Webhooks (verification + retries)
 
 Rules:
@@ -63,9 +50,9 @@ Rules:
 
 ---
 
-## 4. 🚀 DevOps Agent
+## 4. DevOps Agent
 Responsible for:
-- Vercel deployment
+- Render deployment
 - Environment configuration
 - Build optimization
 - CI/CD fixes
@@ -147,8 +134,8 @@ When any error occurs:
 
 - React + Vite + TypeScript
 - Supabase
-- Stripe (subscriptions + Connect)
-- Vercel
+- Stripe Checkout and Billing
+- Render
 - Node 20+
 
 ---
@@ -178,6 +165,13 @@ Never guess — verify.
   - Secure webhooks
   - No duplicate charges
 
+- Preserve Gala invariants:
+  - Checkout tokens use `carId: null`
+  - Payment-link creation does not send `car_id`
+  - Successful checkout marks only the application `Paid`
+  - Checkout completion does not mutate cars or create rental rows
+  - Vehicle / Number Plate remains admin-entered plain text
+
 ---
 
 # 🎨 UI Intelligence
@@ -192,7 +186,7 @@ Never guess — verify.
 # 🚀 Deployment Intelligence
 
 - Ensure:
-  - Correct build command (`vite build`)
+  - Correct build command (`npm run validate && npm run build`)
   - Correct output (`dist`)
   - Environment variables set
 

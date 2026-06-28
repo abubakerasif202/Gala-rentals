@@ -1,5 +1,5 @@
 ---
-name: Maple Rentals Code Reviewer & Fix Agent
+name: Gala Rentals Code Reviewer & Fix Agent
 description: >
   Performs senior-level code review, fixes issues, and prepares the project
   for production handover. Focused on stability, clarity, and deployment readiness.

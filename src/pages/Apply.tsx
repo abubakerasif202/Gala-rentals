@@ -407,6 +407,16 @@ export default function Apply() {
               and get an approved quote before any secure payment link is issued.
             </p>
 
+            <p className="mt-5 text-sm text-stone-300">
+              Already applied or currently renting?{' '}
+              <Link
+                to="/my-rental"
+                className="focus-ring-dark rounded font-semibold text-brand-gold underline decoration-brand-gold/40 underline-offset-4 hover:text-brand-gold-light"
+              >
+                View My Rental
+              </Link>
+            </p>
+
             <div className="mt-10 flex max-w-[320px] flex-wrap gap-3 sm:max-w-xl">
               {['Private document upload', 'Admin reviewed', 'Payment after approval'].map((item) => (
                 <span key={item} className="inline-flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-grey sm:text-[11px] sm:tracking-[0.2em]">

@@ -4,8 +4,8 @@ This supplements the root `AGENTS.md` with a repo-local ECC baseline.
 
 ## Repo Skill
 
-- Repo-generated Codex skill: `.agents/skills/maple-rental/SKILL.md`
-- Claude-facing companion skill: `.claude/skills/maple-rental/SKILL.md`
+- Gala Rentals Codex skill: `.agents/skills/maple-rental/SKILL.md`
+- Claude-facing Gala Rentals companion skill: `.claude/skills/maple-rental/SKILL.md`
 - Keep user-specific credentials and private MCPs in `~/.codex/config.toml`, not in this repo.
 
 ## MCP Baseline

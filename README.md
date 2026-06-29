@@ -118,6 +118,22 @@ Galarentals keeps application review, payment, and operational activation separa
 5. The app records payment state server-side.
 6. Operational handover remains controlled by the admin workflow.
 
+## Application Document Cleanup
+
+Application uploads are stored in the private `applications` Supabase Storage bucket. To inspect uploaded files that are not referenced by application document columns and are older than 24 hours, run the dry-run cleanup:
+
+```powershell
+npm run clean:documents
+```
+
+To delete only those confidently orphaned files, use the explicit confirmation flag:
+
+```powershell
+npm run clean:documents -- --apply --confirm="DELETE ORPHANED APPLICATION DOCUMENTS"
+```
+
+The cleanup requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Do not run the destructive mode until the dry-run output has been reviewed.
+
 Do not trust frontend-provided price, status, Stripe IDs, or activation state.
 
 ## Validation

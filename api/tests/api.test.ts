@@ -3,6 +3,9 @@ import request from "supertest";
 import { createServer } from "node:http";
 import { createConnection } from "node:net";
 import { inflateSync } from "node:zlib";
+import { readdir, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import {
   getTodayInAustralia,
   MAX_APPLICATION_TOTAL_UPLOAD_BYTES,
@@ -20,6 +23,8 @@ const getFutureDateOnly = (days: number) =>
 
 const getPastDateOnly = (days: number) =>
   addDaysToDateOnly(getTodayInAustralia(), -days);
+
+const APPLICATION_UPLOAD_TEMP_PREFIX = "galarentals-application-upload-";
 
 const decodeLiteralPdfString = (value: string) =>
   value
@@ -343,6 +348,7 @@ const {
   mockBeforeApplicationsUpdate: vi.fn(() => undefined),
   mockMutationErrors: {
     applicationsUpdate: null as Record<string, any> | null,
+    applicationsInsert: null as Record<string, any> | null,
   },
   mockResendEmailsSend: vi.fn(),
   mockStripe: {
@@ -1088,6 +1094,17 @@ vi.mock("../db/index.js", () => {
         ? buildUuidFromSequence(nextSequence)
         : nextSequence;
     const insertedRow: Record<string, any> = { ...records[0], id: nextId };
+
+    if (table === "applications" && mockMutationErrors.applicationsInsert) {
+      const error = structuredClone(mockMutationErrors.applicationsInsert);
+      mockMutationErrors.applicationsInsert = null;
+      return {
+        error,
+        select: vi.fn(() => ({
+          single: vi.fn(async () => ({ data: null, error })),
+        })),
+      };
+    }
 
     if (
       table === "stripe_webhook_events" &&
@@ -1839,6 +1856,7 @@ beforeEach(() => {
     headers: null,
   });
   mockMutationErrors.applicationsUpdate = null;
+  mockMutationErrors.applicationsInsert = null;
 
   mockStripe.checkoutSessionsCreate.mockResolvedValue({
     id: "cs_test_123",
@@ -3380,6 +3398,75 @@ describe("Applications API", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("JPG or PNG");
+    expect(mockState.applications).toHaveLength(2);
+  });
+
+  it("POST /api/applications cleans temp files when validation fails", async () => {
+    await Promise.all(
+      (await readdir(os.tmpdir()))
+        .filter((entry) => entry.startsWith(APPLICATION_UPLOAD_TEMP_PREFIX))
+        .map((entry) =>
+          rm(path.join(os.tmpdir(), entry), { force: true, recursive: true }),
+        ),
+    );
+
+    const res = await createApplicationSubmissionRequest({
+      email: "unsafe-cleanup@example.com",
+      license_photo: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+    });
+
+    expect(res.status).toBe(400);
+    expect(
+      (await readdir(os.tmpdir())).filter((entry) =>
+        entry.startsWith(APPLICATION_UPLOAD_TEMP_PREFIX),
+      ),
+    ).toEqual([]);
+  });
+
+  it("POST /api/applications returns 409 and removes uploaded files when the active duplicate index wins a race", async () => {
+    mockState.applications[1].status = "Paid";
+    mockState.applications[1].paid_at = "2026-03-07T00:00:00.000Z";
+    const upload = vi.fn(async (storagePath: string) => ({
+      data: { path: storagePath },
+      error: null,
+    }));
+    const remove = vi.fn(async () => ({ data: null, error: null }));
+    mockStorageFrom.mockImplementation((bucket: string) => ({
+      upload,
+      getPublicUrl: vi.fn((storagePath: string) => ({
+        data: {
+          publicUrl: `https://project.supabase.co/storage/v1/object/public/${bucket}/${storagePath}`,
+        },
+      })),
+      createSignedUrl: vi.fn(async (storagePath: string) => ({
+        data: { signedUrl: `https://signed.example/${bucket}/${storagePath}` },
+        error: null,
+      })),
+      remove,
+    }));
+    mockMutationErrors.applicationsInsert = {
+      code: "23505",
+      message:
+        'duplicate key value violates unique constraint "idx_applications_single_active"',
+    };
+
+    const res = await createApplicationSubmissionRequest({
+      email: "race-duplicate@example.com",
+      license_number: "NSW91919",
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(
+      "You already have an active application. Please contact Gala Rentals if you need to update it.",
+    );
+    expect(upload).toHaveBeenCalledTimes(3);
+    expect(remove).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.stringContaining("license-front"),
+        expect.stringContaining("license-back"),
+        expect.stringContaining("proof-of-address-document"),
+      ]),
+    );
     expect(mockState.applications).toHaveLength(2);
   });
 

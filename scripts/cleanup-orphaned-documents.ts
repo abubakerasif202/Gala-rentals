@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 const APPLICATIONS_BUCKET = 'applications';
 export const CLEANUP_CONFIRMATION = 'DELETE ORPHANED APPLICATION DOCUMENTS';
+export const MIN_ORPHAN_AGE_HOURS = 24;
 export const APPLICATION_DOCUMENT_COLUMNS = [
   'license_photo',
   'licensePhoto',
@@ -26,6 +27,11 @@ const STORAGE_PATH_MARKERS = [
   `/object/sign/${APPLICATIONS_BUCKET}/`,
 ];
 
+export type ApplicationStorageFile = {
+  path: string;
+  updatedAt: string | null;
+};
+
 export const extractApplicationStoragePath = (urlOrPath: unknown) => {
   const value = String(urlOrPath || '').trim();
   if (!value) return null;
@@ -39,6 +45,28 @@ export const extractApplicationStoragePath = (urlOrPath: unknown) => {
   } catch {
     return null;
   }
+};
+
+const getStorageFileUpdatedAt = (entry: Record<string, any>) => {
+  const value =
+    entry.updated_at ||
+    entry.created_at ||
+    entry.last_accessed_at ||
+    entry.metadata?.lastModified ||
+    entry.metadata?.last_modified ||
+    null;
+
+  return typeof value === 'string' && value.trim() ? value : null;
+};
+
+export const isOlderThanMinimumOrphanAge = (
+  file: ApplicationStorageFile,
+  now = new Date(),
+) => {
+  if (!file.updatedAt) return false;
+  const updatedAt = new Date(file.updatedAt);
+  if (Number.isNaN(updatedAt.getTime())) return false;
+  return now.getTime() - updatedAt.getTime() >= MIN_ORPHAN_AGE_HOURS * 60 * 60 * 1000;
 };
 
 const isMissingColumnError = (error: { code?: string; message?: string } | null) =>
@@ -80,8 +108,8 @@ export const loadReferencedDocumentPaths = async (supabase: any) => {
   return referencedPaths;
 };
 
-export const listAllStorageFiles = async (bucket: any, prefix = ''): Promise<string[]> => {
-  const files: string[] = [];
+export const listAllStorageFiles = async (bucket: any, prefix = ''): Promise<ApplicationStorageFile[]> => {
+  const files: ApplicationStorageFile[] = [];
   const folders: string[] = [];
   const pageSize = 1000;
 
@@ -92,7 +120,9 @@ export const listAllStorageFiles = async (bucket: any, prefix = ''): Promise<str
     for (const entry of entries) {
       const path = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.name === '.emptyFolderPlaceholder') continue;
-      if (entry.id || entry.metadata) files.push(path);
+      if (entry.id || entry.metadata) {
+        files.push({ path, updatedAt: getStorageFileUpdatedAt(entry) });
+      }
       else folders.push(path);
     }
     if (entries.length < pageSize) break;
@@ -122,10 +152,16 @@ export const runCleanup = async ({ apply = false, confirmation }: { apply?: bool
     listAllStorageFiles(bucket),
     loadReferencedDocumentPaths(supabase),
   ]);
-  const orphanedFiles = files.filter((file) => !referencedPaths.has(file));
+  const unreferencedFiles = files.filter((file) => !referencedPaths.has(file.path));
+  const orphanedFiles = unreferencedFiles
+    .filter((file) => isOlderThanMinimumOrphanAge(file))
+    .map((file) => file.path);
+  const skippedRecentOrUnknownCount = unreferencedFiles.length - orphanedFiles.length;
 
-  console.log(`${apply ? 'APPLY' : 'DRY RUN'}: ${files.length} stored, ${referencedPaths.size} referenced, ${orphanedFiles.length} orphaned.`);
-  if (!apply || orphanedFiles.length === 0) return { apply, orphanedFiles, deletedCount: 0 };
+  console.log(`${apply ? 'APPLY' : 'DRY RUN'}: ${files.length} stored, ${referencedPaths.size} referenced, ${orphanedFiles.length} orphaned older than ${MIN_ORPHAN_AGE_HOURS}h, ${Math.max(skippedRecentOrUnknownCount, 0)} skipped as recent or timestamp-unknown.`);
+  if (!apply || orphanedFiles.length === 0) {
+    return { apply, orphanedFiles, deletedCount: 0, skippedRecentOrUnknownCount };
+  }
 
   let deletedCount = 0;
   for (let index = 0; index < orphanedFiles.length; index += 100) {
@@ -134,7 +170,7 @@ export const runCleanup = async ({ apply = false, confirmation }: { apply?: bool
     if (error) throw new Error(`Failed to delete orphan batch: ${error.message}`);
     deletedCount += data?.length || 0;
   }
-  return { apply, orphanedFiles, deletedCount };
+  return { apply, orphanedFiles, deletedCount, skippedRecentOrUnknownCount };
 };
 
 const isMain = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;

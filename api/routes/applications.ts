@@ -2,6 +2,9 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import multer, { MulterError } from "multer";
 import type Stripe from "stripe";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   updateApplicationPaymentStateIfCurrentVersionAndStatus,
@@ -63,6 +66,7 @@ import {
 } from "../email.js";
 import { normalizeUuid } from "../../shared/uuid.js";
 import { isImportedApplicationRecord } from "../importedDataFilters.js";
+import { HttpError, isHttpError } from "../httpError.js";
 
 const router = express.Router();
 const APPLICATIONS_BUCKET = "applications";
@@ -137,6 +141,13 @@ const normalizeDeclaredDocumentType = (value: string) => {
   return normalized === "application/x-pdf" ? "application/pdf" : normalized;
 };
 const getStripe = () => getStripeClient();
+const APPLICATION_UPLOAD_TEMP_PREFIX = "galarentals-application-upload-";
+const ACTIVE_APPLICATION_DUPLICATE_MESSAGE =
+  "You already have an active application. Please contact Gala Rentals if you need to update it.";
+const ACTIVE_APPLICATION_DUPLICATE_CONSTRAINTS = [
+  "idx_applications_single_active",
+];
+const POSTGRES_UNIQUE_VIOLATION_CODE = "23505";
 
 router.get("/agreement-template", async (_req, res) => {
   res.json(await renderActiveAgreementTemplate());
@@ -152,6 +163,63 @@ type UploadedApplicationFiles = Partial<
   Record<ApplicationUploadField, Express.Multer.File[]>
 >;
 
+type ApplicationUploadRequest = express.Request & {
+  applicationUploadTempDir?: string;
+  applicationUploadTempDirPromise?: Promise<string>;
+};
+
+const createApplicationUploadTempDir = async (req: express.Request) => {
+  const uploadReq = req as ApplicationUploadRequest;
+  if (uploadReq.applicationUploadTempDir) {
+    return uploadReq.applicationUploadTempDir;
+  }
+
+  if (!uploadReq.applicationUploadTempDirPromise) {
+    uploadReq.applicationUploadTempDirPromise = fs.mkdtemp(
+      path.join(os.tmpdir(), APPLICATION_UPLOAD_TEMP_PREFIX),
+    );
+  }
+
+  const tempDir = await uploadReq.applicationUploadTempDirPromise;
+  uploadReq.applicationUploadTempDir = tempDir;
+  return tempDir;
+};
+
+const cleanupApplicationUploadTempDir = async (req: express.Request) => {
+  const uploadReq = req as ApplicationUploadRequest;
+  const tempDir = uploadReq.applicationUploadTempDir;
+  if (!tempDir) {
+    return;
+  }
+
+  uploadReq.applicationUploadTempDir = undefined;
+  uploadReq.applicationUploadTempDirPromise = undefined;
+  try {
+    await fs.rm(tempDir, { force: true, recursive: true });
+  } catch (error) {
+    console.warn("Failed to clean up application upload temp files:", error);
+  }
+};
+
+const applicationUploadStorage = multer.diskStorage({
+  destination: (req, _file, callback) => {
+    createApplicationUploadTempDir(req)
+      .then((tempDir) => callback(null, tempDir))
+      .catch((error) => callback(error as Error, ""));
+  },
+  filename: (_req, file, callback) => {
+    const extension = path
+      .extname(file.originalname || "")
+      .toLowerCase()
+      .replace(/[^.a-z0-9]/g, "")
+      .slice(0, 16);
+    callback(
+      null,
+      `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${extension || ".upload"}`,
+    );
+  },
+});
+
 const applicationUpload = multer({
   limits: {
     fileSize: MAX_APPLICATION_UPLOAD_BYTES,
@@ -159,7 +227,7 @@ const applicationUpload = multer({
     fields: 32,
     parts: 37,
   },
-  storage: multer.memoryStorage(),
+  storage: applicationUploadStorage,
 });
 
 const enforceApplicationRequestSize: express.RequestHandler = (req, res, next) => {
@@ -187,7 +255,7 @@ const enforceApplicationRequestSize: express.RequestHandler = (req, res, next) =
 const getApplicationUploadTotalBytes = (files: UploadedApplicationFiles) =>
   Object.values(files)
     .flatMap((entries) => entries || [])
-    .reduce((total, file) => total + Number(file.size || file.buffer?.length || 0), 0);
+    .reduce((total, file) => total + Number(file.size || 0), 0);
 
 type ApplicationDocumentField =
   | "license_photo"
@@ -218,13 +286,14 @@ const applicationUploadMiddleware: express.RequestHandler = (
     { name: "passport_or_uber_profile_screenshot", maxCount: 1 },
     { name: "proof_of_address_document", maxCount: 1 },
     { name: "additional_document", maxCount: 1 },
-  ])(req, res, (error) => {
+  ])(req, res, async (error) => {
     if (!error) {
       next();
       return;
     }
 
     if (error instanceof MulterError) {
+      await cleanupApplicationUploadTempDir(req);
       const message =
         error.code === "LIMIT_FILE_SIZE"
           ? `Application documents must be smaller than ${Math.floor(
@@ -235,6 +304,7 @@ const applicationUploadMiddleware: express.RequestHandler = (
       return;
     }
 
+    await cleanupApplicationUploadTempDir(req);
     next(error);
   });
 };
@@ -382,8 +452,37 @@ const getApplicationDocumentValue = (
   return application[document] ?? null;
 };
 
-const createRequestError = (status: number, message: string) =>
-  Object.assign(new Error(message), { status });
+const createRequestError = (statusCode: number, message: string) =>
+  new HttpError(statusCode, message);
+
+const isActiveApplicationDuplicateInsertError = (error: unknown) => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as {
+    code?: unknown;
+    constraint?: unknown;
+    details?: unknown;
+    message?: unknown;
+  };
+  if (String(candidate.code || "") !== POSTGRES_UNIQUE_VIOLATION_CODE) {
+    return false;
+  }
+
+  const errorText = [
+    candidate.constraint,
+    candidate.details,
+    candidate.message,
+  ]
+    .filter(Boolean)
+    .map(String)
+    .join(" ");
+
+  return ACTIVE_APPLICATION_DUPLICATE_CONSTRAINTS.some((constraint) =>
+    errorText.includes(constraint),
+  );
+};
 
 const removeUploadedApplicationDocuments = async (paths: string[]) => {
   if (paths.length === 0) {
@@ -422,7 +521,7 @@ const getUploadedApplicationFile = (
     );
   }
 
-  if (!file.buffer || file.buffer.length === 0) {
+  if (!file.path) {
     throw createRequestError(400, `${fieldLabel} could not be read.`);
   }
 
@@ -430,12 +529,31 @@ const getUploadedApplicationFile = (
     throw createRequestError(400, `${fieldLabel} must be smaller than 7 MB.`);
   }
 
+  return file;
+};
+
+const validateUploadedApplicationFile = async (
+  file: Express.Multer.File,
+  fieldLabel: string,
+) => {
+  if (!file.path) {
+    throw createRequestError(400, `${fieldLabel} could not be read.`);
+  }
+
+  const buffer = await fs.readFile(file.path);
+  if (buffer.length === 0) {
+    throw createRequestError(400, `${fieldLabel} could not be read.`);
+  }
+
   // Header-only MIME checks are trivially spoofable. Require the file's magic
   // bytes to match the declared content type so an .exe renamed to .jpg can't
   // land in the applications bucket.
+  const isDocumentField = APPLICATION_DOCUMENT_FIELDS.has(
+    file.fieldname as ApplicationUploadField,
+  );
   const detectedType = isDocumentField
-    ? detectDocumentMagicType(file.buffer)
-    : detectImageMagicType(file.buffer);
+    ? detectDocumentMagicType(buffer)
+    : detectImageMagicType(buffer);
   const declaredType = isDocumentField
     ? normalizeDeclaredDocumentType(file.mimetype)
     : normalizeDeclaredImageType(file.mimetype);
@@ -480,9 +598,10 @@ const uploadApplicationFile = async ({
     APPLICATION_FILE_EXTENSION_BY_CONTENT_TYPE[normalizedContentType] || "bin";
   const filename = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}-${filePrefix}.${extension}`;
 
+  const fileBuffer = await fs.readFile(file.path);
   const { data: uploadData, error: uploadError } = await db.storage
     .from(APPLICATIONS_BUCKET)
-    .upload(filename, file.buffer, {
+    .upload(filename, fileBuffer, {
       contentType: normalizedContentType,
       upsert: false,
     });
@@ -639,16 +758,23 @@ router.post(
 
       const files = (req.files || {}) as UploadedApplicationFiles;
       if (getApplicationUploadTotalBytes(files) > MAX_APPLICATION_TOTAL_UPLOAD_BYTES) {
+        await cleanupApplicationUploadTempDir(req);
         return res.status(413).json({ error: "Application upload is too large." });
       }
-      const licensePhotoFile = getUploadedApplicationFile(
-        files,
-        "license_photo",
+      const licensePhotoFile = await validateUploadedApplicationFile(
+        getUploadedApplicationFile(
+          files,
+          "license_photo",
+          "Driver licence front photo",
+        ),
         "Driver licence front photo",
       );
-      const licenseBackPhotoFile = getUploadedApplicationFile(
-        files,
-        "license_back_photo",
+      const licenseBackPhotoFile = await validateUploadedApplicationFile(
+        getUploadedApplicationFile(
+          files,
+          "license_back_photo",
+          "Driver licence back photo",
+        ),
         "Driver licence back photo",
       );
       const passportDocumentFile = getOptionalUploadedApplicationFile(
@@ -656,9 +782,18 @@ router.post(
         "passport_or_uber_profile_screenshot",
         "Passport or rideshare profile document",
       );
-      const proofOfAddressFile = getUploadedApplicationFile(
-        files,
-        "proof_of_address_document",
+      const validatedPassportDocumentFile = passportDocumentFile
+        ? await validateUploadedApplicationFile(
+            passportDocumentFile,
+            "Passport or rideshare profile document",
+          )
+        : null;
+      const proofOfAddressFile = await validateUploadedApplicationFile(
+        getUploadedApplicationFile(
+          files,
+          "proof_of_address_document",
+          "Proof of address document",
+        ),
         "Proof of address document",
       );
       const additionalDocumentFile = getOptionalUploadedApplicationFile(
@@ -666,6 +801,12 @@ router.post(
         "additional_document",
         "Additional document",
       );
+      const validatedAdditionalDocumentFile = additionalDocumentFile
+        ? await validateUploadedApplicationFile(
+            additionalDocumentFile,
+            "Additional document",
+          )
+        : null;
 
       const normalizedApplicationData = {
         ...data,
@@ -697,6 +838,7 @@ router.post(
       const existingRow = matchingApplications[0] ?? null;
 
       if (existingRow) {
+        await cleanupApplicationUploadTempDir(req);
         return res.status(200).json({
           success: true,
           message: "Application received. Our team will contact you after review.",
@@ -715,9 +857,9 @@ router.post(
         fieldLabel: "Driver licence back photo",
         uploadedPaths,
       });
-      const passportDocumentUrl = passportDocumentFile
+      const passportDocumentUrl = validatedPassportDocumentFile
         ? await uploadApplicationFile({
-            file: passportDocumentFile,
+            file: validatedPassportDocumentFile,
             filePrefix: "passport-or-uber-profile-screenshot",
             fieldLabel: "Passport or rideshare profile document",
             uploadedPaths,
@@ -729,9 +871,9 @@ router.post(
         fieldLabel: "Proof of address document",
         uploadedPaths,
       });
-      const additionalDocumentUrl = additionalDocumentFile
+      const additionalDocumentUrl = validatedAdditionalDocumentFile
         ? await uploadApplicationFile({
-            file: additionalDocumentFile,
+            file: validatedAdditionalDocumentFile,
             filePrefix: "additional-document",
             fieldLabel: "Additional document",
             uploadedPaths,
@@ -853,11 +995,14 @@ router.post(
         }
       }
 
+      await cleanupApplicationUploadTempDir(req);
       res.status(200).json({
         success: true,
         message: "Application received. Our team will contact you after review.",
       });
     } catch (err) {
+      await cleanupApplicationUploadTempDir(req);
+
       if (err instanceof z.ZodError) {
         return res
           .status(400)
@@ -866,16 +1011,20 @@ router.post(
 
       await removeUploadedApplicationDocuments(uploadedPaths);
 
-      if (
-        err instanceof Error &&
-        "status" in err &&
-        typeof err.status === "number"
-      ) {
-        return res.status(err.status).json({ error: err.message });
+      if (isActiveApplicationDuplicateInsertError(err)) {
+        return res
+          .status(409)
+          .json({ error: ACTIVE_APPLICATION_DUPLICATE_MESSAGE });
+      }
+
+      if (isHttpError(err)) {
+        return res.status(err.statusCode).json({ error: err.message });
       }
 
       console.error("Application submission error:", err);
       res.status(500).json({ error: "Application submission failed" });
+    } finally {
+      await cleanupApplicationUploadTempDir(req);
     }
   },
 );

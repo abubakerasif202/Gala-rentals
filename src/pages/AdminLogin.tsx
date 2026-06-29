@@ -28,10 +28,10 @@ export default function AdminLogin() {
   return (
     <div className="flex min-h-[80vh] items-center justify-center bg-brand-mist px-4 py-12 sm:px-6 lg:px-8">
       <Seo
-        title="Admin Login | Galarentals"
-        description="Administrative login for Galarentals."
+        title="Gala Rentals Admin"
+        description="Secure Gala Rentals admin sign-in."
         canonicalPath="/admin/login"
-        robots="noindex,nofollow"
+        robots="noindex,nofollow,noarchive"
       />
 
       <div className="w-full max-w-md space-y-8 rounded-[1.75rem] border border-slate-200 bg-white p-8 ambient-shadow-lg sm:p-10">

@@ -112,7 +112,7 @@ export default function Sidebar({
           </button>
         </div>
 
-        <nav className="flex-1 space-y-2 overflow-y-auto p-4 lg:p-6">
+        <nav className="admin-sidebar-nav flex-1 space-y-2 overflow-y-auto p-4 [scrollbar-color:rgba(223,177,37,0.55)_rgba(255,255,255,0.06)] [scrollbar-width:thin] lg:p-6">
           {menuItems.map((item) => (
             <button
               key={item.id}
@@ -133,6 +133,26 @@ export default function Sidebar({
             </button>
           ))}
         </nav>
+
+        <style>{`
+          .admin-sidebar-nav::-webkit-scrollbar {
+            width: 10px;
+          }
+
+          .admin-sidebar-nav::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+          }
+
+          .admin-sidebar-nav::-webkit-scrollbar-thumb {
+            background: rgba(223, 177, 37, 0.55);
+            border: 2px solid #061425;
+            border-radius: 999px;
+          }
+
+          .admin-sidebar-nav::-webkit-scrollbar-thumb:hover {
+            background: rgba(223, 177, 37, 0.78);
+          }
+        `}</style>
 
         <div className="border-t border-white/10 p-4 lg:p-6">
           <button

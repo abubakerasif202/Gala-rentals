@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle, Database, Download, Loader2, Trash2 } from 
 import axios from 'axios';
 import * as api from '../../../lib/api';
 import { getApiErrorMessage } from '../../../lib/errorHandling';
+import { getMaintenanceResetLabel } from '../maintenanceResetLabels';
 
 const CONFIRMATION_PHRASE = 'RESET IMPORTED DATA AND FINANCIALS';
 
@@ -20,6 +21,29 @@ const downloadJsonBackup = (payload: Record<string, unknown>) => {
   link.click();
   URL.revokeObjectURL(url);
 };
+
+const renderCountGrid = (
+  counts: Record<string, number>,
+  options: { labelPrefix?: string } = {}
+) => (
+  <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
+    {Object.entries(counts).map(([key, value]) => {
+      const label = `${options.labelPrefix || ''}${getMaintenanceResetLabel(key)}`;
+
+      return (
+        <div
+          key={key}
+          className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] p-4"
+        >
+          <p className="break-words text-[11px] font-semibold uppercase leading-5 tracking-[0.16em] text-brand-grey">
+            {label}
+          </p>
+          <p className="mt-2 text-2xl font-bold text-white">{String(value)}</p>
+        </div>
+      );
+    })}
+  </div>
+);
 
 export default function MaintenanceTab() {
   const [confirmText, setConfirmText] = useState('');
@@ -65,6 +89,11 @@ export default function MaintenanceTab() {
 
   const isConfirmed = confirmText === CONFIRMATION_PHRASE;
   const canReset = Boolean(dryRunResult?.dryRun && isConfirmed && dryRunToken);
+  const resetDisabledReason = !dryRunToken
+    ? 'Run a dry run first so the reset uses the reviewed counts.'
+    : !isConfirmed
+      ? 'Enter the confirmation phrase exactly to unlock the reset.'
+      : null;
 
   const counts = useMemo(
     () => dryRunResult?.counts || dryRunResult?.deleted || null,
@@ -75,7 +104,7 @@ export default function MaintenanceTab() {
     : undefined;
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-5xl space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-white sm:text-3xl">Reset Imported Data & Financials</h2>
         <p className="mt-2 text-brand-grey">
@@ -96,48 +125,77 @@ export default function MaintenanceTab() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={() => dryRunMutation.mutate()}
-          disabled={dryRunMutation.isPending}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
-        >
-          {dryRunMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-          Dry Run
-        </button>
-        <button
-          type="button"
-          onClick={() => exportMutation.mutate()}
-          disabled={exportMutation.isPending}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
-        >
-          {exportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          Export Backup
-        </button>
-      </div>
+      <section className="rounded-lg border border-white/10 bg-white/5 p-4 sm:p-6">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.9fr)]">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-gold">1. Review impact</p>
+              <p className="mt-1 text-sm text-brand-grey">Run the dry run and review the database counts before taking action.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => dryRunMutation.mutate()}
+              disabled={dryRunMutation.isPending}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              {dryRunMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+              Dry Run
+            </button>
+          </div>
 
-      <div className="space-y-3">
-        <label className="block text-xs font-semibold uppercase tracking-widest text-brand-grey">
-          Confirmation phrase
-        </label>
-        <input
-          value={confirmText}
-          onChange={(event) => setConfirmText(event.target.value)}
-          className="min-h-11 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white outline-none focus:border-brand-gold"
-          placeholder={CONFIRMATION_PHRASE}
-        />
-      </div>
+          <div className="space-y-4 rounded-lg border border-brand-gold/20 bg-brand-gold/10 p-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-gold">2. Export backup</p>
+              <p className="mt-1 text-sm text-brand-grey">Download a JSON backup before resetting imported records.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => exportMutation.mutate()}
+              disabled={exportMutation.isPending}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Export Backup
+            </button>
+          </div>
+        </div>
 
-      <button
-        type="button"
-        onClick={() => resetMutation.mutate()}
-        disabled={!canReset || resetMutation.isPending}
-        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto"
-      >
-        {resetMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-        Reset Imported Data
-      </button>
+        <div className="mt-5 border-t border-white/10 pt-5">
+          <div className="space-y-3">
+            <label htmlFor="maintenance-reset-confirmation" className="block text-xs font-semibold uppercase tracking-[0.2em] text-brand-grey">
+              3. Enter confirmation phrase
+            </label>
+            <input
+              id="maintenance-reset-confirmation"
+              value={confirmText}
+              onChange={(event) => setConfirmText(event.target.value)}
+              aria-describedby="maintenance-reset-confirmation-helper"
+              className="min-h-11 w-full rounded-lg border border-white/10 bg-[#061425] px-4 py-3 font-mono text-sm text-white outline-none transition focus:border-brand-gold"
+              placeholder={CONFIRMATION_PHRASE}
+            />
+            <p id="maintenance-reset-confirmation-helper" className="text-xs leading-5 text-brand-grey">
+              Type <span className="font-mono text-white">{CONFIRMATION_PHRASE}</span> exactly after reviewing a dry run.
+            </p>
+          </div>
+
+          <div className="mt-5 space-y-2">
+            <button
+              type="button"
+              onClick={() => resetMutation.mutate()}
+              disabled={!canReset || resetMutation.isPending}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-500/45 disabled:text-white/70 sm:w-auto"
+            >
+              {resetMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {resetMutation.isPending ? 'Reset Running...' : '4. Reset Imported Data & Financials'}
+            </button>
+            {(!canReset || resetMutation.isPending) && (
+              <p className="text-xs leading-5 text-brand-grey">
+                {resetMutation.isPending ? 'Reset is running. Keep this page open until the result banner appears.' : resetDisabledReason}
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
 
       {statusMessage && (
         <div className="flex items-start gap-3 rounded-lg border border-green-500/25 bg-green-500/10 p-4 text-sm text-green-100">
@@ -161,31 +219,50 @@ export default function MaintenanceTab() {
       )}
 
       {counts && (
-        <div className="grid grid-cols-1 gap-4 rounded-lg border border-white/10 bg-white/5 p-4 sm:grid-cols-2 md:grid-cols-4">
-          {Object.entries(counts).map(([key, value]) => (
-            <div key={key}>
-              <p className="text-xs uppercase tracking-widest text-brand-grey">{key}</p>
-              <p className="text-2xl font-bold text-white">{String(value)}</p>
-            </div>
-          ))}
-        </div>
+        <section className="space-y-4 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-5">
+          <div>
+            <h3 className="text-lg font-bold text-white">Dry run counts</h3>
+            <p className="mt-1 text-sm text-brand-grey">Imported data matched by the maintenance reset criteria.</p>
+          </div>
+          {renderCountGrid(counts)}
+        </section>
       )}
 
       {lastDeletedCounts && (
-        <div className="grid grid-cols-1 gap-4 rounded-lg border border-brand-gold/20 bg-brand-gold/10 p-4 sm:grid-cols-2 md:grid-cols-4">
-          {Object.entries(lastDeletedCounts).map(([key, value]) => (
-            <div key={key}>
-              <p className="text-xs uppercase tracking-widest text-brand-grey">Deleted {key}</p>
-              <p className="text-2xl font-bold text-white">{String(value)}</p>
-            </div>
-          ))}
-        </div>
+        <section className="space-y-4 rounded-lg border border-brand-gold/20 bg-brand-gold/10 p-4 sm:p-5">
+          <div>
+            <h3 className="text-lg font-bold text-white">Deleted counts</h3>
+            <p className="mt-1 text-sm text-brand-grey">Rows removed by the last reset run.</p>
+          </div>
+          {renderCountGrid(lastDeletedCounts, { labelPrefix: 'Deleted ' })}
+        </section>
       )}
 
       {dryRunResult?.criteria && (
-        <pre className="max-h-80 overflow-auto rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-brand-grey">
-          {JSON.stringify(dryRunResult.criteria, null, 2)}
-        </pre>
+        <section className="space-y-4 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-5">
+          <div>
+            <h3 className="text-lg font-bold text-white">Matching rules</h3>
+            <p className="mt-1 text-sm text-brand-grey">Human-readable summary of the records included by the dry run.</p>
+          </div>
+          <div className="overflow-hidden rounded-lg border border-white/10">
+            {Object.entries(dryRunResult.criteria).map(([key, value]) => (
+              <div key={key} className="grid gap-2 border-b border-white/10 p-4 last:border-b-0 sm:grid-cols-[14rem_minmax(0,1fr)]">
+                <p className="text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-brand-gold">
+                  {getMaintenanceResetLabel(key)}
+                </p>
+                <p className="text-sm leading-6 text-brand-grey">{value}</p>
+              </div>
+            ))}
+          </div>
+          <details className="rounded-lg border border-white/10 bg-black/20">
+            <summary className="cursor-pointer px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-brand-grey">
+              Technical JSON
+            </summary>
+            <pre className="max-h-80 overflow-auto border-t border-white/10 p-4 text-xs leading-6 text-brand-grey">
+              {JSON.stringify(dryRunResult.criteria, null, 2)}
+            </pre>
+          </details>
+        </section>
       )}
     </div>
   );

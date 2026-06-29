@@ -36,6 +36,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '../components/admin/Sidebar';
 import { getTodayInAustralia } from '../../shared/applicationSubmission';
+import Seo from '../components/Seo';
 
 const OPERATIONAL_PAGE_SIZE = 25;
 const OverviewTab = lazy(() => import('../components/admin/tabs/OverviewTab'));
@@ -824,6 +825,13 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#061425]">
+      <Seo
+        title="Gala Rentals Admin"
+        description="Secure Gala Rentals operations dashboard."
+        canonicalPath="/admin/dashboard"
+        robots="noindex,nofollow,noarchive"
+      />
+
       <Sidebar
         activeTab={activeTab}
         setActiveTab={handleAdminTabChange}

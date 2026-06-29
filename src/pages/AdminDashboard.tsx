@@ -14,9 +14,10 @@ import {
   Phone,
   MapPin,
   BadgeCheck,
-  Menu,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Button } from '@fluentui/react-components';
+import { Navigation24Regular } from '@fluentui/react-icons';
 import {
   getDateRangeForPreset,
   type DateRangeValue,
@@ -840,13 +841,15 @@ export default function AdminDashboard() {
               {adminTabLabels[activeTab] || 'Overview'}
             </h1>
           </div>
-          <button
+          <Button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white transition-all hover:bg-white/10"
+            appearance="subtle"
+            icon={<Navigation24Regular />}
+            aria-label="Open admin navigation"
+            className="!text-white"
           >
-            <Menu className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
         <AnimatePresence mode="wait">

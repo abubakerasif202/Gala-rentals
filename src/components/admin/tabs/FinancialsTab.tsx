@@ -6,8 +6,6 @@ import {
   CheckCircle2,
   DollarSign,
   FileText,
-  Loader2,
-  RefreshCw,
   ShieldCheck,
   TrendingUp,
 } from 'lucide-react';
@@ -26,6 +24,8 @@ import {
   YAxis,
 } from 'recharts';
 import { WeeklyFinancials } from '../../../lib/api';
+import { Button, Select, Spinner } from '@fluentui/react-components';
+import { ArrowClockwise20Regular } from '@fluentui/react-icons';
 import DateRangePicker, { type DateRangeValue } from '../DateRangePicker';
 import EmptyState from '../EmptyState';
 import MetricCard from '../MetricCard';
@@ -51,8 +51,7 @@ const chartCurrencyFormatter = (value: number) => currencyFormatter.format(value
 
 const renderLoadingPanel = (message: string) => (
   <div className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-10 text-sm text-brand-grey">
-    <Loader2 className="h-5 w-5 animate-spin text-brand-gold" />
-    <span>{message}</span>
+    <Spinner appearance="inverted" size="small" label={message} />
   </div>
 );
 
@@ -209,7 +208,7 @@ export default function FinancialsTab({
                 <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                   Payout Status
                 </span>
-                <select
+                <Select
                   value={payoutStatusFilter}
                   onChange={(event) =>
                     setPayoutStatusFilter(event.target.value as PayoutStatusFilter)
@@ -221,15 +220,17 @@ export default function FinancialsTab({
                       {option.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
-              <button
+              <Button
                 type="button"
                 onClick={onRefresh}
-                className="flex w-full items-center justify-center gap-3 rounded-lg bg-brand-navy px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-brand-navy-light"
+                appearance="primary"
+                icon={<ArrowClockwise20Regular />}
+                className="!min-h-11 !w-full"
               >
-                <RefreshCw className="h-4 w-4 text-brand-gold" /> Refresh Data
-              </button>
+                Refresh Data
+              </Button>
             </div>
           </div>
         </div>

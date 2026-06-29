@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Mail, MapPin, Phone } from 'lucide-react';
+import { Mail20Regular, Location20Regular, Phone20Regular } from '@fluentui/react-icons';
 import { companyDetails, formatCompanyAddress } from '../../shared/companyDetails';
 import { publicContactEmail, publicContactMailto } from '../../shared/contactConfig';
 
@@ -75,16 +75,16 @@ export default function Footer() {
             <ul className="space-y-5">
               {companyDetails.phone && (
                 <li className="flex items-center gap-4">
-                  <Phone className="h-4 w-4 text-brand-gold" />
+                  <Phone20Regular className="text-brand-gold" aria-hidden="true" />
                   <a href={`tel:${companyDetails.phone}`} className="focus-ring-dark rounded text-sm font-light tracking-wider transition-colors hover:text-brand-gold">{companyDetails.phone}</a>
                 </li>
               )}
               <li className="flex items-center gap-4">
-                <Mail className="h-4 w-4 text-brand-gold" />
+                <Mail20Regular className="text-brand-gold" aria-hidden="true" />
                 <a href={publicContactMailto} className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">{publicContactEmail}</a>
               </li>
               <li className="flex items-start gap-4">
-                <MapPin className="h-4 w-4 text-brand-gold mt-0.5" />
+                <Location20Regular className="mt-0.5 text-brand-gold" aria-hidden="true" />
                 <span className="text-sm font-light leading-relaxed">
                   {formatCompanyAddress() || 'NSW, Australia'}
                 </span>

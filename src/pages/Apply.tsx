@@ -1,6 +1,8 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, ShieldCheck, Upload, FileText } from 'lucide-react';
+import { Button, MessageBar, MessageBarBody, Spinner } from '@fluentui/react-components';
+import { ArrowLeft20Regular, ArrowRight20Regular, CheckmarkCircle20Regular } from '@fluentui/react-icons';
+import { ShieldCheck, Upload, FileText } from 'lucide-react';
 import * as z from 'zod';
 import Seo from '../components/Seo';
 import { submitApplication } from '../lib/api';
@@ -359,7 +361,7 @@ export default function Apply() {
         <div className="mx-auto flex min-h-screen max-w-4xl items-center px-6 py-16">
           <div className="w-full rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
             <div className="inline-flex items-center gap-2 rounded-full border border-brand-gold/20 bg-brand-gold/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-gold">
-              <CheckCircle2 className="h-4 w-4" />
+              <CheckmarkCircle20Regular aria-hidden="true" />
               Application received
             </div>
             <h1 className="mt-6 text-4xl font-serif font-bold">Review in progress</h1>
@@ -454,9 +456,9 @@ export default function Apply() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {errors.form && (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-50" role="alert">
-                {errors.form}
-              </div>
+              <MessageBar intent="error" className="!rounded-2xl">
+                <MessageBarBody>{errors.form}</MessageBarBody>
+              </MessageBar>
             )}
 
             {step === 1 && (
@@ -827,36 +829,40 @@ export default function Apply() {
 
             <div className="flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-between">
               {step > 1 ? (
-                <button
+                <Button
                   type="button"
                   onClick={() => setStep((current) => Math.max(current - 1, 1))}
-                  className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-white"
+                  appearance="outline"
+                  icon={<ArrowLeft20Regular />}
+                  className="!min-h-12 !rounded-full !border-white/30 !px-7 !text-white"
                 >
-                  <ArrowLeft className="h-4 w-4" />
                   Back
-                </button>
+                </Button>
               ) : (
                 <span />
               )}
 
               {step < 5 ? (
-                <button
+                <Button
                   type="button"
                   onClick={handleNext}
-                  className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy"
+                  appearance="primary"
+                  icon={<ArrowRight20Regular />}
+                  iconPosition="after"
+                  className="!min-h-12 !rounded-full !bg-brand-gold !px-7 !text-brand-navy"
                 >
                   Continue
-                  <ArrowRight className="h-4 w-4" />
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="focus-ring-dark inline-flex items-center justify-center gap-2 rounded-full bg-brand-gold px-7 py-4 text-xs font-bold uppercase tracking-[0.24em] text-brand-navy disabled:opacity-60"
+                  appearance="primary"
+                  icon={isSubmitting ? <Spinner size="tiny" /> : <CheckmarkCircle20Regular />}
+                  className="!min-h-12 !rounded-full !bg-brand-gold !px-7 !text-brand-navy"
                 >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   {isSubmitting ? 'Submitting' : 'Submit application'}
-                </button>
+                </Button>
               )}
             </div>
           </form>

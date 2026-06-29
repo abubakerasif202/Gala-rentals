@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Button } from '@fluentui/react-components';
+import { Dismiss24Regular, Navigation24Regular } from '@fluentui/react-icons';
 
 const navLinks = [
   { name: 'Home', path: '/' },
@@ -9,6 +12,8 @@ const navLinks = [
 ];
 
 export default function Navbar() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
     <>
       <a href="#main-content" className="skip-link">
@@ -57,14 +62,27 @@ export default function Navbar() {
               Apply Now
             </Link>
           </div>
+          <Button
+            appearance="subtle"
+            className="md:!hidden"
+            aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={isMenuOpen}
+            aria-controls="public-mobile-navigation"
+            icon={isMenuOpen ? <Dismiss24Regular /> : <Navigation24Regular />}
+            onClick={() => setIsMenuOpen((open) => !open)}
+          />
         </div>
 
-        <div className="public-mobile-links w-full gap-2 border-t border-slate-100 pb-4 pt-4 md:hidden">
+        <div
+          id="public-mobile-navigation"
+          className={`${isMenuOpen ? 'public-mobile-links' : 'hidden'} w-full gap-2 border-t border-slate-100 pb-4 pt-4 md:hidden`}
+        >
           {navLinks.map((link) => (
             link.isAnchor ? (
               <a
                 key={link.name}
                 href={link.path}
+                onClick={() => setIsMenuOpen(false)}
                 className="focus-ring-light rounded-2xl bg-slate-50 px-3 py-3 text-center text-xs font-bold uppercase tracking-[0.12em] text-slate-700 hover:text-brand-navy"
               >
                 {link.name}
@@ -73,6 +91,7 @@ export default function Navbar() {
               <Link
                 key={link.name}
                 to={link.path}
+                onClick={() => setIsMenuOpen(false)}
                 className="focus-ring-light rounded-2xl bg-slate-50 px-3 py-3 text-center text-xs font-bold uppercase tracking-[0.12em] text-slate-700 hover:text-brand-navy"
               >
                 {link.name}
@@ -81,6 +100,7 @@ export default function Navbar() {
           ))}
           <Link
             to="/apply"
+            onClick={() => setIsMenuOpen(false)}
             className="focus-ring-light rounded-2xl bg-brand-navy px-3 py-3 text-center text-xs font-black uppercase tracking-[0.12em] text-white"
           >
             Apply Now

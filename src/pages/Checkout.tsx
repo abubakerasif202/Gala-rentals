@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, Info, Landmark, Loader2, ShieldCheck } from 'lucide-react';
+import { Button, MessageBar, MessageBarBody, Spinner } from '@fluentui/react-components';
+import { LockClosed20Regular } from '@fluentui/react-icons';
+import { ArrowLeft, Info, Landmark, ShieldCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import Seo from '../components/Seo';
 import { createVehicleCheckoutSession, fetchApprovedPaymentContext } from '../lib/api';
@@ -169,7 +171,7 @@ export default function Checkout() {
       <>
         {pageSeo}
         <div className="min-h-screen bg-brand-navy flex items-center justify-center">
-          <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
+          <Spinner appearance="inverted" size="huge" label="Loading secure checkout" labelPosition="below" />
         </div>
       </>
     );
@@ -213,9 +215,9 @@ export default function Checkout() {
           </Link>
 
           {pageError && (
-            <div className="mb-8 rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-50">
-              {pageError}
-            </div>
+            <MessageBar intent="error" className="!mb-8 !rounded-2xl">
+              <MessageBarBody>{pageError}</MessageBarBody>
+            </MessageBar>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
@@ -259,20 +261,17 @@ export default function Checkout() {
                     </p>
                   </div>
 
-                  <button
+                  <Button
                     type="button"
                     onClick={handleStartCheckout}
                     disabled={isRedirecting}
-                    className="focus-ring-dark flex w-full items-center justify-center gap-3 rounded-full bg-brand-gold py-5 text-sm font-bold uppercase tracking-widest text-brand-navy shadow-lg transition-all hover:bg-brand-gold-light disabled:opacity-50"
+                    appearance="primary"
+                    size="large"
+                    icon={isRedirecting ? <Spinner size="tiny" /> : <LockClosed20Regular />}
+                    className="!min-h-14 !w-full !rounded-full !bg-brand-gold !text-brand-navy"
                   >
-                    {isRedirecting ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" /> Redirecting to Stripe
-                      </>
-                    ) : (
-                      <>Continue to Stripe</>
-                    )}
-                  </button>
+                    {isRedirecting ? 'Redirecting to Stripe' : 'Continue to Stripe'}
+                  </Button>
 
                   <div className="flex items-center justify-center gap-8 py-4 border-t border-white/5">
                     <div className="flex items-center gap-2 text-brand-grey text-[10px] font-bold uppercase tracking-widest">

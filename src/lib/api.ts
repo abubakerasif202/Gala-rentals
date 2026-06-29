@@ -232,10 +232,13 @@ export interface ApprovedPaymentContextResponse {
     bond: number;
     currency: string;
     initialRental: number;
+    initialRentalDueNow?: boolean;
     recurringAmount: number;
+    recurringBillingStartDate?: string | null;
     recurringInterval: 'week' | 'month';
     recurringIntervalCount: number;
     recurringLabel: string;
+    rentalSubscriptionStartDate?: string | null;
     setupFees: number;
     upfrontDue: number;
   };

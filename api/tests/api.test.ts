@@ -5384,8 +5384,35 @@ describe("Stripe API", () => {
     expect(res.status).toBe(200);
     expect(res.body.billing.bond).toBe(500);
     expect(res.body.billing.initialRental).toBe(250);
+    expect(res.body.billing.initialRentalDueNow).toBe(false);
+    expect(res.body.billing.upfrontDue).toBe(500);
+    expect(res.body.billing.recurringBillingStartDate).toBe(
+      mockState.applications[1].intended_start_date,
+    );
+    expect(res.body.billing.recurringInterval).toBe("week");
+    expect(res.body.billing.recurringIntervalCount).toBe(1);
     expect(res.body.approved_vehicle).toBe("Toyota Camry");
     expect(res.body.vehicle_image).toBeTruthy();
+  });
+
+  it("GET /api/stripe/payment-context includes first weekly rent due now for past start dates", async () => {
+    mockState.applications[1].intended_start_date = getPastDateOnly(1);
+    const token = createCheckoutToken({
+      applicationId: APPROVED_APPLICATION_ID,
+      purpose: "vehicle",
+      version: 1,
+    });
+
+    const res = await request(app).get("/api/stripe/payment-context").query({
+      application_id: APPROVED_APPLICATION_ID,
+      checkout_token: token.token,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.billing.initialRental).toBe(250);
+    expect(res.body.billing.initialRentalDueNow).toBe(true);
+    expect(res.body.billing.upfrontDue).toBe(750);
+    expect(res.body.billing.recurringBillingStartDate).toBeNull();
   });
 
   it("GET /api/stripe/payment-context returns the approved quote without a car id", async () => {
@@ -5608,7 +5635,8 @@ describe("Stripe API", () => {
 
     const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
     expect(payload.mode).toBe("subscription");
-    expect(payload.line_items).toHaveLength(3);
+    expect(payload.payment_method_types).toEqual(["au_becs_debit"]);
+    expect(payload.line_items).toHaveLength(2);
     expect(payload.metadata.checkout_kind).toBe("vehicle");
     expect(payload.metadata.application_id).toBe(APPROVED_APPLICATION_ID);
     expect(payload.metadata.approved_vehicle).toBe("Toyota Camry");
@@ -5625,12 +5653,12 @@ describe("Stripe API", () => {
       mockState.applications[1].intended_start_date,
     );
     expect(payload.subscription_data.metadata.rental_recurring_billing_start_date).toBe(
-      addDaysToDateOnly(mockState.applications[1].intended_start_date, 7),
+      mockState.applications[1].intended_start_date,
     );
-    expect(
-      payload.subscription_data.trial_end ||
-        payload.subscription_data.billing_cycle_anchor,
-    ).toEqual(expect.any(Number));
+    expect(payload.subscription_data.trial_end).toBeUndefined();
+    expect(payload.subscription_data.trial_period_days).toBeUndefined();
+    expect(payload.subscription_data.billing_cycle_anchor).toEqual(expect.any(Number));
+    expect(payload.subscription_data.proration_behavior).toBe("none");
 
     const recurringItem = payload.line_items.find(
       (item: any) => item.price_data.recurring,
@@ -5638,13 +5666,17 @@ describe("Stripe API", () => {
     expect(recurringItem).toBeTruthy();
     expect(recurringItem.price_data.unit_amount).toBe(25000);
     expect(recurringItem.price_data.product).toBe("prod_weekly_rental");
-    const firstWeekItem = payload.line_items.find(
-      (item: any) =>
-        item.price_data.product === "prod_weekly_rental" &&
-        !item.price_data.recurring,
-    );
-    expect(firstWeekItem).toBeTruthy();
-    expect(firstWeekItem.price_data.unit_amount).toBe(25000);
+    expect(recurringItem.price_data.recurring).toMatchObject({
+      interval: "week",
+      interval_count: 1,
+    });
+    expect(
+      payload.line_items.some(
+        (item: any) =>
+          item.price_data.product === "prod_weekly_rental" &&
+          !item.price_data.recurring,
+      ),
+    ).toBe(false);
     const bondItem = payload.line_items.find(
       (item: any) => item.price_data.product === "prod_security_bond",
     );
@@ -5687,6 +5719,7 @@ describe("Stripe API", () => {
     const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
     expect(payload.metadata.car_id).toBeUndefined();
     expect(payload.subscription_data.metadata.car_id).toBeUndefined();
+    expect(payload.payment_method_types).toEqual(["au_becs_debit"]);
   });
 
   it("POST /api/stripe/vehicle-checkout-session omits one-time upfront items when bond and setup fees are zero", async () => {
@@ -5713,7 +5746,11 @@ describe("Stripe API", () => {
     expect(payload.line_items).toHaveLength(1);
     expect(payload.line_items[0].price_data.product).toBe("prod_weekly_rental");
     expect(payload.line_items[0].price_data.unit_amount).toBe(25000);
-    expect(payload.line_items[0].price_data.recurring).toBeTruthy();
+    expect(payload.line_items[0].price_data.recurring).toMatchObject({
+      interval: "week",
+      interval_count: 1,
+    });
+    expect(payload.payment_method_types).toEqual(["au_becs_debit"]);
   });
 
   it("POST /api/stripe/vehicle-checkout-session starts subscriptions immediately for past rental start dates", async () => {
@@ -5737,7 +5774,9 @@ describe("Stripe API", () => {
       getPastDateOnly(1),
     );
     expect(payload.subscription_data.trial_end).toBeUndefined();
+    expect(payload.subscription_data.trial_period_days).toBeUndefined();
     expect(payload.subscription_data.billing_cycle_anchor).toBeUndefined();
+    expect(payload.payment_method_types).toEqual(["au_becs_debit"]);
   });
 
   it("POST /api/stripe/vehicle-checkout-session returns a retryable Stripe outage message", async () => {

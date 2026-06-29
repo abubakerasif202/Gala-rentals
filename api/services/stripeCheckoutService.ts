@@ -43,10 +43,13 @@ export type BillingBreakdown = {
   bond: number;
   currency: string;
   initialRental: number;
+  initialRentalDueNow?: boolean;
   recurringAmount: number;
+  recurringBillingStartDate?: string | null;
   recurringInterval: 'week' | 'month';
   recurringIntervalCount: number;
   recurringLabel: string;
+  rentalSubscriptionStartDate?: string | null;
   setupFees: number;
   upfrontDue: number;
 };
@@ -137,8 +140,6 @@ const isLiveRentalStatus = (status: unknown) => {
   return normalized !== 'completed' && normalized !== 'cancelled';
 };
 
-const RENTAL_START_TRIAL_MINIMUM_SECONDS = 48 * 60 * 60;
-
 const getRentalSubscriptionStartDate = (application: StripeApplication) => {
   const value = String(
     application.intended_start_date ?? application.intendedStartDate ?? ''
@@ -146,6 +147,9 @@ const getRentalSubscriptionStartDate = (application: StripeApplication) => {
 
   return isValidDateOnly(value) ? value : null;
 };
+
+const isFutureRentalSubscriptionStartDate = (dateOnly: string | null) =>
+  Boolean(dateOnly && dateOnly > getTodayInAustralia());
 
 const getAustraliaSydneyStartOfDayUnix = (dateOnly: string) => {
   const [year, month, day] = dateOnly.split('-').map(Number);
@@ -175,19 +179,6 @@ const getAustraliaSydneyStartOfDayUnix = (dateOnly: string) => {
   return Math.floor((Date.UTC(year, month - 1, day, 0, 0, 0) - offsetMs) / 1000);
 };
 
-const addRentalBillingInterval = (dateOnly: string) => {
-  const [year, month, day] = dateOnly.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-
-  if (String(LEASE_SETTINGS.recurring_interval) === 'month') {
-    date.setUTCMonth(date.getUTCMonth() + 1);
-  } else {
-    date.setUTCDate(date.getUTCDate() + 7);
-  }
-
-  return date.toISOString().slice(0, 10);
-};
-
 const buildSubscriptionData = ({
   application,
   metadata,
@@ -208,16 +199,10 @@ const buildSubscriptionData = ({
     return subscriptionData;
   }
 
-  const recurringBillingStartDate = addRentalBillingInterval(rentalStartDate);
-  metadata.rental_recurring_billing_start_date = recurringBillingStartDate;
-  const startTimestamp = getAustraliaSydneyStartOfDayUnix(recurringBillingStartDate);
+  metadata.rental_recurring_billing_start_date = rentalStartDate;
+  const startTimestamp = getAustraliaSydneyStartOfDayUnix(rentalStartDate);
   const nowSeconds = Math.floor(Date.now() / 1000);
   if (!Number.isSafeInteger(startTimestamp) || startTimestamp <= nowSeconds) {
-    return subscriptionData;
-  }
-
-  if (startTimestamp >= nowSeconds + RENTAL_START_TRIAL_MINIMUM_SECONDS) {
-    subscriptionData.trial_end = startTimestamp;
     return subscriptionData;
   }
 
@@ -253,16 +238,28 @@ const buildApprovedBillingBreakdown = (application: StripeApplication): BillingB
     Number(application.approved_weekly_price || 0) * 100
   );
   const setupFeesCents = Math.round(RENTAL_PLAN_SETUP_FEES_AUD * 100);
-  const upfrontDueCents = approvedBondCents + approvedWeeklyPriceCents + setupFeesCents;
+  const rentalSubscriptionStartDate = getRentalSubscriptionStartDate(application);
+  const initialRentalDueNow = !isFutureRentalSubscriptionStartDate(
+    rentalSubscriptionStartDate
+  );
+  const upfrontDueCents =
+    approvedBondCents +
+    setupFeesCents +
+    (initialRentalDueNow ? approvedWeeklyPriceCents : 0);
 
   return {
     bond: fromCents(approvedBondCents),
     currency: LEASE_SETTINGS.currency.toUpperCase(),
     initialRental: fromCents(approvedWeeklyPriceCents),
+    initialRentalDueNow,
     recurringAmount: fromCents(approvedWeeklyPriceCents),
+    recurringBillingStartDate: isFutureRentalSubscriptionStartDate(rentalSubscriptionStartDate)
+      ? rentalSubscriptionStartDate
+      : null,
     recurringInterval: LEASE_SETTINGS.recurring_interval,
     recurringIntervalCount: 1,
     recurringLabel: 'per week',
+    rentalSubscriptionStartDate,
     setupFees: fromCents(setupFeesCents),
     upfrontDue: fromCents(upfrontDueCents),
   };
@@ -384,9 +381,6 @@ const createHostedCheckoutSession = async ({
   };
 
   const subscriptionData = buildSubscriptionData({ application, metadata });
-  const includeInitialRentalUpfront = Boolean(
-    subscriptionData.trial_end || subscriptionData.billing_cycle_anchor
-  );
 
   console.info('Creating Stripe vehicle checkout session', {
     applicationId: application.id,
@@ -406,10 +400,11 @@ const createHostedCheckoutSession = async ({
       customer_email: application.email,
       line_items: await buildSubscriptionLineItems({
         billingBreakdown,
-        includeInitialRentalUpfront,
+        includeInitialRentalUpfront: false,
       }),
       metadata,
       mode: 'subscription',
+      payment_method_types: ['au_becs_debit'],
       subscription_data: subscriptionData,
       success_url: buildSuccessUrl({
         applicationId: application.id,

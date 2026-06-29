@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, CreditCard, Info, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Info, Landmark, Loader2, ShieldCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import Seo from '../components/Seo';
 import { createVehicleCheckoutSession, fetchApprovedPaymentContext } from '../lib/api';
@@ -18,6 +18,22 @@ const fadeIn = {
 };
 
 const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
+const formatDateOnly = (dateOnly?: string | null) => {
+  if (!dateOnly) {
+    return null;
+  }
+
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  if (!year || !month || !day) {
+    return dateOnly;
+  }
+
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+};
 
 export default function Checkout() {
   const { id: applicationIdParam } = useParams();
@@ -181,6 +197,7 @@ export default function Checkout() {
 
   const { approved_vehicle, billing, vehicle_image } = paymentContext;
   const hasSetupFees = billing.setupFees > 0;
+  const recurringBillingStartDate = formatDateOnly(billing.recurringBillingStartDate);
 
   return (
     <>
@@ -209,23 +226,23 @@ export default function Checkout() {
                     Secure <span className="text-brand-gold italic">Stripe Checkout</span>
                   </h1>
                   <p className="text-brand-grey font-light">
-                    Review the approved rental summary and payment breakdown, then continue to Stripe.
+                    Review the approved rental summary and direct debit setup, then continue to Stripe.
                   </p>
                 </div>
 
                 <div className="bg-white/5 border border-white/10 p-8 rounded-3xl space-y-8">
                   <div className="flex items-start gap-4">
                     <div className="bg-brand-gold/10 p-3 rounded-2xl">
-                      <CreditCard className="w-5 h-5 text-brand-gold" />
+                      <Landmark className="w-5 h-5 text-brand-gold" />
                     </div>
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">
-                        Hosted Stripe session
+                        AU Direct Debit setup
                       </p>
                       <p className="text-sm text-brand-grey font-light leading-relaxed">
                         Payment happens only after Galarentals has reviewed your application.
-                        Stripe collects the approved bond, any setup fees, and your first weekly
-                        rental payment at checkout.
+                        Stripe collects the approved bond and any setup fees at checkout, then
+                        manages weekly rental payments by AU Direct Debit.
                       </p>
                     </div>
                   </div>
@@ -262,7 +279,7 @@ export default function Checkout() {
                       <ShieldCheck className="w-4 h-4 text-brand-gold" /> SSL Secure
                     </div>
                     <div className="flex items-center gap-2 text-brand-grey text-[10px] font-bold uppercase tracking-widest">
-                      <CreditCard className="w-4 h-4 text-brand-gold" /> Hosted by Stripe
+                      <Landmark className="w-4 h-4 text-brand-gold" /> AU Direct Debit
                     </div>
                   </div>
                 </div>
@@ -299,7 +316,11 @@ export default function Checkout() {
                         <span className="text-white font-bold">{formatCurrency(billing.bond)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-brand-grey font-light">First weekly rental payment</span>
+                        <span className="text-brand-grey font-light">
+                          {billing.initialRentalDueNow
+                            ? 'First weekly direct debit'
+                            : 'Weekly direct debit amount'}
+                        </span>
                         <span className="text-white font-bold">{formatCurrency(billing.initialRental)}</span>
                       </div>
                       {hasSetupFees && (
@@ -311,7 +332,7 @@ export default function Checkout() {
                     </div>
 
                     <div className="pt-6 border-t border-white/10 flex justify-between items-center">
-                      <span className="text-white font-bold uppercase tracking-widest text-xs">Total due now</span>
+                      <span className="text-white font-bold uppercase tracking-widest text-xs">Due at checkout</span>
                       <span className="text-3xl font-bold text-brand-gold">
                         {formatCurrency(billing.upfrontDue)}
                       </span>
@@ -323,9 +344,10 @@ export default function Checkout() {
                       <Info className="w-4 h-4 text-brand-gold" />
                     </div>
                     <p className="text-[10px] text-brand-grey leading-relaxed">
-                      After checkout, future weekly subscription invoices continue at{' '}
-                      <strong>{formatCurrency(billing.recurringAmount)}</strong> {billing.recurringLabel}. Stripe
-                      handles the payment securely and Galarentals completes the driver onboarding process after confirmation.
+                      Weekly rental payments are <strong>{formatCurrency(billing.recurringAmount)}</strong>{' '}
+                      {billing.recurringLabel}
+                      {recurringBillingStartDate ? ` starting ${recurringBillingStartDate}` : ''}. Stripe
+                      handles AU Direct Debit securely and Galarentals completes the driver onboarding process after confirmation.
                     </p>
                   </div>
                 </div>

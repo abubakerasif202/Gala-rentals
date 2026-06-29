@@ -1,10 +1,13 @@
 import './load-env.js';
 import { createClient } from '@supabase/supabase-js';
+import type { WebSocketLikeConstructor } from '@supabase/realtime-js';
 import { pathToFileURL } from 'node:url';
+import WebSocket from 'ws';
 
 const APPLICATIONS_BUCKET = 'applications';
 export const CLEANUP_CONFIRMATION = 'DELETE ORPHANED APPLICATION DOCUMENTS';
 export const MIN_ORPHAN_AGE_HOURS = 24;
+const realtimeTransport = WebSocket as unknown as WebSocketLikeConstructor;
 export const APPLICATION_DOCUMENT_COLUMNS = [
   'license_photo',
   'licensePhoto',
@@ -146,7 +149,12 @@ export const runCleanup = async ({ apply = false, confirmation }: { apply?: bool
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+    realtime: {
+      transport: realtimeTransport,
+    },
+  });
   const bucket = supabase.storage.from(APPLICATIONS_BUCKET);
   const [files, referencedPaths] = await Promise.all([
     listAllStorageFiles(bucket),

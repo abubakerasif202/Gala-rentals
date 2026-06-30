@@ -377,6 +377,8 @@ export const approveApplicationForPayment = async (
     approved_vehicle: string;
     approved_bond: number;
     approved_weekly_price: number;
+    bond_notes?: string | null;
+    bond_payment_status?: 'to_collect' | 'cash_paid' | 'already_paid';
     rental_subscription_start_date?: string;
     send_payment_link?: boolean;
   }

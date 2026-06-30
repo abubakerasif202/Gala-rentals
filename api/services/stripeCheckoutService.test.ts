@@ -140,7 +140,7 @@ describe('stripeCheckoutService checkout helpers', () => {
     expect(mockCheckoutSessionExpire).not.toHaveBeenCalled();
   });
 
-  it('builds one-time bond and setup items on the initial subscription invoice when amounts are non-zero', () => {
+  it('builds only the recurring weekly rental item and never charges bond or setup fees', () => {
     const lineItems = buildSubscriptionLineItemsFromCatalog({
       billingBreakdown: {
         bond: 500,
@@ -179,11 +179,9 @@ describe('stripeCheckoutService checkout helpers', () => {
       (item) => item.price_data?.product === 'prod_weekly_rental'
     );
 
-    expect(lineItems).toHaveLength(3);
-    expect(bondItem?.price_data?.unit_amount).toBe(50000);
-    expect(bondItem?.price_data).not.toHaveProperty('recurring');
-    expect(setupItem?.price_data?.unit_amount).toBe(7500);
-    expect(setupItem?.price_data).not.toHaveProperty('recurring');
+    expect(lineItems).toHaveLength(1);
+    expect(bondItem).toBeUndefined();
+    expect(setupItem).toBeUndefined();
     expect(recurringItem?.price_data).toMatchObject({
       recurring: {
         interval: 'week',

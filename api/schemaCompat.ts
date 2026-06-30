@@ -787,6 +787,9 @@ export const getApplicationSelectColumns = async () => {
           : `additionalDocument:${applicationAdditionalDocumentColumn}`,
         ...(assignedCarSelect ? [assignedCarSelect] : []),
         approvedBondSelect,
+        'bond_notes',
+        'bond_payment_method',
+        'bond_payment_status',
         approvedVehicleSelect,
         approvedWeeklyPriceSelect,
         paymentLinkVersionSelect,
@@ -851,6 +854,9 @@ export const getApplicationSelectColumns = async () => {
           : `additional_document:${applicationAdditionalDocumentColumn}`,
         ...(assignedCarSelect ? [assignedCarSelect] : []),
         approvedBondSelect,
+        'bond_notes',
+        'bond_payment_method',
+        'bond_payment_status',
         approvedVehicleSelect,
         approvedWeeklyPriceSelect,
         paymentLinkVersionSelect,
@@ -1016,6 +1022,9 @@ export const getApplicationAssignedCarColumn = async () => {
 };
 
 export const toApplicationPaymentWritePayload = async (payload: {
+	  bond_notes?: string | null;
+	  bond_payment_method?: string | null;
+	  bond_payment_status?: string | null;
 	  assigned_car_id?: number | null;
 	  assigned_vehicle_rego?: string | null;
 	  assigned_vehicle_text?: string | null;
@@ -1041,6 +1050,10 @@ export const toApplicationPaymentWritePayload = async (payload: {
 }) => {
   const compat = await getSchemaCompat();
   const mappedPayload: Record<string, unknown> = {};
+
+  if ('bond_notes' in payload) mappedPayload.bond_notes = payload.bond_notes ?? null;
+  if ('bond_payment_method' in payload) mappedPayload.bond_payment_method = payload.bond_payment_method ?? null;
+  if ('bond_payment_status' in payload) mappedPayload.bond_payment_status = payload.bond_payment_status ?? null;
 
   if ('assigned_car_id' in payload && compat.applicationAssignedCarColumn) {
     mappedPayload[compat.applicationAssignedCarColumn] = payload.assigned_car_id ?? null;

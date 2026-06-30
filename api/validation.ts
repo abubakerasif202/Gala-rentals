@@ -143,6 +143,8 @@ export const applicationApprovalSchema = z.object({
   approved_vehicle: z.string().trim().min(1),
   approved_bond: z.coerce.number().nonnegative(),
   approved_weekly_price: z.coerce.number().positive(),
+  bond_notes: z.string().trim().max(1000).nullish(),
+  bond_payment_status: z.enum(["to_collect", "cash_paid", "already_paid"]).default("to_collect"),
   application_id: uuidSchema,
   car_id: optionalPositiveIntegerSchema,
   rental_subscription_start_date: optionalDateOnlySchema(
@@ -163,6 +165,9 @@ export const leaseFeeSchema = z.object({
 
 export const leaseAgreementSchema = z.object({
   agreementDate: z.string().optional(),
+  bondAmount: z.string().optional(),
+  bondNotes: z.string().optional(),
+  bondPaymentStatus: z.string().optional(),
   registeredOwnerName: z.string().optional(),
   registeredOwnerAddress: z.string().optional(),
   registeredOwnerContact: z.string().optional(),

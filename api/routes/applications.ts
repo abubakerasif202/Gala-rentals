@@ -380,6 +380,9 @@ type ApplicationPaymentApprovalRecord = {
   approved_bond?: number | null;
   approved_vehicle?: string | null;
   approved_weekly_price?: number | null;
+  bond_notes?: string | null;
+  bond_payment_method?: string | null;
+  bond_payment_status?: string | null;
   email: string;
   id: string;
   name: string;
@@ -1098,6 +1101,14 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
           approved_weekly_price_cents: Math.round(
             Number(payload.approved_weekly_price) * 100,
           ),
+          bond_notes: payload.bond_notes || null,
+          bond_payment_method:
+            payload.bond_payment_status === "cash_paid"
+              ? "cash"
+              : payload.bond_payment_status === "already_paid"
+                ? "existing_paid"
+                : null,
+          bond_payment_status: payload.bond_payment_status,
           approved_subscription_start_date: approvedSubscriptionStartDate,
           assigned_vehicle_text: approvedVehicleText,
           assigned_car_id: null,
@@ -1146,6 +1157,7 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
         approvedBond: payload.approved_bond,
         approvedWeeklyPrice: payload.approved_weekly_price,
         approvedVehicle: approvedVehicleText,
+        bondPaymentStatus: payload.bond_payment_status,
         checkoutUrl,
         setupFees: RENTAL_PLAN_SETUP_FEES_AUD,
       });
@@ -1159,6 +1171,7 @@ router.post("/:id/approve-payment", authenticateAdmin, async (req, res) => {
       applicationId: payload.application_id,
       metadata: {
         approved_bond: payload.approved_bond,
+        bond_payment_status: payload.bond_payment_status,
         approved_subscription_start_date: approvedSubscriptionStartDate,
         approved_vehicle: approvedVehicleText,
         approved_weekly_price: payload.approved_weekly_price,

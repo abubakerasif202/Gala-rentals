@@ -123,6 +123,8 @@ const defaultApplicationApprovalForm = {
   approved_vehicle: '',
   approved_bond: '',
   approved_weekly_price: '',
+  bond_notes: '',
+  bond_payment_status: 'to_collect' as 'to_collect' | 'cash_paid' | 'already_paid',
   rental_subscription_start_date: '',
 };
 
@@ -344,6 +346,8 @@ export default function AdminDashboard() {
         approved_vehicle: string;
         approved_bond: number;
         approved_weekly_price: number;
+        bond_notes?: string | null;
+        bond_payment_status: 'to_collect' | 'cash_paid' | 'already_paid';
         rental_subscription_start_date?: string;
         send_payment_link?: boolean;
       };
@@ -475,6 +479,13 @@ export default function AdminDashboard() {
               ]
             : []),
         ],
+        bondAmount: `$${approvedBond.toFixed(2)}`,
+        bondNotes: selectedApplication.bond_notes || '',
+        bondPaymentStatus: {
+          already_paid: 'Already paid',
+          cash_paid: 'Cash paid',
+          to_collect: 'To be collected by admin',
+        }[selectedApplication.bond_payment_status || 'to_collect'],
       };
 
       const res = await api.renderCarLeaseAgreement(payload);
@@ -543,6 +554,8 @@ export default function AdminDashboard() {
         payload: {
           approved_vehicle: approvedVehicle,
           approved_bond: approvedBond,
+          bond_notes: applicationApprovalForm.bond_notes || null,
+          bond_payment_status: applicationApprovalForm.bond_payment_status,
           approved_weekly_price: approvedWeeklyPrice,
           ...(rentalSubscriptionStartDate
             ? { rental_subscription_start_date: rentalSubscriptionStartDate }
@@ -576,6 +589,8 @@ export default function AdminDashboard() {
             payload: {
               approved_vehicle: approvedVehicle,
               approved_bond: approvedBond,
+              bond_notes: applicationApprovalForm.bond_notes || null,
+              bond_payment_status: applicationApprovalForm.bond_payment_status,
               approved_weekly_price: approvedWeeklyPrice,
               ...(rentalSubscriptionStartDate
                 ? { rental_subscription_start_date: rentalSubscriptionStartDate }
@@ -683,6 +698,8 @@ export default function AdminDashboard() {
         selectedApplication.approved_weekly_price != null
           ? String(selectedApplication.approved_weekly_price)
           : '',
+      bond_notes: selectedApplication.bond_notes || '',
+      bond_payment_status: selectedApplication.bond_payment_status || 'to_collect',
       rental_subscription_start_date: selectedApplication.intended_start_date || '',
     });
   }, [selectedApplication]);
@@ -1282,7 +1299,7 @@ export default function AdminDashboard() {
                           id="application-approval-form-helper"
                           className="text-sm text-brand-grey font-light mt-3 max-w-2xl"
                         >
-                          Confirm the approved rental details, set the bond and weekly payment, then email a fresh secure Stripe payment link.
+                          Confirm the weekly Stripe payment and record the separately administered bond, then email a fresh secure payment link.
                         </p>
                       </div>
                       {selectedApplication.payment_link_sent_at && (
@@ -1300,6 +1317,21 @@ export default function AdminDashboard() {
                           )}
                         </div>
                       )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <label htmlFor={applicationApprovalFieldId('bond_payment_status')} className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Bond status</label>
+                        <select id={applicationApprovalFieldId('bond_payment_status')} value={applicationApprovalForm.bond_payment_status} onChange={(e) => setApplicationApprovalForm((current) => ({ ...current, bond_payment_status: e.target.value as typeof current.bond_payment_status }))} className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white">
+                          <option value="to_collect">To collect by admin</option>
+                          <option value="cash_paid">Paid cash</option>
+                          <option value="already_paid">Already paid / existing driver</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label htmlFor={applicationApprovalFieldId('bond_notes')} className="text-[10px] font-bold text-brand-grey uppercase tracking-widest">Bond notes (optional)</label>
+                        <input id={applicationApprovalFieldId('bond_notes')} value={applicationApprovalForm.bond_notes} onChange={(e) => setApplicationApprovalForm((current) => ({ ...current, bond_notes: e.target.value }))} className="w-full bg-brand-navy border border-white/10 rounded-xl px-5 py-4 text-white" />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -1389,11 +1421,11 @@ export default function AdminDashboard() {
                         </p>
                         <p className="text-sm text-brand-grey font-light leading-relaxed">
                           Details: <span className="text-white font-bold">{applicationApprovalForm.approved_vehicle}</span>
-                          {' '}| Bond:{' '}
+                          {' '}| Bond (manual / not charged by Stripe):{' '}
                           <span className="text-white font-bold">
                             ${Number(applicationApprovalForm.approved_bond || 0).toFixed(2)}
                           </span>
-                          {' '}| Weekly payment:{' '}
+                          {' '}| Stripe weekly charge:{' '}
                           <span className="text-white font-bold">
                             ${Number(applicationApprovalForm.approved_weekly_price || 0).toFixed(2)}
                           </span>
@@ -1408,6 +1440,7 @@ export default function AdminDashboard() {
                         </p>
                       </div>
                     )}
+                    <p className="text-sm text-amber-200">Stripe will only charge weekly rental payments. Bond is recorded for the agreement and collected manually.</p>
                   </div>
                 )}
               </div>

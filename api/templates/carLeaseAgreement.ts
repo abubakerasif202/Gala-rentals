@@ -34,6 +34,9 @@ export type CarLeaseAgreementInput = {
   minimumRentalPeriod: string;
   returnPolicy: string;
   fees: LeaseFee[];
+  bondAmount: string;
+  bondNotes: string;
+  bondPaymentStatus: string;
 };
 
 export const buildCarLeaseAgreementFees = (bondAmount = 0): LeaseFee[] => [
@@ -66,6 +69,9 @@ export const buildDefaultCarLeaseAgreement = (): CarLeaseAgreementInput => ({
   rentalStartDate: new Date().toISOString().split('T')[0],
   rentalEndDate: 'Open-ended',
   fees: buildCarLeaseAgreementFees(),
+  bondAmount: '$0.00',
+  bondNotes: '',
+  bondPaymentStatus: 'To be collected by admin',
 });
 
 export const DEFAULT_CAR_LEASE_AGREEMENT_TEMPLATE = `# Car Lease Agreement
@@ -104,6 +110,13 @@ Your invoice is issued weekly and may include:
 Rentee agrees to pay:
 - Weekly Rent: {{weeklyRent}}
 - Fuel Policy: {{fuelPolicy}}
+
+### Bond (manual administration)
+- Bond Amount: {{bondAmount}}
+- Bond Payment Method / Status: {{bondPaymentStatus}}
+- Notes: {{bondNotes}}
+
+Bond is handled manually by Gala Rentals and is not charged through Stripe.
 
 ### Fee Schedule
 {{feeSchedule}}
@@ -155,9 +168,15 @@ export const renderCarLeaseAgreementTemplate = (
     feeSchedule: feeLines,
   };
 
-  return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) =>
+  const rendered = template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) =>
     Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match
   );
+
+  if (rendered.includes('Bond is handled manually by Gala Rentals')) {
+    return rendered;
+  }
+
+  return `${rendered}\n\n### Bond (manual administration)\n- Bond Amount: ${agreement.bondAmount}\n- Bond Payment Method / Status: ${agreement.bondPaymentStatus}\n- Notes: ${agreement.bondNotes}\n\nBond is handled manually by Gala Rentals and is not charged through Stripe.`;
 };
 
 export const renderCarLeaseAgreement = (input: Partial<CarLeaseAgreementInput> = {}) =>

@@ -4777,6 +4777,8 @@ describe("Stripe API", () => {
         approved_vehicle: "Toyota Camry Hybrid",
         approved_bond: 650,
         approved_weekly_price: 285,
+        bond_notes: "Bond received before migration",
+        bond_payment_status: "already_paid",
         rental_subscription_start_date: getFutureDateOnly(5),
       });
 
@@ -4796,6 +4798,9 @@ describe("Stripe API", () => {
       approved_weekly_price: 285,
       approved_weekly_price_cents: 28500,
       assigned_vehicle_text: "Toyota Camry Hybrid",
+      bond_notes: "Bond received before migration",
+      bond_payment_method: "existing_paid",
+      bond_payment_status: "already_paid",
       intended_start_date: getFutureDateOnly(5),
       payment_link_version: 4,
       pending_checkout_session_id: null,
@@ -5385,7 +5390,7 @@ describe("Stripe API", () => {
     expect(res.body.billing.bond).toBe(500);
     expect(res.body.billing.initialRental).toBe(250);
     expect(res.body.billing.initialRentalDueNow).toBe(false);
-    expect(res.body.billing.upfrontDue).toBe(500);
+    expect(res.body.billing.upfrontDue).toBe(0);
     expect(res.body.billing.recurringBillingStartDate).toBe(
       mockState.applications[1].intended_start_date,
     );
@@ -5411,7 +5416,7 @@ describe("Stripe API", () => {
     expect(res.status).toBe(200);
     expect(res.body.billing.initialRental).toBe(250);
     expect(res.body.billing.initialRentalDueNow).toBe(true);
-    expect(res.body.billing.upfrontDue).toBe(750);
+    expect(res.body.billing.upfrontDue).toBe(250);
     expect(res.body.billing.recurringBillingStartDate).toBeNull();
   });
 
@@ -5636,11 +5641,12 @@ describe("Stripe API", () => {
     const payload = mockStripe.checkoutSessionsCreate.mock.calls[0][0];
     expect(payload.mode).toBe("subscription");
     expect(payload.payment_method_types).toEqual(["au_becs_debit"]);
-    expect(payload.line_items).toHaveLength(2);
+    expect(payload.line_items).toHaveLength(1);
     expect(payload.metadata.checkout_kind).toBe("vehicle");
     expect(payload.metadata.application_id).toBe(APPROVED_APPLICATION_ID);
     expect(payload.metadata.approved_vehicle).toBe("Toyota Camry");
-    expect(payload.metadata.approved_bond).toBe("500.00");
+    expect(payload.metadata.approved_bond).toBeUndefined();
+    expect(payload.subscription_data.metadata.approved_bond).toBeUndefined();
     expect(payload.metadata.approved_weekly_price).toBe("250.00");
     expect(payload.metadata.applicant_email).toBe("approved@example.com");
     expect(payload.metadata.car_id).toBeUndefined();
@@ -5680,9 +5686,7 @@ describe("Stripe API", () => {
     const bondItem = payload.line_items.find(
       (item: any) => item.price_data.product === "prod_security_bond",
     );
-    expect(bondItem).toBeTruthy();
-    expect(bondItem.price_data.unit_amount).toBe(50000);
-    expect(bondItem.price_data.recurring).toBeUndefined();
+    expect(bondItem).toBeUndefined();
     expect(
       payload.line_items.some(
         (item: any) => item.price_data.product === "prod_onboarding_setup",

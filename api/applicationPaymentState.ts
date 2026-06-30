@@ -6,6 +6,9 @@ import {
 } from './schemaCompat.js';
 
 type ApplicationPaymentWritePayload = {
+  bond_notes?: string | null;
+  bond_payment_method?: string | null;
+  bond_payment_status?: string | null;
   approved_at?: string | null;
   approved_bond?: number | null;
   approved_subscription_start_date?: string | null;

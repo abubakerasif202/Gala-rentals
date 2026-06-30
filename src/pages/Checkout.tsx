@@ -311,7 +311,7 @@ export default function Checkout() {
 
                     <div className="space-y-4 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-brand-grey font-light">Security bond</span>
+                        <span className="text-brand-grey font-light">Bond (manual, not charged by Stripe)</span>
                         <span className="text-white font-bold">{formatCurrency(billing.bond)}</span>
                       </div>
                       <div className="flex justify-between">
@@ -346,7 +346,7 @@ export default function Checkout() {
                       Weekly rental payments are <strong>{formatCurrency(billing.recurringAmount)}</strong>{' '}
                       {billing.recurringLabel}
                       {recurringBillingStartDate ? ` starting ${recurringBillingStartDate}` : ''}. Stripe
-                      handles AU Direct Debit securely and Galarentals completes the driver onboarding process after confirmation.
+                      handles only the weekly rental direct debit. Bond is handled manually by Gala Rentals and is not charged through Stripe.
                     </p>
                   </div>
                 </div>

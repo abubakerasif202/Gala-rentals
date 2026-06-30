@@ -28,7 +28,7 @@ import {
   persistPendingCheckoutSessionIdIfCurrentVersion,
   updateApplicationPaymentStateIfCurrentVersionAndStatus,
 } from '../applicationPaymentState.js';
-import { LEASE_SETTINGS, RENTAL_PLAN_SETUP_FEES_AUD } from '../constants.js';
+import { LEASE_SETTINGS } from '../constants.js';
 import {
   getTodayInAustralia,
   isValidDateOnly,
@@ -237,15 +237,11 @@ const buildApprovedBillingBreakdown = (application: StripeApplication): BillingB
   const approvedWeeklyPriceCents = Math.round(
     Number(application.approved_weekly_price || 0) * 100
   );
-  const setupFeesCents = Math.round(RENTAL_PLAN_SETUP_FEES_AUD * 100);
   const rentalSubscriptionStartDate = getRentalSubscriptionStartDate(application);
   const initialRentalDueNow = !isFutureRentalSubscriptionStartDate(
     rentalSubscriptionStartDate
   );
-  const upfrontDueCents =
-    approvedBondCents +
-    setupFeesCents +
-    (initialRentalDueNow ? approvedWeeklyPriceCents : 0);
+  const upfrontDueCents = initialRentalDueNow ? approvedWeeklyPriceCents : 0;
 
   return {
     bond: fromCents(approvedBondCents),
@@ -260,7 +256,7 @@ const buildApprovedBillingBreakdown = (application: StripeApplication): BillingB
     recurringIntervalCount: 1,
     recurringLabel: 'per week',
     rentalSubscriptionStartDate,
-    setupFees: fromCents(setupFeesCents),
+    setupFees: 0,
     upfrontDue: fromCents(upfrontDueCents),
   };
 };
@@ -275,32 +271,6 @@ export const buildSubscriptionLineItemsFromCatalog = ({
   stripeCatalog: ResolvedStripeCatalog;
 }) => {
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
-    {
-      price_data: {
-        currency: LEASE_SETTINGS.currency,
-        product: stripeCatalog.securityBond.productId,
-        unit_amount: toCents(billingBreakdown.bond),
-      },
-      quantity: 1,
-    },
-    {
-      price_data: {
-        currency: LEASE_SETTINGS.currency,
-        product: stripeCatalog.weeklyRental.productId,
-        unit_amount: includeInitialRentalUpfront
-          ? toCents(billingBreakdown.initialRental)
-          : 0,
-      },
-      quantity: 1,
-    },
-    {
-      price_data: {
-        currency: LEASE_SETTINGS.currency,
-        product: stripeCatalog.onboardingSetup.productId,
-        unit_amount: toCents(billingBreakdown.setupFees),
-      },
-      quantity: 1,
-    },
     {
       price_data: {
         currency: LEASE_SETTINGS.currency,
@@ -375,7 +345,6 @@ const createHostedCheckoutSession = async ({
     approved_vehicle: String(application.approved_vehicle || DEFAULT_APPROVED_VEHICLE_LABEL),
     checkout_kind: 'vehicle',
     payment_type: 'vehicle_rental',
-    approved_bond: billingBreakdown.bond.toFixed(2),
     approved_weekly_price: billingBreakdown.recurringAmount.toFixed(2),
     payment_link_version: String(Number(application.payment_link_version || 0)),
   };

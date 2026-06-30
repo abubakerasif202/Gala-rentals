@@ -47,6 +47,19 @@ describe('renderApplicationLeaseAgreement', () => {
     expect(agreement).not.toContain('Addlestone');
     expect(agreement).not.toContain('13/27-33');
     expect(agreement).not.toContain('Merrylands');
+    expect(agreement).toContain('Bond Amount: $900.00');
+    expect(agreement).toContain('Bond Payment Method / Status: To be collected by admin');
+    expect(agreement).toContain('Bond is handled manually by Gala Rentals and is not charged through Stripe.');
+  });
+
+  it('renders an already-paid bond as manual agreement data', () => {
+    const agreement = renderApplicationLeaseAgreement(
+      { name: 'Existing Driver', bond_payment_status: 'already_paid', bond_notes: '' },
+      {}, 250, '2026-07-01T00:00:00.000Z', 500
+    );
+    expect(agreement).toContain('Weekly Rent: $250.00 per week');
+    expect(agreement).toContain('Bond Amount: $500.00');
+    expect(agreement).toContain('Bond Payment Method / Status: Already paid');
   });
 
   it('fills lease agreements with configured owner details and non-placeholder fallbacks', () => {

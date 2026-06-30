@@ -40,6 +40,7 @@ export const sendDriverPaymentLinkEmail = async ({
   approvedBond,
   approvedWeeklyPrice,
   approvedVehicle,
+  bondPaymentStatus,
   checkoutUrl,
   setupFees,
 }: {
@@ -48,6 +49,7 @@ export const sendDriverPaymentLinkEmail = async ({
   approvedBond: number;
   approvedWeeklyPrice: number;
   approvedVehicle: string;
+  bondPaymentStatus: 'to_collect' | 'cash_paid' | 'already_paid';
   checkoutUrl: string;
   setupFees: number;
 }) => {
@@ -60,11 +62,14 @@ export const sendDriverPaymentLinkEmail = async ({
 
   const resend = await getResend();
   const contactEmail = getContactEmailConfig();
-  const upfrontDue = approvedBond + approvedWeeklyPrice + setupFees;
+  const bondStatusLabel = {
+    already_paid: 'Already paid',
+    cash_paid: 'Cash paid',
+    to_collect: 'To be collected by admin',
+  }[bondPaymentStatus];
   const safeApplicantName = escapeHtml(applicantName);
   const safeApprovedVehicle = escapeHtml(approvedVehicle);
   const safeCheckoutUrl = escapeHtml(checkoutUrl);
-  const hasSetupFees = setupFees > 0;
 
   try {
     await sendResendEmail(resend, {
@@ -77,15 +82,9 @@ export const sendDriverPaymentLinkEmail = async ({
           <p>Hi ${safeApplicantName},</p>
           <p>Your application review is complete and your secure checkout link is now ready.</p>
           <p><strong>Approved vehicle:</strong> ${safeApprovedVehicle}</p>
-          <p><strong>Bond:</strong> ${formatCurrency(approvedBond)}</p>
-          <p><strong>First weekly rental payment:</strong> ${formatCurrency(approvedWeeklyPrice)}</p>
-          ${
-            hasSetupFees
-              ? `<p><strong>Setup fees:</strong> ${formatCurrency(setupFees)}</p>`
-              : ''
-          }
-          <p><strong>Total due now:</strong> ${formatCurrency(upfrontDue)}</p>
-          <p>At checkout, Stripe collects the bond, any setup fees, and the first weekly rental payment. Future weekly subscription invoices continue at ${formatCurrency(approvedWeeklyPrice)}.</p>
+          <p><strong>Stripe weekly rental charge:</strong> ${formatCurrency(approvedWeeklyPrice)} per week</p>
+          <p><strong>Bond (manual, not charged by Stripe):</strong> ${formatCurrency(approvedBond)} — ${bondStatusLabel}</p>
+          <p>Stripe Checkout only creates the weekly rental subscription. Bond is handled manually by Gala Rentals and is not charged through Stripe.</p>
           <p>Once Stripe confirms payment, Galarentals finalises onboarding and handover with you directly.</p>
           <p>
             <a

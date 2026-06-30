@@ -18,6 +18,12 @@ export const buildLeaseAgreementInput = (
   nowIso: string,
   approvedBond = calculateBondFromWeeklyRent(approvedWeeklyPrice)
 ) => {
+  const bondStatus = String(application.bond_payment_status || 'to_collect');
+  const bondStatusLabel = {
+    already_paid: 'Already paid',
+    cash_paid: 'Cash paid',
+    to_collect: 'To be collected by admin',
+  }[bondStatus] || 'To be collected by admin';
   const manualVehicleText = toOptionalString(
     application.assigned_vehicle_text ??
       application.assignedVehicleText ??
@@ -48,6 +54,9 @@ export const buildLeaseAgreementInput = (
   return {
     ...leaseAgreementBusinessDetails,
     agreementDate: toDateOnly(nowIso),
+    bondAmount: `$${Number(approvedBond || 0).toFixed(2)}`,
+    bondNotes: toOptionalString(application.bond_notes),
+    bondPaymentStatus: bondStatusLabel,
     fees: buildCarLeaseAgreementFees(approvedBond),
     renteeName: toNonEmptyString(application.name, 'Driver'),
     renteeDob: toNonEmptyString(

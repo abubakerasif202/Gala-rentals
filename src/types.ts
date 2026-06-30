@@ -10,6 +10,9 @@ export interface Car {
 }
 
 export interface Application {
+  bond_notes?: string | null;
+  bond_payment_method?: 'cash' | 'existing_paid' | null;
+  bond_payment_status?: 'to_collect' | 'cash_paid' | 'already_paid' | null;
   approved_at?: string | null;
   approved_bond?: number | null;
   approved_vehicle?: string | null;

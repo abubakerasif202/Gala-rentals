@@ -338,6 +338,9 @@ export interface LeaseFeePayload {
 
 export interface LeaseAgreementPayload {
   agreementDate?: string;
+  bondAmount?: string;
+  bondNotes?: string;
+  bondPaymentStatus?: string;
   registeredOwnerName?: string;
   registeredOwnerAddress?: string;
   registeredOwnerContact?: string;
@@ -477,6 +480,16 @@ export const previewAgreementTemplate = async (
   payload: LeaseAgreementPayload = {}
 ): Promise<{ agreement: string; agreementTemplateVersion: number }> => {
   const { data } = await api.post(`/admin/agreements/${id}/preview`, payload);
+  return data;
+};
+
+export const downloadAgreementTemplatePdf = async (
+  id: number,
+  payload: LeaseAgreementPayload = {}
+): Promise<Blob> => {
+  const { data } = await api.post(`/admin/agreements/${id}/pdf`, payload, {
+    responseType: 'blob',
+  });
   return data;
 };
 

@@ -11,6 +11,7 @@ import {
   MAX_APPLICATION_TOTAL_UPLOAD_BYTES,
 } from "../../shared/applicationSubmission.js";
 import { companyDetails } from "../../shared/companyDetails.js";
+import { PDFDocument } from "pdf-lib";
 
 const addDaysToDateOnly = (dateOnly: string, days: number) => {
   const [year, month, day] = dateOnly.split("-").map(Number);
@@ -2508,6 +2509,33 @@ describe("Agreements API", () => {
     expect(res.status).toBe(200);
     expect(res.body.agreement).toContain("# Car Lease Agreement");
     expect(res.body.agreementTemplateVersion).toBe(2);
+  });
+
+  it("POST /api/admin/agreements/:id/pdf returns a fillable PDF with editable fields", async () => {
+    const res = await request(app)
+      .post("/api/admin/agreements/1/pdf")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        agreementDate: "2026-03-08",
+        renteeName: "Approved Driver",
+        renteeEmail: "driver@example.com",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+
+    const pdf = await PDFDocument.load(res.body);
+    const fieldNames = pdf.getForm().getFields().map((field) => field.getName());
+
+    expect(fieldNames).toEqual(
+      expect.arrayContaining([
+        "Agreement date",
+        "Registered owner name",
+        "Rentee name",
+        "Vehicle model",
+        "Weekly rent",
+      ])
+    );
   });
 
   it("GET /api/admin/agreements requires admin auth", async () => {

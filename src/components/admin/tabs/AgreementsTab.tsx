@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Loader2, RefreshCw, ExternalLink, FileText, Trash2, Save, Eye, CheckCircle2, AlertCircle, Power } from 'lucide-react';
+import { Loader2, RefreshCw, ExternalLink, FileText, Trash2, Save, Eye, CheckCircle2, AlertCircle, Power, Download } from 'lucide-react';
 import { UseMutationResult, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Application } from '../../../types';
 import * as api from '../../../lib/api';
@@ -214,6 +214,54 @@ export default function AgreementsTab({
     },
   });
 
+  const downloadPdfMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTemplate) {
+        throw new Error('No agreement template selected');
+      }
+
+      return api.downloadAgreementTemplatePdf(selectedTemplate.id, {
+        agreementDate: new Date().toLocaleDateString('en-AU'),
+        renteeName: selectedAgreementApplication?.name,
+        renteeDob: selectedAgreementApplication?.date_of_birth || undefined,
+        renteeEmail: selectedAgreementApplication?.email,
+        renteeContact: selectedAgreementApplication?.phone,
+        renteeAddress: selectedAgreementApplication?.address,
+        renteeLicenseNumber: selectedAgreementApplication?.license_number,
+        renteeLicenseState: selectedAgreementApplication?.licence_state || undefined,
+        vehicleMake: 'Not recorded',
+        vehicleModel: selectedAgreementApplication?.approved_vehicle?.trim() || 'Approved vehicle',
+        vehicleYear: 'Not recorded',
+        vehicleVin: selectedAgreementApplication?.approved_vehicle?.trim() || 'Approved vehicle',
+        weeklyRent: selectedAgreementApplication?.approved_weekly_price
+          ? `$${Number(selectedAgreementApplication.approved_weekly_price).toFixed(2)}`
+          : 'Not set',
+        rentalStartDate: selectedAgreementApplication?.intended_start_date || '',
+        bondAmount: selectedAgreementApplication?.approved_bond
+          ? `$${Number(selectedAgreementApplication.approved_bond).toFixed(2)}`
+          : 'Not set',
+        bondNotes: selectedAgreementApplication?.bond_notes || '',
+        bondPaymentStatus:
+          {
+            already_paid: 'Already paid',
+            cash_paid: 'Cash paid',
+            to_collect: 'To be collected by admin',
+          }[selectedAgreementApplication?.bond_payment_status || 'to_collect'],
+      });
+    },
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'gala-rentals-fillable-lease-agreement.pdf';
+      anchor.click();
+      URL.revokeObjectURL(url);
+    },
+    onError: () => {
+      setEditorStatus({ message: 'Failed to generate fillable agreement PDF', type: 'error' });
+    },
+  });
+
   return (
     <motion.div
       key="agreements"
@@ -349,6 +397,19 @@ export default function AgreementsTab({
                   <Eye className="h-4 w-4 text-brand-gold" />
                 )}
                 Preview
+              </button>
+              <button
+                type="button"
+                disabled={!selectedTemplate || downloadPdfMutation.isPending}
+                onClick={() => downloadPdfMutation.mutate()}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-[10px] font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10 disabled:opacity-50"
+              >
+                {downloadPdfMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 text-brand-gold" />
+                )}
+                Fillable PDF
               </button>
               <button
                 type="button"

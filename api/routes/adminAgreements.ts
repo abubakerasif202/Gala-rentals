@@ -10,6 +10,7 @@ import {
 import { db } from '../db/index.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { renderCarLeaseAgreementTemplate } from '../templates/carLeaseAgreement.js';
+import { buildCarLeaseAgreementPdf } from '../templates/carLeaseAgreementPdf.js';
 import {
   agreementTemplateSchema,
   leaseAgreementSchema,
@@ -198,6 +199,35 @@ router.post('/:id/preview', authenticateAdmin, async (req, res) => {
 
     console.error('Preview agreement template error:', error);
     res.status(500).json({ error: 'Failed to preview agreement template' });
+  }
+});
+
+router.post('/:id/pdf', authenticateAdmin, async (req, res) => {
+  try {
+    const parsedParams = idParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({ error: 'Validation failed', details: parsedParams.error.issues });
+    }
+
+    const template = await fetchAgreementTemplateById(parsedParams.data.id);
+    if (!template) {
+      return res.status(404).json({ error: 'Agreement template not found' });
+    }
+
+    const payload = leaseAgreementSchema.parse(req.body ?? {});
+    const pdfBytes = await buildCarLeaseAgreementPdf(payload);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="gala-rentals-fillable-lease-agreement.pdf"');
+    res.setHeader('X-Agreement-Template-Version', String(template.version));
+    res.send(pdfBytes);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    console.error('Generate agreement PDF error:', error);
+    res.status(500).json({ error: 'Failed to generate agreement PDF' });
   }
 });
 

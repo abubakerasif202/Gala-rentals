@@ -9,6 +9,7 @@ import {
 } from '../agreementTemplates.js';
 import { db } from '../db/index.js';
 import { authenticateAdmin } from '../middleware/auth.js';
+import { createAgreementPdfJob } from '../services/documentPdfJobs.js';
 import { renderCarLeaseAgreementTemplate } from '../templates/carLeaseAgreement.js';
 import { buildCarLeaseAgreementPdf } from '../templates/carLeaseAgreementPdf.js';
 import {
@@ -228,6 +229,35 @@ router.post('/:id/pdf', authenticateAdmin, async (req, res) => {
 
     console.error('Generate agreement PDF error:', error);
     res.status(500).json({ error: 'Failed to generate agreement PDF' });
+  }
+});
+
+router.post('/:id/pdf-jobs', authenticateAdmin, async (req, res) => {
+  try {
+    const parsedParams = idParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({ error: 'Validation failed', details: parsedParams.error.issues });
+    }
+
+    const template = await fetchAgreementTemplateById(parsedParams.data.id);
+    if (!template) {
+      return res.status(404).json({ error: 'Agreement template not found' });
+    }
+
+    const payload = leaseAgreementSchema.parse(req.body ?? {});
+    const job = await createAgreementPdfJob(parsedParams.data.id, payload);
+    res.status(202).json({
+      id: job.id,
+      status: job.status,
+      status_url: `/api/admin/document-pdf-jobs/${job.id}`,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    console.error('Create agreement PDF job error:', error);
+    res.status(500).json({ error: 'Failed to create agreement PDF job' });
   }
 });
 

@@ -15,6 +15,7 @@ import {
   getImportedApplicationIdSet,
 } from '../importedDataFilters.js';
 import { authenticateAdmin } from '../middleware/auth.js';
+import { createTollNoticePdfJob } from '../services/documentPdfJobs.js';
 import { buildTollTransferNoticePdf } from '../templates/tollTransferNoticePdf.js';
 import { tollNoticeCompanyDefaults } from '../../shared/companyDetails.js';
 
@@ -455,6 +456,37 @@ router.get('/:id/pdf', authenticateAdmin, async (req, res) => {
 
     console.error('Download toll transfer notice PDF error:', error);
     res.status(500).json({ error: 'Failed to download toll transfer notice PDF' });
+  }
+});
+
+router.post('/:id/pdf-jobs', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const notice = await fetchNoticeById(id);
+    if (!notice) {
+      return res.status(404).json({ error: 'Toll transfer notice not found' });
+    }
+
+    const job = await createTollNoticePdfJob(id);
+    await auditNoticeAction({
+      action: 'pdf_job_create',
+      actor: getAdminEmail(req),
+      metadata: { toll_notice_number: notice.toll_notice_number || null },
+      noticeId: id,
+    });
+
+    res.status(202).json({
+      id: job.id,
+      status: job.status,
+      status_url: `/api/admin/document-pdf-jobs/${job.id}`,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation failed', details: error.issues });
+    }
+
+    console.error('Create toll transfer notice PDF job error:', error);
+    res.status(500).json({ error: 'Failed to create toll transfer notice PDF job' });
   }
 });
 

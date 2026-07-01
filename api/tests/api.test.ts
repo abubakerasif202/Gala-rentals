@@ -334,6 +334,7 @@ const {
     manual_invoices: [] as Array<Record<string, any>>,
     manual_invoice_items: [] as Array<Record<string, any>>,
     stripe_webhook_events: [] as Array<Record<string, any>>,
+    background_jobs: [] as Array<Record<string, any>>,
     failOnDeleteTable: null as string | null,
   },
   mockGetUser: vi.fn(),
@@ -530,6 +531,10 @@ vi.mock("../db/index.js", () => {
       return mockState.stripe_webhook_events;
     }
 
+    if (table === "background_jobs") {
+      return mockState.background_jobs;
+    }
+
     return [];
   };
 
@@ -601,6 +606,11 @@ vi.mock("../db/index.js", () => {
 
     if (table === "stripe_webhook_events") {
       mockState.stripe_webhook_events = rows;
+      return;
+    }
+
+    if (table === "background_jobs") {
+      mockState.background_jobs = rows;
     }
   };
 
@@ -1278,6 +1288,12 @@ vi.mock("../db/index.js", () => {
 });
 
 vi.mock("../db/postgres.js", () => {
+  const buildBackgroundJobUuidFromSequence = (sequence: number) => {
+    const prefix = String(sequence).padStart(8, "0");
+    const suffix = String(sequence).padStart(12, "0");
+    return `${prefix}-0000-4000-8000-${suffix}`;
+  };
+
   const getTableRows = (table: string) => {
     if (table === "cars") {
       return mockState.cars;
@@ -1427,6 +1443,38 @@ vi.mock("../db/postgres.js", () => {
           insertedRow,
         ];
         return { rowCount: 1, rows: [] };
+      }
+
+      if (sql.includes("INSERT INTO public.background_jobs")) {
+        const insertedRow = {
+          attempts: 0,
+          completed_at: null,
+          created_at: new Date("2026-07-01T00:00:00.000Z"),
+          error_message: null,
+          id: buildBackgroundJobUuidFromSequence(mockState.background_jobs.length + 1),
+          job_type: values[1],
+          locked_at: null,
+          locked_until: null,
+          max_attempts: values[3],
+          payload: JSON.parse(String(values[2])),
+          queue_name: values[0],
+          result: null,
+          run_at: values[4],
+          status: "pending",
+          updated_at: new Date("2026-07-01T00:00:00.000Z"),
+        };
+        mockState.background_jobs = [...mockState.background_jobs, insertedRow];
+        return { rowCount: 1, rows: [insertedRow] };
+      }
+
+      if (sql.includes("FROM public.background_jobs") && sql.includes("WHERE id = $1")) {
+        const job = mockState.background_jobs.find(
+          (row) => String(row.id) === String(values[0]),
+        );
+        return {
+          rowCount: job ? 1 : 0,
+          rows: job ? [structuredClone(job)] : [],
+        };
       }
 
       if (
@@ -1705,6 +1753,7 @@ beforeEach(() => {
     },
   ];
   mockState.stripe_webhook_events = [];
+  mockState.background_jobs = [];
   mockState.toll_transfer_notices = [];
   mockState.toll_transfer_notice_audit_events = [];
   mockState.admin_audit_events = [];
@@ -1852,6 +1901,10 @@ beforeEach(() => {
     })),
     createSignedUrl: vi.fn(async (path: string) => ({
       data: { signedUrl: `https://signed.example/${bucket}/${path}` },
+      error: null,
+    })),
+    download: vi.fn(async () => ({
+      data: new Blob([Buffer.from("%PDF-generated")], { type: "application/pdf" }),
       error: null,
     })),
     remove: vi.fn(async () => ({ data: null, error: null })),
@@ -4511,6 +4564,119 @@ describe("Operational history API", () => {
     expect(text).not.toContain("Merrylands");
     expect(res.text || res.body.toString("latin1")).toContain("062202");
   });
+
+  it("POST /api/admin/manual-invoices/:id/pdf-jobs creates an async PDF job", async () => {
+    mockState.manual_invoices = [
+      {
+        id: "invoice-1",
+        invoice_number: "MR-INV-JOB",
+        status: "issued",
+        issue_date: "2026-05-14",
+        bill_to_name: "Approved Driver",
+        subtotal: 250,
+        gst: 25,
+        total_inc_gst: 275,
+      },
+    ];
+
+    const res = await request(app)
+      .post("/api/admin/manual-invoices/invoice-1/pdf-jobs")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({
+      id: "00000001-0000-4000-8000-000000000001",
+      status: "pending",
+      status_url: "/api/admin/document-pdf-jobs/00000001-0000-4000-8000-000000000001",
+    });
+    expect(mockState.background_jobs[0]).toMatchObject({
+      job_type: "document.pdf.generate",
+      payload: { invoiceId: "invoice-1", kind: "manual-invoice" },
+      queue_name: "default",
+    });
+  });
+
+  it("GET /api/admin/document-pdf-jobs/:id returns completed status without private URLs", async () => {
+    mockState.background_jobs = [
+      {
+        attempts: 1,
+        completed_at: new Date("2026-07-01T00:01:00.000Z"),
+        created_at: new Date("2026-07-01T00:00:00.000Z"),
+        error_message: null,
+        id: "00000001-0000-4000-8000-000000000001",
+        job_type: "document.pdf.generate",
+        locked_at: null,
+        locked_until: null,
+        max_attempts: 3,
+        payload: { invoiceId: "invoice-1", kind: "manual-invoice" },
+        queue_name: "default",
+        result: {
+          contentType: "application/pdf",
+          filename: "galarentals-invoice-MR-INV-JOB.pdf",
+          storageBucket: "applications",
+          storagePath: "generated-documents/private/file.pdf",
+        },
+        run_at: new Date("2026-07-01T00:00:00.000Z"),
+        status: "completed",
+        updated_at: new Date("2026-07-01T00:01:00.000Z"),
+      },
+    ];
+
+    const res = await request(app)
+      .get("/api/admin/document-pdf-jobs/00000001-0000-4000-8000-000000000001")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      download_url:
+        "/api/admin/document-pdf-jobs/00000001-0000-4000-8000-000000000001/download",
+      error: null,
+      status: "completed",
+    });
+    expect(JSON.stringify(res.body)).not.toContain("generated-documents/private/file.pdf");
+    expect(JSON.stringify(res.body)).not.toContain("signed.example");
+  });
+
+  it("GET /api/admin/document-pdf-jobs/:id reports failed status safely", async () => {
+    mockState.background_jobs = [
+      {
+        attempts: 3,
+        completed_at: null,
+        created_at: new Date("2026-07-01T00:00:00.000Z"),
+        error_message: "PDF render failed",
+        id: "00000001-0000-4000-8000-000000000001",
+        job_type: "document.pdf.generate",
+        locked_at: null,
+        locked_until: null,
+        max_attempts: 3,
+        payload: { invoiceId: "invoice-1", kind: "manual-invoice" },
+        queue_name: "default",
+        result: null,
+        run_at: new Date("2026-07-01T00:00:00.000Z"),
+        status: "failed",
+        updated_at: new Date("2026-07-01T00:01:00.000Z"),
+      },
+    ];
+
+    const res = await request(app)
+      .get("/api/admin/document-pdf-jobs/00000001-0000-4000-8000-000000000001")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      download_url: null,
+      error: "PDF render failed",
+      status: "failed",
+    });
+  });
+
+  it("GET /api/admin/document-pdf-jobs/:id requires admin auth", async () => {
+    const res = await request(app).get(
+      "/api/admin/document-pdf-jobs/00000001-0000-4000-8000-000000000001",
+    );
+
+    expect(res.status).toBe(401);
+  });
 });
 
 describe("Toll Transfer Notices API", () => {
@@ -4712,6 +4878,35 @@ describe("Toll Transfer Notices API", () => {
     expect(compactPdfText).not.toContain("MERRYLANDS");
     expect(mockState.toll_transfer_notice_audit_events.at(-1)).toMatchObject({
       action: "download",
+      toll_transfer_notice_id: 1,
+    });
+  });
+
+  it("POST /api/toll-notices/:id/pdf-jobs creates an async toll notice PDF job", async () => {
+    await request(app)
+      .post("/api/toll-notices")
+      .set("Authorization", "Bearer fake-token")
+      .send(validTollNoticePayload());
+
+    const res = await request(app)
+      .post("/api/toll-notices/1/pdf-jobs")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({
+      id: "00000001-0000-4000-8000-000000000001",
+      status: "pending",
+      status_url: "/api/admin/document-pdf-jobs/00000001-0000-4000-8000-000000000001",
+    });
+    expect(mockState.background_jobs[0]).toMatchObject({
+      job_type: "document.pdf.generate",
+      payload: { kind: "toll-transfer-notice", noticeId: 1 },
+      queue_name: "default",
+    });
+    expect(JSON.stringify(res.body)).not.toContain("signed.example");
+    expect(JSON.stringify(res.body)).not.toContain("generated-documents");
+    expect(mockState.toll_transfer_notice_audit_events.at(-1)).toMatchObject({
+      action: "pdf_job_create",
       toll_transfer_notice_id: 1,
     });
   });

@@ -7,6 +7,7 @@ import {
   manualInvoiceInputSchema,
 } from '../manualInvoices.js';
 import { authenticateAdmin } from '../middleware/auth.js';
+import { createManualInvoicePdfJob } from '../services/documentPdfJobs.js';
 import { renderManualInvoicePdf } from '../templates/manualInvoicePdf.js';
 
 const router = express.Router();
@@ -94,6 +95,30 @@ router.get('/:id/pdf', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('Manual invoice PDF error:', error);
     res.status(500).json({ error: 'Failed to render manual invoice PDF' });
+  }
+});
+
+router.post('/:id/pdf-jobs', authenticateAdmin, async (req, res) => {
+  const parsed = idParamSchema.safeParse(req.params);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+  }
+
+  try {
+    const invoice = await getManualInvoiceById(parsed.data.id);
+    if (!invoice) {
+      return res.status(404).json({ error: 'Manual invoice not found' });
+    }
+
+    const job = await createManualInvoicePdfJob(parsed.data.id);
+    res.status(202).json({
+      id: job.id,
+      status: job.status,
+      status_url: `/api/admin/document-pdf-jobs/${job.id}`,
+    });
+  } catch (error) {
+    console.error('Manual invoice PDF job create error:', error);
+    res.status(500).json({ error: 'Failed to create manual invoice PDF job' });
   }
 });
 

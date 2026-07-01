@@ -15,7 +15,7 @@ vi.mock('../db/postgres.js', () => ({
   withPostgresTransaction: mockWithPostgresTransaction,
 }));
 
-import { claimNextJob, completeJob, enqueue, failJob } from './jobQueue.js';
+import { claimNextJob, completeJob, enqueue, failJob, getJob } from './jobQueue.js';
 
 const jobId = '6f9f2193-8a9d-49ef-b91d-114b1c5db99c';
 const buildJob = (overrides: Record<string, unknown> = {}) => ({
@@ -116,17 +116,37 @@ describe('job queue', () => {
           completed_at: new Date('2026-06-28T00:01:00.000Z'),
           locked_at: null,
           locked_until: null,
+          result: { storagePath: 'generated-documents/job/file.pdf' },
           status: 'completed',
         }),
       ],
     });
 
-    const result = await completeJob(jobId);
+    const result = await completeJob(jobId, {
+      storagePath: 'generated-documents/job/file.pdf',
+    });
 
     expect(result.status).toBe('completed');
+    expect(result.result).toEqual({ storagePath: 'generated-documents/job/file.pdf' });
     expect(mockClient.query.mock.calls[0]?.[0]).toContain(
       "WHERE id = $1 AND status = 'processing'"
     );
+    expect(mockClient.query.mock.calls[0]?.[1]).toEqual([
+      jobId,
+      JSON.stringify({ storagePath: 'generated-documents/job/file.pdf' }),
+    ]);
+  });
+
+  it('fetches a job by id for status polling', async () => {
+    mockClient.query.mockResolvedValueOnce({ rows: [buildJob({ status: 'completed' })] });
+
+    const result = await getJob(jobId);
+
+    expect(result?.id).toBe(jobId);
+    expect(mockClient.query.mock.calls[0]?.[0]).toContain(
+      'FROM public.background_jobs'
+    );
+    expect(mockClient.query.mock.calls[0]?.[1]).toEqual([jobId]);
   });
 
   it('marks a job failed after its final attempt', async () => {

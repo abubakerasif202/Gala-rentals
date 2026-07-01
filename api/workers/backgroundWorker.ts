@@ -14,6 +14,10 @@ import {
   type BackgroundJob,
   type JobPayload,
 } from '../services/jobQueue.js';
+import {
+  DOCUMENT_PDF_JOB_TYPE,
+  processDocumentPdfJob,
+} from '../services/documentPdfJobs.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 2000;
 const DEFAULT_QUEUE_NAME = 'default';
@@ -21,12 +25,14 @@ const DEFAULT_QUEUE_NAME = 'default';
 export type BackgroundJobHandler = (
   payload: JobPayload,
   job: BackgroundJob
-) => Promise<void>;
+) => Promise<JobPayload | undefined>;
 export type BackgroundJobHandlers = Readonly<Record<string, BackgroundJobHandler>>;
 
 // Add narrowly scoped PDF/email handlers here as those routes are migrated.
 // Handlers run after claimNextJob's transaction has committed.
-export const backgroundJobHandlers: BackgroundJobHandlers = {};
+export const backgroundJobHandlers: BackgroundJobHandlers = {
+  [DOCUMENT_PDF_JOB_TYPE]: processDocumentPdfJob,
+};
 
 const getPollIntervalMs = () => {
   const configured = Number(
@@ -72,8 +78,12 @@ export const processNextBackgroundJob = async (
       throw new Error('No background job handler is registered for this job type.');
     }
 
-    await handler(job.payload, job);
-    await completeJob(job.id);
+    const result = await handler(job.payload, job);
+    if (result === undefined) {
+      await completeJob(job.id);
+    } else {
+      await completeJob(job.id, result);
+    }
     logJob('info', 'Background job completed.', job);
   } catch (error) {
     await failJob(job.id, error);

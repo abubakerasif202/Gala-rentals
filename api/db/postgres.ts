@@ -49,6 +49,7 @@ const REQUIRED_DIRECT_SCHEMA_COLUMNS: Record<string, string[]> = {
   background_jobs: [
     'id',
     'queue_name',
+    'result',
     'job_type',
     'payload',
     'status',

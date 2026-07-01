@@ -1,16 +1,16 @@
-import { hasDirectDatabaseConnection } from './db/postgres.js';
+import { hasTransactionalPostgresConnection } from './db/postgres.js';
 
 export type PaymentProcessingMode = 'transactional' | 'restricted';
 
 export const PUBLIC_PAYMENTS_UNAVAILABLE_MESSAGE =
   'Payments are temporarily unavailable. Please contact support.';
 export const ADMIN_PAYMENTS_RESTRICTED_MESSAGE =
-  'A session-capable Postgres connection is required before sending payment links.';
+  'Transactional Postgres access is required before sending payment links.';
 export const AUTOMATIC_PAYMENT_ACTIVATION_RESTRICTED_REASON =
-  'Automatic payment-state recording is blocked until a session-capable Postgres connection is configured.';
+  'Automatic payment-state recording is blocked until transactional Postgres access is configured.';
 
 export const getPaymentProcessingMode = (): PaymentProcessingMode =>
-  hasDirectDatabaseConnection() ? 'transactional' : 'restricted';
+  hasTransactionalPostgresConnection() ? 'transactional' : 'restricted';
 
 export const hasTransactionalPaymentProcessing = () =>
   getPaymentProcessingMode() === 'transactional';

@@ -4,6 +4,7 @@ import {
   getSessionModePostgresRequirementIssue,
   getPostgresConnectionMode,
   hasDirectDatabaseConnection,
+  hasTransactionalPostgresConnection,
   shouldUseRelaxedPostgresSsl,
 } from './postgres.js';
 
@@ -33,6 +34,7 @@ describe('postgres connection mode detection', () => {
 
     expect(getPostgresConnectionMode()).toBe('session');
     expect(hasDirectDatabaseConnection()).toBe(true);
+    expect(hasTransactionalPostgresConnection()).toBe(true);
   });
 
   it('treats a Supabase shared pooler session-mode URL on port 5432 as session-capable', () => {
@@ -51,6 +53,7 @@ describe('postgres connection mode detection', () => {
 
     expect(getPostgresConnectionMode()).toBe('transaction');
     expect(hasDirectDatabaseConnection()).toBe(false);
+    expect(hasTransactionalPostgresConnection()).toBe(true);
   });
 
   it('treats non-Supabase hosts on port 6543 as session-capable', () => {
@@ -86,6 +89,7 @@ describe('postgres connection mode detection', () => {
 
     expect(getPostgresConnectionMode()).toBe('none');
     expect(hasDirectDatabaseConnection()).toBe(false);
+    expect(hasTransactionalPostgresConnection()).toBe(false);
   });
 
   it('does not report a session-mode production issue for a direct 5432 URL', () => {
@@ -96,15 +100,12 @@ describe('postgres connection mode detection', () => {
     expect(getSessionModePostgresRequirementIssue()).toBeNull();
   });
 
-  it('reports a session-mode production issue for Supabase transaction pooler 6543', () => {
+  it('allows Supabase transaction pooler 6543 for transaction-scoped locks', () => {
     delete process.env.DATABASE_URL;
     process.env.SUPABASE_DB_URL =
       'postgresql://postgres.example:secret@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres';
 
-    expect(getSessionModePostgresRequirementIssue()).toContain(
-      'transaction-mode Postgres'
-    );
-    expect(getSessionModePostgresRequirementIssue()).toContain('port 6543');
+    expect(getSessionModePostgresRequirementIssue()).toBeNull();
   });
 
   it('reports a session-mode production issue when direct Postgres is missing', () => {

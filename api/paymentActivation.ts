@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { FALLBACK_ADMIN_EMAIL } from './constants.js';
 import { db } from './db/index.js';
 import {
-  hasDirectDatabaseConnection,
+  hasTransactionalPostgresConnection,
   withPostgresAdvisoryLock,
   withPostgresTransaction,
 } from './db/postgres.js';
@@ -252,7 +252,7 @@ export const withVehicleCheckoutProcessingLock = async <T>(
   applicationId: string,
   callback: () => Promise<T>
 ) => {
-  if (!hasDirectDatabaseConnection()) {
+  if (!hasTransactionalPostgresConnection()) {
     return callback();
   }
 
@@ -360,7 +360,7 @@ const applyVehicleCheckoutPaymentOnlyWrites = async ({
     status: 'Paid',
   });
 
-  if (!hasDirectDatabaseConnection()) {
+  if (!hasTransactionalPostgresConnection()) {
     const { applicationPaymentLinkVersionColumn } = await getSchemaCompat();
     const { data, error } = await db
       .from('applications')

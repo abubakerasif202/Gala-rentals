@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('withPostgresAdvisoryLock', () => {
-  it('releases the pool client without a destroy reason when unlocking succeeds', async () => {
+  it('acquires a transaction-level advisory lock inside a transaction', async () => {
     mockClient.query.mockResolvedValue(undefined);
 
     const { closePostgresPool, withPostgresAdvisoryLock } = await import('./postgres.js');
@@ -56,29 +56,38 @@ describe('withPostgresAdvisoryLock', () => {
 
     expect(result).toBe('ok');
     expect(mockPool.connect).toHaveBeenCalledTimes(1);
-    expect(mockClient.query).toHaveBeenCalledTimes(2);
+    expect(mockClient.query).toHaveBeenNthCalledWith(1, 'BEGIN');
+    expect(mockClient.query).toHaveBeenNthCalledWith(
+      2,
+      "SELECT set_config('lock_timeout', $1, true)",
+      ['5000ms']
+    );
+    expect(String(mockClient.query.mock.calls[2][0])).toContain('pg_advisory_xact_lock');
+    expect(mockClient.query).toHaveBeenLastCalledWith('COMMIT');
     expect(mockClient.release).toHaveBeenCalledWith();
 
     await closePostgresPool();
   });
 
-  it('releases the pool client with a truthy reason when unlocking fails', async () => {
-    const unlockError = new Error('unlock failed');
+  it('rolls back and releases the client when lock acquisition fails', async () => {
+    const lockError = new Error('lock timed out');
     mockClient.query.mockImplementation(async (sql: string) => {
-      if (sql.includes('pg_advisory_unlock')) {
-        throw unlockError;
+      if (sql.includes('pg_advisory_xact_lock')) {
+        throw lockError;
       }
 
       return undefined;
     });
 
     const { closePostgresPool, withPostgresAdvisoryLock } = await import('./postgres.js');
-    const result = await withPostgresAdvisoryLock('vehicle-checkout:test', async () => 'ok');
 
-    expect(result).toBe('ok');
+    await expect(
+      withPostgresAdvisoryLock('vehicle-checkout:test', async () => 'ok')
+    ).rejects.toThrow('lock timed out');
+
     expect(mockPool.connect).toHaveBeenCalledTimes(1);
-    expect(mockClient.query).toHaveBeenCalledTimes(2);
-    expect(mockClient.release).toHaveBeenCalledWith(unlockError);
+    expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(mockClient.release).toHaveBeenCalledWith();
 
     await closePostgresPool();
   });

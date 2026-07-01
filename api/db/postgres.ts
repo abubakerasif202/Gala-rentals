@@ -139,10 +139,13 @@ export const getPostgresConnectionMode = () => getDirectDatabaseConfig().mode;
 export const hasDirectDatabaseConnection = () =>
   getPostgresConnectionMode() === 'session';
 
+export const hasTransactionalPostgresConnection = () =>
+  getPostgresConnectionMode() !== 'none';
+
 export const getSessionModePostgresRequirementIssue = () => {
   const { mode, source } = getDirectDatabaseConfig();
 
-  if (mode === 'session') {
+  if (mode === 'session' || mode === 'transaction') {
     return null;
   }
 
@@ -156,8 +159,7 @@ export const getSessionModePostgresRequirementIssue = () => {
   const sourceName = source || 'the direct Postgres URL';
   return (
     `${sourceName} is configured for transaction-mode Postgres. ` +
-    'Checkout and webhook payment-state recording use advisory locks and direct transactions, ' +
-    'so production must use a direct connection or Supabase session pooler on port 5432, not transaction pooler port 6543.'
+    'Checkout and webhook payment-state recording require transactional Postgres access.'
   );
 };
 
@@ -285,6 +287,27 @@ export const withPostgresTransaction = async <T>(
   }
 };
 
+export const withPostgresTransactionAdvisoryLock = async <T>(
+  lockKey: string,
+  callback: (client: PoolClient) => Promise<T>,
+  options: { lockTimeoutMs?: number } = {}
+) => {
+  const lockTimeoutMs = options.lockTimeoutMs ?? 5000;
+  const [keyPartOne, keyPartTwo] = toAdvisoryLockKeyParts(lockKey);
+
+  return withPostgresTransaction(async (client) => {
+    await client.query("SELECT set_config('lock_timeout', $1, true)", [
+      `${lockTimeoutMs}ms`,
+    ]);
+    await client.query('SELECT pg_advisory_xact_lock($1, $2)', [
+      keyPartOne,
+      keyPartTwo,
+    ]);
+
+    return callback(client);
+  });
+};
+
 export const toAdvisoryLockKeyParts = (lockKey: string): [number, number] => {
   const digest = crypto
     .createHash('sha256')
@@ -297,44 +320,7 @@ export const withPostgresAdvisoryLock = async <T>(
   lockKey: string,
   callback: () => Promise<T>
 ) => {
-  const pool = getPostgresPool();
-  const { mode: connectionMode } = getDirectDatabaseConfig();
-
-  if (connectionMode === 'transaction') {
-    throw new Error(
-      'PostgreSQL advisory locks are not supported when using a transaction-mode pooler (port 6543). ' +
-        'Please use a direct connection or session-mode pooler (port 5432) for this operation.'
-    );
-  }
-
-  const client = await pool.connect();
-  const [keyPartOne, keyPartTwo] = toAdvisoryLockKeyParts(lockKey);
-  let releaseReason: unknown;
-
-  try {
-    await client.query('SELECT pg_advisory_lock($1, $2)', [
-      keyPartOne,
-      keyPartTwo,
-    ]);
-
-    return await callback();
-  } finally {
-    try {
-      await client.query('SELECT pg_advisory_unlock($1, $2)', [
-        keyPartOne,
-        keyPartTwo,
-      ]);
-    } catch (unlockError) {
-      releaseReason = unlockError ?? true;
-      console.error('Failed to release PostgreSQL advisory lock:', unlockError);
-    }
-
-    if (releaseReason) {
-      client.release(releaseReason);
-    } else {
-      client.release();
-    }
-  }
+  return withPostgresTransactionAdvisoryLock(lockKey, () => callback());
 };
 
 export const closePostgresPool = async () => {

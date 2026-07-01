@@ -5,7 +5,7 @@ const { mockHasDirectDatabaseConnection } = vi.hoisted(() => ({
 }));
 
 vi.mock('./db/postgres.js', () => ({
-  hasDirectDatabaseConnection: mockHasDirectDatabaseConnection,
+  hasTransactionalPostgresConnection: mockHasDirectDatabaseConnection,
 }));
 
 import {

@@ -1481,6 +1481,7 @@ vi.mock("../db/postgres.js", () => {
     closePostgresPool: mockClosePostgresPool,
     getDirectDatabaseConnectionString: vi.fn(() => ""),
     hasDirectDatabaseConnection: mockHasDirectDatabaseConnection,
+    hasTransactionalPostgresConnection: mockHasDirectDatabaseConnection,
     withPostgresAdvisoryLock: mockWithPostgresAdvisoryLock,
     withPostgresTransaction: vi.fn(
       async (

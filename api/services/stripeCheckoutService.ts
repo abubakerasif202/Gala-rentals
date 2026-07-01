@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 
 import { db } from '../db/index.js';
 import {
-  hasDirectDatabaseConnection,
+  hasTransactionalPostgresConnection,
   withPostgresAdvisoryLock,
 } from '../db/postgres.js';
 import { ensureStripeCatalog } from '../stripeCatalog.js';
@@ -718,7 +718,7 @@ const withOptionalCheckoutSessionLock = async <T>(
   applicationId: string,
   callback: () => Promise<T>
 ) => {
-  if (!hasDirectDatabaseConnection()) {
+  if (!hasTransactionalPostgresConnection()) {
     return callback();
   }
 

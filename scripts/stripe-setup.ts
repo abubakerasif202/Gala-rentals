@@ -266,7 +266,7 @@ const verifyLocalRuntimeDependencies = async () => {
     addCheck(
       'payment_activation_mode',
       'warn',
-      'Automatic payment-state recording is in manual-review mode because no session-capable Postgres connection is configured.',
+      'Automatic payment-state recording is in manual-review mode because transactional Postgres access is not configured.',
       paymentActivationDetails
     );
   } else {

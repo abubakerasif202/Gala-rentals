@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockGetSchemaCompat = vi.hoisted(() => vi.fn());
-const mockHasDirectDatabaseConnection = vi.hoisted(() => vi.fn());
+const mockHasTransactionalPostgresConnection = vi.hoisted(() => vi.fn());
 const mockWithPostgresAdvisoryLock = vi.hoisted(() => vi.fn());
 
 vi.mock('./schemaCompat.js', async () => {
@@ -16,7 +16,7 @@ vi.mock('./schemaCompat.js', async () => {
 });
 
 vi.mock('./db/postgres.js', () => ({
-  hasDirectDatabaseConnection: mockHasDirectDatabaseConnection,
+  hasTransactionalPostgresConnection: mockHasTransactionalPostgresConnection,
   withPostgresAdvisoryLock: mockWithPostgresAdvisoryLock,
   withPostgresTransaction: vi.fn(),
 }));
@@ -29,7 +29,7 @@ import {
 describe('buildLockedApplicationSelectSql', () => {
   beforeEach(() => {
     mockGetSchemaCompat.mockReset();
-    mockHasDirectDatabaseConnection.mockReset();
+    mockHasTransactionalPostgresConnection.mockReset();
     mockWithPostgresAdvisoryLock.mockReset();
   });
 
@@ -58,12 +58,12 @@ describe('buildLockedApplicationSelectSql', () => {
 
 describe('withVehicleCheckoutProcessingLock', () => {
   beforeEach(() => {
-    mockHasDirectDatabaseConnection.mockReset();
+    mockHasTransactionalPostgresConnection.mockReset();
     mockWithPostgresAdvisoryLock.mockReset();
   });
 
   it('serializes checkout processing with a Postgres advisory lock when direct DB access is available', async () => {
-    mockHasDirectDatabaseConnection.mockReturnValue(true);
+    mockHasTransactionalPostgresConnection.mockReturnValue(true);
     mockWithPostgresAdvisoryLock.mockImplementation(async (_lockKey: string, callback: () => Promise<string>) =>
       callback()
     );
@@ -79,7 +79,7 @@ describe('withVehicleCheckoutProcessingLock', () => {
   });
 
   it('falls back to a direct callback when there is no direct DB connection', async () => {
-    mockHasDirectDatabaseConnection.mockReturnValue(false);
+    mockHasTransactionalPostgresConnection.mockReturnValue(false);
 
     await expect(
       withVehicleCheckoutProcessingLock('11111111-1111-4111-8111-111111111111', async () => 'ok')

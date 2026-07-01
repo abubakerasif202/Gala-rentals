@@ -35,6 +35,7 @@ describe('stripeWebhookService queue-ready boundaries', () => {
       eventType: 'checkout.session.completed',
       paymentLinkVersion: 4,
       paymentStatus: 'paid',
+      payloadHash: null,
       processingSource: 'webhook-route',
       stripeCustomerId: 'cus_test_123',
       stripeSubscriptionId: 'sub_test_123',

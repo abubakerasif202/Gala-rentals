@@ -37,6 +37,7 @@ export type StripeWebhookWorkItem = {
   eventType: string;
   paymentLinkVersion: number | null;
   paymentStatus: string | null;
+  payloadHash: string | null;
   processingSource: 'webhook-route' | 'queue-worker';
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
@@ -50,6 +51,7 @@ type ModernWebhookLedgerRow = {
   checkout_session_id?: string | null;
   error_message?: string | null;
   fulfillment_state?: string | null;
+  payload_hash?: string | null;
   received_at?: string | null;
   retry_count?: number | null;
   retry_reason?: string | null;
@@ -67,7 +69,8 @@ let preferredWebhookLedgerMode: WebhookLedgerMode | null = null;
 
 export const buildStripeWebhookWorkItem = (
   event: Stripe.Event,
-  processingSource: StripeWebhookWorkItem['processingSource'] = 'webhook-route'
+  processingSource: StripeWebhookWorkItem['processingSource'] = 'webhook-route',
+  payloadHash: string | null = null
 ): StripeWebhookWorkItem => {
   const payload = event.data.object as
     | (Stripe.Checkout.Session & { metadata?: Record<string, string | undefined> })
@@ -132,6 +135,7 @@ export const buildStripeWebhookWorkItem = (
       typeof (payload as { payment_status?: string }).payment_status === 'string'
         ? String((payload as { payment_status?: string }).payment_status)
         : null,
+    payloadHash,
     processingSource,
     stripeCustomerId,
     stripeSubscriptionId,
@@ -200,7 +204,7 @@ const readModernLedgerRow = async (eventId: string) => {
   const { data, error } = await db
     .from('stripe_webhook_events')
     .select(
-      'id, application_id, car_id, checkout_kind, checkout_session_id, error_message, fulfillment_state, received_at, retry_count, retry_reason, status, updated_at'
+      'id, application_id, car_id, checkout_kind, checkout_session_id, error_message, fulfillment_state, payload_hash, received_at, retry_count, retry_reason, status, updated_at'
     )
     .eq('stripe_event_id', eventId)
     .maybeSingle();
@@ -235,6 +239,7 @@ const claimModernLedgerForProcessing = async (
         car_id: workItem.carId,
         checkout_kind: workItem.checkoutKind,
         checkout_session_id: workItem.checkoutSessionId,
+        payload_hash: workItem.payloadHash,
         status: 'processing',
         error_message: null,
         processed_at: null,
@@ -270,6 +275,7 @@ const reclaimStaleModernInFlightLedger = async (
       checkout_kind: workItem.checkoutKind,
       checkout_session_id: workItem.checkoutSessionId,
       error_message: null,
+      payload_hash: workItem.payloadHash,
       status: 'processing',
       processing_source: workItem.processingSource,
       retry_reason: null,
@@ -467,6 +473,7 @@ const claimModernWebhookEvent = async (
       event_type: workItem.eventType,
       fulfillment_state: 'processing',
       payment_link_version: workItem.paymentLinkVersion,
+      payload_hash: workItem.payloadHash,
       processing_source: workItem.processingSource,
       retry_count: 0,
       retry_reason: null,
@@ -485,6 +492,15 @@ const claimModernWebhookEvent = async (
   const errorCode = String((error as { code?: string }).code || '');
   if (errorCode === STRIPE_WEBHOOK_DUPLICATE_ERROR_CODE) {
     const existing = await readModernLedgerRow(workItem.eventId);
+    if (
+      workItem.payloadHash &&
+      existing?.payload_hash &&
+      existing.payload_hash !== workItem.payloadHash
+    ) {
+      throw new Error(
+        `Stripe webhook event ${workItem.eventId} payload hash does not match the existing ledger row.`
+      );
+    }
     const existingStatus = existing?.status || null;
     if (existingStatus === 'processed') {
       return {
@@ -838,5 +854,11 @@ export const processStripeWebhookWorkItem = async (
   }
 };
 
-export const processStripeWebhookEvent = async (event: Stripe.Event) =>
-  processStripeWebhookWorkItem(buildStripeWebhookWorkItem(event), event);
+export const processStripeWebhookEvent = async (
+  event: Stripe.Event,
+  payloadHash: string | null = null
+) =>
+  processStripeWebhookWorkItem(
+    buildStripeWebhookWorkItem(event, 'webhook-route', payloadHash),
+    event
+  );

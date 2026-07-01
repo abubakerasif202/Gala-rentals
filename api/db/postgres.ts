@@ -41,6 +41,7 @@ const REQUIRED_DIRECT_SCHEMA_COLUMNS: Record<string, string[]> = {
     'stripe_event_id',
     'event_type',
     'status',
+    'payload_hash',
     'received_at',
     'updated_at',
     'processed_at',

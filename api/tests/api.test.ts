@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createServer } from "node:http";
 import { createConnection } from "node:net";
+import { createHash } from "node:crypto";
 import { inflateSync } from "node:zlib";
 import { readdir, rm } from "node:fs/promises";
 import os from "node:os";
@@ -26,6 +27,9 @@ const getPastDateOnly = (days: number) =>
   addDaysToDateOnly(getTodayInAustralia(), -days);
 
 const APPLICATION_UPLOAD_TEMP_PREFIX = "galarentals-application-upload-";
+
+const sha256Hex = (value: string) =>
+  createHash("sha256").update(value, "utf8").digest("hex");
 
 const decodeLiteralPdfString = (value: string) =>
   value
@@ -7056,7 +7060,15 @@ describe("Stripe API", () => {
       .send("{}");
 
     expect(first.status).toBe(200);
+    expect(Buffer.isBuffer(mockStripe.webhooksConstructEvent.mock.calls[0][0])).toBe(
+      true,
+    );
     expect(mockState.stripe_webhook_events).toHaveLength(2);
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === "evt_duplicate_delivery",
+      )?.payload_hash,
+    ).toBe(sha256Hex("{}"));
     expect(
       mockState.stripe_webhook_events.some(
         (event) =>
@@ -7079,6 +7091,58 @@ describe("Stripe API", () => {
       stripe_customer_id: "cus_dup",
       stripe_subscription_id: "sub_dup",
     });
+  });
+
+  it("POST /api/stripe/webhook rejects a same-event-id replay with a different raw payload hash", async () => {
+    const duplicateEvent = {
+      id: "evt_payload_mismatch",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_payload_mismatch",
+          payment_status: "paid",
+          metadata: {
+            application_id: APPROVED_APPLICATION_ID,
+            approved_bond: "500.00",
+            approved_weekly_price: "250.00",
+            checkout_kind: "vehicle",
+            payment_link_version: "1",
+          },
+          customer: "cus_payload_mismatch",
+          subscription: "sub_payload_mismatch",
+        },
+      },
+    };
+
+    mockStripe.webhooksConstructEvent.mockReturnValue(duplicateEvent);
+
+    const first = await request(app)
+      .post("/api/stripe/webhook")
+      .set("stripe-signature", "test-signature")
+      .set("Content-Type", "application/json")
+      .send('{"delivery":1}');
+
+    expect(first.status).toBe(200);
+    expect(
+      mockState.stripe_webhook_events.find(
+        (event) => event.stripe_event_id === "evt_payload_mismatch",
+      )?.payload_hash,
+    ).toBe(sha256Hex('{"delivery":1}'));
+
+    const stateAfterFirstDelivery = structuredClone(mockState.applications[1]);
+    const ledgerCountAfterFirstDelivery = mockState.stripe_webhook_events.length;
+
+    const second = await request(app)
+      .post("/api/stripe/webhook")
+      .set("stripe-signature", "test-signature")
+      .set("Content-Type", "application/json")
+      .send('{"delivery":2}');
+
+    expect(second.status).toBe(500);
+    expect(mockState.stripe_webhook_events).toHaveLength(
+      ledgerCountAfterFirstDelivery,
+    );
+    expect(mockState.applications[1]).toEqual(stateAfterFirstDelivery);
   });
 
   it("POST /api/stripe/webhook skips replayed fulfillment when the side effects were already committed before ledger finalization failed", async () => {

@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 import express from 'express';
 import type Stripe from 'stripe';
 
@@ -6,6 +8,18 @@ import { processStripeWebhookEvent } from '../services/stripeWebhookService.js';
 
 const router = express.Router();
 const getStripe = () => getStripeClient();
+
+const hashStripeWebhookPayload = (payload: unknown) => {
+  if (Buffer.isBuffer(payload)) {
+    return crypto.createHash('sha256').update(payload).digest('hex');
+  }
+
+  if (typeof payload === 'string') {
+    return crypto.createHash('sha256').update(payload, 'utf8').digest('hex');
+  }
+
+  return null;
+};
 
 const getSafeStripeEventLogContext = (event: Stripe.Event) => {
   const payload = event.data.object as
@@ -53,7 +67,10 @@ router.post('/', async (request, response) => {
   }
 
   try {
-    const result = await processStripeWebhookEvent(event);
+    const result = await processStripeWebhookEvent(
+      event,
+      hashStripeWebhookPayload(request.body)
+    );
     response.status(result.status).send(result.body);
     return;
   } catch (err) {

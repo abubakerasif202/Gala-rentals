@@ -87,8 +87,12 @@ export const STRIPE_WEBHOOK_LEDGER_CONTRACTS = [
     label: 'modern',
     required: [
       { label: 'stripe_event_id', acceptable: ['stripe_event_id'] },
+      { label: 'event_type', acceptable: ['event_type'] },
       { label: 'status', acceptable: ['status'] },
+      { label: 'payload_hash', acceptable: ['payload_hash'] },
       { label: 'received_at', acceptable: ['received_at'] },
+      { label: 'processed_at', acceptable: ['processed_at'] },
+      { label: 'error_message', acceptable: ['error_message'] },
       { label: 'updated_at', acceptable: ['updated_at'] },
     ],
   },

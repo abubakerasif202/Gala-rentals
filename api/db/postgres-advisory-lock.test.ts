@@ -108,6 +108,29 @@ describe('withPostgresAdvisoryLock', () => {
   });
 });
 
+describe('withPostgresTransaction', () => {
+  it('rolls back and releases the client when transactional work fails', async () => {
+    mockClient.query.mockResolvedValue(undefined);
+    const workError = new Error('payment write failed');
+
+    const { closePostgresPool, withPostgresTransaction } = await import('./postgres.js');
+
+    await expect(
+      withPostgresTransaction(async () => {
+        throw workError;
+      })
+    ).rejects.toThrow('payment write failed');
+
+    expect(mockPool.connect).toHaveBeenCalledTimes(1);
+    expect(mockClient.query).toHaveBeenNthCalledWith(1, 'BEGIN');
+    expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(mockClient.query).not.toHaveBeenCalledWith('COMMIT');
+    expect(mockClient.release).toHaveBeenCalledWith();
+
+    await closePostgresPool();
+  });
+});
+
 describe('Postgres advisory lock key derivation', () => {
   it('is stable for the same input and differs for different inputs', async () => {
     const { toAdvisoryLockKeyParts } = await import('./postgres.js');

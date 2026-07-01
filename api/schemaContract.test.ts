@@ -62,8 +62,12 @@ describe('schemaContract', () => {
             stripe_webhook_events: {
               properties: {
                 stripe_event_id: { type: 'string' },
+                event_type: { type: 'string' },
                 status: { type: 'string' },
+                payload_hash: { type: 'string' },
                 received_at: { type: 'string' },
+                processed_at: { type: 'string' },
+                error_message: { type: 'string' },
                 updated_at: { type: 'string' },
               },
             },
@@ -125,8 +129,12 @@ describe('schemaContract', () => {
             stripe_webhook_events: {
               properties: {
                 stripe_event_id: { type: 'string' },
+                event_type: { type: 'string' },
                 status: { type: 'string' },
+                payload_hash: { type: 'string' },
                 received_at: { type: 'string' },
+                processed_at: { type: 'string' },
+                error_message: { type: 'string' },
                 updated_at: { type: 'string' },
               },
             },

@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import type { WebSocketLikeConstructor } from '@supabase/realtime-js';
 import { pathToFileURL } from 'node:url';
 import WebSocket from 'ws';
+import {
+  buildApplicationRetentionDryRun,
+  type ApplicationRetentionPlanItem,
+  type ApplicationRetentionRecord,
+} from '../api/applicationRetentionPolicy.js';
 
 const APPLICATIONS_BUCKET = 'applications';
 export const CLEANUP_CONFIRMATION = 'DELETE ORPHANED APPLICATION DOCUMENTS';
@@ -79,6 +84,23 @@ const isMissingColumnError = (error: { code?: string; message?: string } | null)
         /column .* does not exist|could not find.*column/i.test(String(error.message || '')))
   );
 
+const APPLICATION_RETENTION_SELECT_COLUMNS = [
+  'id',
+  'status',
+  'approved_at',
+  'created_at',
+  'updated_at',
+  'cancelled_at',
+  'intended_start_date',
+  'paid_at',
+  'documents_purged_at',
+  'license_photo',
+  'license_back_photo',
+  'passport_or_uber_profile_screenshot',
+  'proof_of_address_document',
+  'additional_document',
+].join(', ');
+
 export const loadReferencedDocumentPaths = async (supabase: any) => {
   const referencedPaths = new Set<string>();
   let availableColumnCount = 0;
@@ -109,6 +131,29 @@ export const loadReferencedDocumentPaths = async (supabase: any) => {
   }
 
   return referencedPaths;
+};
+
+export const loadRetentionCandidateApplications = async (supabase: any) => {
+  const rows: ApplicationRetentionRecord[] = [];
+  const pageSize = 1000;
+
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from('applications')
+      .select(APPLICATION_RETENTION_SELECT_COLUMNS)
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      throw new Error(
+        `Failed to read application retention candidates: ${error.message || 'Unknown error'}`
+      );
+    }
+
+    rows.push(...((data || []) as ApplicationRetentionRecord[]));
+    if ((data || []).length < pageSize) break;
+  }
+
+  return rows;
 };
 
 export const listAllStorageFiles = async (bucket: any, prefix = ''): Promise<ApplicationStorageFile[]> => {
@@ -143,6 +188,43 @@ export const assertDestructiveCleanupConfirmed = (apply: boolean, confirmation?:
   }
 };
 
+const purgeApplicationDocuments = async ({
+  bucket,
+  planItem,
+  supabase,
+}: {
+  bucket: any;
+  planItem: ApplicationRetentionPlanItem;
+  supabase: any;
+}) => {
+  const storagePaths = planItem.documentPaths
+    .map(extractApplicationStoragePath)
+    .filter((path): path is string => Boolean(path));
+
+  if (storagePaths.length > 0) {
+    const { error } = await bucket.remove(storagePaths);
+    if (error) {
+      throw new Error(`Failed to delete retained application document batch: ${error.message}`);
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('applications')
+    .update(planItem.updatePayload)
+    .eq('id', planItem.applicationId)
+    .is('documents_purged_at', null)
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to mark application documents purged: ${error.message || 'Unknown error'}`
+    );
+  }
+
+  return Boolean(data?.id);
+};
+
 export const runCleanup = async ({ apply = false, confirmation }: { apply?: boolean; confirmation?: string } = {}) => {
   assertDestructiveCleanupConfirmed(apply, confirmation);
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -160,15 +242,26 @@ export const runCleanup = async ({ apply = false, confirmation }: { apply?: bool
     listAllStorageFiles(bucket),
     loadReferencedDocumentPaths(supabase),
   ]);
+  const retentionCandidates = await loadRetentionCandidateApplications(supabase);
+  const retentionPlan = buildApplicationRetentionDryRun(retentionCandidates, new Date(), {
+    dryRun: !apply,
+  });
   const unreferencedFiles = files.filter((file) => !referencedPaths.has(file.path));
   const orphanedFiles = unreferencedFiles
     .filter((file) => isOlderThanMinimumOrphanAge(file))
     .map((file) => file.path);
   const skippedRecentOrUnknownCount = unreferencedFiles.length - orphanedFiles.length;
 
-  console.log(`${apply ? 'APPLY' : 'DRY RUN'}: ${files.length} stored, ${referencedPaths.size} referenced, ${orphanedFiles.length} orphaned older than ${MIN_ORPHAN_AGE_HOURS}h, ${Math.max(skippedRecentOrUnknownCount, 0)} skipped as recent or timestamp-unknown.`);
-  if (!apply || orphanedFiles.length === 0) {
-    return { apply, orphanedFiles, deletedCount: 0, skippedRecentOrUnknownCount };
+  console.log(`${apply ? 'APPLY' : 'DRY RUN'}: ${files.length} stored, ${referencedPaths.size} referenced, ${orphanedFiles.length} orphaned older than ${MIN_ORPHAN_AGE_HOURS}h, ${retentionPlan.length} lifecycle purge candidates, ${Math.max(skippedRecentOrUnknownCount, 0)} skipped as recent or timestamp-unknown.`);
+  if (!apply) {
+    return {
+      apply,
+      orphanedFiles,
+      retentionPlan,
+      deletedCount: 0,
+      lifecyclePurgedCount: 0,
+      skippedRecentOrUnknownCount,
+    };
   }
 
   let deletedCount = 0;
@@ -178,7 +271,21 @@ export const runCleanup = async ({ apply = false, confirmation }: { apply?: bool
     if (error) throw new Error(`Failed to delete orphan batch: ${error.message}`);
     deletedCount += data?.length || 0;
   }
-  return { apply, orphanedFiles, deletedCount, skippedRecentOrUnknownCount };
+
+  let lifecyclePurgedCount = 0;
+  for (const planItem of retentionPlan) {
+    const purged = await purgeApplicationDocuments({ bucket, planItem, supabase });
+    if (purged) lifecyclePurgedCount += 1;
+  }
+
+  return {
+    apply,
+    orphanedFiles,
+    retentionPlan,
+    deletedCount,
+    lifecyclePurgedCount,
+    skippedRecentOrUnknownCount,
+  };
 };
 
 const isMain = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;

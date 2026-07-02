@@ -131,7 +131,7 @@ const getCheckoutSessionStripeErrorResponse = (error: {
   }
 
   return {
-    error: error.message,
+    error: 'Payment processing failed. Please try again or contact support.',
     status: getStripeSdkErrorStatus(error),
   };
 };
@@ -387,9 +387,10 @@ router.get('/checkout-sessions/:sessionId', async (req, res) => {
     }
 
     if (isStripeSdkError(error)) {
+      console.error('Checkout session status fetch failed:', error);
       return res
         .status(getStripeSdkErrorStatus(error))
-        .json({ error: error.message });
+        .json({ error: 'Payment status is temporarily unavailable. Please try again shortly.' });
     }
 
     console.error('Checkout session fetch error:', error);

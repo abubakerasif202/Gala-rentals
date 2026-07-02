@@ -16,6 +16,11 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('applicationSchema', () => {
+  const futureDateOnly = (daysFromNow: number) =>
+    new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
   const validApplication = {
     name: 'Alex Driver',
     date_of_birth: '1995-03-20',
@@ -23,7 +28,7 @@ describe('applicationSchema', () => {
     email: 'alex@example.com',
     licence_state: 'NSW',
     license_number: 'NSW123456',
-    license_expiry: '2027-03-20',
+    license_expiry: futureDateOnly(365),
     uber_status: 'Active' as const,
     experience: '1-3 years',
     address: '1 George St, Sydney NSW 2000',
@@ -35,7 +40,7 @@ describe('applicationSchema', () => {
     rental_notes: 'Needs Monday pickup',
     agreement_accepted: 'true',
     agreement_signature: 'Alex Driver',
-    intended_start_date: '2026-07-01',
+    intended_start_date: futureDateOnly(14),
   };
 
   it('accepts the Gala application payload', () => {

@@ -175,6 +175,70 @@ const signAdminSessionValueWithSecret = (value: string, secret: string) =>
 const signAdminSessionValue = (value: string) =>
   signAdminSessionValueWithSecret(value, requireAdminSessionSecret());
 
+const getAdminSessionEncryptionKey = (secret: string) =>
+  crypto.createHash('sha256').update(`gala-admin-session:${secret}`).digest();
+
+const encryptAdminSessionPayload = (payload: SupabaseAdminSessionPayload) => {
+  const secret = requireAdminSessionSecret();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv(
+    'aes-256-gcm',
+    getAdminSessionEncryptionKey(secret),
+    iv
+  );
+  const ciphertext = Buffer.concat([
+    cipher.update(JSON.stringify(payload), 'utf8'),
+    cipher.final(),
+  ]);
+  const authTag = cipher.getAuthTag();
+
+  return [
+    'v2',
+    iv.toString('base64url'),
+    ciphertext.toString('base64url'),
+    authTag.toString('base64url'),
+  ].join('.');
+};
+
+const decryptAdminSessionPayload = (token: string) => {
+  const secret = readAdminSessionSecret();
+  if (!secret) {
+    return null;
+  }
+
+  const [version, encodedIv, encodedCiphertext, encodedAuthTag] = token.split('.');
+  if (
+    version !== 'v2' ||
+    !encodedIv ||
+    !encodedCiphertext ||
+    !encodedAuthTag
+  ) {
+    return null;
+  }
+
+  try {
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      getAdminSessionEncryptionKey(secret),
+      Buffer.from(encodedIv, 'base64url')
+    );
+    decipher.setAuthTag(Buffer.from(encodedAuthTag, 'base64url'));
+    const plaintext = Buffer.concat([
+      decipher.update(Buffer.from(encodedCiphertext, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8');
+    const payload = JSON.parse(plaintext) as Partial<SupabaseAdminSessionPayload>;
+
+    if (typeof payload.exp !== 'number' || payload.exp <= Date.now()) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
 const verifySignedSessionToken = (token: string) => {
   const adminSessionSecret = readAdminSessionSecret();
   if (!adminSessionSecret) {
@@ -229,7 +293,7 @@ const verifyLocalAdminSessionToken = (token: string) => {
 };
 
 const verifySupabaseAdminSessionToken = (token: string) => {
-  const payload = verifySignedSessionToken(token);
+  const payload = decryptAdminSessionPayload(token);
   if (!payload || payload.mode !== 'supabase-admin') {
     return null;
   }
@@ -289,8 +353,6 @@ export const createSupabaseAdminSessionToken = ({
   email: string;
   refreshToken: string;
 }) => {
-  requireAdminSessionSecret();
-
   const payload: SupabaseAdminSessionPayload = {
     accessToken,
     accessTokenExpiresAt,
@@ -300,11 +362,7 @@ export const createSupabaseAdminSessionToken = ({
     refreshToken,
   };
 
-  const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString(
-    'base64url'
-  );
-
-  return `${encodedPayload}.${signAdminSessionValue(encodedPayload)}`;
+  return encryptAdminSessionPayload(payload);
 };
 
 export const createLocalAdminSessionToken = (email: string) => {

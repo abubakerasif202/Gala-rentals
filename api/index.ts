@@ -37,7 +37,6 @@ import applicationRoutes from './routes/applications.js';
 import authRoutes from './routes/auth.js';
 import carRoutes from './routes/cars.js';
 import customerRoutes from './routes/customers.js';
-import documentPdfJobRoutes from './routes/documentPdfJobs.js';
 import financialRoutes from './routes/financials.js';
 import indexNowAdminRoutes from './routes/indexNowAdmin.js';
 import inquiryRoutes from './routes/inquiries.js';
@@ -595,7 +594,6 @@ const registerCoreRoutes = (app: express.Express) => {
   app.use('/api/rentals', rentalRoutes);
   app.use('/api/admin/rentals', rentalRoutes);
   app.use('/api/admin/agreements', adminAgreementRoutes);
-  app.use('/api/admin/document-pdf-jobs', documentPdfJobRoutes);
   app.use('/api/agreements', agreementRoutes);
   app.use('/api/toll-notices', tollNoticeRoutes);
   app.use('/api/financials', financialRoutes);

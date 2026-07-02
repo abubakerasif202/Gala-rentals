@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
@@ -49,7 +49,8 @@ describe('legacy company reference guard', () => {
         /^(\.agents\/skills\/maple-rental|\.claude\/skills\/maple-rental|\.github\/agents)\//.test(file) ||
         ['AGENTS.md', 'README.md', '.codex/AGENTS.md', '.env.example', 'env.local.example', 'render.env.example', 'render.yaml', 'DEPLOY_RENDER.md', 'GALA_DEPLOYMENT.md'].includes(file)
       )
-      .filter((file) => !file.startsWith('dist/') && !file.startsWith('server-dist/'));
+      .filter((file) => !file.startsWith('dist/') && !file.startsWith('server-dist/'))
+      .filter((file) => existsSync(file));
 
     const violations: string[] = [];
     for (const file of files) {

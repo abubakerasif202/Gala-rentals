@@ -72,7 +72,7 @@ const requiredImageSchema = z
 
 const requiredDocumentSchema = z
   .custom<File>((value) => value instanceof File, { message: 'File is required' })
-  .refine((file) => APPLICATION_DOCUMENT_CONTENT_TYPES.includes(file.type as (typeof APPLICATION_DOCUMENT_CONTENT_TYPES)[number]), 'Please upload a JPG, PNG, or PDF')
+  .refine((file) => APPLICATION_DOCUMENT_CONTENT_TYPES.includes(file.type as (typeof APPLICATION_DOCUMENT_CONTENT_TYPES)[number]), 'Please upload a JPG or PNG')
   .refine((file) => file.size <= MAX_APPLICATION_UPLOAD_BYTES, `Please upload a file smaller than ${MAX_UPLOAD_SIZE_MB} MB`);
 
 type FormState = z.input<typeof applicationSchema> & {
@@ -265,7 +265,7 @@ export default function Apply() {
         [field]:
           kind === 'image'
             ? `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`
-            : `Please upload a JPG, PNG, or PDF smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
+            : `Please upload a JPG or PNG smaller than ${MAX_UPLOAD_SIZE_MB} MB.`,
       }));
       return;
     }
@@ -764,7 +764,7 @@ export default function Apply() {
                       <FileText className="h-5 w-5 text-brand-gold" />
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">Proof of address</p>
-                        <p className="text-sm text-brand-grey">{form.proof_of_address_document ? form.proof_of_address_document.name : 'JPG, PNG, or PDF'}</p>
+                        <p className="text-sm text-brand-grey">{form.proof_of_address_document ? form.proof_of_address_document.name : 'JPG or PNG'}</p>
                       </div>
                     </div>
                     <input {...fieldA11y('proof_of_address_document')} type="file" accept={APPLICATION_DOCUMENT_CONTENT_TYPES.join(',')} onChange={(event) => handleFileChange(event, 'proof_of_address_document', 'document')} className="focus-ring-dark mt-4 w-full rounded text-sm text-brand-grey file:mr-4 file:rounded-full file:border-0 file:bg-brand-gold file:px-4 file:py-2 file:text-[10px] file:font-bold file:uppercase file:tracking-[0.2em] file:text-brand-navy" />

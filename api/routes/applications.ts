@@ -87,13 +87,10 @@ const APPLICATION_FILE_EXTENSION_BY_CONTENT_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
   "image/png": "png",
-  "application/pdf": "pdf",
 };
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
-const PDF_MAGIC = Buffer.from("%PDF-");
-
 const detectImageMagicType = (
   buffer: Buffer,
 ): "image/png" | "image/jpeg" | null => {
@@ -114,31 +111,13 @@ const detectImageMagicType = (
   return null;
 };
 
-const detectDocumentMagicType = (
-  buffer: Buffer,
-): "image/png" | "image/jpeg" | "application/pdf" | null => {
-  const imageType = detectImageMagicType(buffer);
-  if (imageType) {
-    return imageType;
-  }
-
-  if (
-    buffer.length >= PDF_MAGIC.length &&
-    buffer.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC)
-  ) {
-    return "application/pdf";
-  }
-
-  return null;
-};
-
 const normalizeDeclaredImageType = (value: string) => {
   const normalized = value.toLowerCase();
   return normalized === "image/jpg" ? "image/jpeg" : normalized;
 };
 const normalizeDeclaredDocumentType = (value: string) => {
   const normalized = normalizeDeclaredImageType(value);
-  return normalized === "application/x-pdf" ? "application/pdf" : normalized;
+  return normalized;
 };
 const getStripe = () => getStripeClient();
 const APPLICATION_UPLOAD_TEMP_PREFIX = "galarentals-application-upload-";
@@ -519,7 +498,7 @@ const getUploadedApplicationFile = (
     throw createRequestError(
       400,
       isDocumentField
-        ? `${fieldLabel} must be a JPG, PNG, or PDF file.`
+        ? `${fieldLabel} must be a JPG or PNG image.`
         : `${fieldLabel} must be a JPG or PNG image.`,
     );
   }
@@ -554,9 +533,7 @@ const validateUploadedApplicationFile = async (
   const isDocumentField = APPLICATION_DOCUMENT_FIELDS.has(
     file.fieldname as ApplicationUploadField,
   );
-  const detectedType = isDocumentField
-    ? detectDocumentMagicType(buffer)
-    : detectImageMagicType(buffer);
+  const detectedType = detectImageMagicType(buffer);
   const declaredType = isDocumentField
     ? normalizeDeclaredDocumentType(file.mimetype)
     : normalizeDeclaredImageType(file.mimetype);
@@ -564,7 +541,7 @@ const validateUploadedApplicationFile = async (
     throw createRequestError(
       400,
       isDocumentField
-        ? `${fieldLabel} file contents do not match a JPG, PNG, or PDF file.`
+        ? `${fieldLabel} file contents do not match a JPG or PNG image.`
         : `${fieldLabel} file contents do not match a JPG or PNG image.`,
     );
   }

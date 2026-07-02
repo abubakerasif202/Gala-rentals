@@ -46,7 +46,6 @@ const databaseJobSchema = z.object({
   max_attempts: z.number().int().positive(),
   payload: jobPayloadSchema,
   queue_name: queueNameSchema,
-  result: jobPayloadSchema.nullable().optional(),
   run_at: z.date(),
   status: z.enum(['pending', 'processing', 'completed', 'failed']),
   updated_at: z.date(),
@@ -187,28 +186,8 @@ export const claimNextJob = async (
   });
 };
 
-export const getJob = async (jobId: string) => {
+export const completeJob = async (jobId: string) => {
   const parsedJobId = jobIdSchema.parse(jobId);
-
-  return withPostgresTransaction(async (client) => {
-    const result = await client.query(
-      `
-        SELECT *
-        FROM public.background_jobs
-        WHERE id = $1
-        LIMIT 1
-      `,
-      [parsedJobId]
-    );
-
-    return result.rows[0] ? parseDatabaseJob(result.rows[0]) : null;
-  });
-};
-
-export const completeJob = async (jobId: string, resultPayload?: JobPayload) => {
-  const parsedJobId = jobIdSchema.parse(jobId);
-  const parsedResultPayload =
-    resultPayload === undefined ? null : jobPayloadSchema.parse(resultPayload);
 
   return withPostgresTransaction(async (client) => {
     const result = await client.query(
@@ -217,7 +196,6 @@ export const completeJob = async (jobId: string, resultPayload?: JobPayload) => 
         SET
           status = 'completed',
           error_message = NULL,
-          result = COALESCE($2::jsonb, result),
           locked_at = NULL,
           locked_until = NULL,
           completed_at = NOW(),
@@ -225,10 +203,7 @@ export const completeJob = async (jobId: string, resultPayload?: JobPayload) => 
         WHERE id = $1 AND status = 'processing'
         RETURNING *
       `,
-      [
-        parsedJobId,
-        parsedResultPayload === null ? null : JSON.stringify(parsedResultPayload),
-      ]
+      [parsedJobId]
     );
 
     if (!result.rows[0]) {

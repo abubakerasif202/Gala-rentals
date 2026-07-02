@@ -193,45 +193,38 @@ describe('createSupabaseAdminSessionToken', () => {
     refreshToken: 'rt_test_456',
   };
 
-  it('returns a signed token string with two base64url parts', () => {
+  it('returns an encrypted token string with a version and ciphertext parts', () => {
     const token = createSupabaseAdminSessionToken(sessionParams);
     const parts = token.split('.');
-    expect(parts).toHaveLength(2);
+    expect(parts).toHaveLength(4);
+    expect(parts[0]).toBe('v2');
   });
 
-  it('embeds the supplied email in the payload', () => {
+  it('does not expose the supplied email in a readable payload', () => {
     const token = createSupabaseAdminSessionToken(sessionParams);
-    const [encodedPayload] = token.split('.');
-    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
-    expect(payload.email).toBe(sessionParams.email);
+    expect(token).not.toContain(sessionParams.email);
   });
 
-  it('embeds the access and refresh tokens in the payload', () => {
+  it('does not expose the access and refresh tokens in a readable payload', () => {
     const token = createSupabaseAdminSessionToken(sessionParams);
-    const [encodedPayload] = token.split('.');
-    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
-    expect(payload.accessToken).toBe(sessionParams.accessToken);
-    expect(payload.refreshToken).toBe(sessionParams.refreshToken);
+    expect(token).not.toContain(sessionParams.accessToken);
+    expect(token).not.toContain(sessionParams.refreshToken);
   });
 
-  it('sets mode to supabase-admin in the payload', () => {
+  it('does not expose the session mode in a readable payload', () => {
     const token = createSupabaseAdminSessionToken(sessionParams);
-    const [encodedPayload] = token.split('.');
-    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
-    expect(payload.mode).toBe('supabase-admin');
+    expect(token).not.toContain('supabase-admin');
   });
 
-  it('stores the accessTokenExpiresAt value in the payload', () => {
+  it('produces different ciphertext for identical session data', () => {
     const token = createSupabaseAdminSessionToken(sessionParams);
-    const [encodedPayload] = token.split('.');
-    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
-    expect(payload.accessTokenExpiresAt).toBe(sessionParams.accessTokenExpiresAt);
+    const secondToken = createSupabaseAdminSessionToken(sessionParams);
+    expect(secondToken).not.toBe(token);
   });
 
-  it('stores null accessTokenExpiresAt when it is null', () => {
+  it('supports null accessTokenExpiresAt without exposing the refresh token', () => {
     const token = createSupabaseAdminSessionToken({ ...sessionParams, accessTokenExpiresAt: null });
-    const [encodedPayload] = token.split('.');
-    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
-    expect(payload.accessTokenExpiresAt).toBeNull();
+    expect(token.split('.')).toHaveLength(4);
+    expect(token).not.toContain(sessionParams.refreshToken);
   });
 });

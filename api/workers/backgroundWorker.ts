@@ -37,9 +37,25 @@ const getPollIntervalMs = () => {
     : DEFAULT_POLL_INTERVAL_MS;
 };
 
-const getQueueName = () =>
-  (process.env.BACKGROUND_JOB_QUEUE || DEFAULT_QUEUE_NAME).trim() ||
-  DEFAULT_QUEUE_NAME;
+const firstConfiguredQueueName = (...values: Array<string | undefined>) => {
+  for (const value of values) {
+    const normalized = value?.trim();
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return DEFAULT_QUEUE_NAME;
+};
+
+export const resolveBackgroundJobQueueName = () =>
+  firstConfiguredQueueName(
+    process.env.DOCUMENT_PDF_QUEUE_NAME,
+    process.env.BACKGROUND_JOB_QUEUE,
+    DEFAULT_QUEUE_NAME
+  );
+
+const getQueueName = resolveBackgroundJobQueueName;
 
 const logJob = (
   level: 'info' | 'warn' | 'error',

@@ -41,3 +41,4 @@ galarentals-generate-secrets.ps1
 !opendesign/**
 
 .env
+.sdd/runtime/

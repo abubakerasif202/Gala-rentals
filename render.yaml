@@ -41,8 +41,61 @@ services:
         sync: false
       - key: CONTACT_TO_EMAIL
         sync: false
+      - key: BACKGROUND_JOB_QUEUE
+        value: default
       - key: VITE_API_BASE_URL
         value: /api
+      - key: LEASE_OWNER_NAME
+        value: "Sarfraz Ahmad"
+      - key: LEASE_OWNER_ADDRESS
+        value: "24 Kinghorne St, Gledswood Hills NSW 2557"
+      - key: LEASE_OWNER_CONTACT
+        value: "+61415228557"
+      - key: LEASE_OWNER_EMAIL
+        value: "admin@galarentals.com.au"
+  - type: worker
+    name: galarentals-worker
+    runtime: node
+    plan: starter
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: npm ci --include=dev && npm run validate && npm run build
+    startCommand: npm run start:worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_VEHICLE_IMAGES_BUCKET
+        value: vehicle-images
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: CHECKOUT_LINK_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: CONTACT_FROM_EMAIL
+        sync: false
+      - key: CONTACT_TO_EMAIL
+        sync: false
+      - key: BACKGROUND_JOB_QUEUE
+        value: default
+      - key: BACKGROUND_JOB_POLL_INTERVAL_MS
+        value: "2000"
+      - key: BACKGROUND_JOB_LEASE_MS
+        value: "300000"
       - key: LEASE_OWNER_NAME
         value: "Sarfraz Ahmad"
       - key: LEASE_OWNER_ADDRESS

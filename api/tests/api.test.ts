@@ -2526,6 +2526,7 @@ describe("Agreements API", () => {
     const pdf = await PDFDocument.load(res.body);
     const fieldNames = pdf.getForm().getFields().map((field) => field.getName());
 
+    expect(pdf.getPageCount()).toBe(4);
     expect(fieldNames).toEqual(
       expect.arrayContaining([
         "Agreement date",
@@ -2533,7 +2534,33 @@ describe("Agreements API", () => {
         "Rentee name",
         "Vehicle model",
         "Weekly rent",
+        "Declaration 1 accepted",
+        "Rentee signature",
+        "Admin completion notes",
       ])
+    );
+  });
+
+  it("POST /api/admin/agreements/:id/pdf renders the selected admin template content", async () => {
+    mockState.agreement_templates[0].content =
+      "# Custom Gala Lease\n\nCustom PDF clause for {{renteeName}} appears in generated agreement.";
+
+    const res = await request(app)
+      .post("/api/admin/agreements/1/pdf")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        agreementDate: "2026-03-08",
+        renteeName: "Approved Driver",
+        renteeEmail: "driver@example.com",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+    expect(res.headers["x-agreement-template-version"]).toBe("2");
+
+    const text = extractVisiblePdfText(res.body);
+    expect(text).toContain(
+      "Custom PDF clause for Approved Driver appears in generated agreement.",
     );
   });
 

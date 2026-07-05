@@ -215,7 +215,9 @@ router.post('/:id/pdf', authenticateAdmin, async (req, res) => {
     }
 
     const payload = leaseAgreementSchema.parse(req.body ?? {});
-    const pdfBytes = await buildCarLeaseAgreementPdf(payload);
+    const pdfBytes = await buildCarLeaseAgreementPdf(payload, {
+      templateContent: template.id === 0 ? null : template.content,
+    });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="gala-rentals-fillable-lease-agreement.pdf"');

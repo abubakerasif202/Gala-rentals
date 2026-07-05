@@ -2,7 +2,7 @@
 
 ## Goal
 
-Deploy Galarentals as a single Render web service where Express serves the API under `/api/*`, serves the built Vite frontend from `dist/`, and exposes `/api/health` for Render health checks.
+Deploy Galarentals as a Render web service plus a Render background worker. The web service runs Express for `/api/*`, serves the built Vite frontend from `dist/`, and exposes `/api/health` for Render health checks. The worker runs `npm run start:worker` so queued rows in `background_jobs` are processed in production.
 
 ## Render Blueprint
 
@@ -11,7 +11,7 @@ This repository includes `render.yaml`.
 Blueprint repo:
 `https://github.com/abubakerasif202/galarentals.git`
 
-Expected service configuration:
+Expected web service configuration:
 
 - Service name: `galarentals`
 - Runtime: `Node`
@@ -20,6 +20,16 @@ Expected service configuration:
 - Start command: `npm start`
 - Health check path: `/api/health`
 - Production URL: `https://www.galarentals.com.au`
+
+Expected worker service configuration:
+
+- Service name: `galarentals-worker`
+- Runtime: `Node`
+- Branch: `main`
+- Build command: `npm ci --include=dev && npm run validate && npm run build`
+- Start command: `npm run start:worker`
+- Queue: `BACKGROUND_JOB_QUEUE=default`
+- No health check path; verify worker startup from Render logs.
 
 ## Required Environment Variables
 
@@ -47,6 +57,15 @@ Set these in the Galarentals Render service. Do not reuse credentials from any o
 - `LEASE_OWNER_CONTACT=+61415228557`
 - `LEASE_OWNER_EMAIL=admin@galarentals.com.au`
 
+Background worker variables:
+
+- `BACKGROUND_JOB_QUEUE=default`
+- `BACKGROUND_JOB_POLL_INTERVAL_MS=2000`
+- `BACKGROUND_JOB_LEASE_MS=300000`
+- `DOCUMENT_PDF_QUEUE_NAME` only when document PDF jobs intentionally use a non-default queue. If set, the worker consumes that queue before `BACKGROUND_JOB_QUEUE`.
+
+The worker service needs the same backend database and service credentials as the web service. Render does not automatically share synced secret values between services, so fill the worker values separately.
+
 ## Stripe Webhook
 
 Configure Stripe to send production events to:
@@ -58,7 +77,7 @@ Keep webhook signing verification enabled and store the signing secret in `STRIP
 ## First Deploy Checklist
 
 1. Connect the Galarentals GitHub repository in Render.
-2. Create or apply the Blueprint for the `galarentals` service.
+2. Create or apply the Blueprint for the `galarentals` web service and `galarentals-worker` worker service.
 3. Fill every required environment variable with Gala-specific values.
 4. Connect the Gala database and set `DATABASE_URL`.
 5. Configure a separate Gala Supabase project and storage buckets.
@@ -66,7 +85,8 @@ Keep webhook signing verification enabled and store the signing secret in `STRIP
 7. Run the production build through Render.
 8. Verify `https://www.galarentals.com.au/api/live`.
 9. Verify `https://www.galarentals.com.au/api/health`.
-10. Verify the public homepage and `/apply` load from the deployed asset hash.
+10. Verify the worker logs show `Background worker started for queue default`.
+11. Verify the public homepage and `/apply` load from the deployed asset hash.
 
 ## Local Production Verification
 
@@ -85,9 +105,17 @@ Then check:
 - `http://localhost:3000/`
 - `http://localhost:3000/apply`
 
+To run the worker locally after building:
+
+```powershell
+$env:BACKGROUND_JOB_QUEUE='default'
+npm run start:worker
+```
+
 ## Notes
 
 - Do not set `PORT` manually on Render.
 - Do not expose service-role, Stripe, database, Resend, or JWT secrets to the frontend.
 - `DATABASE_URL` should be a session-capable Postgres connection for transactional payment activation.
+- The worker also requires a session-capable Postgres connection because it claims jobs through direct database transactions.
 - If `paymentActivationMode` is `restricted`, the app is running but the direct database connection is missing or unsuitable.

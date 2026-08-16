@@ -76,7 +76,7 @@ export default function Contact() {
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-gold">{item.title}</p>
                     {item.href ? (
-                      <a href={item.href} className="focus-ring-light rounded text-sm text-brand-navy transition-colors hover:text-brand-gold-dark">
+                      <a href={item.href} className="focus-ring-light inline-flex min-h-[24px] items-center rounded text-sm text-brand-navy transition-colors hover:text-brand-gold-dark">
                         {item.body}
                       </a>
                     ) : (

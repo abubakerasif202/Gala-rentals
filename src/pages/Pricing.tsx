@@ -71,7 +71,7 @@ export default function Pricing() {
           >
             <img
               src={featuredRentalImages[4]}
-              alt="Secure rental approval process"
+              alt="Front view of a premium navy rental sedan available on a weekly Galarentals plan"
               className="aspect-[16/10] w-full rounded-[1.5rem] object-cover"
             />
             <div className="grid gap-2 p-3 sm:grid-cols-3">

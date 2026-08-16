@@ -294,7 +294,15 @@ export default function Checkout() {
               >
                 <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
                   <div className="aspect-video relative">
-                    <img src={vehicle_image} alt="Secure rental approval process" className="w-full h-full object-cover" />
+                    <img
+                      src={vehicle_image}
+                      alt={
+                        approved_vehicle
+                          ? `Approved rental vehicle: ${approved_vehicle}`
+                          : 'Approved rental vehicle'
+                      }
+                      className="w-full h-full object-cover"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-brand-navy to-transparent opacity-60" />
                     <div className="absolute bottom-6 left-6">
                       <h3 className="text-xl font-bold text-white tracking-tight">{approved_vehicle}</h3>

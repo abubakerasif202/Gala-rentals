@@ -413,7 +413,7 @@ export default function Apply() {
               Already applied or currently renting?{' '}
               <Link
                 to="/my-rental"
-                className="focus-ring-dark rounded font-semibold text-brand-gold underline decoration-brand-gold/40 underline-offset-4 hover:text-brand-gold-light"
+                className="focus-ring-dark inline-flex min-h-[24px] items-center rounded font-semibold text-brand-gold underline decoration-brand-gold/40 underline-offset-4 hover:text-brand-gold-light"
               >
                 View My Rental
               </Link>

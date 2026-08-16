@@ -38,7 +38,7 @@ export default function Navbar() {
                 <a
                   key={link.name}
                   href={link.path}
-                  className="focus-ring-light rounded text-[11px] font-bold tracking-[0.2em] uppercase text-slate-600 transition-colors hover:text-brand-navy"
+                  className="focus-ring-light inline-flex min-h-[24px] items-center rounded text-[11px] font-bold tracking-[0.2em] uppercase text-slate-600 transition-colors hover:text-brand-navy"
                 >
                   {link.name}
                 </a>
@@ -46,7 +46,7 @@ export default function Navbar() {
                 <Link
                   key={link.name}
                   to={link.path}
-                  className="focus-ring-light rounded text-[11px] font-bold tracking-[0.2em] uppercase text-slate-600 transition-colors hover:text-brand-navy"
+                  className="focus-ring-light inline-flex min-h-[24px] items-center rounded text-[11px] font-bold tracking-[0.2em] uppercase text-slate-600 transition-colors hover:text-brand-navy"
                 >
                   {link.name}
                 </Link>

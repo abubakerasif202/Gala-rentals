@@ -3,6 +3,11 @@ import { Mail20Regular, Location20Regular, Phone20Regular } from '@fluentui/reac
 import { companyDetails, formatCompanyAddress } from '../../shared/companyDetails';
 import { publicContactEmail, publicContactMailto } from '../../shared/contactConfig';
 
+// inline-flex + min-h keeps the hit area at the WCAG 2.5.8 minimum of 24px
+// without changing the visible type scale or list spacing.
+const footerLinkClass =
+  'focus-ring-dark inline-flex min-h-[24px] items-center rounded text-sm font-light transition-colors hover:text-brand-gold';
+
 const quickLinks = [
   { label: 'Apply Now', path: '/apply' },
   { label: 'Pricing', path: '/pricing' },
@@ -41,7 +46,7 @@ export default function Footer() {
             <ul className="space-y-5">
               {quickLinks.map((link) => (
                 <li key={link.path}>
-                  <Link to={link.path} className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">
+                  <Link to={link.path} className={footerLinkClass}>
                     {link.label}
                   </Link>
                 </li>
@@ -53,17 +58,17 @@ export default function Footer() {
             <h3 className="mb-8 text-xs font-bold uppercase tracking-widest text-white">Company</h3>
             <ul className="space-y-5">
               <li>
-                <Link to="/pricing" className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">
+                <Link to="/pricing" className={footerLinkClass}>
                   Weekly rental plans
                 </Link>
               </li>
               <li>
-                <Link to="/faq" className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">
+                <Link to="/faq" className={footerLinkClass}>
                   How approval works
                 </Link>
               </li>
               <li>
-                <Link to="/contact" className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">
+                <Link to="/contact" className={footerLinkClass}>
                   Sydney support
                 </Link>
               </li>
@@ -76,12 +81,12 @@ export default function Footer() {
               {companyDetails.phone && (
                 <li className="flex items-center gap-4">
                   <Phone20Regular className="text-brand-gold" aria-hidden="true" />
-                  <a href={`tel:${companyDetails.phone}`} className="focus-ring-dark rounded text-sm font-light tracking-wider transition-colors hover:text-brand-gold">{companyDetails.phone}</a>
+                  <a href={`tel:${companyDetails.phone}`} className={`${footerLinkClass} tracking-wider`}>{companyDetails.phone}</a>
                 </li>
               )}
               <li className="flex items-center gap-4">
                 <Mail20Regular className="text-brand-gold" aria-hidden="true" />
-                <a href={publicContactMailto} className="focus-ring-dark rounded text-sm font-light transition-colors hover:text-brand-gold">{publicContactEmail}</a>
+                <a href={publicContactMailto} className={footerLinkClass}>{publicContactEmail}</a>
               </li>
               <li className="flex items-start gap-4">
                 <Location20Regular className="mt-0.5 text-brand-gold" aria-hidden="true" />

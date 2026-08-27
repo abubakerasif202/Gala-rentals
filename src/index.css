@@ -88,6 +88,49 @@
   .public-cta {
     box-shadow: 0 20px 40px rgba(0, 5, 17, 0.3);
   }
+
+  .developer-credit-boundary {
+    @apply border-t border-brand-gold/20 py-5;
+  }
+
+  .developer-credit {
+    @apply flex items-center justify-between gap-6;
+  }
+
+  .developer-credit__label {
+    @apply text-[10px] font-medium uppercase tracking-[0.24em] text-slate-500;
+  }
+
+  .developer-credit__link {
+    @apply inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-sm text-brand-gold transition-opacity duration-300 hover:opacity-100;
+    opacity: 0.78;
+  }
+
+  .developer-credit__logo {
+    @apply block h-auto w-[128px] object-contain;
+  }
+
+  .developer-credit__arrow {
+    @apply text-base leading-none transition-transform duration-300;
+  }
+
+  .developer-credit__link:hover .developer-credit__arrow {
+    transform: translate(1px, -1px);
+  }
+}
+
+@media (max-width: 639px) {
+  .developer-credit {
+    @apply flex-col justify-center gap-2 text-center;
+  }
+
+  .developer-credit__link {
+    @apply gap-1;
+  }
+
+  .developer-credit__logo {
+    @apply w-[150px];
+  }
 }
 
 @media (min-width: 1024px) {

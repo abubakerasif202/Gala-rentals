@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Mail20Regular, Location20Regular, Phone20Regular } from '@fluentui/react-icons';
 import { companyDetails, formatCompanyAddress } from '../../shared/companyDetails';
 import { publicContactEmail, publicContactMailto } from '../../shared/contactConfig';
+import ABDeveloperCredit from './ABDeveloperCredit';
 
 // inline-flex + min-h keeps the hit area at the WCAG 2.5.8 minimum of 24px
 // without changing the visible type scale or list spacing.
@@ -100,6 +101,9 @@ export default function Footer() {
               </li>
             </ul>
           </div>
+        </div>
+        <div className="developer-credit-boundary">
+          <ABDeveloperCredit />
         </div>
       </div>
     </footer>

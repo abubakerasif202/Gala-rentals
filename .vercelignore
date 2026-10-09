@@ -1,0 +1,20 @@
+.env*
+env.local.example
+server-dist
+dist
+node_modules
+.git
+.agents
+.claude
+.codex
+data
+output
+tmp
+coverage
+opendesign
+car images
+*.har
+*.log
+
+# Private credential files, including names with spaces.
+*.env

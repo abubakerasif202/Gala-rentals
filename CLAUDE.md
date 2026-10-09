@@ -17,5 +17,5 @@ After completing any non-trivial task, finish with a concise summary in this for
 - Hard resets (`git reset --hard`)
 - Deleting files or directories
 - Changing or rotating secrets / environment variables
-- Triggering a deployment (Render, Fly, Vercel, etc.)
+- Triggering a deployment (Vercel, etc.)
 - Any `rm -rf` or irreversible database operation

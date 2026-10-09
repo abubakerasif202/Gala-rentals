@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": ".vercel/output",
+  "installCommand": "npm ci --include=dev",
+  "builds": [{ "src": "package.json", "use": "@vercel/static-build" }],
+  "regions": ["syd1"],
+  "git": { "deploymentEnabled": { "main": false } }
+}

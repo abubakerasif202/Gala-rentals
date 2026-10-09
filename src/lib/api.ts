@@ -265,7 +265,8 @@ export const fetchApplicationAgreementTemplate = async (): Promise<ApplicationAg
 };
 
 export const submitApplication = async (payload: FormData): Promise<ApplicationSubmissionResponse> => {
-  const { data } = await api.post('/applications', payload);
+  const prepared = await prepareDirectUploads(payload, '/applications/upload-intent');
+  const { data } = await api.post('/applications', prepared);
   return data;
 };
 
@@ -682,3 +683,20 @@ export const exportImportedDataReset = async (): Promise<Record<string, unknown>
 };
 
 export default api;
+
+// File bytes go directly to private Supabase Storage, outside function body limits.
+export const prepareDirectUploads = async (payload: FormData, endpoint: string) => {
+  const entries = Array.from(payload.entries()).filter((entry): entry is [string, File] => entry[1] instanceof File && entry[1].size > 0);
+  if (!entries.length) return payload;
+  const { data } = await api.post(endpoint, { files: entries.map(([field, file]) => ({ field, type: file.type, size: file.size })) });
+  for (const [field, file] of entries) {
+    const upload = data.uploads.find((item: { field: string; url: string }) => item.field === field);
+    if (!upload) throw new Error('Unable to prepare document upload.');
+    const result = await fetch(upload.url, { method: 'PUT', headers: { 'Content-Type': upload.type || file.type, 'x-upsert': 'false' }, body: file });
+    if (!result.ok) throw new Error('Document upload failed. Please try again.');
+  }
+  const prepared = new FormData();
+  for (const [field, value] of payload.entries()) if (!(value instanceof File)) prepared.append(field, value);
+  prepared.append('upload_manifest', data.manifest);
+  return prepared;
+};

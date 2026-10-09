@@ -1,3 +1,4 @@
+import { serverlessRateLimitStore } from '../middleware/distributedRateLimit.js';
 import express from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { ZodError } from 'zod';
@@ -22,6 +23,7 @@ const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
 const devAdminPassword = (process.env.ADMIN_PASSWORD || '').trim();
 
 const loginRateLimiter = rateLimit({
+  store: serverlessRateLimitStore('login'),
   windowMs: 15 * 60 * 1000,
   max: 10,
   standardHeaders: 'draft-7',

@@ -8,7 +8,7 @@ Use the root `AGENTS.md` as the authoritative engineering guide for this reposit
 - Backend: Express and TypeScript.
 - Data and private uploads: Supabase.
 - Payments: Stripe Checkout and Billing with verified webhooks.
-- Deployment: Render using `render.yaml`.
+- Deployment: Vercel using `vercel.json`.
 - Tests: Vitest.
 
 ## Critical payment-only contract

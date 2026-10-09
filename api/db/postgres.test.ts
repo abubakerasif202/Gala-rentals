@@ -28,7 +28,7 @@ afterEach(() => {
 describe('postgres connection mode detection', () => {
   it('prefers DATABASE_URL over SUPABASE_DB_URL when both are configured', () => {
     process.env.DATABASE_URL =
-      'postgresql://postgres:secret@render-postgres.internal:5432/render_app';
+      'postgresql://postgres:secret@database.internal:5432/application_db';
     process.env.SUPABASE_DB_URL =
       'postgresql://postgres.example:secret@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres';
 
@@ -94,7 +94,7 @@ describe('postgres connection mode detection', () => {
 
   it('does not report a session-mode production issue for a direct 5432 URL', () => {
     process.env.DATABASE_URL =
-      'postgresql://postgres:secret@render-postgres.internal:5432/render_app';
+      'postgresql://postgres:secret@database.internal:5432/application_db';
     delete process.env.SUPABASE_DB_URL;
 
     expect(getSessionModePostgresRequirementIssue()).toBeNull();

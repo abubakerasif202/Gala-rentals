@@ -1,11 +1,11 @@
 ---
 name: gala-rental
-description: Gala Rentals repo rules for payment links, admin workflow, Stripe, Supabase, and Render.
+description: Gala Rentals repo rules for payment links, admin workflow, Stripe, Supabase, and Vercel.
 ---
 
 # Gala Rental
 
-Use this skill when working in the Gala Rentals repository, especially when touching admin workflows, payment links, Stripe Checkout, Stripe webhooks, Supabase, Render deployment, or production validation.
+Use this skill when working in the Gala Rentals repository, especially when touching admin workflows, payment links, Stripe Checkout, Stripe webhooks, Supabase, Vercel deployment, or production validation.
 
 ## Critical Payment Rule
 

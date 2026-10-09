@@ -47,6 +47,11 @@ export const sendResendEmail = async (
   resend: import('resend').Resend,
   payload: Parameters<import('resend').Resend['emails']['send']>[0]
 ) => {
+  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
+    const sink = process.env.GALA_PREVIEW_EMAIL_TO?.trim();
+    if (!sink) throw new Error('GALA_PREVIEW_EMAIL_TO is required for preview email delivery.');
+    payload = { ...payload, to: sink, cc: undefined, bcc: undefined };
+  }
   const result = await resend.emails.send(payload);
 
   if (result.error) {

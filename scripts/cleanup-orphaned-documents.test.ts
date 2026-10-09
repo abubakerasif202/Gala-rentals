@@ -14,9 +14,20 @@ import {
   isOlderThanMinimumOrphanAge,
   loadReferencedDocumentPaths,
   runCleanup,
+  buildStagingOrphanPlan,
 } from './cleanup-orphaned-documents';
 
 describe('orphaned application document cleanup', () => {
+  it('limits separate staging cleanup to expired random staging paths', () => {
+    const now = new Date('2026-10-09T00:00:00Z');
+    const path = 'staging/00000000-0000-4000-8000-000000000000/license_photo';
+    expect(buildStagingOrphanPlan([
+      { path, updatedAt: '2026-10-07T00:00:00Z' },
+      { path: 'private/customer-agreement.pdf', updatedAt: '2026-10-07T00:00:00Z' },
+      { path: 'staging/00000000-0000-4000-8000-000000000001/image', updatedAt: '2026-10-08T23:00:00Z' },
+      { path: 'staging/00000000-0000-4000-8000-000000000002/image', updatedAt: null },
+    ], now)).toEqual([path]);
+  });
   it('recognizes current and legacy document columns', () => {
     expect(APPLICATION_DOCUMENT_COLUMNS).toEqual(expect.arrayContaining([
       'license_photo', 'license_back_photo', 'passport_or_uber_profile_screenshot',

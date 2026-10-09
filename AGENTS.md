@@ -56,7 +56,7 @@ Use this stack unless the repository already has a different production stack:
 - Database, auth, and storage: Supabase.
 - Payments: Stripe Checkout + Stripe Billing subscriptions.
 - PDF and documents: `pdf-lib` or `pdfkit`.
-- Hosting: Render for full-stack deployment.
+- Hosting: Vercel CDN and Node.js Functions.
 - Testing: Vitest.
 - Validation: Zod.
 - Data fetching: TanStack Query.
@@ -378,12 +378,12 @@ Testing expectations:
 
 ## 9. Deployment Rules
 
-Assume Render unless configured otherwise.
+Use the verified Vercel project and Build Output API configuration.
 
 Default production configuration:
 
-- Build command: `npm run validate && npm run build`
-- Start command: `npm start`
+- Build command: `npm run vercel-build` (run `npm run validate` before release).
+- Function entry point: `serverless/handler.ts`; use `npm run dev` locally.
 - Health endpoint: `/api/health`
 - Live endpoint: `/api/live`
 
@@ -399,7 +399,7 @@ Deployment safety rules:
 
 - Do not trigger deployment without explicit user approval.
 - Do not rotate secrets, force-push, hard reset, delete production data, or run irreversible database changes without explicit confirmation.
-- Check Render build logs when production behavior differs from local validation.
+- Check Vercel build logs when production behavior differs from local validation.
 - Verify the deployed commit or asset hash matches the intended build.
 - After deploy, check both liveness and dependency-aware health.
 

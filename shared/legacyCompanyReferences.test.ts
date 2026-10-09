@@ -47,7 +47,7 @@ describe('legacy company reference guard', () => {
       .filter((file) =>
         /^(api|src|shared|scripts|docs)\//.test(file) ||
         /^(\.agents\/skills\/maple-rental|\.claude\/skills\/maple-rental|\.github\/agents)\//.test(file) ||
-        ['AGENTS.md', 'README.md', '.codex/AGENTS.md', '.env.example', 'env.local.example', 'render.env.example', 'render.yaml', 'DEPLOY_RENDER.md', 'GALA_DEPLOYMENT.md'].includes(file)
+        ['AGENTS.md', 'README.md', '.codex/AGENTS.md', '.env.example', 'env.local.example', 'vercel.json', 'GALA_DEPLOYMENT.md'].includes(file)
       )
       .filter((file) => !file.startsWith('dist/') && !file.startsWith('server-dist/'))
       .filter((file) => existsSync(file));

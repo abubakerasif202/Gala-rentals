@@ -77,6 +77,7 @@ const getTrustedWriteOrigins = (req: express.Request) =>
     [
       ...(!isProduction ? [getRequestOrigin(req)] : []),
       toOrigin(process.env.APP_URL),
+      ...(process.env.VERCEL_ENV === 'preview' && process.env.VERCEL_URL ? [toOrigin(`https://${process.env.VERCEL_URL}`)] : []),
       toOrigin(process.env.FRONTEND_URL),
       toOrigin(process.env.CORS_ORIGIN),
       ...(!isProduction

@@ -1,3 +1,5 @@
+import { serverlessRateLimitStore } from '../middleware/distributedRateLimit.js';
+import { createDirectUploadIntent, readDirectUploads, removeDirectUploads } from '../services/directUploads.js';
 import express from "express";
 import rateLimit from "express-rate-limit";
 import multer, { MulterError } from "multer";
@@ -244,6 +246,7 @@ type ApplicationDocumentField =
   | "additional_document";
 
 const applicationSubmissionLimiter = rateLimit({
+  store: serverlessRateLimitStore('applications'),
   windowMs: 60 * 60 * 1000,
   max: 5,
   standardHeaders: "draft-7",
@@ -267,7 +270,30 @@ const applicationUploadMiddleware: express.RequestHandler = (
     { name: "additional_document", maxCount: 1 },
   ])(req, res, async (error) => {
     if (!error) {
-      next();
+      try {
+        if (req.body?.upload_manifest) {
+          if (Object.keys(req.files || {}).length) throw createRequestError(400, 'Do not mix direct and multipart uploads.');
+          const uploads = await readDirectUploads(req.body.upload_manifest, 'application');
+          const tempDir = await createApplicationUploadTempDir(req);
+          const files: UploadedApplicationFiles = {};
+          for (const upload of uploads) {
+            const filePath = path.join(tempDir, upload.field);
+            await fs.writeFile(filePath, upload.buffer);
+            files[upload.field as ApplicationUploadField] = [{
+              fieldname: upload.field, originalname: upload.field, encoding: '7bit',
+              mimetype: upload.type, size: upload.size, destination: tempDir,
+              filename: upload.field, path: filePath,
+            } as Express.Multer.File];
+          }
+          req.files = files;
+          await removeDirectUploads(req.body.upload_manifest, 'application');
+          delete req.body.upload_manifest;
+        }
+        next();
+      } catch (uploadError) {
+        await cleanupApplicationUploadTempDir(req);
+        next(uploadError);
+      }
       return;
     }
 
@@ -713,6 +739,18 @@ router.get("/:id/documents/:document", authenticateAdmin, async (req, res) => {
     console.error("Application document fetch error:", error);
     res.status(500).json({ error: "Failed to fetch application document" });
   }
+});
+
+const directUploadIntentLimiter = rateLimit({
+  store: serverlessRateLimitStore('application-upload-intent'),
+  windowMs: 60 * 60 * 1000, max: 5,
+  standardHeaders: 'draft-7', legacyHeaders: false,
+  skip: () => process.env.VITEST === 'true',
+});
+
+router.post('/upload-intent', directUploadIntentLimiter, async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.json(await createDirectUploadIntent(req.body, 'application'));
 });
 
 router.post(

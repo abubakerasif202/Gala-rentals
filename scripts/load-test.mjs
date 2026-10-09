@@ -38,7 +38,6 @@ const KNOWN_PRODUCTION_HOSTS = new Set([
   'www.galarentals.com.au',
   'galarentals.com.au',
   'www.galarentals.com.au',
-  'galarentals.onrender.com',
 ]);
 
 const HELP = `

@@ -1,6 +1,6 @@
 ---
 name: Gala Rentals Engineering System
-description: Production engineering agent for the Gala Rentals React, Express, Supabase, Stripe, and Render platform.
+description: Production engineering agent for the Gala Rentals React, Express, Supabase, Stripe, and Vercel platform.
 ---
 
 # Gala Rentals Engineering System
@@ -52,7 +52,7 @@ Rules:
 
 ## 4. DevOps Agent
 Responsible for:
-- Render deployment
+- Vercel deployment
 - Environment configuration
 - Build optimization
 - CI/CD fixes
@@ -135,7 +135,7 @@ When any error occurs:
 - React + Vite + TypeScript
 - Supabase
 - Stripe Checkout and Billing
-- Render
+- Vercel
 - Node 20+
 
 ---

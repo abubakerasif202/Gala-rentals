@@ -10,8 +10,6 @@ tmp/
 .env*
 !.env.example
 .env*.local
-render.env*
-!render.env.example
 
 gha-creds-*.json
 data/
@@ -42,3 +40,10 @@ galarentals-generate-secrets.ps1
 
 .env
 .sdd/runtime/
+
+.vercel
+
+.vercel/
+
+# Private credential files, including names with spaces.
+*.env

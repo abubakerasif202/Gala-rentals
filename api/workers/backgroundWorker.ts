@@ -75,7 +75,9 @@ export const processNextBackgroundJob = async (
   handlers: BackgroundJobHandlers = backgroundJobHandlers,
   queueName = getQueueName()
 ) => {
-  const job = await claimNextJob(queueName);
+  const registeredTypes = Object.keys(handlers);
+  if (!registeredTypes.length) return false;
+  const job = await claimNextJob(queueName, registeredTypes);
   if (!job) {
     return false;
   }
@@ -121,6 +123,9 @@ const waitForNextPoll = (milliseconds: number, signal: AbortSignal) =>
 export const runBackgroundWorker = async (
   handlers: BackgroundJobHandlers = backgroundJobHandlers
 ) => {
+  if (!Object.keys(handlers).length) {
+    throw new Error('No background handlers are registered. Keep the queue worker disabled; queued jobs must not be claimed or exhausted.');
+  }
   const sessionModeIssue = getSessionModePostgresRequirementIssue();
   if (sessionModeIssue) {
     throw new Error(sessionModeIssue);

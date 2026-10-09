@@ -127,8 +127,11 @@ export const enqueue = async (
 };
 
 export const claimNextJob = async (
-  queueName = DEFAULT_QUEUE_NAME
+  queueName = DEFAULT_QUEUE_NAME,
+  jobTypes?: readonly string[]
 ): Promise<BackgroundJob | null> => {
+  const allowedTypes = jobTypes === undefined ? null : z.array(jobTypeSchema).parse(jobTypes);
+  if (allowedTypes?.length === 0) return null;
   const parsedQueueName = queueNameSchema.parse(queueName);
 
   return withPostgresTransaction(async (client) => {
@@ -145,11 +148,12 @@ export const claimNextJob = async (
           locked_until = NULL,
           updated_at = NOW()
         WHERE queue_name = $1
+          AND ($2::text[] IS NULL OR job_type = ANY($2::text[]))
           AND status = 'processing'
           AND locked_until <= NOW()
           AND attempts >= max_attempts
       `,
-      [parsedQueueName]
+      [parsedQueueName, allowedTypes]
     );
 
     const result = await client.query(
@@ -158,6 +162,7 @@ export const claimNextJob = async (
           SELECT id
           FROM public.background_jobs
           WHERE queue_name = $1
+            AND ($3::text[] IS NULL OR job_type = ANY($3::text[]))
             AND attempts < max_attempts
             AND (
               (status = 'pending' AND run_at <= NOW())
@@ -179,7 +184,7 @@ export const claimNextJob = async (
         WHERE job.id = candidate.id
         RETURNING job.*
       `,
-      [parsedQueueName, getLeaseMs()]
+      [parsedQueueName, getLeaseMs(), allowedTypes]
     );
 
     return result.rows[0] ? parseDatabaseJob(result.rows[0]) : null;

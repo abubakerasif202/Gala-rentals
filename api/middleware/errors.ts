@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 
-const isApiRequest = (req: Request) => req.path.startsWith('/api/');
+const isApiRequest = (req: Request) => req.path === '/api' || req.path.startsWith('/api/');
 
 const getErrorStatus = (error: unknown) => {
   if (

@@ -1,4 +1,5 @@
 {
+  "exclude": ["node_modules", ".vercel", "dist", "server-dist", "tmp", "output"],
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,

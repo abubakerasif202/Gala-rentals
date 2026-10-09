@@ -15,7 +15,9 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 const failures = [];
 for (const filename of (await readdir(migrationsDirectory)).filter((name) => name.endsWith('.sql'))) {
-  const sql = await readFile(join(migrationsDirectory, filename), 'utf8');
+  // Pin SQL content independently of Windows checkout line endings. Do not
+  // rewrite the baseline or normalize any other whitespace/content changes.
+  const sql = (await readFile(join(migrationsDirectory, filename), 'utf8')).replace(/\r\n/g, '\n');
   if (!destructiveSql.test(sql)) continue;
 
   const expectedHash = baseline[filename];

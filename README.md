@@ -1,3 +1,5 @@
+> Vercel migration preparation: see [docs/VERCEL_MIGRATION.md](docs/VERCEL_MIGRATION.md). Production cutover remains approval-gated.
+
 # Galarentals
 
 Galarentals is a full-stack subscription rental application platform for Sydney customers. The same Express process serves the API and the built React/Vite frontend in production.
@@ -7,7 +9,7 @@ Galarentals is a full-stack subscription rental application platform for Sydney 
 - Brand: Galarentals
 - Domain: `https://www.galarentals.com.au`
 - Contact: `admin@galarentals.com.au`
-- Render service: `galarentals`
+- Vercel project: `galarentals`
 - Repository: `https://github.com/abubakerasif202/galarentals.git`
 - Stripe webhook: `https://www.galarentals.com.au/api/stripe/webhook`
 
@@ -18,7 +20,7 @@ Galarentals is a full-stack subscription rental application platform for Sydney 
 - Data: Direct PostgreSQL for transactional state, Supabase Auth, Supabase Storage
 - Payments: Stripe Checkout and Stripe webhooks
 - Email: Resend
-- Deployment: Render
+- Deployment: Vercel CDN and one Node.js Function
 
 ## Runtime Architecture
 
@@ -149,17 +151,13 @@ git diff --check
 
 `npm run validate` runs lint and tests together.
 
-## Render Deployment
+## Vercel Deployment
 
-Render is configured by `render.yaml`:
+The explicit builder in `vercel.json` runs `npm run vercel-build` and packages Vite assets plus one Node 22 Express function in Sydney. Internal API utility modules are not independent endpoints.
 
-- Service name: `galarentals`
-- Branch: `main`
-- Build command: `npm ci --include=dev && npm run validate && npm run build`
-- Start command: `npm start`
-- Health path: `/api/health`
+Run `npm run validate`, `npm run build`, and `npm run vercel:build` before deploying a protected preview. Production requires explicit approval after the readiness gates pass.
 
-Deployment instructions are in [DEPLOY_RENDER.md](DEPLOY_RENDER.md).
+See [GALA_DEPLOYMENT.md](GALA_DEPLOYMENT.md) and [docs/VERCEL_PRODUCTION_READINESS.md](docs/VERCEL_PRODUCTION_READINESS.md).
 
 ## Production Smoke
 

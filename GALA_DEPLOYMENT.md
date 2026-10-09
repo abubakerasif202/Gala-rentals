@@ -1,73 +1,28 @@
-# Galarentals Deployment Handoff
+# GalaRentals Vercel Deployment
 
-Galarentals must be deployed as its own rental company project with its own repository, Render service, Supabase project, Stripe account resources, webhook endpoint, and environment variables.
+Project: `abubakerasif202s-projects/galarentals`; repository: `abubakerasif202/Gala-rentals`; canonical domain: `https://www.galarentals.com.au`.
 
-## Production Identity
+The application uses Vite assets on the CDN and one Node 22 Express function in `syd1`. `vercel.json` explicitly selects the package builder; `npm run vercel-build` emits Build Output API v3. No persistent listener runs inside the function. Local development remains `npm run dev`.
 
-- Brand: Galarentals
-- Domain: `https://www.galarentals.com.au`
-- Email: `admin@galarentals.com.au`
-- Render web service: `galarentals`
-- Render worker service: `galarentals-worker`
-- Repository: `https://github.com/abubakerasif202/galarentals.git`
-- Stripe webhook: `https://www.galarentals.com.au/api/stripe/webhook`
-
-## Deployment Rules
-
-- Use only Gala-specific Supabase credentials.
-- Use only Gala-specific Stripe products, prices, keys, and webhook secrets.
-- Keep `render.yaml` on branch `main`.
-- Keep the build command as `npm ci --include=dev && npm run validate && npm run build`.
-- Keep the web start command as `npm start`.
-- Keep the worker start command as `npm run start:worker`.
-- Keep the health check path as `/api/health`.
-- Do not add real secrets to the repository.
-
-## Required Render Variables
-
-The blueprint defines the required keys. Fill the synced values in Render:
-
-- `APP_URL=https://www.galarentals.com.au`
-- `ADMIN_EMAIL`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `DATABASE_URL`
-- `SUPABASE_DB_URL`
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `CHECKOUT_LINK_SECRET`
-- `JWT_SECRET`
-- `RESEND_API_KEY`
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-- `BACKGROUND_JOB_QUEUE=default`
-
-Static values are already in `render.yaml`:
-
-- `NODE_ENV=production`
-- `VITE_API_BASE_URL=/api`
-- `VITE_SUPABASE_VEHICLE_IMAGES_BUCKET=vehicle-images`
-- `LEASE_OWNER_NAME=Sarfraz Ahmad`
-- `LEASE_OWNER_ADDRESS=24 Kinghorne St, Gledswood Hills NSW 2557`
-- `LEASE_OWNER_CONTACT=+61415228557`
-- `LEASE_OWNER_EMAIL=admin@galarentals.com.au`
-- `BACKGROUND_JOB_POLL_INTERVAL_MS=2000`
-- `BACKGROUND_JOB_LEASE_MS=300000`
-
-Set `DOCUMENT_PDF_QUEUE_NAME` only if document PDF jobs intentionally use a non-default queue. When present, the worker consumes `DOCUMENT_PDF_QUEUE_NAME` before `BACKGROUND_JOB_QUEUE`.
-
-## Smoke Tests
-
-After deployment, verify:
+## Preview release
 
 ```powershell
-curl.exe https://www.galarentals.com.au/api/live
-curl.exe https://www.galarentals.com.au/api/health
-curl.exe https://www.galarentals.com.au/
-curl.exe https://www.galarentals.com.au/apply
+npm run lint
+npm run test
+npm run validate
+npm run build
+npm run vercel:build
+vercel deploy --prebuilt --target preview --scope abubakerasif202s-projects
 ```
 
-Also check the `galarentals-worker` Render logs for `Background worker started for queue default`.
+Verify the project link before deploying. Keep preview protection enabled and writes disabled until isolated Supabase, Stripe test-mode and email configuration are verified. Use only GalaRentals credentials, store server secrets in the appropriate Vercel environment, and keep private environment files out of Git.
 
-Do not call the deployment complete until health, liveness, homepage, application page, and worker startup checks pass against the intended deployed commit.
+## Production gate
+
+The current [readiness report](docs/VERCEL_PRODUCTION_READINESS.md) records unresolved staging and integration requirements. Production DDL, deployment, DNS and live payment endpoint changes require explicit approval. Preserve existing customers, subscriptions and payment-only completion behavior.
+
+See [environment configuration](docs/VERCEL_ENVIRONMENT.md), [deployment procedures](docs/VERCEL_MIGRATION.md), and [Stripe setup](docs/STRIPE_SETUP.md). Workbook operations run on the authorized Windows workstation; Vercel functions do not run a persistent worker.
+
+## Monitoring and rollback
+
+Verify both `/api/live` and dependency-aware `/api/health`, public asset hashes, private document access and webhook delivery. After an approved Production release, rollback can use the last validated Vercel deployment. Never roll back customer data, recreate subscriptions or replay successful payments indiscriminately. Retain the shared webhook ledger and reconcile in-flight events.

@@ -1,3 +1,4 @@
+import { createDirectUploadIntent, readDirectUploads, removeDirectUploads } from '../services/directUploads.js';
 import express from 'express';
 import { randomUUID } from 'node:crypto';
 import multer from 'multer';
@@ -15,7 +16,7 @@ import {
   getRentalCarIdColumn,
   toCarWritePayload,
 } from '../schemaCompat.js';
-import { enqueueIndexNowUrl } from '../services/indexNow.js';
+import { enqueueIndexNowUrl, submitIndexNowUrl } from '../services/indexNow.js';
 import { calculateBondFromWeeklyRent } from '../../shared/rentalPricing.js';
 
 import { syncRealtimeFleet } from '../../scripts/sync-realtime-fleet.js';
@@ -36,7 +37,7 @@ const uploadVehicleImage = multer({
   },
 });
 const parseVehicleImageUpload: express.RequestHandler = (req, res, next) => {
-  uploadVehicleImage.single('image')(req, res, (error) => {
+  uploadVehicleImage.single('image')(req, res, async (error) => {
     if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
       return res.status(413).json({ error: 'Vehicle image file is too large.' });
     }
@@ -45,19 +46,31 @@ const parseVehicleImageUpload: express.RequestHandler = (req, res, next) => {
       return res.status(400).json({ error: 'Invalid vehicle image upload.' });
     }
 
-    next();
+    try {
+      if (req.body?.upload_manifest) {
+        if (req.file) throw Object.assign(new Error('Do not mix direct and multipart uploads.'), { status: 400 });
+        const [file] = await readDirectUploads(req.body.upload_manifest, 'vehicle');
+        req.file = { fieldname: 'image', originalname: 'image', mimetype: file.type,
+          size: file.size, buffer: file.buffer } as Express.Multer.File;
+        await removeDirectUploads(req.body.upload_manifest, 'vehicle');
+      }
+      next();
+    } catch (uploadError) { next(uploadError); }
   });
 };
 
 router.post('/admin/sync', authenticateAdmin, async (_req, res) => {
+  if (process.env.VERCEL === '1') {
+    return res.status(503).json({ error: 'Workbook synchronization requires the GalaRentals Windows operator workflow. Run the existing cron:fleet-sync command from the authorized workstation.' });
+  }
   try {
     const summary = await syncRealtimeFleet();
     res.json({ success: true, summary });
   } catch (error) {
     console.error('[fleet-sync] Manual sync error:', error);
-    res.status(500).json({ 
-      error: 'Fleet synchronization failed', 
-      details: error instanceof Error ? error.message : String(error) 
+    res.status(500).json({
+      error: 'Fleet synchronization failed',
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -244,7 +257,7 @@ const uploadManagedVehicleImage = async (file: Express.Multer.File) => {
 
 const toCarPublicUrl = (_id: string) => null;
 
-const notifyIndexNowForCarChange = (id: string, reason: 'created' | 'updated' | 'deleted') => {
+const notifyIndexNowForCarChange = async (id: string, reason: 'created' | 'updated' | 'deleted') => {
   // Hook into create/update/delete events so search engines discover fresh URLs quickly.
   // In a CMS flow, call similar logic from your publish/unpublish handlers.
   const publicUrl = toCarPublicUrl(id);
@@ -253,7 +266,11 @@ const notifyIndexNowForCarChange = (id: string, reason: 'created' | 'updated' | 
     return;
   }
 
-  enqueueIndexNowUrl(publicUrl);
+  if (process.env.VERCEL === '1') {
+    await submitIndexNowUrl(publicUrl);
+  } else {
+    enqueueIndexNowUrl(publicUrl);
+  }
 };
 
 const fetchCarById = async (id: string): Promise<CarRecord | null> => {
@@ -359,6 +376,11 @@ router.get('/admin/all', authenticateAdmin, async (_req, res) => {
   res.json((data || []).map((car) => toCarResponse(car as Record<string, any>)));
 });
 
+router.post('/image/upload-intent', authenticateAdmin, async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.json(await createDirectUploadIntent(req.body, 'vehicle'));
+});
+
 router.post('/image', authenticateAdmin, parseVehicleImageUpload, async (req, res) => {
   try {
     if (!req.file) {
@@ -411,7 +433,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const { data: inserted, error } = await db.from('cars').insert([payload]).select('id').single();
 
     if (error) throw error;
-    notifyIndexNowForCarChange(String(inserted.id), 'created');
+    await notifyIndexNowForCarChange(String(inserted.id), 'created');
     res.status(201).json({ id: String(inserted.id) });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -437,7 +459,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     if (existingCar.image && existingCar.image !== data.image) {
       await removeUploadedVehicleImage(existingCar.image);
     }
-    notifyIndexNowForCarChange(req.params.id, 'updated');
+    await notifyIndexNowForCarChange(req.params.id, 'updated');
     res.json({ success: true });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -474,7 +496,7 @@ router.patch('/:id/archive', authenticateAdmin, async (req, res) => {
       throw error;
     }
 
-    notifyIndexNowForCarChange(req.params.id, 'updated');
+    await notifyIndexNowForCarChange(req.params.id, 'updated');
     res.json({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -530,7 +552,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
     const { error } = await db.from('cars').delete().eq('id', req.params.id);
     if (error) throw error;
     await removeUploadedVehicleImage(existingCar.image);
-    notifyIndexNowForCarChange(req.params.id, 'deleted');
+    await notifyIndexNowForCarChange(req.params.id, 'deleted');
     res.json({ success: true });
   } catch (error) {
     console.error('Car deletion error:', error);

@@ -427,7 +427,7 @@ const verifyStripeAccountConfiguration = async (
         addCheck(
           'stripe_webhook_endpoint',
           'pass',
-          'Stripe webhook endpoint was created for the configured APP_URL. Copy its signing secret into STRIPE_WEBHOOK_SECRET in Render.',
+          'Stripe webhook endpoint was created for the configured APP_URL. Copy its signing secret into STRIPE_WEBHOOK_SECRET in Vercel.',
           {
             enabledEvents: createdEndpoint.enabled_events,
             expectedWebhookUrl,
@@ -472,7 +472,7 @@ const verifyStripeAccountConfiguration = async (
         addCheck(
           'stripe_webhook_endpoint',
           'pass',
-          'Stripe webhook endpoint events were updated. Confirm STRIPE_WEBHOOK_SECRET still matches this endpoint in Render.',
+          'Stripe webhook endpoint events were updated. Confirm STRIPE_WEBHOOK_SECRET still matches this endpoint in Vercel.',
           {
             expectedWebhookUrl,
             previouslyMissingEvents: missingEvents,

@@ -1,3 +1,4 @@
+import { serverlessRateLimitStore } from '../middleware/distributedRateLimit.js';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -14,6 +15,7 @@ const router = express.Router();
 const SUPPORT_FALLBACK_MESSAGE =
   'Availability inquiries are temporarily unavailable online. Please call or email Galarentals directly.';
 const inquirySubmissionLimiter = rateLimit({
+  store: serverlessRateLimitStore('inquiries'),
   windowMs: 60 * 60 * 1000,
   max: 5,
   standardHeaders: 'draft-7',

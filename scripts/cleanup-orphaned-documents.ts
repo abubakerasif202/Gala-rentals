@@ -77,6 +77,9 @@ export const isOlderThanMinimumOrphanAge = (
   return now.getTime() - updatedAt.getTime() >= MIN_ORPHAN_AGE_HOURS * 60 * 60 * 1000;
 };
 
+export const buildStagingOrphanPlan = (files: ApplicationStorageFile[], now = new Date()) =>
+  files.filter(file => /^staging\/[0-9a-f-]{36}\/[a-z_]+$/.test(file.path) && isOlderThanMinimumOrphanAge(file, now)).map(file => file.path);
+
 const isMissingColumnError = (error: { code?: string; message?: string } | null) =>
   Boolean(
     error &&
@@ -251,6 +254,15 @@ export const runCleanup = async ({ apply = false, confirmation }: { apply?: bool
     .filter((file) => isOlderThanMinimumOrphanAge(file))
     .map((file) => file.path);
   const skippedRecentOrUnknownCount = unreferencedFiles.length - orphanedFiles.length;
+  const stagingBucketName = process.env.SUPABASE_UPLOAD_STAGING_BUCKET?.trim();
+  let stagingBucket: typeof bucket | null = null;
+  let stagingOrphanedFiles: string[] = [];
+  if (stagingBucketName && stagingBucketName !== APPLICATIONS_BUCKET) {
+    const { data: metadata, error } = await supabase.storage.getBucket(stagingBucketName);
+    if (error || !metadata || metadata.public) throw new Error('Staging cleanup requires a verified private bucket.');
+    stagingBucket = supabase.storage.from(stagingBucketName);
+    stagingOrphanedFiles = buildStagingOrphanPlan(await listAllStorageFiles(stagingBucket));
+  }
 
   console.log(`${apply ? 'APPLY' : 'DRY RUN'}: ${files.length} stored, ${referencedPaths.size} referenced, ${orphanedFiles.length} orphaned older than ${MIN_ORPHAN_AGE_HOURS}h, ${retentionPlan.length} lifecycle purge candidates, ${Math.max(skippedRecentOrUnknownCount, 0)} skipped as recent or timestamp-unknown.`);
   if (!apply) {
@@ -261,6 +273,8 @@ export const runCleanup = async ({ apply = false, confirmation }: { apply?: bool
       deletedCount: 0,
       lifecyclePurgedCount: 0,
       skippedRecentOrUnknownCount,
+      stagingOrphanedFiles,
+      stagedDeletedCount: 0,
     };
   }
 
@@ -277,6 +291,14 @@ export const runCleanup = async ({ apply = false, confirmation }: { apply?: bool
     const purged = await purgeApplicationDocuments({ bucket, planItem, supabase });
     if (purged) lifecyclePurgedCount += 1;
   }
+  let stagedDeletedCount = 0;
+  if (stagingBucket) {
+    for (let index = 0; index < stagingOrphanedFiles.length; index += 100) {
+      const { data, error } = await stagingBucket.remove(stagingOrphanedFiles.slice(index, index + 100));
+      if (error) throw new Error('Failed to remove expired staging uploads.');
+      stagedDeletedCount += data?.length || 0;
+    }
+  }
 
   return {
     apply,
@@ -285,6 +307,8 @@ export const runCleanup = async ({ apply = false, confirmation }: { apply?: bool
     deletedCount,
     lifecyclePurgedCount,
     skippedRecentOrUnknownCount,
+    stagingOrphanedFiles,
+    stagedDeletedCount,
   };
 };
 

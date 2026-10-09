@@ -1,3 +1,6 @@
+import { getPreviewConfigurationIssues } from './previewConfiguration.js';
+import cronRoutes from './routes/cron.js';
+import { serverlessRateLimitStore } from './middleware/distributedRateLimit.js';
 import '../scripts/load-env.js';
 import 'express-async-errors';
 
@@ -53,7 +56,7 @@ import { verifyProductionSchemaContract } from './schemaContract.js';
 
 const isVitest = process.env.VITEST === 'true';
 const isProduction = process.env.NODE_ENV === 'production' && !isVitest;
-const shouldListen = process.env.VITEST !== 'true';
+const shouldListen = process.env.VITEST !== 'true' && process.env.VERCEL !== '1';
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
 const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '100kb';
@@ -162,7 +165,7 @@ const validateProductionEnv = () => {
     const details = [...missing, ...invalid].join(', ');
     throw new Error(
       `Invalid production environment configuration: ${details}. ` +
-        'Populate or correct the values in Render before deploy. See README and render.yaml.'
+        'Populate or correct the server environment before deploy. See README and docs/VERCEL_MIGRATION.md.'
     );
   }
 };
@@ -200,7 +203,7 @@ const logRuntimeConfigurationSummary = () => {
   if (source === 'SUPABASE_DB_URL') {
     if (mode === 'session') {
       console.warn(
-        'SUPABASE_DB_URL is providing the current direct PostgreSQL session connection. Prefer DATABASE_URL for Render Postgres deployments.'
+        'SUPABASE_DB_URL is providing the current direct PostgreSQL session connection. Prefer DATABASE_URL for production PostgreSQL access.'
       );
       return;
     }
@@ -217,6 +220,7 @@ const logRuntimeConfigurationSummary = () => {
 };
 
 const rateLimiter = rateLimit({
+  store: serverlessRateLimitStore('api'),
   windowMs: 15 * 60 * 1000,
   max: 1000,
   standardHeaders: 'draft-7',
@@ -421,6 +425,7 @@ const ensureProductionDatabaseReadiness = async () => {
 const buildCorsOrigins = () =>
   [
     toOrigin(process.env.APP_URL),
+    ...(process.env.VERCEL_ENV === 'preview' && process.env.VERCEL_URL ? [toOrigin(`https://${process.env.VERCEL_URL}`)] : []),
     toOrigin(process.env.FRONTEND_URL),
     toOrigin(process.env.CORS_ORIGIN),
     ...(!isProduction
@@ -439,7 +444,7 @@ const applySecurityMiddleware = (app: express.Express) => {
   app.disable('x-powered-by');
 
   if (isProduction) {
-    // Render terminates TLS before proxying traffic to the Node process.
+    // The hosting gateway terminates TLS before proxying traffic to the application.
     app.set('trust proxy', 1);
   }
 
@@ -538,7 +543,7 @@ const registerCoreRoutes = (app: express.Express) => {
 
     // In production, a degraded (restricted/not_configured) direct-DB state is
     // not acceptable: payment-state recording falls back to manual review silently.
-    // Return 503 so Render surfaces the misconfiguration instead of serving
+    // Return 503 so health monitoring surfaces the misconfiguration instead of serving
     // traffic that will fail at payment time.
     const hasProductionDegradation =
       isProduction &&
@@ -585,6 +590,7 @@ const registerCoreRoutes = (app: express.Express) => {
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
   app.use(express.urlencoded({ extended: false, limit: JSON_BODY_LIMIT }));
 
+  app.use('/api/cron', cronRoutes);
   app.use('/api/auth', authRoutes);
   app.use('/api/cars', carRoutes);
   app.use('/api/vehicles', carRoutes);
@@ -667,6 +673,48 @@ export const createApp = () => {
   applySecurityMiddleware(app);
   registerCoreRoutes(app);
   return app;
+};
+
+// Functions initialize once per instance; readiness failures remain retryable.
+export const createServerlessApp = () => {
+  const serverlessApp = express();
+  let readiness: Promise<void> | null = null;
+  serverlessApp.use(async (req, res, next) => {
+    res.setHeader('Cache-Control', 'private, no-store');
+    const preview = process.env.VERCEL_ENV !== 'production';
+    if (preview && process.env.GALA_PREVIEW_WRITES_ENABLED !== 'true' &&
+        !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      res.status(503).json({ error: 'Preview writes are disabled until staging isolation is verified.' });
+      return;
+    }
+    if (req.path === '/api/live' || req.path === '/api/health') return next();
+    if (preview && process.env.GALA_PREVIEW_WRITES_ENABLED !== 'true') {
+      res.status(503).json({ error: 'Isolated staging configuration is required.' });
+      return;
+    }
+    try {
+      if (!readiness) {
+        readiness = Promise.resolve().then(async () => {
+          validateProductionEnv();
+          if (preview) {
+            const issues = getPreviewConfigurationIssues();
+            if (issues.length) throw new Error(issues.join(' '));
+          }
+          await ensureProductionDatabaseReadiness();
+        }).catch((error) => { readiness = null; throw error; });
+      }
+      await readiness;
+      next();
+    } catch (error) {
+      console.error('Serverless readiness failed:', error instanceof Error ? error.message : 'Unknown readiness error');
+      res.status(503).json({ error: 'Application configuration or database readiness failed.' });
+    }
+  });
+  applySecurityMiddleware(serverlessApp);
+  registerCoreRoutes(serverlessApp);
+  serverlessApp.use(apiNotFoundHandler);
+  serverlessApp.use(errorHandler);
+  return serverlessApp;
 };
 
 const app = createApp();

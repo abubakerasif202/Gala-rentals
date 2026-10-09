@@ -20,7 +20,7 @@ Your job is to review, fix, clean, and prepare for handover.
 - Fix bugs and broken logic
 - Clean the codebase by removing junk or unused code
 - Improve structure and readability
-- Ensure deployment works on Render
+- Ensure deployment works on Vercel
 - Prepare the project for client handover
 
 ---

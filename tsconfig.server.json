@@ -14,6 +14,6 @@
     "isolatedModules": false,
     "noEmit": false
   },
-  "include": ["api/**/*.ts", "shared/**/*.ts", "src/lib/rentalPlans.ts", "types/**/*.d.ts"],
+  "include": ["api/**/*.ts", "serverless/**/*.ts", "shared/**/*.ts", "src/lib/rentalPlans.ts", "types/**/*.d.ts"],
   "exclude": ["api/tests/**/*", "shared/**/*.test.ts", "dist", "server-dist", "node_modules"]
 }

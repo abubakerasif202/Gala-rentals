@@ -64,7 +64,7 @@ describe('production trusted admin write origins', () => {
 
     requireTrustedAdminWriteOrigin(
       buildRequest({
-        host: 'galarentals.onrender.com',
+        host: 'untrusted-host.example.invalid',
         origin: 'https://www.galarentals.com.au',
       }),
       response,

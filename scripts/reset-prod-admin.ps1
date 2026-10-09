@@ -1,5 +1,5 @@
 param(
-    [string]$EnvFile = 'render.env.production',
+    [string]$EnvFile = '.env.production.local',
     [string]$AdminPassword = '',
     [switch]$SeedIfMissing
 )

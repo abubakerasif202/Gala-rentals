@@ -91,6 +91,20 @@ describe('job queue', () => {
     expect(mockClient.query.mock.calls[1]?.[0]).toContain('locked_until');
   });
 
+  it('does not claim anything when no handler types are registered', async () => {
+    expect(await claimNextJob('default', [])).toBeNull();
+    expect(mockWithPostgresTransaction).not.toHaveBeenCalled();
+  });
+
+  it('restricts both lease recovery and claiming to registered types', async () => {
+    mockClient.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [buildJob()] });
+    await claimNextJob('default', ['document.generate']);
+    expect(mockClient.query.mock.calls[0][1]).toEqual(['default', ['document.generate']]);
+    expect(mockClient.query.mock.calls[1][1][2]).toEqual(['document.generate']);
+    expect(mockClient.query.mock.calls[0][0]).toContain('job_type = ANY($2::text[])');
+    expect(mockClient.query.mock.calls[1][0]).toContain('job_type = ANY($3::text[])');
+  });
+
   it('requeues failures with exponential backoff while attempts remain', async () => {
     mockClient.query
       .mockResolvedValueOnce({ rows: [{ attempts: 2, max_attempts: 3 }] })

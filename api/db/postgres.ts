@@ -11,6 +11,7 @@ export type DirectDatabaseConfig = {
 };
 
 const REQUIRED_DIRECT_SCHEMA_COLUMNS: Record<string, string[]> = {
+  ...(process.env.VERCEL === '1' ? { api_rate_limits: ['key', 'hits', 'reset_at'] } : {}),
   applications: [
     'id',
     'status',
@@ -110,6 +111,21 @@ const getPostgresSslConfig = (connectionString: string) =>
   shouldUseRelaxedPostgresSsl(connectionString)
     ? { rejectUnauthorized: false as const }
     : undefined;
+
+export const getPostgresConnectionOptions = (connectionString: string) => {
+  const url = new URL(connectionString);
+  const managedSupabase = url.hostname.endsWith('.pooler.supabase.com') || url.hostname.endsWith('.supabase.co');
+  if (process.env.VERCEL === '1' && managedSupabase) {
+    const ca = process.env.POSTGRES_SSL_CA?.trim().replace(/\\n/g, '\n');
+    if (!ca) throw new Error('POSTGRES_SSL_CA is required for certificate-verified Supabase PostgreSQL on Vercel.');
+    // pg-connection-string SSL parameters replace the driver's explicit SSL
+    // object. Remove them so a URL cannot discard the CA or disable verification.
+    for (const key of ['ssl', 'sslmode', 'sslcert', 'sslkey', 'sslrootcert', 'uselibpqcompat']) url.searchParams.delete(key);
+    return { connectionString: url.toString(), ssl: { rejectUnauthorized: true as const, ca } };
+  }
+  const ssl = getPostgresSslConfig(connectionString);
+  return { connectionString, ...(ssl ? { ssl } : {}) };
+};
 
 const inferPostgresConnectionMode = (
   connectionString: string
@@ -214,13 +230,12 @@ const getPostgresPool = () => {
   if (!postgresPool) {
     // When using Supabase Transaction Pooler (port 6543), we optimize for high concurrency.
     // Note: Session-based features like pg_advisory_lock() are not reliable in transaction mode.
-    const ssl = getPostgresSslConfig(connectionString);
     postgresPool = new Pool({
-      connectionString,
-      max: connectionMode === 'transaction' ? 20 : 5,
+      ...getPostgresConnectionOptions(connectionString),
+      max: process.env.VERCEL === '1' ? 2 : connectionMode === 'transaction' ? 20 : 5,
+      allowExitOnIdle: process.env.VERCEL === '1',
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
-      ...(ssl ? { ssl } : {}),
     });
     postgresPoolConnectionString = connectionString;
   }
